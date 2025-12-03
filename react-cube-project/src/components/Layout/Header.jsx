@@ -4,21 +4,20 @@ import { HeaderContainer, Logo, Nav, NavLinks, NavLink } from './LayoutStyled';
 
 const Header = () => {
     const location = useLocation();
-
-    useEffect(() => {
-        console.log(location.pathname);
-    })
+    const isActive = (path) => {
+        return location.pathname === path ? 'active' : '';
+    }
 
     return (
         <HeaderContainer>
             <Nav>
                 <Logo to="/">CUBE</Logo>
                 <NavLinks>
-                    <NavLink to="/" style={{ marginRight: '15px' }}>홈</NavLink>
-                    <NavLink to="/board">게시판</NavLink>
-                    <NavLink to="/algorithms">공식</NavLink>
-                    <NavLink to="/timer">타이머</NavLink>
-                    <NavLink to="/login">로그인</NavLink>
+                    <NavLink to="/" className={isActive('/')}>홈</NavLink>
+                    <NavLink to="/board" className={isActive('/board')}>게시판</NavLink>
+                    <NavLink to="/algorithms" className={isActive('/algorithms')}>공식</NavLink>
+                    <NavLink to="/timer" className={isActive('/timer')}>타이머</NavLink>
+                    <NavLink to="/login" className={isActive('/login')}>로그인</NavLink>
                 </NavLinks>
             </Nav>
         </HeaderContainer>
