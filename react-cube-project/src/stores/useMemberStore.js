@@ -14,6 +14,11 @@ const useMemberStore = create((set, get) => ({
             const parsed = JSON.parse(savedData);
             set({ members: parsed.members || [] });
         }
+
+        const savedUser = localStorage.getItem(USER_KEY);
+        if (savedUser) {
+            set({ user: JSON.parse(savedUser) });
+        }
     },
 
     signup: (newMember) => {
@@ -26,6 +31,18 @@ const useMemberStore = create((set, get) => ({
         set({ members: updateMembers });
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ members: updateMembers }));
         return true;
+    },
+
+    login: (id, password) => {
+        const { members } = get();
+        const foundUser = members.find((m) => m.id === id && m.password === password);
+
+        if (foundUser) {
+            set({ user: foundUser });
+            localStorage.setItem(USER_KEY, JSON.stringify(foundUser));
+            return true;
+        }
+        return false;
     },
 }));
 

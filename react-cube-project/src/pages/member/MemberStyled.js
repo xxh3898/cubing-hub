@@ -79,3 +79,17 @@ export const Button = styled.button`
         background: #4622e0;
     }
 `
+
+export const LinkText = styled(Link)`
+    display: block;
+    margin-top: 20px;
+    
+    color: #666;
+    font-size: 14px;
+    text-decoration: none;
+    
+    &:hover {
+        text-decoration: underline;
+        color: #5833ffff;
+    }
+`
