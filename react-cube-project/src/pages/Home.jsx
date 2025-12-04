@@ -87,8 +87,22 @@ const Home = () => {
             </CardDesc>
           </Card>
         )}
-      </Area>
 
+        <Card to={'/timer'}>
+          <CardTitle>⏱️ 큐브 타이머</CardTitle>
+          <CardDesc>실시간으로 큐브 기록을 측정하고<br />저장해보세요.</CardDesc>
+        </Card>
+
+        <Card to={'/algorithms'}>
+          <CardTitle>📚 알고리즘</CardTitle>
+          <CardDesc>OLL, PLL 등 필수 공식을<br />익혀보세요.</CardDesc>
+        </Card>
+
+        <Card to={'/board'}>
+          <CardTitle>🗣️ 커뮤니티</CardTitle>
+          <CardDesc>다른 큐버들과 정보를 공유하고<br />이야기를 나누세요.</CardDesc>
+        </Card>
+      </Area>
     </HomeContainer>
   )
 
