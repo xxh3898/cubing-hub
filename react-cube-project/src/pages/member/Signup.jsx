@@ -23,8 +23,13 @@ const Signup = () => {
   };
 
   const handleSubmit = () => {
-    if (!formData.id || !formData.password || !formData.name) {
+    if (!formData.id || !formData.password || !formData.passwordConfirm || !formData.name) {
       alert("모든 정보를 입력해주세요!");
+      return;
+    }
+
+    if (formData.password !== formData.passwordConfirm) {
+      alert("비밀번호가 일치하지 않습니다.");
       return;
     }
 
