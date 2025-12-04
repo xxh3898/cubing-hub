@@ -48,6 +48,24 @@ const useMemberStore = create((set, get) => ({
     logout: () => {
         set({ user: null });
         localStorage.removeItem(USER_KEY);
+    },
+
+    addRecord: (newRecord) => {
+        const { user, members } = get();
+        if (!user) return;
+
+        const updatedUser = {
+            ...user,
+            records: [...user.records, newRecord]
+        };
+        set({ user: updatedUser });
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+
+        const updatedMembers = members.map(m =>
+            m.id === user.id ? updatedUser : m
+        );
+        set({ members: updatedMembers });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMembers));
     }
 }));
 
