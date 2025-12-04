@@ -2,7 +2,7 @@ import React from 'react'
 import { useState } from 'react';
 import { useEffect } from 'react';
 import useMemberStore from '../stores/useMemberStore';
-import { HeroSection, HomeContainer, Title, SubTitle, TipBox } from './HomeStyled';
+import { HeroSection, HomeContainer, Title, SubTitle, TipBox, Area, Card, CardTitle, CardDesc, CardRecord, CardRecordSpan, Highlight } from './HomeStyled';
 import { Tip, TodayTip } from './HomeStyled';
 
 const Home = () => {
@@ -24,7 +24,19 @@ const Home = () => {
   }, []);
 
   const name = user?.name ?? '게스트';
- 
+  const records = user?.records ?? [];
+  const hasRecords = records.length > 0;
+
+  const times = hasRecords ? records.map(r => r.time) : [];
+  const bestRecord = hasRecords ? Math.min(...times) : 0;
+  const avgRecord = hasRecords ?
+    (times.reduce((a, b) => a + b, 0) / times.length).toFixed(3) : 0;
+
+  const recentRecords = hasRecords ? [...records].reverse().slice(0, 5) : [];
+  const recentTimes = recentRecords.map(r => r.time);
+  const recentBest = Math.min(...recentTimes)
+  const recentWorst = Math.max(...recentTimes)
+
   return (
     <HomeContainer>
       <HeroSection>
@@ -36,6 +48,47 @@ const Home = () => {
           <Tip>"{tip}"</Tip>
         </TipBox>
       </HeroSection>
+
+      <Area>
+        {user ? (
+          <Card to={'/mypage'}>
+            <CardTitle>👤 {name}님의 기록</CardTitle>
+            <CardDesc>
+              <CardRecord>평균 기록: <strong>{hasRecords ? `${avgRecord}초` : '기록 없음'}</strong></CardRecord>
+              <CardRecord>최고 기록: <Highlight color="#24854cff">{hasRecords ? `${bestRecord}초` : '기록 없음'}</Highlight></CardRecord>
+              <div>
+                최근 5회: <br />
+                {hasRecords ? (
+                  <CardRecordSpan>
+                    {recentRecords.map((r, i) => {
+                      let color = undefined;
+                      if (r.time === recentBest) color = "green";
+                      else if (r.time === recentWorst) color = "red";
+                      return (
+                        <span key={i}>
+                          <Highlight color={color}>{r.time}초</Highlight>
+                          {i < recentRecords.length - 1 ? <br /> : ''}
+                        </span>
+                      )
+                    })}
+                  </CardRecordSpan>
+                ) : (
+                  <span>아직 기록이 없습니다.</span>
+                )}
+              </div>
+            </CardDesc>
+          </Card>
+        ) : (
+          <Card to={'/login'}>
+            <CardTitle>🔒 로그인 필요</CardTitle>
+            <CardDesc>
+              기록을 보려면 로그인이 필요합니다.<br />
+              여기를 눌러 로그인하세요.
+            </CardDesc>
+          </Card>
+        )}
+      </Area>
+
     </HomeContainer>
   )
 

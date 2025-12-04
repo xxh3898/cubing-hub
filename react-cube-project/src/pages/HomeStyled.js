@@ -131,6 +131,15 @@ export const CardDesc = styled.div`
     word-break: keep-all;
 `
 
+export const CardRecord = styled.div`
+    margin-bottom: 8px;
+`
+
+export const CardRecordSpan = styled.span`
+    font-size: 14px;
+    color: #555;
+`
+
 /* =========================================
    4. 유틸리티 (Utils)
    ========================================= */
