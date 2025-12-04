@@ -51,7 +51,7 @@ const Home = () => {
 
       <Area>
         {user ? (
-          <Card to={'/mypage'}>
+          <Card to={'/mypage'} color='yellow'>
             <CardTitle>👤 {name}님의 기록</CardTitle>
             <CardDesc>
               <CardRecord>평균 기록: <strong>{hasRecords ? `${avgRecord}초` : '기록 없음'}</strong></CardRecord>
@@ -79,7 +79,7 @@ const Home = () => {
             </CardDesc>
           </Card>
         ) : (
-          <Card to={'/login'}>
+          <Card to={'/login'} color='red'>
             <CardTitle>🔒 로그인 필요</CardTitle>
             <CardDesc>
               기록을 보려면 로그인이 필요합니다.<br />
@@ -88,17 +88,17 @@ const Home = () => {
           </Card>
         )}
 
-        <Card to={'/timer'}>
+        <Card to={'/timer'} color='green'>
           <CardTitle>⏱️ 큐브 타이머</CardTitle>
           <CardDesc>실시간으로 큐브 기록을 측정하고<br />저장해보세요.</CardDesc>
         </Card>
 
-        <Card to={'/algorithms'}>
+        <Card to={'/algorithms'} color='blue'>
           <CardTitle>📚 알고리즘</CardTitle>
           <CardDesc>OLL, PLL 등 필수 공식을<br />익혀보세요.</CardDesc>
         </Card>
 
-        <Card to={'/board'}>
+        <Card to={'/board'} color='purple'>
           <CardTitle>🗣️ 커뮤니티</CardTitle>
           <CardDesc>다른 큐버들과 정보를 공유하고<br />이야기를 나누세요.</CardDesc>
         </Card>
