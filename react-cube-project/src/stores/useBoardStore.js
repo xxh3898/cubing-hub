@@ -28,6 +28,7 @@ const useBoardStore = create((set, get) => ({
             title,
             content,
             author,
+            authorId: user.id,
             date: new Date().toISOString().split('T')[0],
         };
         const updated = [newPost, ...posts];

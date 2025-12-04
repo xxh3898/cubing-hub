@@ -65,7 +65,7 @@ const Home = () => {
                       if (r.time === recentBest) color = "green";
                       else if (r.time === recentWorst) color = "red";
                       return (
-                        <span key={i}>
+                        <span key={r.id}>
                           <Highlight color={color}>{r.time}초</Highlight>
                           {i < recentRecords.length - 1 ? <br /> : ''}
                         </span>

@@ -58,7 +58,7 @@ const Detail = () => {
     );
   }
 
-  const isAuthor = user && user.name === post.author;
+  const isAuthor = user && user.id === post.authorId;
 
   return (
     <BoardContainer>
