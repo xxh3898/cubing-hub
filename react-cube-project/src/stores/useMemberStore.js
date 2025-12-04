@@ -1,4 +1,3 @@
-import React from 'react'
 import { create } from 'zustand';
 
 const STORAGE_KEY = "cube_app_data";
@@ -58,6 +57,23 @@ const useMemberStore = create((set, get) => ({
             ...user,
             records: [...user.records, newRecord]
         };
+        set({ user: updatedUser });
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+
+        const updatedMembers = members.map(m =>
+            m.id === user.id ? updatedUser : m
+        );
+        set({ members: updatedMembers });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMembers));
+    },
+
+    removeRecord: (recordId) => {
+        const { user, members } = get();
+        if (!user) return;
+
+        const updatedRecords = user.records.filter(r => r.id !== recordId);
+        const updatedUser = { ...user, records: updatedRecords };
+
         set({ user: updatedUser });
         localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
 
