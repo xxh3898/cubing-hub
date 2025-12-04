@@ -26,8 +26,12 @@ const Timer = () => {
 
       if (statusRef.current === 'running') {
         clearInterval(timerIntervalRef.current);
+
         const endTime = Date.now();
-        const finalTime = (endTime - startTimeRef.current) / 1000;
+        const diff = endTime - startTimeRef.current;
+        const finalTime = diff / 1000;
+
+        setTime(diff);
 
         const now = new Date();
         const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
@@ -45,6 +49,7 @@ const Timer = () => {
 
         statusRef.current = 'idle';
         setStatus('idle');
+
       } else if (statusRef.current === 'idle') {
         setTime(0);
         statusRef.current = 'holding';
