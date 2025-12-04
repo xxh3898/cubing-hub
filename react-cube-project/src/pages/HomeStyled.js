@@ -43,7 +43,7 @@ export const SubTitle = styled.p`
     color: #7e2222ff;
 `
 
-export const ScrambleBox = styled.div`
+export const TipBox = styled.div`
     background: #f8f9fa;
     padding: 15px 20px;
     border-radius: 8px;
@@ -57,6 +57,18 @@ export const ScrambleBox = styled.div`
     
     display: inline-block; 
     min-width: 300px;
+`
+
+export const TodayTip = styled.div`
+    font-Size: 14px;
+    opacity: 0.8;
+    margin-Bottom: 8px;
+`
+
+export const Tip = styled.div`
+    font-Weight: 500;
+    font-Size: 18px;
+    word-Break: keep-all;
 `
 
 /* =========================================
