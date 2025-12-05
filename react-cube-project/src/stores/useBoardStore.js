@@ -21,14 +21,14 @@ const useBoardStore = create((set, get) => ({
         }
     },
 
-    addPost: (title, content, author) => {
+    addPost: (title, content, author, authorId) => {
         const { posts } = get();
         const newPost = {
             id: Date.now(),
             title,
             content,
             author,
-            authorId: user.id,
+            authorId: authorId,
             date: new Date().toISOString().split('T')[0],
         };
         const updated = [newPost, ...posts];

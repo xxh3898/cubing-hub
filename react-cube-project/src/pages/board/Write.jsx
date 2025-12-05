@@ -25,8 +25,8 @@ const Write = () => {
       return;
     }
 
-    addPost(title, content, user.name);
-
+    addPost(title, content, user.name, user.id);
+    
     alert("게시글이 등록되었습니다!");
     navigate('/board');
   }
