@@ -1,6 +1,6 @@
 # 🧊 React Cube Project (SpeedCubing.io)
 
-![Project Preview](https://s1.ezgif.com/tmp/ezgif-11f1e6ab7f68a24a.gif)
+![Timer](./react-cube-project/src/assets/Timer.gif)
 
 > **큐브 스피드솔빙을 위한 올인원 유틸리티 웹 애플리케이션**
 
