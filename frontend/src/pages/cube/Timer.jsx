@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import useMemberStore from '../../stores/useMemberStore'
 import useTimerStore from '../../stores/useTimerStore';
 import { GuideText, ScrambleText, TimeDisplay, TimerContainer } from './TimerStyled';
-
+import { saveRecord } from '../../api/requests';
 const Timer = () => {
-  const { addRecord, user } = useMemberStore();
+  const { user } = useMemberStore();
   const { scramble, updateScramble } = useTimerStore();
 
   const [time, setTime] = useState(0);
@@ -19,7 +19,7 @@ const Timer = () => {
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = async (e) => {
       if (e.code !== 'Space') return;
       e.preventDefault();
       if (e.repeat) return;
@@ -33,16 +33,17 @@ const Timer = () => {
 
         setTime(diff);
 
-        const now = new Date();
-        const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-
         if (user) {
-          addRecord({
-            id: Date.now(),
-            time: parseFloat(finalTime.toFixed(3)),
-            date: formattedDate,
-            scramble: useTimerStore.getState().scramble
-          });
+          try {
+            await saveRecord({
+              time: parseFloat(finalTime.toFixed(3)),
+              scramble: useTimerStore.getState().scramble
+            }, user.id);
+            console.log("기록 저장 완료!");
+          } catch (error) {
+            console.error("기록 저장 실패:", error);
+            alert("기록 저장에 실패했습니다.");
+          }
         }
 
         updateScramble();
@@ -79,7 +80,7 @@ const Timer = () => {
       window.removeEventListener('keyup', handleKeyUp);
       clearInterval(timerIntervalRef.current);
     };
-  }, []);
+  }, [user]);
 
   const formatTime = (ms) => {
     return (ms / 1000).toFixed(3);
