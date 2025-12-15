@@ -7,7 +7,6 @@ import {
   ProfileSection,
   SectionTitle,
   RecordTable,
-  BoardList
 } from './MemberStyled';
 
 const Mypage = () => {
