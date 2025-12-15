@@ -26,7 +26,7 @@ const Edit = () => {
       try {
         const data = await getPost(id);
 
-        if (!user || user.id !== data.memberId) {
+        if (!user || user.id !== data.authorId) {
           alert("수정 권한이 없습니다.");
           navigate('/board');
           return;
