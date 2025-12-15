@@ -37,7 +37,7 @@ const Detail = () => {
   }, [id, navigate]);
 
   const handleDelete = async () => {
-    if (!user || user.id !== post.memberId) {
+    if (!user || user.id !== post.authorId) {
       alert("삭제 권한이 없습니다.");
       return;
     }
@@ -55,7 +55,7 @@ const Detail = () => {
 
   if (!post) return <BoardContainer>로딩 중...</BoardContainer>;
 
-  const isAuthor = user && user.id === post.memberId;
+  const isAuthor = user && user.id === post.authorId;
 
   return (
     <BoardContainer>
@@ -64,7 +64,7 @@ const Detail = () => {
         <PostHeader>
           <PostTitle>{post.title}</PostTitle>
           <PostInfo>
-            <span><strong>작성자</strong> {post.author || post.memberId}</span>
+            <span><strong>작성자</strong> {post.author || post.authorId}</span>
             <span><strong>작성일</strong> {formatDate(post.date)}</span>
           </PostInfo>
         </PostHeader>
