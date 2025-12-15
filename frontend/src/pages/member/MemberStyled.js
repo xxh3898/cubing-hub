@@ -229,3 +229,34 @@ export const EmptyMsg = styled.div`
     border-radius: 12px;
     border: 1px dashed #ddd;
 `;
+
+export const ProfileSection = styled.div`
+    background: white;
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+
+    h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 20px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        gap: 20px;
+        align-items: center;
+        max-width: 400px;
+    }
+
+    .label {
+        font-weight: 600;
+        color: #888;
+        font-size: 15px;
+    }
+`;

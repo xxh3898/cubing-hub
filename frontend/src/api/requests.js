@@ -10,7 +10,6 @@ export const login = async (id, password) => {
   return response.data;
 };
 
-
 export const getPosts = async () => {
   const response = await client.get('/posts');
   return response.data;
@@ -21,9 +20,13 @@ export const writePost = async (postData, memberId) => {
   return response.data;
 };
 
-
 export const saveRecord = async (recordData, memberId) => {
   const response = await client.post(`/records?memberId=${memberId}`, recordData);
+  return response.data;
+};
+
+export const getMyRecords = async (memberId) => {
+  const response = await client.get(`/records?memberId=${memberId}`);
   return response.data;
 };
 
