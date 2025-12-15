@@ -78,6 +78,30 @@ export const FormContainer = styled.div`
   gap: 20px;
 `;
 
+export const InputGroup = styled.div`
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  label {
+    font-weight: 700;
+    color: #333;
+    font-size: 16px;
+  }
+
+  input {
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    &:focus {
+      border-color: #5833ff;
+      outline: none;
+    }
+  }
+`;
+
 export const Input = styled.input`
   width: 100%;
   padding: 15px;

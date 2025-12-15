@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import useMemberStore from '../../stores/useMemberStore';
 import { writePost } from '../../api/requests';
 import {
-  WriteContainer,
+  BoardContainer,
   Title,
   InputGroup,
-  TextArea,
-  ButtonArea,
+  Textarea,
+  ButtonGroup,
   Button
 } from './BoardStyled';
 
@@ -42,7 +42,7 @@ const Write = () => {
   };
 
   return (
-    <WriteContainer>
+    <BoardContainer>
       <Title>게시글 작성</Title>
 
       <InputGroup>
@@ -55,17 +55,17 @@ const Write = () => {
         />
       </InputGroup>
 
-      <TextArea
+      <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="내용을 입력하세요"
       />
 
-      <ButtonArea>
+      <ButtonGroup>
         <Button onClick={handleSubmit}>등록</Button>
         <Button cancel onClick={() => navigate('/board')}>취소</Button>
-      </ButtonArea>
-    </WriteContainer>
+      </ButtonGroup>
+    </BoardContainer>
   );
 };
 
