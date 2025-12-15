@@ -33,4 +33,20 @@ public class PostController {
         List<PostDto> myPosts = postService.findByMemberId(memberId);
         return ResponseEntity.ok(myPosts);
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PostDto> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(postService.findById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Long> update(@PathVariable Long id, @RequestBody PostDto postDto) {
+        return ResponseEntity.ok(postService.update(id, postDto));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> delete(@PathVariable Long id) {
+        postService.delete(id);
+        return ResponseEntity.ok("삭제 완료");
+    }
 }

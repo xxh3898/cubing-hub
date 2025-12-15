@@ -24,13 +24,9 @@ public class PostService {
     public Long write(PostDto postDto, String memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
-
         Post post = new Post(postDto.getTitle(), postDto.getContent(), member.getName());
-
         post.setMember(member);
-
         postRepository.save(post);
-
         return post.getId();
     }
 
@@ -45,5 +41,26 @@ public class PostService {
                 .filter(p -> p.getMember().getId().equals(memberId))
                 .map(PostDto::new)
                 .collect(Collectors.toList());
+    }
+
+    public PostDto findById(Long id) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
+        return new PostDto(post);
+    }
+
+    @Transactional
+    public Long update(Long id, PostDto postDto) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
+        post.update(postDto.getTitle(), postDto.getContent());
+        return id;
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
+        postRepository.delete(post);
     }
 }
