@@ -1,64 +1,72 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import useBoardStore from '../../stores/useBoardStore'
-import useMemberStore from '../../stores/useMemberStore'
-import { BoardContainer, Button, ButtonGroup, FormContainer, Input, Table, Textarea, Title } from './BoardStyled'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useMemberStore from '../../stores/useMemberStore';
+import { writePost } from '../../api/requests';
+import {
+  WriteContainer,
+  Title,
+  InputGroup,
+  TextArea,
+  ButtonArea,
+  Button
+} from './BoardStyled';
 
 const Write = () => {
   const navigate = useNavigate();
-  const { addPost } = useBoardStore();
   const { user } = useMemberStore();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
-  useEffect(() => {
-    if (!user) {
-      alert("로그인이 필요합니다.");
-      navigate('/login');
-    }
-  }, [user, navigate]);
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) {
       alert("제목과 내용을 모두 입력해주세요.");
       return;
     }
 
-    addPost(title, content, user.name, user.id);
-    
-    alert("게시글이 등록되었습니다!");
-    navigate('/board');
-  }
+    if (!user) {
+      alert("로그인이 필요한 서비스입니다.");
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await writePost({ title, content }, user.id);
+
+      alert("게시글이 등록되었습니다.");
+      navigate('/board');
+    } catch (error) {
+      console.error("글쓰기 실패:", error);
+      alert("글 등록 중 오류가 발생했습니다.");
+    }
+  };
 
   return (
-    <BoardContainer>
+    <WriteContainer>
       <Title>게시글 작성</Title>
 
-      <FormContainer>
-        <Input
-          placeholder="제목을 입력하세요"
+      <InputGroup>
+        <label>제목</label>
+        <input
+          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          placeholder="제목을 입력하세요"
         />
-        <Textarea
-          placeholder="내용을 자유롭게 입력하세요"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
-      </FormContainer>
+      </InputGroup>
 
-      <ButtonGroup style={{ marginTop: '20px' }}>
-        <Button
-          onClick={() => navigate(-1)}
-          style={{ background: '#999', marginRight: '10px' }}
-        >
-          취소
-        </Button>
-        <Button onClick={handleSubmit}>등록하기</Button>
-      </ButtonGroup>
-    </BoardContainer>
-  )
-}
+      <TextArea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="내용을 입력하세요"
+      />
 
-export default Write
+      <ButtonArea>
+        <Button onClick={handleSubmit}>등록</Button>
+        <Button cancel onClick={() => navigate('/board')}>취소</Button>
+      </ButtonArea>
+    </WriteContainer>
+  );
+};
+
+export default Write;
