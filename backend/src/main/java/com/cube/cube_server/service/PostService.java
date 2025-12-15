@@ -35,13 +35,13 @@ public class PostService {
     }
 
     public List<PostDto> findAll() {
-        return postRepository.findAllByOrderByCreatedDateDesc().stream()
+        return postRepository.findAllByOrderByCreateTimeDesc().stream()
                 .map(PostDto::new)
                 .collect(Collectors.toList());
     }
 
     public List<PostDto> findByMemberId(String memberId) {
-        return postRepository.findAllByOrderByCreatedDateDesc().stream()
+        return postRepository.findAllByOrderByCreateTimeDesc().stream()
                 .filter(p -> p.getMember().getId().equals(memberId))
                 .map(PostDto::new)
                 .collect(Collectors.toList());
