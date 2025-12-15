@@ -2,7 +2,23 @@
 
 React 기반의 큐브 커뮤니티(SPA) 프로젝트를 위한 **RESTful API 서버**입니다.
 Spring Boot를 사용하여 구현되었으며, 회원 관리, 게시판(CRUD), 큐브 기록 저장 기능을 제공합니다.
-세션이나 토큰 기반의 인증 대신, 클라이언트로부터 전달받은 ID를 통해 간단한 식별 및 데이터 처리를 수행합니다.
+
+## 📋 API 요약 (Summary)
+
+| Method | Endpoint | 설명 |
+| :---: | :--- | :--- |
+| **POST** | `/api/members/signup` | 회원가입 |
+| **POST** | `/api/members/login` | 로그인 |
+| **POST** | `/api/posts` | 게시글 작성 |
+| **GET** | `/api/posts` | 전체 게시글 목록 조회 |
+| **GET** | `/api/posts/my` | 내 게시글 조회 |
+| **GET** | `/api/posts/{id}` | 게시글 상세 조회 |
+| **PUT** | `/api/posts/{id}` | 게시글 수정 |
+| **DELETE** | `/api/posts/{id}` | 게시글 삭제 |
+| **POST** | `/api/records` | 큐브 기록 저장 |
+| **GET** | `/api/records` | 내 기록 조회 |
+
+---
 
 ## 1. 프로젝트 개요
 * **프로젝트명**: Cube Server (큐브 API 서버)
@@ -11,6 +27,7 @@ Spring Boot를 사용하여 구현되었으며, 회원 관리, 게시판(CRUD), 
     * 자원(Resource) 중심의 URI 설계 (`/api/members`, `/api/posts`)
     * HTTP 메서드(GET, POST, PUT, DELETE)를 통한 행위 표현
     * JSON 기반의 요청/응답 데이터 처리 (DTO 사용)
+    * 세션/토큰 대신 클라이언트 식별자(ID)를 통한 단순 데이터 처리
 
 ## 2. 사용 기술 스택 (Tech Stack)
 
