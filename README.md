@@ -91,14 +91,14 @@ cd backend
 ```
 
 ### 3. 프론트엔드 실행 (Frontend)
-새 터미널을 열고 React 클라이언트를 실행해주세요. (Default Port: 3000)
+새 터미널을 열고 React 클라이언트를 실행해주세요. (Default Port: 5173)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000` 으로 접속하면 프로젝트를 확인할 수 있습니다.
+브라우저에서 `http://localhost:5173` 으로 접속하면 프로젝트를 확인할 수 있습니다.
 
 ---
 
