@@ -27,4 +27,10 @@ public class RecordController {
         List<RecordDto> records = recordService.getRecords(memberId);
         return ResponseEntity.ok(records);
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteRecord(@PathVariable Long id) {
+        recordService.deleteRecord(id);
+        return ResponseEntity.ok("기록 삭제 완료");
+    }
 }

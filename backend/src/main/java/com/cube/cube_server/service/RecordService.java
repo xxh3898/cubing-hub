@@ -39,4 +39,9 @@ public class RecordService {
                 .map(RecordDto::new)
                 .collect(Collectors.toList());
     }
+
+    @Transactional
+    public void deleteRecord(Long id) {
+        recordRepository.deleteById(id);
+    }
 }
