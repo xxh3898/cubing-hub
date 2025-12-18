@@ -4,10 +4,10 @@ spring:
 
   datasource:
     hikari:
-      jdbc-url: jdbc:h2:mem:testdb
+      jdbc-url: jdbc:h2:file:./database/cube
       driver-class-name: org.h2.Driver
       username: sa
-      password:
+      password: 1234
 
   h2:
     console:
