@@ -28,6 +28,19 @@ const Mypage = () => {
     }
   };
 
+  const handleDelete = async (recordId) => {
+    if (window.confirm("정말 이 기록을 삭제하시겠습니까?")) {
+      try {
+        await deleteRecord(recordId);
+        alert("삭제되었습니다.");
+        fetchMyData();
+      } catch (error) {
+        console.error("삭제 실패:", error);
+        alert("삭제 중 오류가 발생했습니다.");
+      }
+    }
+  };
+
   if (!user) {
     return <MypageContainer>로그인이 필요합니다.</MypageContainer>;
   }
@@ -65,6 +78,14 @@ const Mypage = () => {
                     <td className="time">{record.time}초</td>
                     <td className="scramble" title={record.scramble}>
                       {record.scramble.substring(0, 15)}...
+                    </td>
+                    <td>
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDelete(record.id)}
+                      >
+                        삭제
+                      </button>
                     </td>
                   </tr>
                 ))
