@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import useMemberStore from '../../stores/useMemberStore';
-import { getMyRecords, deleteRecord } from '../../api/requests';
+import useMemberStore from '../stores/useMemberStore';
+import { getMyRecords } from '../api/requests';
 
 
 const useMypage = () => {
