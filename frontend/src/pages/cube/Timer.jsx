@@ -1,90 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
-import useMemberStore from '../../stores/useMemberStore'
-import useTimerStore from '../../stores/useTimerStore';
+import React from 'react';
+import useCubeTimer from '../../hooks/useCubeTimer';
 import { GuideText, ScrambleText, TimeDisplay, TimerContainer } from './TimerStyled';
-import { saveRecord } from '../../api/requests';
+
 const Timer = () => {
-  const { user } = useMemberStore();
-  const { scramble, updateScramble } = useTimerStore();
+  const { time, status, scramble } = useCubeTimer();
 
-  const [time, setTime] = useState(0);
-  const [status, setStatus] = useState('idle');
-
-  const statusRef = useRef('idle');
-  const startTimeRef = useRef(0);
-  const timerIntervalRef = useRef(null);
-
-  useEffect(() => {
-    updateScramble();
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = async (e) => {
-      if (e.code !== 'Space') return;
-      e.preventDefault();
-      if (e.repeat) return;
-
-      if (statusRef.current === 'running') {
-        clearInterval(timerIntervalRef.current);
-
-        const endTime = Date.now();
-        const diff = endTime - startTimeRef.current;
-        const finalTime = diff / 1000;
-
-        setTime(diff);
-
-        if (user) {
-          try {
-            await saveRecord({
-              time: parseFloat(finalTime.toFixed(3)),
-              scramble: useTimerStore.getState().scramble
-            }, user.id);
-            console.log("기록 저장 완료!");
-          } catch (error) {
-            console.error("기록 저장 실패:", error);
-            alert("기록 저장에 실패했습니다.");
-          }
-        }
-
-        updateScramble();
-
-        statusRef.current = 'idle';
-        setStatus('idle');
-
-      } else if (statusRef.current === 'idle') {
-        setTime(0);
-        statusRef.current = 'holding';
-        setStatus('holding');
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      if (e.code !== 'Space') return;
-
-      if (statusRef.current === 'holding') {
-        startTimeRef.current = Date.now();
-        statusRef.current = 'running';
-        setStatus('running');
-
-        timerIntervalRef.current = setInterval(() => {
-          setTime(Date.now() - startTimeRef.current);
-        }, 10);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      clearInterval(timerIntervalRef.current);
-    };
-  }, [user]);
-
-  const formatTime = (ms) => {
-    return (ms / 1000).toFixed(3);
-  };
+  const formatTime = (ms) => (ms / 1000).toFixed(3);
 
   return (
     <TimerContainer>
@@ -100,7 +21,7 @@ const Timer = () => {
         {status === 'running' && "스페이스바를 눌러 멈추세요"}
       </GuideText>
     </TimerContainer>
-  )
-}
+  );
+};
 
 export default Timer;
