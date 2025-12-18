@@ -25,6 +25,11 @@ export const saveRecord = async (recordData, memberId) => {
   return response.data;
 };
 
+export const deleteRecord = async (recordId) => {
+  const response = await client.delete(`/records/${recordId}`);
+  return response.data;
+};
+
 export const getMyRecords = async (memberId) => {
   const response = await client.get(`/records?memberId=${memberId}`);
   return response.data;
