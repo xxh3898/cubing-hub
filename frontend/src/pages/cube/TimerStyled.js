@@ -8,6 +8,10 @@ export const Container = styled.div`
     max-width: 1200px;
     margin: 0 auto;
     padding: 40px 20px;
+
+    @media (max-width: 768px) {
+        padding: 20px 15px;
+    }
 `;
 
 export const TimerContainer = styled.div`
@@ -34,6 +38,11 @@ export const ScrambleText = styled.div`
     word-break: break-all;
     max-width: 90%;
     line-height: 1.4;
+
+    @media (max-width: 768px) {
+        font-size: 18px;
+        padding: 12px 20px;
+    }
 `;
 
 export const TimeDisplay = styled.div`
@@ -52,12 +61,19 @@ export const TimeDisplay = styled.div`
     @media (max-width: 768px) {
         font-size: 80px;
     }
+    @media (max-width: 480px) {
+        font-size: 60px;
+    }
 `;
 
 export const GuideText = styled.p`
     color: #999;
     font-size: 16px;
     margin-top: 20px;
+
+    @media (max-width: 480px) {
+        font-size: 14px;
+    }
 `;
 
 /* =========================================
@@ -71,6 +87,10 @@ export const Title = styled.h2`
     margin-bottom: 30px;
     border-left: 5px solid #5833ff;
     padding-left: 15px;
+
+    @media (max-width: 768px) {
+        font-size: 22px;
+    }
 `;
 
 export const TabContainer = styled.div`
@@ -80,6 +100,10 @@ export const TabContainer = styled.div`
     border-bottom: 1px solid #ddd;
     padding-bottom: 10px;
     overflow-x: auto;
+    
+    &::-webkit-scrollbar {
+        display: none;
+    }
 `;
 
 export const TabButton = styled.button`
@@ -98,12 +122,21 @@ export const TabButton = styled.button`
         background: ${props => props.active ? '#4622e0' : '#e2e6ea'};
         transform: translateY(-2px);
     }
+
+    @media (max-width: 480px) {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
 `;
 
 export const Grid = styled.div`
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* 카드 크기 조정 */
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 20px;
+
+    @media (max-width: 480px) {
+        grid-template-columns: 1fr;
+    }
 `;
 
 export const AlgoCard = styled.div`
@@ -128,7 +161,6 @@ export const AlgoImage = styled.img`
     height: 150px;
     object-fit: contain;
     margin-bottom: 15px;
-    /* 이미지가 로딩되기 전 공간 확보 */
     background-color: #fafafa; 
     border-radius: 8px;
 `;

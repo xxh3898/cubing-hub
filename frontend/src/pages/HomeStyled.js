@@ -21,6 +21,11 @@ export const HeroSection = styled.div`
     
     margin-bottom: -40px; 
     padding-bottom: 90px; 
+
+    @media (max-width: 768px) {
+        padding: 40px 20px;
+        padding-bottom: 70px;
+    }
 `
 
 export const Title = styled.h2`
@@ -30,6 +35,10 @@ export const Title = styled.h2`
     margin-bottom: 10px;
     color: #2c3e50;
     
+    @media (max-width: 768px) {
+        font-size: 22px;
+    }
+
     span {
         color: #5833ffff; 
     }
@@ -41,6 +50,10 @@ export const SubTitle = styled.p`
     margin: 0;
     margin-bottom: 30px;
     color: #7e2222ff;
+
+    @media (max-width: 768px) {
+        font-size: 14px;
+    }
 `
 
 export const TipBox = styled.div`
@@ -57,18 +70,29 @@ export const TipBox = styled.div`
     
     display: inline-block; 
     min-width: 300px;
+    max-width: 90%;
+
+    @media (max-width: 768px) {
+        font-size: 14px;
+        min-width: auto;
+        width: 100%;
+    }
 `
 
 export const TodayTip = styled.div`
-    font-Size: 14px;
+    font-size: 14px;
     opacity: 0.8;
-    margin-Bottom: 8px;
+    margin-bottom: 8px;
 `
 
 export const Tip = styled.div`
-    font-Weight: 500;
-    font-Size: 18px;
-    word-Break: keep-all;
+    font-weight: 500;
+    font-size: 18px;
+    word-break: keep-all;
+
+    @media (max-width: 768px) {
+        font-size: 16px;
+    }
 `
 
 /* =========================================
@@ -83,6 +107,11 @@ export const Area = styled.div`
     max-width: 1200px;
     
     transform: translateY(-40px); 
+
+    @media (max-width: 768px) {
+        padding: 0 15px;
+        gap: 15px;
+    }
 `
 
 export const Card = styled(Link)`
@@ -94,13 +123,16 @@ export const Card = styled(Link)`
     text-decoration: none;
     color: #333;
     
-    /* 기본 스타일 및 애니메이션 설정 */
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
     border: 1px solid transparent;
 
-    /* 카드 상단에 색상 띠 두르기 (props로 색상 받음) */
     border-top: 6px solid ${props => props.color || '#5833ffff'}; 
+
+    @media (max-width: 480px) {
+        min-width: 100%;
+        padding: 24px;
+    }
 
     &:hover {
         transform: translateY(-5px);
