@@ -5,15 +5,21 @@ import styled from "styled-components";
    1. 공통 & 로그인/회원가입 (Auth)
    ========================================= */
 export const Container = styled.div`
-    width: 1000px;
-    height: 700px;
-    margin: 60px auto;
-    padding: 40px;
+    width: 90%;
+    max-width: 500px;
+    min-height: auto;
+    margin: 40px auto;
+    padding: 30px 20px;
     
     background: white;
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     text-align: center;
+
+    @media (max-width: 480px) {
+        padding: 20px;
+        margin: 20px auto;
+    }
 `
 
 export const Title = styled.h2`
@@ -21,6 +27,10 @@ export const Title = styled.h2`
     font-weight: 700;
     color: #333;
     margin-bottom: 30px;
+
+    @media (max-width: 480px) {
+        font-size: 24px;
+    }
 `
 
 export const InputGroup = styled.div`
@@ -93,7 +103,11 @@ export const MypageContainer = styled.div`
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 20px;
+
+    @media (max-width: 768px) {
+        padding: 15px;
+    }
 `;
 
 export const SectionTitle = styled.h2`
@@ -105,6 +119,10 @@ export const SectionTitle = styled.h2`
     display: flex;
     align-items: center;
     gap: 10px;
+
+    @media (max-width: 768px) {
+        font-size: 20px;
+    }
 `;
 
 export const TopSection = styled.div`
@@ -142,6 +160,13 @@ export const StatsGrid = styled.div`
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 15px;
+
+    @media (max-width: 768px) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    @media (max-width: 480px) {
+        grid-template-columns: 1fr;
+    }
 `;
 
 export const StatBox = styled.div`
@@ -169,6 +194,20 @@ export const StatBox = styled.div`
     span.highlight {
         color: #5833ff;
     }
+
+    @media (max-width: 768px) {
+        padding: 20px 15px;
+        span.value {
+            font-size: 24px;
+        }
+    }
+`;
+
+export const TableWrapper = styled.div`
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 20px;
 `;
 
 export const RecordTable = styled.table`
@@ -178,11 +217,13 @@ export const RecordTable = styled.table`
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    min-width: 500px;
 
     th, td {
         padding: 15px;
         text-align: center;
         border-bottom: 1px solid #eee;
+        white-space: nowrap;
     }
 
     th {
@@ -202,6 +243,8 @@ export const RecordTable = styled.table`
         font-family: monospace;
         color: #666;
         font-size: 13px;
+        white-space: normal;
+        min-width: 200px;
     }
 
     button.delete-btn {
@@ -237,6 +280,10 @@ export const ProfileSection = styled.div`
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
     margin-bottom: 20px;
 
+    @media (max-width: 768px) {
+        padding: 20px;
+    }
+
     h2 {
         font-size: 24px;
         font-weight: 700;
@@ -252,6 +299,11 @@ export const ProfileSection = styled.div`
         gap: 20px;
         align-items: center;
         max-width: 400px;
+
+        @media (max-width: 480px) {
+            grid-template-columns: 80px 1fr;
+            gap: 10px;
+        }
     }
 
     .label {

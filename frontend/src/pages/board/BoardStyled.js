@@ -8,6 +8,10 @@ export const BoardContainer = styled.div`
   width: 100%;
   margin: 0 auto;
   padding: 40px 0;
+
+  @media (max-width: 768px) {
+    padding: 20px 0;
+  }
 `;
 
 export const Title = styled.h2`
@@ -17,21 +21,33 @@ export const Title = styled.h2`
   margin-bottom: 30px;
   border-left: 5px solid #5833ff;
   padding-left: 15px;
+
+  @media (max-width: 768px) {
+    font-size: 22px;
+  }
 `;
 
 // =========================================
 // 2. 게시판 목록 (Table) 스타일
 // =========================================
 
+export const TableWrapper = styled.div`
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 20px;
+`;
+
 export const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 30px;
+  min-width: 600px;
 
   th, td {
     padding: 15px;
     text-align: center;
     border-bottom: 1px solid #ddd;
+    white-space: nowrap;
   }
 
   th {
@@ -168,6 +184,11 @@ export const PostInfo = styled.div`
   strong {
     font-weight: 600;
     color: #333;
+  }
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 5px;
   }
 `;
 

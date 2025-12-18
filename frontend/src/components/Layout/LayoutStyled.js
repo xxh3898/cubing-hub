@@ -19,6 +19,10 @@ export const MainContent = styled.main`
   margin: 0 auto;
   padding: 24px 0;
   flex: 1;
+
+  @media (max-width: 768px) {
+    padding: 16px 0;
+  }
 `;
 
 // =========================================
@@ -29,22 +33,39 @@ export const HeaderContainer = styled.header`
   background: #ffffff;
   padding: 0 24px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  @media (max-width: 768px) {
+    padding: 0 16px;
+  }
 `;
 
 export const Nav = styled.nav`
   max-width: 1600px;
-  width: 95%;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 64px;
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    height: auto;
+    padding: 12px 0;
+    gap: 12px;
+  }
 `;
 
 export const NavLinks = styled.div`
   display: flex;
   align-items: center;
   gap: 24px;
+
+  @media (max-width: 600px) {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 `;
 
 // =========================================
@@ -81,5 +102,10 @@ export const NavLink = styled(Link)`
   &.active {
     color: #5833ff;
     background: #ffffff;
+  }
+
+  @media (max-width: 600px) {
+    font-size: 14px;
+    padding: 6px 10px;
   }
 `;
