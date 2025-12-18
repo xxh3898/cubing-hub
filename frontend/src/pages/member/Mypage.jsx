@@ -7,11 +7,19 @@ import {
   ProfileSection,
   SectionTitle,
   RecordTable,
+  StatsGrid,
+  StatBox,
 } from './MemberStyled';
 
 const Mypage = () => {
   const { user } = useMemberStore();
   const [records, setRecords] = useState([]);
+
+  const [stats, setStats] = useState({
+    total: 0,
+    best: 0,
+    avg: 0
+  });
 
   useEffect(() => {
     if (user) {
@@ -23,6 +31,21 @@ const Mypage = () => {
     try {
       const recordData = await getMyRecords(user.id);
       setRecords(recordData);
+
+      const sorted = recordData.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setRecords(sorted);
+
+      if (sorted.length > 0) {
+        const times = sorted.map(r => r.time);
+        const total = sorted.length;
+        const best = Math.min(...times);
+        const sum = times.reduce((acc, cur) => acc + cur, 0);
+        const avg = (sum / total).toFixed(3);
+
+        setStats({ total, best, avg });
+      } else {
+        setStats({ total: 0, best: 0, avg: 0 });
+      }
     } catch (error) {
       console.error("데이터 로딩 실패:", error);
     }
@@ -56,6 +79,22 @@ const Mypage = () => {
           <div>{user.age}세</div>
         </div>
       </ProfileSection>
+
+      <SectionTitle>나의 기록 통계</SectionTitle>
+      <StatsGrid>
+        <StatBox>
+          <span className="label">총 솔빙 수</span>
+          <span className="value">{stats.total}회</span>
+        </StatBox>
+        <StatBox>
+          <span className="label">최고 기록(PB)</span>
+          <span className="value highlight">{stats.best}초</span>
+        </StatBox>
+        <StatBox>
+          <span className="label">전체 평균</span>
+          <span className="value">{stats.avg}초</span>
+        </StatBox>
+      </StatsGrid>
 
       <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
         <div style={{ flex: 1 }}>
