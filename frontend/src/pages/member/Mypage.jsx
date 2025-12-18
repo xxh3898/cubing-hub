@@ -6,6 +6,7 @@ import {
   ProfileSection,
   SectionTitle,
   RecordTable,
+  TableWrapper,
   StatsGrid,
   StatBox,
 } from './MemberStyled';
@@ -45,9 +46,10 @@ const Mypage = () => {
         </StatBox>
       </StatsGrid>
 
-      <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
-        <div style={{ flex: 1 }}>
-          <SectionTitle>내 기록</SectionTitle>
+      <div style={{ marginTop: '2rem' }}>
+        <SectionTitle>내 기록</SectionTitle>
+
+        <TableWrapper>
           <RecordTable>
             <thead>
               <tr>
@@ -81,7 +83,7 @@ const Mypage = () => {
               )}
             </tbody>
           </RecordTable>
-        </div>
+        </TableWrapper>
       </div>
     </MypageContainer>
   );
