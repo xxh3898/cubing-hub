@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import useMemberStore from '../../stores/useMemberStore';
-import { writePost } from '../../api/requests';
+import usePostForm from '../../hooks/usePostForm';
 import {
   BoardContainer,
   Title,
@@ -13,33 +12,7 @@ import {
 
 const Write = () => {
   const navigate = useNavigate();
-  const { user } = useMemberStore();
-
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-
-  const handleSubmit = async () => {
-    if (!title.trim() || !content.trim()) {
-      alert("제목과 내용을 모두 입력해주세요.");
-      return;
-    }
-
-    if (!user) {
-      alert("로그인이 필요한 서비스입니다.");
-      navigate('/login');
-      return;
-    }
-
-    try {
-      await writePost({ title, content }, user.id);
-
-      alert("게시글이 등록되었습니다.");
-      navigate('/board');
-    } catch (error) {
-      console.error("글쓰기 실패:", error);
-      alert("글 등록 중 오류가 발생했습니다.");
-    }
-  };
+  const { title, setTitle, content, setContent, handleSubmit } = usePostForm();
 
   return (
     <BoardContainer>

@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import useMemberStore from '../../stores/useMemberStore';
-import { getPost, deletePost } from '../../api/requests';
+import React from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import usePostDetail from '../../hooks/usePostDetail';
 import { formatDate } from '../../utils/dateUtils';
 import {
   BoardContainer,
@@ -17,45 +16,12 @@ import {
 } from './BoardStyled';
 
 const Detail = () => {
-  const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useMemberStore();
-  const [post, setPost] = useState(null);
+  const { id } = useParams();
 
-  useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        const data = await getPost(id);
-        setPost(data);
-      } catch (error) {
-        console.error("게시글 로딩 실패:", error);
-        alert("게시글을 불러올 수 없습니다.");
-        navigate('/board');
-      }
-    };
-    fetchPost();
-  }, [id, navigate]);
-
-  const handleDelete = async () => {
-    if (!user || user.id !== post.authorId) {
-      alert("삭제 권한이 없습니다.");
-      return;
-    }
-
-    if (window.confirm("정말로 삭제하시겠습니까?")) {
-      try {
-        await deletePost(id, user.id);
-        alert("삭제되었습니다.");
-        navigate('/board');
-      } catch (e) {
-        alert("삭제 실패!");
-      }
-    }
-  };
+  const { post, isAuthor, handleDelete } = usePostDetail();
 
   if (!post) return <BoardContainer>로딩 중...</BoardContainer>;
-
-  const isAuthor = user && user.id === post.authorId;
 
   return (
     <BoardContainer>
@@ -64,7 +30,7 @@ const Detail = () => {
         <PostHeader>
           <PostTitle>{post.title}</PostTitle>
           <PostInfo>
-            <span><strong>작성자</strong> {post.author || post.authorId}</span>
+            <span><strong>작성자</strong> {post.author}</span>
             <span><strong>작성일</strong> {formatDate(post.date)}</span>
           </PostInfo>
         </PostHeader>
