@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getPosts } from '../../api/requests';
+import useBoard from '../../hooks/useBoard';
 import useMemberStore from '../../stores/useMemberStore';
 import { formatDate } from '../../utils/dateUtils.js';
 import {
@@ -14,21 +14,7 @@ import {
 const BoardIndex = () => {
   const navigate = useNavigate();
   const { user } = useMemberStore();
-  const [posts, setPosts] = useState([]);
-
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const data = await getPosts();
-        setPosts(data);
-        console.log("게시글 로딩 성공:", data);
-      } catch (error) {
-        console.error("게시글 로딩 실패:", error);
-      }
-    };
-
-    fetchPosts();
-  }, []);
+  const { posts } = useBoard();
 
   return (
     <BoardContainer>
