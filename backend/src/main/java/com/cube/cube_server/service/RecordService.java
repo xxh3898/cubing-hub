@@ -21,22 +21,21 @@ public class RecordService {
     private final MemberRepository memberRepository;
 
     @Transactional
-    public Long addRecord(RecordDto recordDto, String memberId) {
+    public Long addRecord(RecordDto.Create request, String memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
-        Record record = new Record(recordDto.getTime(), recordDto.getScramble());
+        Record record = request.toEntity();
 
-        record.setMember(member);
+        record.changeMember(member);
 
         recordRepository.save(record);
-
         return record.getId();
     }
 
-    public List<RecordDto> getRecords(String memberId) {
+    public List<RecordDto.Response> getRecords(String memberId) {
         return recordRepository.findByMemberId(memberId).stream()
-                .map(RecordDto::new)
+                .map(RecordDto.Response::of)
                 .collect(Collectors.toList());
     }
 

@@ -2,13 +2,12 @@ package com.cube.cube_server.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Entity
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "POSTS")
 public class Post extends BaseTimeEntity {
@@ -29,13 +28,17 @@ public class Post extends BaseTimeEntity {
     private String author;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id")
+    @JoinColumn(name = "member_id", nullable = false)
     private Member member;
 
-    public Post(String title, String content, String author) {
+    @Builder
+    public Post(String title, String content, Member member) {
         this.title = title;
         this.content = content;
-        this.author = author;
+
+        if (member != null) {
+            changeMember(member);
+        }
     }
 
     public void update(String title, String content) {
@@ -43,8 +46,12 @@ public class Post extends BaseTimeEntity {
         this.content = content;
     }
 
-    public void setMember(Member member) {
+    public void changeMember(Member member) {
         this.member = member;
-        member.getPosts().add(this);
+        this.author = member.getName();
+
+        if (!member.getPosts().contains(this)) {
+            member.getPosts().add(this);
+        }
     }
 }

@@ -21,39 +21,44 @@ public class PostService {
     private final MemberRepository memberRepository;
 
     @Transactional
-    public Long write(PostDto postDto, String memberId) {
+    public Long write(PostDto.Create request, String memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
-        Post post = new Post(postDto.getTitle(), postDto.getContent(), member.getName());
-        post.setMember(member);
+
+        Post post = request.toEntity();
+
+        post.changeMember(member);
+
         postRepository.save(post);
         return post.getId();
     }
 
-    public List<PostDto> findAll() {
+    public List<PostDto.Response> findAll() {
         return postRepository.findAllByOrderByCreateTimeDesc().stream()
-                .map(PostDto::new)
+                .map(PostDto.Response::of)
                 .collect(Collectors.toList());
     }
 
-    public List<PostDto> findByMemberId(String memberId) {
+    public List<PostDto.Response> findByMemberId(String memberId) {
         return postRepository.findAllByOrderByCreateTimeDesc().stream()
                 .filter(p -> p.getMember().getId().equals(memberId))
-                .map(PostDto::new)
+                .map(PostDto.Response::of)
                 .collect(Collectors.toList());
     }
 
-    public PostDto findById(Long id) {
+    public PostDto.Response findById(Long id) {
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
-        return new PostDto(post);
+        return PostDto.Response.of(post);
     }
 
     @Transactional
-    public Long update(Long id, PostDto postDto) {
+    public Long update(Long id, PostDto.Update request) {
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 게시글이 없습니다. id=" + id));
-        post.update(postDto.getTitle(), postDto.getContent());
+
+        post.update(request.getTitle(), request.getContent());
+
         return id;
     }
 

@@ -1,17 +1,15 @@
 package com.cube.cube_server.domain;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Getter
-@Setter
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "MEMBERS")
 public class Member {
@@ -30,15 +28,10 @@ public class Member {
     private Integer age;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Record> records = new ArrayList<>();
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Post> posts = new ArrayList<>();
-
-    public Member(String id, String password, String name, Integer age) {
-        this.id = id;
-        this.password = password;
-        this.name = name;
-        this.age = age;
-    }
 }

@@ -15,9 +15,9 @@ public class MemberController {
     private final MemberService memberService;
 
     @PostMapping("/signup")
-    public ResponseEntity<String> signup(@RequestBody MemberDto memberDto) {
+    public ResponseEntity<String> signup(@RequestBody MemberDto.Create request) {
         try {
-            String savedId = memberService.join(memberDto);
+            String savedId = memberService.join(request);
             return ResponseEntity.ok("회원가입 성공! ID: " + savedId);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -25,8 +25,8 @@ public class MemberController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<MemberDto> login(@RequestBody MemberDto memberDto) {
-        MemberDto loginMember = memberService.login(memberDto.getId(), memberDto.getPassword());
+    public ResponseEntity<MemberDto.Response> login(@RequestBody MemberDto.LoginRequest request) {
+        MemberDto.Response loginMember = memberService.login(request.getId(), request.getPassword());
 
         if (loginMember != null) {
             return ResponseEntity.ok(loginMember);

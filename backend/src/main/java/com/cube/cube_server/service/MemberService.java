@@ -15,10 +15,10 @@ public class MemberService {
     private final MemberRepository memberRepository;
 
     @Transactional
-    public String join(MemberDto memberDto) {
-        validateDuplicateMember(memberDto.getId());
+    public String join(MemberDto.Create request) {
+        validateDuplicateMember(request.getId());
 
-        Member member = memberDto.toEntity();
+        Member member = request.toEntity();
         memberRepository.save(member);
 
         return member.getId();
@@ -30,13 +30,13 @@ public class MemberService {
         });
     }
 
-    public MemberDto login(String id, String password) {
+    public MemberDto.Response login(String id, String password) {
         Member member = memberRepository.findById(id)
                 .filter(m -> m.getPassword().equals(password))
                 .orElse(null);
 
         if (member != null) {
-            return new MemberDto(member);
+            return MemberDto.Response.of(member);
         } else {
             return null;
         }
