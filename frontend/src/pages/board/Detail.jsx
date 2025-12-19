@@ -31,7 +31,7 @@ const Detail = () => {
           <PostTitle>{post.title}</PostTitle>
           <PostInfo>
             <span><strong>작성자</strong> {post.author}</span>
-            <span><strong>작성일</strong> {formatDate(post.date)}</span>
+            <span><strong>작성일</strong> {formatDate(post.createTime)}</span>
           </PostInfo>
         </PostHeader>
         <PostContent>

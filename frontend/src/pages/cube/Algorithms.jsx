@@ -3,7 +3,7 @@ import useAlgorithms from '../../hooks/useAlgorithms';
 import { AlgoCard, AlgoFormula, AlgoImage, AlgoTitle, Container, Grid, TabButton, TabContainer, Title } from './TimerStyled';
 
 const Algorithms = () => {
-  const { activeTab, setActiveTab, algoData, getImageUrl } = useAlgorithms();
+  const { activeTab, setActiveTab, ALGO_DATA, getImageUrl } = useAlgorithms();
 
   return (
     <Container>
@@ -21,7 +21,7 @@ const Algorithms = () => {
       </TabContainer>
 
       <Grid>
-        {algoData[activeTab]?.map((algo) => (
+        {ALGO_DATA[activeTab]?.map((algo) => (
           <AlgoCard key={algo.id}>
             <AlgoImage
               src={getImageUrl(algo)}

@@ -54,4 +54,8 @@ public class Post extends BaseTimeEntity {
             member.getPosts().add(this);
         }
     }
+
+    public String getAuthorId() {
+        return this.member != null ? this.member.getId() : null;
+    }
 }

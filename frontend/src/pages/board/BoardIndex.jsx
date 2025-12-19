@@ -54,7 +54,7 @@ const BoardIndex = () => {
                     </Link>
                   </td>
                   <td>{post.author}</td>
-                  <td>{formatDate(post.date)}</td>
+                  <td>{formatDate(post.createTime)}</td>
                 </tr>
               ))
             )}
