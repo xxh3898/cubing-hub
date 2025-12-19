@@ -41,6 +41,7 @@ public class PostDto {
         private String title;
         private String content;
         private String author;
+        private String authorId;
         private LocalDateTime createTime;
 
         public static Response of(Post post) {
@@ -49,6 +50,7 @@ public class PostDto {
                     .title(post.getTitle())
                     .content(post.getContent())
                     .author(post.getAuthor())
+                    .authorId(post.getAuthorId())
                     .createTime(post.getCreateTime())
                     .build();
         }
