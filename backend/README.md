@@ -1,235 +1,183 @@
-# 큐브 커뮤니티 & 타이머 (Backend)
+# 🎲 Cube Server (Backend)
 
-React 기반의 큐브 커뮤니티(SPA) 프로젝트를 위한 **RESTful API 서버**입니다.
-Spring Boot를 사용하여 구현되었으며, 회원 관리, 게시판(CRUD), 큐브 기록 저장 기능을 제공합니다.
+## 1. 📝 프로젝트 개요
+이 프로젝트는 **React 기반의 큐브 기록 및 커뮤니티 플랫폼(Cubing Hub)** 을 위한 백엔드 REST API 서버입니다.
+Spring Boot와 JPA를 기반으로 구현되었으며, 프론트엔드(SPA)와의 원활한 데이터 통신을 위해 **RESTful 원칙**을 준수하여 설계되었습니다.
 
-## 📋 API 요약 (Summary)
-
-| Method | Endpoint | 설명 |
-| :---: | :--- | :--- |
-| **POST** | `/api/members/signup` | 회원가입 |
-| **POST** | `/api/members/login` | 로그인 |
-| **POST** | `/api/posts` | 게시글 작성 |
-| **GET** | `/api/posts` | 전체 게시글 목록 조회 |
-| **GET** | `/api/posts/my` | 내 게시글 조회 |
-| **GET** | `/api/posts/{id}` | 게시글 상세 조회 |
-| **PUT** | `/api/posts/{id}` | 게시글 수정 |
-| **DELETE** | `/api/posts/{id}` | 게시글 삭제 |
-| **POST** | `/api/records` | 큐브 기록 저장 |
-| **GET** | `/api/records` | 내 기록 조회 |
+* **목표**: 회원 관리, 게시판 CRUD, 타이머 기록 저장 기능을 제공하는 REST API 서버 구현
+* **특징**:
+    * **Entity 직접 노출 금지**: 모든 API 통신은 철저히 분리된 **DTO(Request/Response)**를 통해 이루어집니다.
+    * **JPA 연관관계 활용**: Member, Post, Record 간의 1:N 관계를 객체 지향적으로 매핑했습니다.
+    * **H2 DB 연동**: 개발 편의성을 위해 로컬 파일 기반의 H2 데이터베이스를 사용합니다.
 
 ---
 
-## 1. 프로젝트 개요
-* **프로젝트명**: Cube Server (큐브 API 서버)
-* **목표**: 프론트엔드(React)의 요청을 처리하고 데이터를 반환하는 REST API 구현
-* **핵심 원칙**:
-    * 자원(Resource) 중심의 URI 설계 (`/api/members`, `/api/posts`)
-    * HTTP 메서드(GET, POST, PUT, DELETE)를 통한 행위 표현
-    * JSON 기반의 요청/응답 데이터 처리 (DTO 사용)
-    * 세션/토큰 대신 클라이언트 식별자(ID)를 통한 단순 데이터 처리
-
-## 2. 사용 기술 스택 (Tech Stack)
-
-| 구분 | 기술 | 설명 |
-| :-- | :-- | :-- |
-| **Language** | **Java 17** | 백엔드 주요 언어 |
-| **Framework** | **Spring Boot 3.x** | REST API 서버 구축 |
-| **Database** | **H2 Database** | 개발 및 테스트용 인메모리 DB |
-| **ORM** | **Spring Data JPA** | 객체 중심의 데이터 접근 및 관리 |
-| **Build Tool** | **Gradle** | 의존성 관리 및 빌드 |
-
-## 3. 주요 도메인 설명
-
-1.  **회원 (Member)**
-    * 사용자의 기본 정보(아이디, 비밀번호, 이름, 나이)를 관리합니다.
-    * 회원가입과 로그인 기능을 제공합니다.
-2.  **게시판 (Post)**
-    * 사용자 간의 소통을 위한 게시글 도메인입니다.
-    * 제목, 내용, 작성자, 작성일시를 포함하며 CRUD(생성, 조회, 수정, 삭제)가 가능합니다.
-3.  **기록 (Record)**
-    * 큐브 타이머를 통해 측정된 기록을 관리합니다.
-    * 측정 시간(초)과 당시의 스크램블(섞는 공식), 날짜 정보를 저장합니다.
-
-## 4. API 명세 (API Specification)
-
-모든 요청과 응답은 **JSON** 형식을 사용합니다.
-
-### 4-1. 회원 (Member) - `/api/members`
-
-#### 1) 회원가입
-* **Method**: `POST`
-* **URL**: `/api/members/signup`
-* **Status Code**: `200 OK` (성공), `400 Bad Request` (중복 ID 등 실패)
-* **Request Body**:
-    ```json
-    {
-      "id": "cube_master",
-      "password": "password123",
-      "name": "김큐브",
-      "age": 25
-    }
-    ```
-* **Response**:
-    ```text
-    "회원가입 성공! ID: cube_master"
-    ```
-
-#### 2) 로그인
-* **Method**: `POST`
-* **URL**: `/api/members/login`
-* **Status Code**: `200 OK` (성공), `400 Bad Request` (실패)
-* **Request Body**:
-    ```json
-    {
-      "id": "cube_master",
-      "password": "password123"
-    }
-    ```
-* **Response (JSON)**:
-    ```json
-    {
-      "id": "cube_master",
-      "name": "김큐브",
-      "age": 25,
-      "password": null // 보안상 null 처리 권장
-    }
-    ```
+## 2. 🛠️ 기술 스택 (Tech Stack)
+* **Framework**: Spring Boot 3.4.12, Spring Web
+* **Database**: H2 Database (File Mode)
+* **ORM**: Spring Data JPA
+* **Tool**: Lombok
+* **Build**: Gradle
 
 ---
 
-### 4-2. 게시판 (Post) - `/api/posts`
+## 3. 🏗️ 주요 도메인 설명
+본 프로젝트는 3개의 핵심 Entity로 구성되어 있습니다.
 
-#### 1) 게시글 작성
-* **Method**: `POST`
-* **URL**: `/api/posts?memberId={memberId}`
-* **Query Param**: `memberId` (작성자 ID)
-* **Request Body**:
-    ```json
-    {
-      "title": "큐브 20초 진입 팁 공유합니다",
-      "content": "F2L 연습을 많이 하세요!"
-    }
-    ```
-* **Response**:
-    ```text
-    "게시글 작성 완료! ID: 1"
-    ```
-
-#### 2) 전체 게시글 목록 조회
-* **Method**: `GET`
-* **URL**: `/api/posts`
-* **Response (JSON List)**:
-    ```json
-    [
-      {
-        "id": 1,
-        "title": "큐브 20초 진입 팁 공유합니다",
-        "content": "F2L 연습을 많이 하세요!",
-        "author": "김큐브",
-        "authorId": "cube_master",
-        "date": "2025-12-14T10:00:00"
-      },
-      ...
-    ]
-    ```
-
-#### 3) 내 게시글 조회
-* **Method**: `GET`
-* **URL**: `/api/posts/my?memberId={memberId}`
-* **Query Param**: `memberId` (조회할 회원의 ID)
-* **Response**: 위와 동일한 JSON List 형식 (해당 회원이 쓴 글만 반환)
-
-#### 4) 게시글 상세 조회
-* **Method**: `GET`
-* **URL**: `/api/posts/{id}`
-* **Path Variable**: `id` (게시글 번호)
-* **Response (JSON)**:
-    ```json
-    {
-      "id": 1,
-      "title": "큐브 20초 진입 팁 공유합니다",
-      "content": "F2L 연습을 많이 하세요!",
-      "author": "김큐브",
-      "authorId": "cube_master",
-      "date": "2025-12-14T10:00:00"
-    }
-    ```
-
-#### 5) 게시글 수정
-* **Method**: `PUT`
-* **URL**: `/api/posts/{id}`
-* **Path Variable**: `id` (게시글 번호)
-* **Request Body**:
-    ```json
-    {
-      "title": "제목 수정함",
-      "content": "내용도 수정함"
-    }
-    ```
-* **Response**: `1` (수정된 게시글 ID)
-
-#### 6) 게시글 삭제
-* **Method**: `DELETE`
-* **URL**: `/api/posts/{id}`
-* **Path Variable**: `id` (게시글 번호)
-* **Response**: `"삭제 완료"`
+1.  **Member (회원)**
+    * 사용자 정보를 관리하는 핵심 엔티티입니다.
+    * 아이디(id), 비밀번호(password), 이름(name), 나이(age) 정보를 가집니다.
+    * `Post`와 `Record`에 대해 **1:N (일대다)** 관계를 가집니다.
+2.  **Post (게시글)**
+    * 커뮤니티 기능을 위한 엔티티입니다.
+    * 제목, 내용, 작성자, 작성일, 수정일 정보를 가집니다.
+    * `Member`와 **N:1 (다대일)** 관계를 맺어 작성자를 식별합니다.
+3.  **Record (기록)**
+    * 큐브 타이머 측정 기록을 저장하는 엔티티입니다.
+    * 측정 시간(time), 스크램블(scramble, 섞는 공식), 날짜 정보를 가집니다.
+    * `Member`와 **N:1 (다대일)** 관계를 맺어 누구의 기록인지 식별합니다.
 
 ---
 
-### 4-3. 기록 (Record) - `/api/records`
+## 4. 📡 API 명세 (API Specification)
 
-#### 1) 큐브 기록 저장
-* **Method**: `POST`
-* **URL**: `/api/records?memberId={memberId}`
-* **Query Param**: `memberId` (기록할 회원의 ID)
-* **Request Body**:
-    ```json
-    {
-      "time": 15.42,
-      "scramble": "R U R' U' ..."
-    }
-    ```
-* **Response**:
-    ```text
-    "기록 저장 완료! ID: 5"
-    ```
+### 👤 1. 회원 (Member)
+| 기능 | Method | URL | 설명 |
+| :--- | :---: | :--- | :--- |
+| **회원가입** | `POST` | `/api/members/signup` | 신규 회원을 등록합니다. |
+| **로그인** | `POST` | `/api/members/login` | 아이디/비밀번호 검증 후 회원 정보를 반환합니다. |
 
-#### 2) 내 기록 조회
-* **Method**: `GET`
-* **URL**: `/api/records?memberId={memberId}`
-* **Query Param**: `memberId` (조회할 회원의 ID)
-* **Response (JSON List)**:
-    ```json
-    [
-      {
-        "id": 5,
-        "time": 15.42,
-        "scramble": "R U R' U' ...",
-        "date": "2025-12-14T12:34:56",
-        "memberId": "cube_master"
-      }
-    ]
-    ```
+**Request Example (JSON)**
+```json
+// POST /api/members/signup
+{
+  "id": "cube_master",
+  "password": "password123!",
+  "name": "김큐브",
+  "age": 25
+}
+```
 
-## 5. 실행 방법 (How to Run)
+**Response Example (JSON)**
+```json
+// POST /api/members/login (성공 시)
+{
+  "id": "cube_master",
+  "name": "김큐브",
+  "age": 25
+}
+```
 
-이 프로젝트는 Gradle을 기반으로 합니다.
+---
 
-1.  **프로젝트 루트 디렉토리로 이동**
+### 📝 2. 게시판 (Post)
+| 기능 | Method | URL | 설명 |
+| :--- | :---: | :--- | :--- |
+| **게시글 작성** | `POST` | `/api/posts?memberId={id}` | 게시글을 작성합니다. (Query Param으로 작성자 식별) |
+| **전체 조회** | `GET` | `/api/posts` | 모든 게시글 목록을 최신순으로 조회합니다. |
+| **상세 조회** | `GET` | `/api/posts/{id}` | 특정 ID의 게시글 상세 정보를 조회합니다. |
+| **게시글 수정** | `PUT` | `/api/posts/{id}` | 게시글의 제목과 내용을 수정합니다. |
+| **게시글 삭제** | `DELETE` | `/api/posts/{id}` | 특정 게시글을 삭제합니다. |
+
+**Request Example (JSON)**
+```json
+// POST /api/posts?memberId=cube_master
+{
+  "title": "큐브 추천해주세요!",
+  "content": "3x3 큐브 입문하려고 하는데 가성비 좋은 거 있을까요?"
+}
+```
+
+**Response Example (JSON)**
+```json
+// GET /api/posts/{id}
+{
+  "id": 1,
+  "title": "큐브 추천해주세요!",
+  "content": "3x3 큐브 입문하려고 하는데 가성비 좋은 거 있을까요?",
+  "author": "김큐브",
+  "authorId": "cube_master",
+  "createTime": "2025-12-19T10:00:00"
+}
+```
+
+---
+
+### ⏱️ 3. 기록 (Record)
+| 기능 | Method | URL | 설명 |
+| :--- | :---: | :--- | :--- |
+| **기록 저장** | `POST` | `/api/records?memberId={id}` | 타이머 측정 결과를 저장합니다. |
+| **내 기록 조회** | `GET` | `/api/records?memberId={id}` | 특정 회원의 모든 기록을 조회합니다. |
+| **기록 삭제** | `DELETE` | `/api/records/{id}` | 특정 기록을 삭제합니다. |
+
+**Request Example (JSON)**
+```json
+// POST /api/records?memberId=cube_master
+{
+  "time": 12.45,
+  "scramble": "R U R' U' R' F R2 U' R' U' R U R' F'"
+}
+```
+
+**Response Example (JSON)**
+```json
+// GET /api/records?memberId=cube_master
+[
+  {
+    "id": 1,
+    "time": 12.45,
+    "scramble": "R U R' U' R' F R2 U' R' U' R U R' F'"
+  },
+  {
+    "id": 2,
+    "time": 15.20,
+    "scramble": "D L2 B2 F L2 U' R' L2 B' R D2"
+  }
+]
+```
+
+---
+
+## 5. 🚀 실행 방법 (How to Run)
+
+### 1️⃣ 백엔드 (Spring Boot) 실행
+1.  `backend` 디렉토리로 이동합니다.
+2.  아래 명령어로 빌드 및 실행합니다.
     ```bash
-    cd backend
-    ```
+    # Windows
+    ./gradlew.bat bootRun
 
-2.  **애플리케이션 실행** (Mac/Linux)
-    ```bash
+    # Mac/Linux
     ./gradlew bootRun
     ```
-    *(Windows의 경우)*
-    ```cmd
-    gradlew.bat bootRun
-    ```
+3.  서버가 `http://localhost:8080` 포트에서 실행됩니다.
 
-3.  **서버 확인**
-    * 서버가 정상적으로 실행되면 `http://localhost:8080` 포트에서 요청을 대기합니다.
-    * H2 Console 접속: `http://localhost:8080/h2-console`
+### 2️⃣ H2 데이터베이스 접속 (콘솔)
+서버 실행 후 브라우저에서 아래 주소로 접속하여 DB 상태를 확인할 수 있습니다.
+
+* **접속 URL**: `http://localhost:8080/h2-console`
+* **Driver Class**: `org.h2.Driver`
+* **JDBC URL**: `jdbc:h2:file:./database/cube`
+* **User Name**: `sa`
+* **Password**: `1234`
+
+### 3️⃣ 프론트엔드 (React) 실행
+1.  `frontend` 디렉토리로 이동합니다.
+2.  의존성을 설치하고 개발 서버를 시작합니다.
+    ```bash
+    npm install
+    npm run dev
+    ```
+3.  브라우저에서 `http://localhost:5173`으로 접속합니다.
+
+---
+
+## 6. 📁 프로젝트 구조 (Package Structure)
+```
+com.cube.cube_server
+├── controller    # API 요청을 처리하는 Controller (REST API)
+├── service       # 비즈니스 로직을 처리하는 Service (@Transactional)
+├── repository    # DB 접근을 담당하는 Repository (JPA)
+├── domain        # DB 테이블과 매핑되는 Entity 클래스
+└── dto           # 데이터 전송을 위한 DTO (Request/Response 분리)
+```
