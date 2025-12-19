@@ -1,14 +1,12 @@
 package com.cube.cube_server.domain;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Getter
-@Setter
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "RECORDS")
 public class Record extends BaseTimeEntity {
@@ -25,15 +23,10 @@ public class Record extends BaseTimeEntity {
     private String scramble;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_id")
+    @JoinColumn(name = "member_id", nullable = false)
     private Member member;
 
-    public Record(Double time, String scramble) {
-        this.time = time;
-        this.scramble = scramble;
-    }
-
-    public void setMember(Member member) {
+    public void changeMember(Member member) {
         this.member = member;
         member.getRecords().add(this);
     }
