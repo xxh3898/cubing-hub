@@ -17,31 +17,25 @@ public class PostController {
     private final PostService postService;
 
     @PostMapping
-    public ResponseEntity<String> write(@RequestBody PostDto postDto, @RequestParam String memberId) {
-        Long postId = postService.write(postDto, memberId);
+    public ResponseEntity<String> write(@RequestBody PostDto.Create request, @RequestParam String memberId) {
+        Long postId = postService.write(request, memberId);
         return ResponseEntity.ok("게시글 작성 완료! ID: " + postId);
     }
 
     @GetMapping
-    public ResponseEntity<List<PostDto>> findAll() {
-        List<PostDto> posts = postService.findAll();
+    public ResponseEntity<List<PostDto.Response>> findAll() {
+        List<PostDto.Response> posts = postService.findAll();
         return ResponseEntity.ok(posts);
     }
 
-    @GetMapping("/my")
-    public ResponseEntity<List<PostDto>> findMyPosts(@RequestParam String memberId) {
-        List<PostDto> myPosts = postService.findByMemberId(memberId);
-        return ResponseEntity.ok(myPosts);
-    }
-
     @GetMapping("/{id}")
-    public ResponseEntity<PostDto> findById(@PathVariable Long id) {
+    public ResponseEntity<PostDto.Response> findById(@PathVariable Long id) {
         return ResponseEntity.ok(postService.findById(id));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Long> update(@PathVariable Long id, @RequestBody PostDto postDto) {
-        return ResponseEntity.ok(postService.update(id, postDto));
+    public ResponseEntity<Long> update(@PathVariable Long id, @RequestBody PostDto.Update request) {
+        return ResponseEntity.ok(postService.update(id, request));
     }
 
     @DeleteMapping("/{id}")

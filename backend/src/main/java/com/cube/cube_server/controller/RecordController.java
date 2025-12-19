@@ -17,15 +17,14 @@ public class RecordController {
     private final RecordService recordService;
 
     @PostMapping
-    public ResponseEntity<String> addRecord(@RequestBody RecordDto recordDto, @RequestParam String memberId) {
-        Long recordId = recordService.addRecord(recordDto, memberId);
+    public ResponseEntity<String> addRecord(@RequestBody RecordDto.Create request, @RequestParam String memberId) {
+        Long recordId = recordService.addRecord(request, memberId);
         return ResponseEntity.ok("기록 저장 완료! ID: " + recordId);
     }
 
     @GetMapping
-    public ResponseEntity<List<RecordDto>> getRecords(@RequestParam String memberId) {
-        List<RecordDto> records = recordService.getRecords(memberId);
-        return ResponseEntity.ok(records);
+    public ResponseEntity<List<RecordDto.Response>> getRecords(@RequestParam String memberId) {
+        return ResponseEntity.ok(recordService.getRecords(memberId));
     }
 
     @DeleteMapping("/{id}")
