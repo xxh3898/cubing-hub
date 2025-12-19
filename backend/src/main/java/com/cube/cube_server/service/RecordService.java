@@ -22,11 +22,12 @@ public class RecordService {
 
     @Transactional
     public Long addRecord(RecordDto.Create request, String memberId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+        Member member = memberRepository.findOne(memberId);
+        if (member == null) {
+            throw new IllegalArgumentException("존재하지 않는 회원입니다.");
+        }
 
         Record record = request.toEntity();
-
         record.changeMember(member);
 
         recordRepository.save(record);
@@ -41,6 +42,9 @@ public class RecordService {
 
     @Transactional
     public void deleteRecord(Long id) {
-        recordRepository.deleteById(id);
+        Record record = recordRepository.findOne(id);
+        if (record != null) {
+            recordRepository.remove(record);
+        }
     }
 }

@@ -1,10 +1,13 @@
 package com.cube.cube_server.repository;
 
 import com.cube.cube_server.domain.Member;
-import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.Optional;
+import java.util.List;
 
-public interface MemberRepository extends JpaRepository<Member, String> {
-    Optional<Member> findById(String id);
+public interface MemberRepository {
+    void save(Member member);
+
+    Member findOne(String id);
+
+    List<Member> findAll();
 }

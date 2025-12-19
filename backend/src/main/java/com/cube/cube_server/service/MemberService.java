@@ -25,17 +25,16 @@ public class MemberService {
     }
 
     private void validateDuplicateMember(String id) {
-        memberRepository.findById(id).ifPresent(m -> {
+        Member findMember = memberRepository.findOne(id);
+        if (findMember != null) {
             throw new IllegalStateException("이미 존재하는 회원입니다.");
-        });
+        }
     }
 
     public MemberDto.Response login(String id, String password) {
-        Member member = memberRepository.findById(id)
-                .filter(m -> m.getPassword().equals(password))
-                .orElse(null);
+        Member member = memberRepository.findOne(id);
 
-        if (member != null) {
+        if (member != null && member.getPassword().equals(password)) {
             return MemberDto.Response.of(member);
         } else {
             return null;
