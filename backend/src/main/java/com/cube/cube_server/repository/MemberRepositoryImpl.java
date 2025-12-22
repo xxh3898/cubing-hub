@@ -1,6 +1,6 @@
 package com.cube.cube_server.repository;
 
-import com.cube.cube_server.domain.Member;
+import com.cube.cube_server.entity.Member;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

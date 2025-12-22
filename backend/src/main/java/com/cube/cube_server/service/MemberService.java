@@ -1,6 +1,6 @@
 package com.cube.cube_server.service;
 
-import com.cube.cube_server.domain.Member;
+import com.cube.cube_server.entity.Member;
 import com.cube.cube_server.dto.MemberDto;
 import com.cube.cube_server.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;

@@ -1,7 +1,7 @@
 package com.cube.cube_server.service;
 
-import com.cube.cube_server.domain.Member;
-import com.cube.cube_server.domain.Post;
+import com.cube.cube_server.entity.Member;
+import com.cube.cube_server.entity.Post;
 import com.cube.cube_server.dto.PostDto;
 import com.cube.cube_server.repository.MemberRepository;
 import com.cube.cube_server.repository.PostRepository;

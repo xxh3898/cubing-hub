@@ -1,4 +1,4 @@
-package com.cube.cube_server.domain;
+package com.cube.cube_server.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

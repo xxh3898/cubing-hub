@@ -1,6 +1,6 @@
 package com.cube.cube_server.dto;
 
-import com.cube.cube_server.domain.Post;
+import com.cube.cube_server.entity.Post;
 import lombok.*;
 
 import java.time.LocalDateTime;

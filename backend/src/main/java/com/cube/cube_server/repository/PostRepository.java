@@ -1,6 +1,6 @@
 package com.cube.cube_server.repository;
 
-import com.cube.cube_server.domain.Post;
+import com.cube.cube_server.entity.Post;
 
 import java.util.List;
 

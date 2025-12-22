@@ -1,6 +1,6 @@
 package com.cube.cube_server.dto;
 
-import com.cube.cube_server.domain.Member;
+import com.cube.cube_server.entity.Member;
 import lombok.*;
 
 public class MemberDto {

@@ -1,6 +1,6 @@
 package com.cube.cube_server.dto;
 
-import com.cube.cube_server.domain.Record;
+import com.cube.cube_server.entity.Record;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
