@@ -6,7 +6,7 @@ Spring Boot와 JPA를 기반으로 구현되었으며, 프론트엔드(SPA)와�
 
 * **목표**: 회원 관리, 게시판 CRUD, 타이머 기록 저장 기능을 제공하는 REST API 서버 구현
 * **특징**:
-    * **Entity 직접 노출 금지**: 모든 API 통신은 철저히 분리된 **DTO(Request/Response)**를 통해 이루어집니다.
+    * **Entity 직접 노출 금지**: 모든 API 통신은 철저히 분리된 **DTO(Request/Response)** 를 통해 이루어집니다.
     * **JPA 연관관계 활용**: Member, Post, Record 간의 1:N 관계를 객체 지향적으로 매핑했습니다.
     * **H2 DB 연동**: 개발 편의성을 위해 로컬 파일 기반의 H2 데이터베이스를 사용합니다.
 
@@ -42,10 +42,10 @@ Spring Boot와 JPA를 기반으로 구현되었으며, 프론트엔드(SPA)와�
 ## 4. 📡 API 명세 (API Specification)
 
 ### 👤 1. 회원 (Member)
-| 기능 | Method | URL | 설명 |
-| :--- | :---: | :--- | :--- |
-| **회원가입** | `POST` | `/api/members/signup` | 신규 회원을 등록합니다. |
-| **로그인** | `POST` | `/api/members/login` | 아이디/비밀번호 검증 후 회원 정보를 반환합니다. |
+| 기능 | Method | URL | Status Code | 설명 |
+| :--- | :---: | :--- | :---: | :--- |
+| **회원가입** | `POST` | `/api/members/signup` | `201`, `409` | 신규 회원을 등록합니다. (중복 시 409) |
+| **로그인** | `POST` | `/api/members/login` | `200`, `400` | 아이디/비밀번호 검증 후 회원 정보를 반환합니다. |
 
 **Request Example (JSON)**
 ```json
@@ -71,13 +71,13 @@ Spring Boot와 JPA를 기반으로 구현되었으며, 프론트엔드(SPA)와�
 ---
 
 ### 📝 2. 게시판 (Post)
-| 기능 | Method | URL | 설명 |
-| :--- | :---: | :--- | :--- |
-| **게시글 작성** | `POST` | `/api/posts?memberId={id}` | 게시글을 작성합니다. (Query Param으로 작성자 식별) |
-| **전체 조회** | `GET` | `/api/posts` | 모든 게시글 목록을 최신순으로 조회합니다. |
-| **상세 조회** | `GET` | `/api/posts/{id}` | 특정 ID의 게시글 상세 정보를 조회합니다. |
-| **게시글 수정** | `PUT` | `/api/posts/{id}` | 게시글의 제목과 내용을 수정합니다. |
-| **게시글 삭제** | `DELETE` | `/api/posts/{id}` | 특정 게시글을 삭제합니다. |
+| 기능 | Method | URL | Status Code | 설명 |
+| :--- | :---: | :--- | :---: | :--- |
+| **게시글 작성** | `POST` | `/api/posts?memberId={id}` | `201`, `400` | 게시글을 작성합니다. (성공 시 생성된 ID 반환) |
+| **전체 조회** | `GET` | `/api/posts` | `200` | 모든 게시글 목록을 최신순으로 조회합니다. |
+| **상세 조회** | `GET` | `/api/posts/{id}` | `200`, `404` | 특정 ID의 게시글 상세 정보를 조회합니다. |
+| **게시글 수정** | `PUT` | `/api/posts/{id}` | `200`, `404` | 게시글의 제목과 내용을 수정합니다. |
+| **게시글 삭제** | `DELETE` | `/api/posts/{id}` | `200`, `404` | 특정 게시글을 삭제합니다. |
 
 **Request Example (JSON)**
 ```json
@@ -104,11 +104,11 @@ Spring Boot와 JPA를 기반으로 구현되었으며, 프론트엔드(SPA)와�
 ---
 
 ### ⏱️ 3. 기록 (Record)
-| 기능 | Method | URL | 설명 |
-| :--- | :---: | :--- | :--- |
-| **기록 저장** | `POST` | `/api/records?memberId={id}` | 타이머 측정 결과를 저장합니다. |
-| **내 기록 조회** | `GET` | `/api/records?memberId={id}` | 특정 회원의 모든 기록을 조회합니다. |
-| **기록 삭제** | `DELETE` | `/api/records/{id}` | 특정 기록을 삭제합니다. |
+| 기능 | Method | URL | Status Code | 설명 |
+| :--- | :---: | :--- | :---: | :--- |
+| **기록 저장** | `POST` | `/api/records?memberId={id}` | `201`, `400` | 타이머 측정 결과를 저장합니다. |
+| **내 기록 조회** | `GET` | `/api/records?memberId={id}` | `200` | 특정 회원의 모든 기록을 조회합니다. |
+| **기록 삭제** | `DELETE` | `/api/records/{id}` | `200` | 특정 기록을 삭제합니다. |
 
 **Request Example (JSON)**
 ```json
