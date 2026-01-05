@@ -23,15 +23,4 @@ public class MemberController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
-    @PostMapping("/login")
-    public ResponseEntity<MemberDto.Response> login(@RequestBody MemberDto.LoginRequest request) {
-        MemberDto.Response loginMember = memberService.login(request.getId(), request.getPassword());
-
-        if (loginMember != null) {
-            return ResponseEntity.ok(loginMember);
-        } else {
-            return ResponseEntity.badRequest().build();
-        }
-    }
 }

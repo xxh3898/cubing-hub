@@ -6,7 +6,7 @@ export const signup = async (memberData) => {
 };
 
 export const login = async (id, password) => {
-  const response = await client.post('/members/login', { id, password });
+  const response = await client.post('/auth/login', { user_id: id, user_pwd: password });
   return response.data;
 };
 

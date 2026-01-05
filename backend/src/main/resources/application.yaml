@@ -25,3 +25,7 @@ spring:
 
 server:
   port: 8080
+
+jwt:
+  secret: UaAu6RQW2bBaDFa0M3RY2dkImGORR5cYkLdWnxh7jt0= # Generated key
+  expiration: 86400000      # 24시간 (밀리초)
