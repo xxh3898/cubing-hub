@@ -4,6 +4,7 @@ import com.cube.cube_server.domain.Member;
 import com.cube.cube_server.dto.MemberDto;
 import com.cube.cube_server.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,12 +14,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public String join(MemberDto.Create request) {
         validateDuplicateMember(request.getId());
 
-        Member member = request.toEntity();
+        Member member = Member.builder()
+                .id(request.getId())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .name(request.getName())
+                .age(request.getAge())
+                .build();
+
         memberRepository.save(member);
 
         return member.getId();
@@ -30,15 +38,5 @@ public class MemberService {
         });
     }
 
-    public MemberDto.Response login(String id, String password) {
-        Member member = memberRepository.findById(id)
-                .filter(m -> m.getPassword().equals(password))
-                .orElse(null);
-
-        if (member != null) {
-            return MemberDto.Response.of(member);
-        } else {
-            return null;
-        }
-    }
+    // login method removed as it is replaced by AuthService
 }

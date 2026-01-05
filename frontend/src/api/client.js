@@ -9,4 +9,20 @@ const client = axios.create({
     },
 });
 
+client.interceptors.request.use(
+    (config) => {
+        const savedUser = localStorage.getItem("cube_user_session");
+        if (savedUser) {
+            const user = JSON.parse(savedUser);
+            if (user.token) {
+                config.headers.Authorization = `Bearer ${user.token}`;
+            }
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
 export default client;
