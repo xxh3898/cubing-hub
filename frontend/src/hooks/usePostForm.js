@@ -45,11 +45,11 @@ const usePostForm = (postId = null) => {
 
         try {
             if (postId) {
-                await updatePost(postId, { title, content }, user.id);
+                await updatePost(postId, { title, content });
                 alert("수정되었습니다.");
                 navigate(`/board/${postId}`);
             } else {
-                await writePost({ title, content }, user.id);
+                await writePost({ title, content });
                 alert("게시글이 등록되었습니다.");
                 navigate('/board');
             }

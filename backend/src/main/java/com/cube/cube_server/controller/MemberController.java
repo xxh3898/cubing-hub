@@ -36,4 +36,9 @@ public class MemberController {
     public ResponseEntity<MemberDto.Response> getMember(@PathVariable String memberId) {
         return ResponseEntity.ok(memberService.getMember(memberId));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<MemberDto.Response> getMe() {
+        return ResponseEntity.ok(memberService.getMember(com.cube.cube_server.security.SecurityUtil.getCurrentMemberId()));
+    }
 }

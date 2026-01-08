@@ -43,9 +43,9 @@ const Mypage = () => {
         </h2>
         <div className="info-grid">
           <div className="label">아이디</div>
-          <div>{user.id}</div>
+          <div>{profile?.id || user.id}</div>
           <div className="label">나이</div>
-          <div>{user.age}세</div>
+          <div>{profile?.age}세</div>
         </div>
 
         <div style={{ marginTop: '30px' }}>

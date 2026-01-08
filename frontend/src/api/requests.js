@@ -10,8 +10,13 @@ export const getMember = async (memberId) => {
   return response.data;
 };
 
+export const getMe = async () => {
+  const response = await client.get('/members/me');
+  return response.data;
+};
+
 export const login = async (id, password) => {
-  const response = await client.post('/auth/login', { user_id: id, user_pwd: password });
+  const response = await client.post('/auth/login', { id, password });
   return response.data;
 };
 
@@ -20,13 +25,13 @@ export const getPosts = async () => {
   return response.data;
 };
 
-export const writePost = async (postData, memberId) => {
-  const response = await client.post(`/posts?memberId=${memberId}`, postData);
+export const writePost = async (postData) => {
+  const response = await client.post(`/posts`, postData);
   return response.data;
 };
 
-export const saveRecord = async (recordData, memberId) => {
-  const response = await client.post(`/records?memberId=${memberId}`, recordData);
+export const saveRecord = async (recordData) => {
+  const response = await client.post(`/records`, recordData);
   return response.data;
 };
 
@@ -35,8 +40,8 @@ export const deleteRecord = async (recordId) => {
   return response.data;
 };
 
-export const getMyRecords = async (memberId) => {
-  const response = await client.get(`/records?memberId=${memberId}`);
+export const getMyRecords = async () => {
+  const response = await client.get(`/records`);
   return response.data;
 };
 
@@ -45,12 +50,12 @@ export const getPost = async (postId) => {
   return response.data;
 };
 
-export const deletePost = async (postId, memberId) => {
-  const response = await client.delete(`/posts/${postId}?memberId=${memberId}`);
+export const deletePost = async (postId) => {
+  const response = await client.delete(`/posts/${postId}`);
   return response.data;
 };
 
-export const updatePost = async (postId, postData, memberId) => {
-  const response = await client.put(`/posts/${postId}?memberId=${memberId}`, postData);
+export const updatePost = async (postId, postData) => {
+  const response = await client.put(`/posts/${postId}`, postData);
   return response.data;
 };

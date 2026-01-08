@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useMemberStore from '../stores/useMemberStore';
-import { getMyRecords, deleteRecord, getMember } from '../api/requests';
+import { getMyRecords, deleteRecord, getMe } from '../api/requests';
 
 const useMypage = () => {
     const { user } = useMemberStore();
@@ -17,11 +17,11 @@ const useMypage = () => {
         if (!user) return;
         try {
             // Fetch Records
-            const recordData = await getMyRecords(user.id);
+            const recordData = await getMyRecords();
             setRecords(recordData);
 
             // Fetch Profile (Level, Achievements)
-            const profileData = await getMember(user.id);
+            const profileData = await getMe();
             setProfile(profileData);
 
             const sorted = recordData.sort((a, b) => new Date(b.date) - new Date(a.date));
