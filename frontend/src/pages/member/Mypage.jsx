@@ -9,24 +9,60 @@ import {
   TableWrapper,
   StatsGrid,
   StatBox,
+  BadgeGrid,
+  BadgeItem,
+  LevelBadge
 } from './MemberStyled';
 
+const BADGE_META = {
+  SPEED_SUB_60: { icon: '⚡', label: '1분 돌파' },
+  SPEED_SUB_30: { icon: '🚀', label: '30초 돌파' },
+  SPEED_SUB_20: { icon: '🔥', label: '20초 돌파' },
+  SPEED_SUB_10: { icon: '👑', label: '10초 돌파' },
+  COUNT_10: { icon: '🌱', label: '시작이 반' },
+  COUNT_100: { icon: '🌿', label: '꾸준함' },
+  COUNT_1000: { icon: '🌳', label: '마스터' },
+};
+
 const Mypage = () => {
-  const { user, records, stats, handleDelete } = useMypage();
+  const { user, profile, records, stats, handleDelete } = useMypage();
 
   if (!user) {
     return <MypageContainer>로그인이 필요합니다.</MypageContainer>;
   }
 
+  // Determine which badges are unlocked
+  const unlockedBadges = profile?.achievements?.map(a => a.type) || [];
+
   return (
     <MypageContainer>
       <ProfileSection>
-        <h2>{user.name}님의 마이페이지</h2>
+        <h2>
+          {user.name}님의 마이페이지
+          <LevelBadge level={profile?.level || 'Rookie'}>{profile?.level || 'Rookie'}</LevelBadge>
+        </h2>
         <div className="info-grid">
           <div className="label">아이디</div>
           <div>{user.id}</div>
           <div className="label">나이</div>
           <div>{user.age}세</div>
+        </div>
+
+        <div style={{ marginTop: '30px' }}>
+          <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#555' }}>업적 (Archievements)</h3>
+          <BadgeGrid>
+            {Object.keys(BADGE_META).map(key => {
+              const isUnlocked = unlockedBadges.includes(key);
+              const meta = BADGE_META[key];
+              return (
+                <BadgeItem key={key} isLocked={!isUnlocked}>
+                  <div className="icon">{isUnlocked ? meta.icon : '🔒'}</div>
+                  <div className="name">{meta.label}</div>
+                  <div className="desc">{isUnlocked ? '획득 완료!' : '잠금 상태'}</div>
+                </BadgeItem>
+              );
+            })}
+          </BadgeGrid>
         </div>
       </ProfileSection>
 

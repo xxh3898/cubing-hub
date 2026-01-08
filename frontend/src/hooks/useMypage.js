@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import useMemberStore from '../stores/useMemberStore';
-import { getMyRecords, deleteRecord } from '../api/requests';
+import { getMyRecords, deleteRecord, getMember } from '../api/requests';
 
 const useMypage = () => {
     const { user } = useMemberStore();
     const [records, setRecords] = useState([]);
+    const [profile, setProfile] = useState(null);
 
     const [stats, setStats] = useState({
         total: 0,
@@ -15,11 +16,18 @@ const useMypage = () => {
     const fetchMyData = async () => {
         if (!user) return;
         try {
+            // Fetch Records
             const recordData = await getMyRecords(user.id);
             setRecords(recordData);
 
+            // Fetch Profile (Level, Achievements)
+            const profileData = await getMember(user.id);
+            setProfile(profileData);
+
             const sorted = recordData.sort((a, b) => new Date(b.date) - new Date(a.date));
             setRecords(sorted);
+
+            // ... stats logic ...
 
             if (sorted.length > 0) {
                 const times = sorted.map(r => r.time);
@@ -56,6 +64,7 @@ const useMypage = () => {
 
     return {
         user,
+        profile,
         records,
         stats,
         handleDelete
