@@ -29,7 +29,7 @@ const useLogin = () => {
 
             setUser(memberData);
 
-            alert(`로그인 성공! 환영합니다, ${memberData.user_name}님.`);
+            alert(`로그인 성공! 환영합니다, ${memberData.name}님.`);
             navigate('/');
 
         } catch (error) {
