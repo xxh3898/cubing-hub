@@ -312,3 +312,74 @@ export const ProfileSection = styled.div`
         font-size: 15px;
     }
 `;
+
+export const BadgeGrid = styled.div`
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+`;
+
+export const BadgeItem = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    opacity: ${props => props.isLocked ? 0.4 : 1};
+    filter: ${props => props.isLocked ? 'grayscale(100%)' : 'none'};
+    transition: all 0.2s;
+    
+    &:hover {
+        transform: translateY(-5px);
+        opacity: 1;
+        filter: none;
+    }
+
+    .icon {
+        width: 60px;
+        height: 60px;
+        background: ${props => props.isLocked ? '#ddd' : '#e0d4ff'};
+        color: ${props => props.isLocked ? '#999' : '#5833ff'};
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 24px;
+        margin-bottom: 10px;
+        box-shadow: ${props => props.isLocked ? 'none' : '0 4px 10px rgba(88, 51, 255, 0.2)'};
+    }
+
+    .name {
+        font-size: 13px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 4px;
+    }
+
+    .desc {
+        font-size: 11px;
+        color: #888;
+        line-height: 1.2;
+    }
+`;
+
+export const LevelBadge = styled.span`
+    display: inline-block;
+    padding: 6px 12px;
+    background: ${props => {
+        switch (props.level) {
+            case 'Master': return 'linear-gradient(135deg, #FFD700, #FFA500)';
+            case 'Pro': return '#ff4d4d';
+            case 'Amateur': return '#5833ff';
+            case 'Beginner': return '#00C851';
+            default: return '#999';
+        }
+    }};
+    color: white;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    margin-left: 10px;
+    vertical-align: middle;
+`;

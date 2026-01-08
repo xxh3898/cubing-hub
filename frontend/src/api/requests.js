@@ -5,6 +5,11 @@ export const signup = async (memberData) => {
   return response.data;
 };
 
+export const getMember = async (memberId) => {
+  const response = await client.get(`/members/${memberId}`);
+  return response.data;
+};
+
 export const login = async (id, password) => {
   const response = await client.post('/auth/login', { user_id: id, user_pwd: password });
   return response.data;
