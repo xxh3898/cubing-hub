@@ -1,12 +1,14 @@
 package com.cube.cube_server.service;
 
-import com.cube.cube_server.domain.Member;
-import com.cube.cube_server.dto.MemberDto;
-import com.cube.cube_server.repository.MemberRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.cube.cube_server.domain.Member;
+import com.cube.cube_server.dto.MemberDto;
+import com.cube.cube_server.repository.MemberRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
@@ -36,6 +38,12 @@ public class MemberService {
         memberRepository.findById(id).ifPresent(m -> {
             throw new IllegalStateException("이미 존재하는 회원입니다.");
         });
+    }
+
+    public MemberDto.Response getMember(String memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+        return MemberDto.Response.of(member);
     }
 
     // login method removed as it is replaced by AuthService
