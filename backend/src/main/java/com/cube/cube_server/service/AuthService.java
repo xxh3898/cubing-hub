@@ -1,18 +1,21 @@
 package com.cube.cube_server.service;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.cube.cube_server.domain.Member;
 import com.cube.cube_server.dto.AuthDto;
 import com.cube.cube_server.repository.MemberRepository;
 import com.cube.cube_server.security.JwtTokenProvider;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthService {
+
     private final MemberRepository memberRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
@@ -35,6 +38,7 @@ public class AuthService {
                 .token(token)
                 .userId(member.getId())
                 .userName(member.getName())
+                .age(member.getAge())
                 .role("USER")
                 .build();
     }

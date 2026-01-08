@@ -20,8 +20,8 @@ export const writePost = async (postData, memberId) => {
   return response.data;
 };
 
-export const saveRecord = async (recordData, memberId) => {
-  const response = await client.post(`/records?memberId=${memberId}`, recordData);
+export const saveRecord = async (recordData) => {
+  const response = await client.post(`/records`, recordData);
   return response.data;
 };
 
@@ -30,8 +30,8 @@ export const deleteRecord = async (recordId) => {
   return response.data;
 };
 
-export const getMyRecords = async (memberId) => {
-  const response = await client.get(`/records?memberId=${memberId}`);
+export const getMyRecords = async () => {
+  const response = await client.get(`/records`);
   return response.data;
 };
 
