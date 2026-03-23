@@ -1,3 +1,5 @@
 spring:
   application:
     name: cubing-hub
+  profiles:
+    active: local
