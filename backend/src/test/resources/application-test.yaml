@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:tc:mysql:8.0:///cubing_hub
+    username: test
+    password: test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+jwt:
+  secret: testSecretKeyForTestingPurposes12345678901234
+  expiration: 10000
+
+cors:
+  allowed-origins: http://localhost:5173
