@@ -3,6 +3,9 @@ name: CI — 통합 테스트
 on:
   push:
     branches: [ "main", "test/**" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   test:
