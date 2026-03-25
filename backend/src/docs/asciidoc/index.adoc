@@ -1,0 +1,25 @@
+= Cubing Hub API 명세서
+:doctype: book
+:icons: font
+:source-highlighter: highlightjs
+:toc: left
+:toclevels: 2
+:sectlinks:
+
+== 개요
+
+Cubing Hub 백엔드 REST API 문서입니다.
+
+== 헬스체크
+
+=== 요청
+
+include::{snippets}/health-check/http-request.adoc[]
+
+=== 응답
+
+include::{snippets}/health-check/http-response.adoc[]
+
+=== 응답 필드
+
+include::{snippets}/health-check/response-fields.adoc[]
