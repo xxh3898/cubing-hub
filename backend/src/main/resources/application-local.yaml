@@ -18,6 +18,24 @@ spring:
       hibernate:
         format_sql: true
 
+  docker:
+    compose:
+      file: ../docker-compose.yml
+      lifecycle-management: start-and-stop
+      working-directory: ..
+      readiness:
+        tcp:
+          readiness-check-http-path: /actuator/health
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, info
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
 jwt:
   secret: aW52YWxpZFNlY3JldEtleUZvckxvY2FsRGV2ZWxvcG1lbnQxMjM0NTY3ODkwMTI=
   expiration: 86400000 # 1 day
