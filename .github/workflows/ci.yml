@@ -38,6 +38,10 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: test
 
+      - name: 문서 빌드 검증 (Rest Docs)
+        working-directory: ./backend
+        run: ./gradlew build -x test --no-daemon
+
       - name: 테스트 리포트 업로드 (실패 시)
         if: failure()
         uses: actions/upload-artifact@v4
