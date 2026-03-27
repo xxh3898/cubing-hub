@@ -1,5 +1,19 @@
 # Project Specification (PRD)
 
+```mermaid
+flowchart TD
+    Start([Start Timer]) --> Space{Spacebar Pressed?}
+    Space -- No --> Space
+    Space -- Yes --> Running[Timer Running...]
+    Running --> Space2{Spacebar Pressed?}
+    Space2 -- No --> Running
+    Space2 -- Yes --> Stop[Stop Timer & Record time_ms]
+    Stop --> Req[POST /api/records]
+    Req --> DB[(Save to RDS)]
+    DB --> ZSET[Update Redis ZSET Ranking]
+    ZSET --> End([End])
+```
+
 ## 1. 프로젝트 개요
 - 프로젝트 이름: 큐빙허브 (Cubing Hub)
 - 개발 기간: 1개월

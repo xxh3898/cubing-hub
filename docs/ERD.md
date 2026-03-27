@@ -1,5 +1,62 @@
 # Database ERD
 
+```mermaid
+erDiagram
+    USERS ||--o{ RECORDS : "has"
+    USERS ||--o{ USER_PBS : "achieves"
+    USERS ||--o{ POSTS : "writes"
+    USERS ||--o{ COMMENTS : "writes"
+    POSTS ||--o{ COMMENTS : "contains"
+    RECORDS |o--o| USER_PBS : "becomes"
+
+    USERS {
+        bigint id PK
+        varchar email UK
+        varchar password
+        varchar nickname UK
+        varchar role
+        varchar status
+        varchar main_event
+        timestamp created_at
+        timestamp updated_at
+    }
+    RECORDS {
+        bigint id PK
+        bigint user_id FK
+        varchar event_type
+        int time_ms
+        varchar penalty
+        text scramble
+        timestamp created_at
+    }
+    USER_PBS {
+        bigint id PK
+        bigint user_id FK
+        varchar event_type
+        int best_time_ms
+        bigint record_id FK
+        timestamp updated_at
+    }
+    POSTS {
+        bigint id PK
+        bigint user_id FK
+        varchar category
+        varchar title
+        text content
+        int view_count
+        timestamp created_at
+        timestamp updated_at
+    }
+    COMMENTS {
+        bigint id PK
+        bigint post_id FK
+        bigint user_id FK
+        varchar content
+        timestamp created_at
+        timestamp updated_at
+    }
+```
+
 ## Users
 
 | Field | Type | Description |

@@ -1,5 +1,36 @@
 # System Architecture
 
+```mermaid
+graph TD
+    Client((Client))
+    
+    subgraph AWS_Cloud ["AWS Cloud (CDN & Storage)"]
+        CF[AWS CloudFront]
+        S3[AWS S3 - React]
+    end
+
+    subgraph AWS_EC2 ["AWS EC2 (Docker Compose)"]
+        ALB[ALB / Nginx]
+        SB[Spring Boot API]
+        Redis[Redis - Cache/Token]
+        subgraph Monitoring
+            Prom[Prometheus]
+            Graf[Grafana]
+        end
+    end
+
+    RDS[(AWS RDS - MySQL)]
+
+    Client <--> CF
+    CF <--> S3
+    Client <--> ALB
+    ALB <--> SB
+    SB <--> Redis
+    SB <--> RDS
+    SB -.-> Prom
+    Prom <--> Graf
+```
+
 ## 1. 전체 구조
 
 **[Frontend]**
