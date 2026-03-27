@@ -34,20 +34,26 @@ graph TD
 ## 1. 전체 구조
 
 **[Frontend]**
+```text
 Client ↔ AWS CloudFront (CDN) ↔ AWS S3 (React Static Files Hosting)
+```
 
 **[Backend & Infrastructure]**
+```text
 Client ↔ AWS ALB / Nginx (Reverse Proxy) 
            ↓
-      **AWS EC2 (Docker Compose Environment)**
+      AWS EC2 (Docker Compose Environment)
            ├─ Spring Boot API Container
            └─ Redis Container (Refresh Token, 랭킹 캐시)
            ↓
-      **AWS RDS (MySQL)** ← (EC2와 분리된 매니지드 서비스로 영구 데이터 저장)
+      AWS RDS (MySQL) ← (EC2와 분리된 매니지드 서비스로 영구 데이터 저장)
+```
 
 **[Monitoring & Testing]**
+```text
 EC2 내부 (Prometheus Container ↔ Grafana Container) ← Spring Boot Actuator 지표 수집
 GitHub Actions ↔ Testcontainers (CI 단계 격리 테스트) ↔ Spring Rest Docs ↔ Docker Hub
+```
 
 ---
 

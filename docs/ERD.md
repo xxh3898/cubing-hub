@@ -138,9 +138,11 @@ erDiagram
 
 ## 관계
 
+```text
 Users 1:N Records
 Users 1:N User_PBs
 Users 1:N Posts
 Users 1:N Comments
 Posts 1:N Comments
 Records 1:1 (또는 1:0) User_PBs
+```
