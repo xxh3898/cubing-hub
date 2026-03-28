@@ -38,7 +38,8 @@ management:
 
 jwt:
   secret: aW52YWxpZFNlY3JldEtleUZvckxvY2FsRGV2ZWxvcG1lbnQxMjM0NTY3ODkwMTI=
-  expiration: 86400000 # 1 day
+  expiration: 86400000       # Access Token: 1일
+  refresh-expiration: 604800000  # Refresh Token: 7일
 
 cors:
   allowed-origins: http://localhost:5173
