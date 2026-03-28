@@ -198,4 +198,4 @@ build/
 .gradle/
 
 # Documentation
-docs/Development Log/
+docs/*.internal.md
