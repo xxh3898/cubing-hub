@@ -95,7 +95,7 @@ tasks.register('copyDocument', Copy) {
 }
 
 bootJar {
-	dependsOn copyDocument
+	dependsOn asciidoctor
 	from ("${asciidoctor.outputDir}") {
 		into 'static/docs'
 	}
