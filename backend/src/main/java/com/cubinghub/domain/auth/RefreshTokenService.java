@@ -51,4 +51,14 @@ public class RefreshTokenService {
         redisTemplate.delete(generateKey(email, jti));
         log.debug("Refresh Token 삭제(로그아웃/갱신) 완료 - 사용자: {}, 기기(jti): {}", email, jti);
     }
+
+    // 보안 위험 감지 시 해당 사용자의 모든 기기(Refresh Token 패밀리) 삭제
+    public void deleteAllByUser(String email) {
+        String pattern = KEY_PREFIX + email + ":*";
+        var keys = redisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+            log.warn("Refresh Token 전체 기기 삭제 (보안 위협 방어) 완료 - 사용자: {}", email);
+        }
+    }
 }

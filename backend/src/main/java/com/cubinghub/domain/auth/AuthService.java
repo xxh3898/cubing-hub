@@ -17,6 +17,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.AuthenticationException;
+import com.cubinghub.common.exception.CustomApiException;
+import org.springframework.http.HttpStatus;
 
 @Slf4j
 @Service
@@ -28,6 +31,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final RedisBlackListService redisBlackListService;
 
     /**
      * 회원가입
@@ -63,15 +67,19 @@ public class AuthService {
      */
     @Transactional
     public TokenDto login(LoginRequest request) {
-        // 인증 시도
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (AuthenticationException e) {
+            throw new CustomApiException("이메일 또는 비밀번호가 일치하지 않습니다.", HttpStatus.UNAUTHORIZED);
+        }
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         
         User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CustomApiException("이메일 또는 비밀번호가 일치하지 않습니다.", HttpStatus.UNAUTHORIZED));
                 
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new IllegalStateException("활성화된 계정이 아닙니다.");
@@ -113,7 +121,9 @@ public class AuthService {
 
         // 3. Redis에 저장된 토큰과 일치하는지 검증
         if (!refreshTokenService.isValid(email, jti, reqRefreshToken)) {
-            throw new IllegalArgumentException("서버에 저장된 리프레시 토큰과 일치하지 않습니다.");
+            // 비정상적 토큰 재사용 감지 시 해당 사용자의 모든 Refresh Token 즉각 파기
+            refreshTokenService.deleteAllByUser(email);
+            throw new CustomApiException("비정상적인 접근이 감지되어 모든 인증이 만료되었습니다. 다시 로그인해주세요.", HttpStatus.UNAUTHORIZED);
         }
 
         User user = userRepository.findByEmail(email)
@@ -148,9 +158,25 @@ public class AuthService {
     /**
      * 로그아웃
      */
-    public void logout(String email, String refreshToken) {
-        String jti = jwtTokenProvider.getJti(refreshToken);
-        refreshTokenService.delete(email, jti);
-        log.info("로그아웃 성공, 해당 기기의 리프레시 토큰 삭제: {}, jti: {}", email, jti);
+    public void logout(String refreshToken, String accessToken) {
+        if (refreshToken != null) {
+            try {
+                String email = jwtTokenProvider.getEmail(refreshToken);
+                String jti = jwtTokenProvider.getJti(refreshToken);
+                refreshTokenService.delete(email, jti);
+                log.info("로그아웃 성공, 해당 기기의 리프레시 토큰 삭제: {}, jti: {}", email, jti);
+            } catch (Exception e) {
+                log.warn("Refresh Token 파싱 실패로 리프레시 토큰 삭제 로직 스킵: {}", e.getMessage());
+            }
+        }
+        
+        if (accessToken != null) {
+            try {
+                long remainingExpiration = jwtTokenProvider.getRemainingExpiration(accessToken);
+                redisBlackListService.setBlackList(accessToken, remainingExpiration);
+            } catch (Exception e) {
+                log.warn("Access Token Blacklist 등록 스킵 (이미 만료됨 등): {}", e.getMessage());
+            }
+        }
     }
 }
