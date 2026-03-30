@@ -1,20 +1,25 @@
 package com.cubinghub.security;
 
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
-import lombok.extern.slf4j.Slf4j;
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
@@ -110,5 +115,12 @@ public class JwtTokenProvider {
     // Refresh Token 만료 시간 반환 (Redis TTL 설정에 사용)
     public long getRefreshTokenExpirationMs() {
         return refreshTokenExpirationMs;
+    }
+
+    // 토큰의 남은 만료 시간 계산 (Redis Blacklist TTL 설정에 사용)
+    public long getRemainingExpiration(String token) {
+        Date expiration = parseClaims(token).getExpiration();
+        long now = System.currentTimeMillis();
+        return expiration.getTime() - now;
     }
 }
