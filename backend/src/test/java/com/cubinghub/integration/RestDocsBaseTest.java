@@ -19,10 +19,11 @@ public abstract class RestDocsBaseTest extends BaseIntegrationTest {
     protected MockMvc mockMvc;
 
     @BeforeEach
-    void setUpMockMvc(WebApplicationContext webApplicationContext,
+    protected void setUpMockMvc(WebApplicationContext webApplicationContext,
                       RestDocumentationContextProvider restDocumentation) {
         this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
                 .apply(documentationConfiguration(restDocumentation))
+                .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
                 .build();
     }
 }

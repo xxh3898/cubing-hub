@@ -44,6 +44,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(userDetails.getUsername())
                 .claim("role", role)
+                .id(java.util.UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
                 .signWith(key)
@@ -54,6 +55,7 @@ public class JwtTokenProvider {
     public String generateRefreshToken(String email) {
         return Jwts.builder()
                 .subject(email)
+                .id(java.util.UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
                 .signWith(key)
@@ -72,6 +74,11 @@ public class JwtTokenProvider {
     // 토큰에서 Email(subject) 추출
     public String getEmail(String token) {
         return parseClaims(token).getSubject();
+    }
+    
+    // 토큰에서 JWT ID(jti) 추출
+    public String getJti(String token) {
+        return parseClaims(token).getId();
     }
 
     // 토큰에서 Role 추출
