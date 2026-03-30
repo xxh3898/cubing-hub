@@ -23,3 +23,42 @@ include::{snippets}/health-check/http-response.adoc[]
 === 응답 필드
 
 include::{snippets}/health-check/response-fields.adoc[]
+
+== 인증 (Auth)
+
+=== 회원가입
+==== 요청
+include::{snippets}/auth/signup/http-request.adoc[]
+include::{snippets}/auth/signup/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/signup/http-response.adoc[]
+
+=== 로그인
+==== 요청
+include::{snippets}/auth/login/http-request.adoc[]
+include::{snippets}/auth/login/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/login/http-response.adoc[]
+include::{snippets}/auth/login/response-fields.adoc[]
+include::{snippets}/auth/login/response-cookies.adoc[]
+
+=== 토큰 갱신 (Refresh)
+==== 요청
+include::{snippets}/auth/refresh/http-request.adoc[]
+include::{snippets}/auth/refresh/request-cookies.adoc[]
+
+==== 응답
+include::{snippets}/auth/refresh/http-response.adoc[]
+include::{snippets}/auth/refresh/response-fields.adoc[]
+include::{snippets}/auth/refresh/response-cookies.adoc[]
+
+=== 로그아웃
+==== 요청
+include::{snippets}/auth/logout/http-request.adoc[]
+include::{snippets}/auth/logout/request-cookies.adoc[]
+
+==== 응답
+include::{snippets}/auth/logout/http-response.adoc[]
+include::{snippets}/auth/logout/response-cookies.adoc[]
