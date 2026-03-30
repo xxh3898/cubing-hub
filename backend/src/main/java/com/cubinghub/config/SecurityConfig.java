@@ -2,6 +2,8 @@ package com.cubinghub.config;
 
 import com.cubinghub.security.JwtAuthenticationFilter;
 import com.cubinghub.security.JwtTokenProvider;
+import com.cubinghub.domain.auth.RedisBlackListService;
+
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +30,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final RedisBlackListService redisBlackListService;
 
     @Value("${cors.allowed-origins}")
     private List<String> allowedOrigins;
@@ -48,7 +51,7 @@ public class SecurityConfig {
                 )
                 // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 삽입
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider, redisBlackListService),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

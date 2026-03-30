@@ -1,5 +1,9 @@
 package com.cubinghub.security;
 
+import com.cubinghub.domain.auth.RedisBlackListService;
+import com.cubinghub.common.exception.CustomApiException;
+import org.springframework.http.HttpStatus;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -22,8 +26,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final RedisBlackListService redisBlackListService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -34,6 +40,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 2. 토큰 유효성 검증
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
+            
+            // 2.1 Blacklist 검증 (로그아웃된 토큰인지 확안)
+            if (redisBlackListService.isBlackListed(token)) {
+                throw new CustomApiException("로그아웃 된 토큰입니다.", HttpStatus.UNAUTHORIZED);
+            }
+
             // 3. 토큰에서 Email과 Role 정보 추출
             String email = jwtTokenProvider.getEmail(token);
             List<GrantedAuthority> authorities = jwtTokenProvider.getAuthorities(token);
@@ -55,8 +67,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // Authorization 헤더에서 Bearer 토큰 추출
     private String resolveToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
+            return bearerToken.substring(BEARER_PREFIX.length());
         }
         return null;
     }
