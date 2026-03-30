@@ -82,6 +82,11 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+// copyDocument 태스크와의 충돌을 방지하기 위해 리소스 처리 시 static/docs 폴더를 제외
+tasks.named('processResources') {
+	exclude('static/docs/**')
+}
+
 tasks.named('asciidoctor') {
 	inputs.dir snippetsDir
 	configurations 'asciidoctorExt'
@@ -99,6 +104,10 @@ bootJar {
 	from ("${asciidoctor.outputDir}") {
 		into 'static/docs'
 	}
+}
+
+tasks.named('bootRun') {
+	dependsOn asciidoctor
 }
 
 tasks.named('build') {
