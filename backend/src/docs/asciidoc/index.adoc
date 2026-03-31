@@ -62,3 +62,13 @@ include::{snippets}/auth/logout/request-cookies.adoc[]
 ==== 응답
 include::{snippets}/auth/logout/http-response.adoc[]
 include::{snippets}/auth/logout/response-cookies.adoc[]
+
+== 기록 (Record)
+
+=== 기록 저장
+==== 요청
+include::{snippets}/record/create/http-request.adoc[]
+include::{snippets}/record/create/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/record/create/http-response.adoc[]
