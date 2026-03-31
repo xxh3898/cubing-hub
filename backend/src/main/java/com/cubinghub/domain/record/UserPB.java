@@ -7,12 +7,15 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+@Builder
+@AllArgsConstructor
 @Table(name = "user_pbs", uniqueConstraints = {
         @UniqueConstraint(name = "uk_user_event", columnNames = {"user_id", "event_type"})
 }, indexes = {
@@ -46,10 +49,8 @@ public class UserPB extends BaseTimeEntity {
     @NotNull
     private Record record;
 
-    @Builder
-    public UserPB(User user, EventType eventType, Integer bestTimeMs, Record record) {
-        this.user = user;
-        this.eventType = eventType;
+
+    public void updateBestTime(Integer bestTimeMs, Record record) {
         this.bestTimeMs = bestTimeMs;
         this.record = record;
     }
