@@ -72,3 +72,14 @@ include::{snippets}/record/create/request-fields.adoc[]
 
 ==== 응답
 include::{snippets}/record/create/http-response.adoc[]
+
+== 랭킹 (Ranking)
+
+=== 글로벌 랭킹 조회
+==== 요청
+include::{snippets}/ranking/list/http-request.adoc[]
+include::{snippets}/ranking/list/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/ranking/list/http-response.adoc[]
+include::{snippets}/ranking/list/response-fields.adoc[]
