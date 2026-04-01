@@ -1,11 +1,16 @@
 package com.cubinghub.domain.record;
 
+import com.cubinghub.domain.record.dto.RankingQueryResult;
+import com.cubinghub.domain.record.dto.RankingResponse;
 import com.cubinghub.domain.record.dto.RecordSaveRequest;
 import com.cubinghub.domain.user.User;
 import com.cubinghub.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -15,6 +20,23 @@ public class RecordService {
     private final RecordRepository recordRepository;
     private final UserPBRepository userPBRepository;
     private final UserRepository userRepository;
+
+    public List<RankingResponse> getRankings(EventType eventType) {
+        List<RankingQueryResult> rankings = recordRepository.findTop100RankingsByEventType(eventType);
+        List<RankingResponse> responses = new ArrayList<>(rankings.size());
+
+        for (int i = 0; i < rankings.size(); i++) {
+            RankingQueryResult ranking = rankings.get(i);
+            responses.add(new RankingResponse(
+                    i + 1,
+                    ranking.getNickname(),
+                    ranking.getEventType(),
+                    ranking.getTimeMs()
+            ));
+        }
+
+        return responses;
+    }
 
     @Transactional
     public Long saveRecord(String email, RecordSaveRequest request) {
