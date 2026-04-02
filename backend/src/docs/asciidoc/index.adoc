@@ -83,3 +83,48 @@ include::{snippets}/ranking/list/query-parameters.adoc[]
 ==== 응답
 include::{snippets}/ranking/list/http-response.adoc[]
 include::{snippets}/ranking/list/response-fields.adoc[]
+
+== 게시판 (Post)
+
+=== 게시글 생성
+==== 요청
+include::{snippets}/post/create/http-request.adoc[]
+include::{snippets}/post/create/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/post/create/http-response.adoc[]
+
+=== 게시글 목록 조회
+==== 요청
+include::{snippets}/post/list/http-request.adoc[]
+include::{snippets}/post/list/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/post/list/http-response.adoc[]
+include::{snippets}/post/list/response-fields.adoc[]
+
+=== 게시글 상세 조회
+==== 요청
+include::{snippets}/post/detail/http-request.adoc[]
+include::{snippets}/post/detail/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/post/detail/http-response.adoc[]
+include::{snippets}/post/detail/response-fields.adoc[]
+
+=== 게시글 수정
+==== 요청
+include::{snippets}/post/update/http-request.adoc[]
+include::{snippets}/post/update/path-parameters.adoc[]
+include::{snippets}/post/update/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/post/update/http-response.adoc[]
+
+=== 게시글 삭제
+==== 요청
+include::{snippets}/post/delete/http-request.adoc[]
+include::{snippets}/post/delete/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/post/delete/http-response.adoc[]
