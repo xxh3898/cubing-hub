@@ -84,6 +84,17 @@ include::{snippets}/ranking/list/query-parameters.adoc[]
 include::{snippets}/ranking/list/http-response.adoc[]
 include::{snippets}/ranking/list/response-fields.adoc[]
 
+== 스크램블 (Scramble)
+
+=== 스크램블 조회
+==== 요청
+include::{snippets}/scramble/get/http-request.adoc[]
+include::{snippets}/scramble/get/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/scramble/get/http-response.adoc[]
+include::{snippets}/scramble/get/response-fields.adoc[]
+
 == 게시판 (Post)
 
 === 게시글 생성
