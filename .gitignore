@@ -196,6 +196,7 @@ sketch
 # Gradle and Build
 build/
 .gradle/
+frontend/dist/
 
 # Documentation
 docs/*.internal.md
