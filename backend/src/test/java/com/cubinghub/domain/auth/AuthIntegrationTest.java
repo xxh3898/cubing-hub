@@ -1,11 +1,14 @@
 package com.cubinghub.domain.auth;
 
-import com.cubinghub.domain.auth.dto.LoginRequest;
-import com.cubinghub.domain.auth.dto.SignUpRequest;
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRepository;
-import com.cubinghub.domain.user.UserRole;
-import com.cubinghub.domain.user.UserStatus;
+import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.SignUpRequest;
+import com.cubinghub.domain.auth.repository.RefreshTokenService;
+import com.cubinghub.domain.post.dto.request.PostCreateRequest;
+import com.cubinghub.domain.post.entity.PostCategory;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.repository.UserRepository;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.RestDocsBaseTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,9 +17,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.ResultActions;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.cookies.CookieDocumentation.cookieWithName;
 import static org.springframework.restdocs.cookies.CookieDocumentation.requestCookies;
@@ -58,12 +63,20 @@ class AuthIntegrationTest extends RestDocsBaseTest {
                 .content(objectMapper.writeValueAsString(request)));
 
         result.andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("회원가입이 완료되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("auth/signup",
                         requestFields(
                                 fieldWithPath("email").description("이메일 (이메일 형식 필수)"),
                                 fieldWithPath("password").description("비밀번호 (8자 이상)"),
                                 fieldWithPath("nickname").description("닉네임 (2자 이상 50자 이하)"),
                                 fieldWithPath("mainEvent").description("주 종목 (선택사항)")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
 
@@ -89,19 +102,24 @@ class AuthIntegrationTest extends RestDocsBaseTest {
                 .content(objectMapper.writeValueAsString(request)));
 
         result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그인에 성공했습니다."))
+                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(cookie().exists("refresh_token"))
                 .andExpect(cookie().httpOnly("refresh_token", true))
                 .andExpect(cookie().secure("refresh_token", true))
-                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andDo(document("auth/login",
                         requestFields(
                                 fieldWithPath("email").description("이메일"),
                                 fieldWithPath("password").description("비밀번호")
                         ),
                         responseFields(
-                                fieldWithPath("accessToken").description("Access Token (만료 1일)"),
-                                fieldWithPath("tokenType").description("토큰 타입 (고정값 Bearer)")
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("토큰 정보"),
+                                fieldWithPath("data.accessToken").description("Access Token (만료 1일)"),
+                                fieldWithPath("data.tokenType").description("토큰 타입 (고정값 Bearer)")
                         ),
                         responseCookies(
                                 cookieWithName("refresh_token").description("Refresh Token (만료 7일, HttpOnly/Secure)")
@@ -136,18 +154,23 @@ class AuthIntegrationTest extends RestDocsBaseTest {
                 .cookie(new Cookie("refresh_token", initialRefreshToken)));
 
         result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("토큰이 재발급되었습니다."))
+                .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(cookie().exists("refresh_token"))
                 .andExpect(cookie().httpOnly("refresh_token", true))
                 .andExpect(cookie().secure("refresh_token", true))
-                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andDo(document("auth/refresh",
                         requestCookies(
                                 cookieWithName("refresh_token").description("기존 할당받은 Refresh Token")
                         ),
                         responseFields(
-                                fieldWithPath("accessToken").description("새로운 Access Token"),
-                                fieldWithPath("tokenType").description("토큰 타입 (고정값 Bearer)")
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("토큰 정보"),
+                                fieldWithPath("data.accessToken").description("새로운 Access Token"),
+                                fieldWithPath("data.tokenType").description("토큰 타입 (고정값 Bearer)")
                         ),
                         responseCookies(
                                 cookieWithName("refresh_token").description("새로운 Refresh Token (Rotation 처리됨)")
@@ -189,10 +212,18 @@ class AuthIntegrationTest extends RestDocsBaseTest {
                 .cookie(new Cookie("refresh_token", initialRefreshToken)));
 
         result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃이 완료되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
                 .andExpect(cookie().maxAge("refresh_token", 0))
                 .andDo(document("auth/logout",
                         requestCookies(
                                 cookieWithName("refresh_token").description("삭제할 Refresh Token")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         ),
                         responseCookies(
                                 cookieWithName("refresh_token").description("만료 처리된 Refresh Token 쿠키")
@@ -201,5 +232,39 @@ class AuthIntegrationTest extends RestDocsBaseTest {
 
         String deletedToken = refreshTokenService.get(testEmail, jti);
         assertThat(deletedToken).isNull();
+    }
+
+    @Test
+    @DisplayName("로그아웃된 Access Token으로 보호된 API에 접근하면 401 JSON 응답을 반환한다")
+    void blacklistedAccessTokenReturnsUnauthorizedJson() throws Exception {
+        userRepository.save(User.builder()
+                .email(testEmail)
+                .password(passwordEncoder.encode(testPassword))
+                .nickname("TestUser")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                org.springframework.security.core.userdetails.User.builder()
+                        .username(testEmail)
+                        .password("")
+                        .authorities(UserRole.ROLE_USER.name())
+                        .build());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "제목", "내용");
+
+        mockMvc.perform(post("/api/posts")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("로그아웃 된 토큰입니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
     }
 }

@@ -1,11 +1,14 @@
 package com.cubinghub.domain.post;
 
-import com.cubinghub.domain.post.dto.PostCreateRequest;
-import com.cubinghub.domain.post.dto.PostUpdateRequest;
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRepository;
-import com.cubinghub.domain.user.UserRole;
-import com.cubinghub.domain.user.UserStatus;
+import com.cubinghub.domain.post.dto.request.PostCreateRequest;
+import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
+import com.cubinghub.domain.post.entity.Post;
+import com.cubinghub.domain.post.entity.PostCategory;
+import com.cubinghub.domain.post.repository.PostRepository;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.repository.UserRepository;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.RestDocsBaseTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,11 +17,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
@@ -77,11 +82,20 @@ class PostIntegrationTest extends RestDocsBaseTest {
                 .content(objectMapper.writeValueAsString(request)));
 
         result.andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("게시글이 생성되었습니다."))
+                .andExpect(jsonPath("$.data.id").exists())
                 .andDo(document("post/create",
                         requestFields(
                                 fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
                                 fieldWithPath("title").description("게시글 제목"),
                                 fieldWithPath("content").description("게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
+                                fieldWithPath("data.id").description("생성된 게시글 ID")
                         )
                 ));
 
@@ -116,21 +130,26 @@ class PostIntegrationTest extends RestDocsBaseTest {
                 .accept(MediaType.APPLICATION_JSON));
 
         result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("큐브 연습법"))
-                .andExpect(jsonPath("$[0].authorNickname").value("Author"))
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("게시글 목록을 조회했습니다."))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].title").value("큐브 연습법"))
+                .andExpect(jsonPath("$.data[0].authorNickname").value("Author"))
                 .andDo(document("post/list",
                         queryParameters(
                                 parameterWithName("keyword").optional().description("제목/본문 키워드 검색어"),
                                 parameterWithName("author").optional().description("작성자 닉네임 검색어")
                         ),
                         responseFields(
-                                fieldWithPath("[].id").description("게시글 ID"),
-                                fieldWithPath("[].category").description("게시판 카테고리"),
-                                fieldWithPath("[].title").description("게시글 제목"),
-                                fieldWithPath("[].authorNickname").description("작성자 닉네임"),
-                                fieldWithPath("[].viewCount").description("조회수"),
-                                fieldWithPath("[].createdAt").description("작성 시각")
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.ARRAY).description("게시글 목록"),
+                                fieldWithPath("data[].id").description("게시글 ID"),
+                                fieldWithPath("data[].category").description("게시판 카테고리"),
+                                fieldWithPath("data[].title").description("게시글 제목"),
+                                fieldWithPath("data[].authorNickname").description("작성자 닉네임"),
+                                fieldWithPath("data[].viewCount").description("조회수"),
+                                fieldWithPath("data[].createdAt").description("작성 시각")
                         )
                 ));
     }
@@ -144,24 +163,29 @@ class PostIntegrationTest extends RestDocsBaseTest {
                 .accept(MediaType.APPLICATION_JSON));
 
         result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedPost.getId()))
-                .andExpect(jsonPath("$.title").value("상세 제목"))
-                .andExpect(jsonPath("$.content").value("상세 본문"))
-                .andExpect(jsonPath("$.authorNickname").value("Author"))
-                .andExpect(jsonPath("$.viewCount").value(1))
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("게시글을 조회했습니다."))
+                .andExpect(jsonPath("$.data.id").value(savedPost.getId()))
+                .andExpect(jsonPath("$.data.title").value("상세 제목"))
+                .andExpect(jsonPath("$.data.content").value("상세 본문"))
+                .andExpect(jsonPath("$.data.authorNickname").value("Author"))
+                .andExpect(jsonPath("$.data.viewCount").value(1))
                 .andDo(document("post/detail",
                         pathParameters(
                                 parameterWithName("postId").description("조회할 게시글 ID")
                         ),
                         responseFields(
-                                fieldWithPath("id").description("게시글 ID"),
-                                fieldWithPath("category").description("게시판 카테고리"),
-                                fieldWithPath("title").description("게시글 제목"),
-                                fieldWithPath("content").description("게시글 본문"),
-                                fieldWithPath("authorNickname").description("작성자 닉네임"),
-                                fieldWithPath("viewCount").description("조회수"),
-                                fieldWithPath("createdAt").description("작성 시각"),
-                                fieldWithPath("updatedAt").description("수정 시각")
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("게시글 상세 정보"),
+                                fieldWithPath("data.id").description("게시글 ID"),
+                                fieldWithPath("data.category").description("게시판 카테고리"),
+                                fieldWithPath("data.title").description("게시글 제목"),
+                                fieldWithPath("data.content").description("게시글 본문"),
+                                fieldWithPath("data.authorNickname").description("작성자 닉네임"),
+                                fieldWithPath("data.viewCount").description("조회수"),
+                                fieldWithPath("data.createdAt").description("작성 시각"),
+                                fieldWithPath("data.updatedAt").description("수정 시각")
                         )
                 ));
 
@@ -180,6 +204,9 @@ class PostIntegrationTest extends RestDocsBaseTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("게시글이 수정되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("post/update",
                         pathParameters(
                                 parameterWithName("postId").description("수정할 게시글 ID")
@@ -188,6 +215,11 @@ class PostIntegrationTest extends RestDocsBaseTest {
                                 fieldWithPath("category").description("수정할 게시판 카테고리"),
                                 fieldWithPath("title").description("수정할 게시글 제목"),
                                 fieldWithPath("content").description("수정할 게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
 
@@ -207,7 +239,8 @@ class PostIntegrationTest extends RestDocsBaseTest {
                 .header("Authorization", "Bearer " + adminAccessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글이 수정되었습니다."));
 
         Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
         assertThat(updatedPost.getTitle()).isEqualTo("관리자 수정");
@@ -234,10 +267,18 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
         mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
                 .header("Authorization", "Bearer " + authorAccessToken))
-                .andExpect(status().isNoContent())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("게시글이 삭제되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("post/delete",
                         pathParameters(
                                 parameterWithName("postId").description("삭제할 게시글 ID")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
 
@@ -251,7 +292,8 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
         mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
                 .header("Authorization", "Bearer " + adminAccessToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글이 삭제되었습니다."));
 
         assertThat(postRepository.findById(savedPost.getId())).isEmpty();
     }

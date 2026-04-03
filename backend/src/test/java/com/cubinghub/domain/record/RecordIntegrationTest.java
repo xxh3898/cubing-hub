@@ -1,10 +1,16 @@
 package com.cubinghub.domain.record;
 
-import com.cubinghub.domain.record.dto.RecordSaveRequest;
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRepository;
-import com.cubinghub.domain.user.UserRole;
-import com.cubinghub.domain.user.UserStatus;
+import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
+import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.Penalty;
+import com.cubinghub.domain.record.entity.Record;
+import com.cubinghub.domain.record.entity.UserPB;
+import com.cubinghub.domain.record.repository.RecordRepository;
+import com.cubinghub.domain.record.repository.UserPBRepository;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.repository.UserRepository;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.RestDocsBaseTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -90,12 +97,21 @@ class RecordIntegrationTest extends RestDocsBaseTest {
 
         // then
         result.andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("기록이 저장되었습니다."))
+                .andExpect(jsonPath("$.data.id").exists())
                 .andDo(document("record/create",
                         requestFields(
                                 fieldWithPath("eventType").description("WCA 종목 코드 (e.g. WCA_333)"),
                                 fieldWithPath("timeMs").description("측정 시간 (밀리초)"),
                                 fieldWithPath("penalty").description("페널티 정보 (NONE, PLUS_TWO, DNF)"),
                                 fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
+                                fieldWithPath("data.id").description("생성된 기록 ID")
                         )
                 ));
 
@@ -164,26 +180,31 @@ class RecordIntegrationTest extends RestDocsBaseTest {
                 .accept(MediaType.APPLICATION_JSON));
 
         result.andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3))
-                .andExpect(jsonPath("$[0].rank").value(1))
-                .andExpect(jsonPath("$[0].nickname").value("Beta"))
-                .andExpect(jsonPath("$[0].eventType").value(EventType.WCA_333.name()))
-                .andExpect(jsonPath("$[0].timeMs").value(9800))
-                .andExpect(jsonPath("$[1].rank").value(2))
-                .andExpect(jsonPath("$[1].nickname").value("Gamma"))
-                .andExpect(jsonPath("$[1].timeMs").value(11000))
-                .andExpect(jsonPath("$[2].rank").value(3))
-                .andExpect(jsonPath("$[2].nickname").value("Alpha"))
-                .andExpect(jsonPath("$[2].timeMs").value(12000))
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("랭킹을 조회했습니다."))
+                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data[0].rank").value(1))
+                .andExpect(jsonPath("$.data[0].nickname").value("Beta"))
+                .andExpect(jsonPath("$.data[0].eventType").value(EventType.WCA_333.name()))
+                .andExpect(jsonPath("$.data[0].timeMs").value(9800))
+                .andExpect(jsonPath("$.data[1].rank").value(2))
+                .andExpect(jsonPath("$.data[1].nickname").value("Gamma"))
+                .andExpect(jsonPath("$.data[1].timeMs").value(11000))
+                .andExpect(jsonPath("$.data[2].rank").value(3))
+                .andExpect(jsonPath("$.data[2].nickname").value("Alpha"))
+                .andExpect(jsonPath("$.data[2].timeMs").value(12000))
                 .andDo(document("ranking/list",
                         queryParameters(
                                 parameterWithName("eventType").description("조회할 WCA 종목 코드 (e.g. WCA_333)")
                         ),
                         responseFields(
-                                fieldWithPath("[].rank").description("랭킹 순위 (1부터 시작)"),
-                                fieldWithPath("[].nickname").description("사용자 닉네임"),
-                                fieldWithPath("[].eventType").description("WCA 종목 코드"),
-                                fieldWithPath("[].timeMs").description("기록 시간 (밀리초)")
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.ARRAY).description("랭킹 목록"),
+                                fieldWithPath("data[].rank").description("랭킹 순위 (1부터 시작)"),
+                                fieldWithPath("data[].nickname").description("사용자 닉네임"),
+                                fieldWithPath("data[].eventType").description("WCA 종목 코드"),
+                                fieldWithPath("data[].timeMs").description("기록 시간 (밀리초)")
                         )
                 ));
     }
@@ -202,11 +223,11 @@ class RecordIntegrationTest extends RestDocsBaseTest {
                 .param("eventType", EventType.WCA_333.name())
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(100))
-                .andExpect(jsonPath("$[0].rank").value(1))
-                .andExpect(jsonPath("$[99].rank").value(100))
-                .andExpect(jsonPath("$[99].nickname").value("Ranker99"))
-                .andExpect(jsonPath("$[99].timeMs").value(10099));
+                .andExpect(jsonPath("$.data.length()").value(100))
+                .andExpect(jsonPath("$.data[0].rank").value(1))
+                .andExpect(jsonPath("$.data[99].rank").value(100))
+                .andExpect(jsonPath("$.data[99].nickname").value("Ranker99"))
+                .andExpect(jsonPath("$.data[99].timeMs").value(10099));
     }
 
     private User saveUser(String email, String nickname) {

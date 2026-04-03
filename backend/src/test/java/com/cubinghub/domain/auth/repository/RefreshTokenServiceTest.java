@@ -1,4 +1,4 @@
-package com.cubinghub.domain.auth;
+package com.cubinghub.domain.auth.repository;
 
 import com.cubinghub.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;

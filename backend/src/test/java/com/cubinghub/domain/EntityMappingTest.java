@@ -1,15 +1,15 @@
 package com.cubinghub.domain;
 
-import com.cubinghub.domain.post.Comment;
-import com.cubinghub.domain.post.Post;
-import com.cubinghub.domain.post.PostCategory;
-import com.cubinghub.domain.record.EventType;
-import com.cubinghub.domain.record.Penalty;
-import com.cubinghub.domain.record.Record;
-import com.cubinghub.domain.record.UserPB;
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRole;
-import com.cubinghub.domain.user.UserStatus;
+import com.cubinghub.domain.post.entity.Comment;
+import com.cubinghub.domain.post.entity.Post;
+import com.cubinghub.domain.post.entity.PostCategory;
+import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.Penalty;
+import com.cubinghub.domain.record.entity.Record;
+import com.cubinghub.domain.record.entity.UserPB;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.BaseIntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;

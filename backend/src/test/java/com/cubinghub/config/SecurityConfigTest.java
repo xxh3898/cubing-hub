@@ -1,5 +1,7 @@
 package com.cubinghub.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cubinghub.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("SecurityConfig 통합 테스트")
@@ -18,6 +22,9 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     @DisplayName("인증 없이 /api/auth 경로는 접근이 허용된다 (permitAll)")
@@ -35,9 +42,13 @@ class SecurityConfigTest extends BaseIntegrationTest {
     void 토큰없이_보호된API_접근시_401반환() {
         // when
         ResponseEntity<String> response = restTemplate.getForEntity("/api/records", String.class);
+        Map<String, Object> body = readBody(response);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(body.get("status")).isEqualTo(401);
+        assertThat(body.get("message")).isEqualTo("인증이 필요합니다.");
+        assertThat(body.get("data")).isNull();
     }
 
     @Test
@@ -51,9 +62,13 @@ class SecurityConfigTest extends BaseIntegrationTest {
         // when
         ResponseEntity<String> response = restTemplate.exchange(
                 "/api/records", HttpMethod.GET, request, String.class);
+        Map<String, Object> body = readBody(response);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(body.get("status")).isEqualTo(401);
+        assertThat(body.get("message")).isEqualTo("인증이 필요합니다.");
+        assertThat(body.get("data")).isNull();
     }
 
     @Test
@@ -64,5 +79,14 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private Map<String, Object> readBody(ResponseEntity<String> response) {
+        try {
+            return objectMapper.readValue(response.getBody(), new TypeReference<>() {
+            });
+        } catch (Exception ex) {
+            throw new AssertionError("응답 본문을 JSON으로 파싱하지 못했습니다.", ex);
+        }
     }
 }
