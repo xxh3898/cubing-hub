@@ -126,6 +126,25 @@ class RecordIntegrationTest extends RestDocsBaseTest {
     }
 
     @Test
+    @DisplayName("기록 저장 요청이 유효하지 않으면 400을 반환한다")
+    void saveRecordWithInvalidRequest() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(0)
+                .penalty(Penalty.NONE)
+                .scramble("")
+                .build();
+
+        mockMvc.perform(post("/api/records")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("잘못된 입력값입니다")));
+    }
+
+    @Test
     @DisplayName("더 빠른 기록이 들어오면 PB가 자동으로 갱신된다")
     void updatePB() throws Exception {
         // given: 첫 번째 기록 저장

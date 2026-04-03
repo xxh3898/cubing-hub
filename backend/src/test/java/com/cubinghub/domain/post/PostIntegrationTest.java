@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
@@ -118,6 +119,20 @@ class PostIntegrationTest extends RestDocsBaseTest {
     }
 
     @Test
+    @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
+    void createPostWithInvalidRequest() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");
+
+        mockMvc.perform(post("/api/posts")
+                .header("Authorization", "Bearer " + authorAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
+    }
+
+    @Test
     @DisplayName("게시글 목록은 공개 조회되며 키워드와 작성자 조건으로 검색할 수 있다")
     void getPosts() throws Exception {
         savePost(authorUser, PostCategory.FREE, "큐브 연습법", "OLL 연습 내용을 정리합니다.");
@@ -191,6 +206,16 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
         Post foundPost = postRepository.findById(savedPost.getId()).orElseThrow();
         assertThat(foundPost.getViewCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
+    void getPostDetailNotFound() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}", 99999L)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("게시글을 찾을 수 없습니다."));
     }
 
     @Test

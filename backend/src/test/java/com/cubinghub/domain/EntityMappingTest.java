@@ -24,9 +24,9 @@ public class EntityMappingTest extends BaseIntegrationTest {
     private EntityManager em;
 
     @Test
-    @DisplayName("모든 도메인 엔티티 매핑 및 오디팅 기능을 검증한다")
-    void entityMappingTest() {
-        // 1. User 저장
+    @DisplayName("User 엔티티 매핑과 오디팅 필드를 검증한다")
+    void user_엔티티_매핑_및_오디팅() {
+        // given
         User user = User.builder()
                 .email("test@test.com")
                 .password("password")
@@ -36,8 +36,32 @@ public class EntityMappingTest extends BaseIntegrationTest {
                 .mainEvent("3x3x3")
                 .build();
         em.persist(user);
+        em.flush();
+        em.clear();
 
-        // 2. Record 저장
+        // when
+        User foundUser = em.find(User.class, user.getId());
+
+        // then
+        assertThat(foundUser.getEmail()).isEqualTo("test@test.com");
+        assertThat(foundUser.getCreatedAt()).isNotNull();
+        assertThat(foundUser.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Record와 UserPB 연관관계 매핑을 검증한다")
+    void record_userPB_연관관계_매핑() {
+        // given
+        User user = User.builder()
+                .email("record@test.com")
+                .password("password")
+                .nickname("recorder")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("3x3x3")
+                .build();
+        em.persist(user);
+
         Record record = Record.builder()
                 .user(user)
                 .eventType(EventType.WCA_333)
@@ -55,8 +79,34 @@ public class EntityMappingTest extends BaseIntegrationTest {
                 .record(record)
                 .build();
         em.persist(userPB);
+        em.flush();
+        em.clear();
 
-        // 4. Post 저장
+        // when
+        Record foundRecord = em.find(Record.class, record.getId());
+        UserPB foundPB = em.find(UserPB.class, userPB.getId());
+
+        // then
+        assertThat(foundRecord.getUser().getId()).isEqualTo(user.getId());
+        assertThat(foundRecord.getTimeMs()).isEqualTo(10500);
+        assertThat(foundPB.getBestTimeMs()).isEqualTo(foundRecord.getTimeMs());
+        assertThat(foundPB.getRecord().getId()).isEqualTo(record.getId());
+    }
+
+    @Test
+    @DisplayName("Post와 Comment 연관관계 매핑을 검증한다")
+    void post_comment_연관관계_매핑() {
+        // given
+        User user = User.builder()
+                .email("post@test.com")
+                .password("password")
+                .nickname("poster")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("3x3x3")
+                .build();
+        em.persist(user);
+
         Post post = Post.builder()
                 .user(user)
                 .category(PostCategory.FREE)
@@ -72,29 +122,16 @@ public class EntityMappingTest extends BaseIntegrationTest {
                 .content("테스트 댓글")
                 .build();
         em.persist(comment);
-
         em.flush();
         em.clear();
 
-        // 검증
-        User foundUser = em.find(User.class, user.getId());
-        assertThat(foundUser.getEmail()).isEqualTo("test@test.com");
-        assertThat(foundUser.getCreatedAt()).isNotNull();
-        assertThat(foundUser.getUpdatedAt()).isNotNull();
-
-        Record foundRecord = em.find(Record.class, record.getId());
-        assertThat(foundRecord.getUser().getId()).isEqualTo(user.getId());
-        assertThat(foundRecord.getTimeMs()).isEqualTo(10500);
-
-        UserPB foundPB = em.find(UserPB.class, userPB.getId());
-        assertThat(foundPB.getBestTimeMs()).isEqualTo(foundRecord.getTimeMs());
-        assertThat(foundPB.getRecord().getId()).isEqualTo(record.getId());
-
+        // when
         Post foundPost = em.find(Post.class, post.getId());
+        Comment foundComment = em.find(Comment.class, comment.getId());
+
+        // then
         assertThat(foundPost.getTitle()).isEqualTo("테스트 제목");
         assertThat(foundPost.getViewCount()).isEqualTo(0);
-
-        Comment foundComment = em.find(Comment.class, comment.getId());
         assertThat(foundComment.getContent()).isEqualTo("테스트 댓글");
     }
 }

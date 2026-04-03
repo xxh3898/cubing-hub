@@ -4,7 +4,6 @@ import com.cubinghub.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,7 +19,6 @@ class RefreshTokenServiceTest extends BaseIntegrationTest {
     private static final long TTL_MS = 60000L; // 테스트용 1분
 
     @Test
-    @Transactional(readOnly = true)
     @DisplayName("Refresh Token을 Redis에 저장하고 조회할 수 있다")
     void refreshToken_저장_조회() {
         // when
@@ -80,5 +78,22 @@ class RefreshTokenServiceTest extends BaseIntegrationTest {
 
         // then
         assertThat(refreshTokenService.isValid(EMAIL, JTI, TOKEN)).isFalse();
+    }
+
+    @Test
+    @DisplayName("보안 위험 감지 시 해당 사용자의 모든 Refresh Token을 삭제한다")
+    void 보안위험감지시_사용자전체토큰_삭제() {
+        // given
+        refreshTokenService.save(EMAIL, "jti-1", "token-1", TTL_MS);
+        refreshTokenService.save(EMAIL, "jti-2", "token-2", TTL_MS);
+        refreshTokenService.save("other@test.com", "jti-3", "token-3", TTL_MS);
+
+        // when
+        refreshTokenService.deleteAllByUser(EMAIL);
+
+        // then
+        assertThat(refreshTokenService.get(EMAIL, "jti-1")).isNull();
+        assertThat(refreshTokenService.get(EMAIL, "jti-2")).isNull();
+        assertThat(refreshTokenService.get("other@test.com", "jti-3")).isEqualTo("token-3");
     }
 }

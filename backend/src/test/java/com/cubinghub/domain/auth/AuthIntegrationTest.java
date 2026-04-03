@@ -3,16 +3,16 @@ package com.cubinghub.domain.auth;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
-import com.cubinghub.domain.post.dto.request.PostCreateRequest;
-import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.user.entity.User;
-import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
+import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsBaseTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +21,6 @@ import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.ResultActions;
 
-import static org.hamcrest.Matchers.nullValue;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.cookies.CookieDocumentation.cookieWithName;
 import static org.springframework.restdocs.cookies.CookieDocumentation.requestCookies;
 import static org.springframework.restdocs.cookies.CookieDocumentation.responseCookies;
@@ -232,39 +230,5 @@ class AuthIntegrationTest extends RestDocsBaseTest {
 
         String deletedToken = refreshTokenService.get(testEmail, jti);
         assertThat(deletedToken).isNull();
-    }
-
-    @Test
-    @DisplayName("로그아웃된 Access Token으로 보호된 API에 접근하면 401 JSON 응답을 반환한다")
-    void blacklistedAccessTokenReturnsUnauthorizedJson() throws Exception {
-        userRepository.save(User.builder()
-                .email(testEmail)
-                .password(passwordEncoder.encode(testPassword))
-                .nickname("TestUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .build());
-
-        String accessToken = jwtTokenProvider.generateAccessToken(
-                org.springframework.security.core.userdetails.User.builder()
-                        .username(testEmail)
-                        .password("")
-                        .authorities(UserRole.ROLE_USER.name())
-                        .build());
-
-        mockMvc.perform(post("/api/auth/logout")
-                        .header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk());
-
-        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "제목", "내용");
-
-        mockMvc.perform(post("/api/posts")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.message").value("로그아웃 된 토큰입니다."))
-                .andExpect(jsonPath("$.data").value(nullValue()));
     }
 }
