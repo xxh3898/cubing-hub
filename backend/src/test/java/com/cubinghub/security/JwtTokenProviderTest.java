@@ -1,5 +1,13 @@
 package com.cubinghub.security;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,11 +16,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.util.Collections;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
 @DisplayName("JwtTokenProvider 단위 테스트")
 class JwtTokenProviderTest {
 
@@ -20,13 +23,17 @@ class JwtTokenProviderTest {
     private static final String SECRET = "testSecretKeyForTestingPurposes12345678901234";
     private static final long ACCESS_EXPIRATION = 3600000L;   // 1시간
     private static final long REFRESH_EXPIRATION = 604800000L; // 7일
+    private static final Clock FIXED_CLOCK = Clock.fixed(
+            Instant.parse("2026-04-03T00:00:00Z"),
+            ZoneOffset.UTC
+    );
 
     private JwtTokenProvider jwtTokenProvider;
     private UserDetails userDetails;
 
     @BeforeEach
     void setUp() {
-        jwtTokenProvider = new JwtTokenProvider(SECRET, ACCESS_EXPIRATION, REFRESH_EXPIRATION);
+        jwtTokenProvider = new JwtTokenProvider(SECRET, ACCESS_EXPIRATION, REFRESH_EXPIRATION, FIXED_CLOCK);
 
         userDetails = User.builder()
                 .username("test@test.com")
@@ -71,15 +78,18 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("만료된 토큰은 검증에 실패한다")
     void 만료된_토큰_검증_실패() {
-        // given: 즉시 만료되는 토큰 생성
-        JwtTokenProvider shortLivedProvider = new JwtTokenProvider(SECRET, 1L, REFRESH_EXPIRATION);
-        String token = shortLivedProvider.generateAccessToken(userDetails);
-
-        // 1ms 대기 후 검증
-        try { Thread.sleep(5); } catch (InterruptedException ignored) {}
+        // given
+        JwtTokenProvider issuer = new JwtTokenProvider(SECRET, 1L, REFRESH_EXPIRATION, FIXED_CLOCK);
+        String token = issuer.generateAccessToken(userDetails);
+        JwtTokenProvider validator = new JwtTokenProvider(
+                SECRET,
+                ACCESS_EXPIRATION,
+                REFRESH_EXPIRATION,
+                Clock.offset(FIXED_CLOCK, Duration.ofMillis(10))
+        );
 
         // then
-        assertThat(shortLivedProvider.validateToken(token)).isFalse();
+        assertThat(validator.validateToken(token)).isFalse();
     }
 
     @Test
@@ -114,5 +124,15 @@ class JwtTokenProviderTest {
     @DisplayName("Refresh Token 만료 시간을 올바르게 반환한다")
     void refreshToken_만료시간_반환() {
         assertThat(jwtTokenProvider.getRefreshTokenExpirationMs()).isEqualTo(REFRESH_EXPIRATION);
+    }
+
+    @Test
+    @DisplayName("토큰의 남은 만료 시간을 고정된 시계 기준으로 계산한다")
+    void 토큰_남은_만료시간_계산() {
+        // when
+        String token = jwtTokenProvider.generateAccessToken(userDetails);
+
+        // then
+        assertThat(jwtTokenProvider.getRemainingExpiration(token)).isEqualTo(ACCESS_EXPIRATION);
     }
 }

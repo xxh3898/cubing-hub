@@ -1,5 +1,6 @@
 package com.cubinghub.security;
 
+import java.time.Clock;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Collections;
@@ -7,6 +8,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,15 +30,27 @@ public class JwtTokenProvider {
     private final Key key;
     private final long accessTokenExpirationMs;
     private final long refreshTokenExpirationMs;
+    private final Clock clock;
 
+    @Autowired
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long accessTokenExpirationMs,
             @Value("${jwt.refresh-expiration}") long refreshTokenExpirationMs
     ) {
+        this(secret, accessTokenExpirationMs, refreshTokenExpirationMs, Clock.systemUTC());
+    }
+
+    public JwtTokenProvider(
+            String secret,
+            long accessTokenExpirationMs,
+            long refreshTokenExpirationMs,
+            Clock clock
+    ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpirationMs = accessTokenExpirationMs;
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+        this.clock = clock;
     }
 
     // Access Token 생성
@@ -45,24 +59,27 @@ public class JwtTokenProvider {
                 .findFirst()
                 .map(GrantedAuthority::getAuthority)
                 .orElse("ROLE_USER");
+        Date issuedAt = Date.from(clock.instant());
 
         return Jwts.builder()
                 .subject(userDetails.getUsername())
                 .claim("role", role)
                 .id(java.util.UUID.randomUUID().toString())
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
+                .issuedAt(issuedAt)
+                .expiration(Date.from(clock.instant().plusMillis(accessTokenExpirationMs)))
                 .signWith(key)
                 .compact();
     }
 
     // Refresh Token 생성 (Claim 최소화)
     public String generateRefreshToken(String email) {
+        Date issuedAt = Date.from(clock.instant());
+
         return Jwts.builder()
                 .subject(email)
                 .id(java.util.UUID.randomUUID().toString())
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
+                .issuedAt(issuedAt)
+                .expiration(Date.from(clock.instant().plusMillis(refreshTokenExpirationMs)))
                 .signWith(key)
                 .compact();
     }
@@ -71,6 +88,7 @@ public class JwtTokenProvider {
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith((javax.crypto.SecretKey) key)
+                .clock(() -> Date.from(clock.instant()))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -120,7 +138,7 @@ public class JwtTokenProvider {
     // 토큰의 남은 만료 시간 계산 (Redis Blacklist TTL 설정에 사용)
     public long getRemainingExpiration(String token) {
         Date expiration = parseClaims(token).getExpiration();
-        long now = System.currentTimeMillis();
+        long now = clock.millis();
         return expiration.getTime() - now;
     }
 }
