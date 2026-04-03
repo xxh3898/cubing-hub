@@ -74,28 +74,32 @@ gantt
 > RDBMS 기반의 표준 아키텍처를 구현하고, 시스템의 성능 베이스라인 및 데이터 정합성을 검증합니다.
 
 **Day 8 (월): 인증/인가 API 구현**
-- [ ] 로그인/회원가입 API 구현 및 통합 테스트 작성
-- [ ] Access Token만 발급하는 V1 인증 로직 완성
-- [ ] Spring Rest Docs에 로그인 API 명세 추가
+- [X] 로그인/회원가입 API 구현 및 통합 테스트 작성
+- [X] Access Token만 발급하는 V1 인증 로직 완성
+- [X] Spring Rest Docs에 로그인 API 명세 추가
 
 **Day 9 (화): 타이머 기록 API 구현 (V1)**
-- [ ] WCA 스크램블 생성 유틸리티 구현
-- [ ] `POST /api/records` 구현 (MySQL에 단일 저장)
-- [ ] 기록 생성 통합 테스트 작성
+- [X] WCA 스크램블 생성 유틸리티 구현
+- [X] `POST /api/records` 구현 (MySQL에 단일 저장)
+- [X] 기록 생성 통합 테스트 작성
 
 **Day 10 (수): 글로벌 랭킹 API 및 성능 베이스라인 구축**
-- [ ] `GET /api/rankings` 구현
-- [ ] QueryDSL을 활용한 `ORDER BY time_ms ASC LIMIT 100` 풀스캔 쿼리 작성
-- [ ] 랭킹 조회 통합 테스트 작성
+- [X] `GET /api/rankings` 구현
+- [X] QueryDSL을 활용한 `ORDER BY time_ms ASC LIMIT 100` 풀스캔 쿼리 작성
+- [X] 랭킹 조회 통합 테스트 작성
 
 **Day 11 (목): 게시판 CRUD 및 동적 쿼리 구현**
-- [ ] `POST, GET /api/posts` 구현
-- [ ] QueryDSL을 이용한 게시글 다중 조건 검색(키워드, 작성자) 구현
-- [ ] 게시판 API 통합 테스트 작성 및 문서화
+- [X] `POST, GET /api/posts` 구현
+- [X] QueryDSL을 이용한 게시글 다중 조건 검색(키워드, 작성자) 구현
+- [X] 게시판 API 통합 테스트 작성 및 문서화
 
 **Day 12 (금 - 반일 작업): 클라이언트 연동 (인증/타이머)**
-- [ ] React 로그인, 회원가입 폼 구현 및 토큰 로컬스토리지 저장
-- [ ] 스페이스바 이벤트 기반 타이머 측정 로직 및 API 연동
+- [X] React 로그인, 회원가입 폼 구현 및 토큰 로컬스토리지 저장
+- [X] 스페이스바 이벤트 기반 타이머 측정 로직 및 API 연동
+- [X] API 응답 정책 및 도메인 레이어 리팩토링
+- [X] 통합 테스트, 서비스 단위 테스트, 보안 실패 경로 보강
+- [X] 공개 스크램블 조회 API 추가 및 문서화
+- [X] `react-router-dom`, `axios` 기반 프런트 공통 연동 기반 구성
 
 **Day 13 (토 - 반일 작업): 클라이언트 연동 (랭킹/게시판)**
 - [ ] V1 랭킹 조회 API 연동 및 테이블 UI 렌더링
