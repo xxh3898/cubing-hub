@@ -1,9 +1,10 @@
 package com.cubinghub.config;
 
+import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.security.JwtAuthenticationFilter;
 import com.cubinghub.security.JwtTokenProvider;
-import com.cubinghub.domain.auth.RedisBlackListService;
-
+import com.cubinghub.domain.auth.repository.RedisBlackListService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -32,6 +34,7 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisBlackListService redisBlackListService;
+    private final ObjectMapper objectMapper;
 
     @Value("${cors.allowed-origins}")
     private List<String> allowedOrigins;
@@ -48,12 +51,14 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) -> 
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                        .authenticationEntryPoint((request, response, authException) ->
+                                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "인증이 필요합니다."))
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                writeJsonError(response, HttpServletResponse.SC_FORBIDDEN, "접근 권한이 없습니다."))
                 )
                 // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 삽입
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider, redisBlackListService),
+                        new JwtAuthenticationFilter(jwtTokenProvider, redisBlackListService, objectMapper),
                         UsernamePasswordAuthenticationFilter.class
                 );
 
@@ -81,5 +86,13 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private void writeJsonError(HttpServletResponse response, int status, String message) throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(
+                ApiResponse.error(HttpStatus.valueOf(status), message)
+        ));
     }
 }

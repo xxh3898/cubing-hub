@@ -1,7 +1,8 @@
 package com.cubinghub.security;
 
-import com.cubinghub.domain.auth.RedisBlackListService;
-import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.common.response.ApiResponse;
+import com.cubinghub.domain.auth.repository.RedisBlackListService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisBlackListService redisBlackListService;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -43,7 +45,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             
             // 2.1 Blacklist 검증 (로그아웃된 토큰인지 확안)
             if (redisBlackListService.isBlackListed(token)) {
-                throw new CustomApiException("로그아웃 된 토큰입니다.", HttpStatus.UNAUTHORIZED);
+                writeJsonError(response, HttpStatus.UNAUTHORIZED, "로그아웃 된 토큰입니다.");
+                return;
             }
 
             // 3. 토큰에서 Email과 Role 정보 추출
@@ -71,5 +74,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return bearerToken.substring(BEARER_PREFIX.length());
         }
         return null;
+    }
+
+    private void writeJsonError(HttpServletResponse response, HttpStatus status, String message) throws IOException {
+        response.setStatus(status.value());
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(ApiResponse.error(status, message)));
     }
 }
