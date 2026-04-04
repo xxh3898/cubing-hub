@@ -8,29 +8,10 @@ import CommunityDetailPage from './pages/CommunityDetailPage.jsx'
 import CommunityWritePage from './pages/CommunityWritePage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+import SignupPage from './pages/SignupPage.jsx'
+import MyPage from './pages/MyPage.jsx'
 import { mockCurrentUser } from './constants/mockDashboard.js'
-
-function PlaceholderPage({ title, description, metaItems = [] }) {
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <p className="eyebrow">Cubing Hub</p>
-        <h2>{title}</h2>
-        <p className="helper-text">{description}</p>
-      </div>
-      <div className="panel">
-        <div className="placeholder-meta">
-          {metaItems.map((item) => (
-            <article key={item.label} className="placeholder-card">
-              <p className="placeholder-label">{item.label}</p>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
 
 function AppLayout() {
   const { isAuthenticated } = useAuth()
@@ -67,33 +48,9 @@ function AppLayout() {
           <Route path="/community" element={<CommunityPage />} />
           <Route path="/community/write" element={<CommunityWritePage />} />
           <Route path="/community/:id" element={<CommunityDetailPage />} />
-          <Route
-            path="/login"
-            element={
-              <PlaceholderPage
-                title="로그인"
-                description="이메일과 비밀번호로 계정에 로그인할 수 있습니다."
-              />
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <PlaceholderPage
-                title="회원가입"
-                description="기록 저장과 커뮤니티 이용을 위한 계정을 만들 수 있습니다."
-              />
-            }
-          />
-          <Route
-            path="/mypage"
-            element={
-              <PlaceholderPage
-                title="마이페이지"
-                description="내 기록과 기본 프로필 정보를 한곳에서 확인할 수 있습니다."
-              />
-            }
-          />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/mypage" element={<MyPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
         </Routes>

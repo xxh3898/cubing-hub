@@ -295,32 +295,7 @@ button {
   line-height: 1.6;
 }
 
-.placeholder-meta {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
 
-.placeholder-card {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(18, 32, 43, 0.08);
-}
-
-.placeholder-card strong {
-  font-size: 1.2rem;
-}
-
-.placeholder-label {
-  margin: 0;
-  color: #53626d;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
 
 .two-up {
   display: grid;
@@ -1141,4 +1116,136 @@ button {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* Auth Pages (Login / Signup) */
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 70vh;
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 480px;
+  grid-column: span 12;
+  margin: 0 auto;
+}
+
+.auth-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.auth-header h2 {
+  margin-bottom: 8px;
+}
+
+.auth-actions {
+  margin-top: 24px;
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.auth-footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(18, 32, 43, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-footer .ghost-button {
+  width: 100%;
+  text-align: center;
+}
+
+/* MyPage */
+.mypage {
+  align-items: start;
+}
+
+.mypage-profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mypage-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mypage-profile-header h2 {
+  margin: 0;
+}
+
+.mypage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mypage-info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.mypage-info-label {
+  display: inline-block;
+  min-width: 80px;
+  color: #53626d;
+  font-size: 0.9rem;
+}
+
+.mypage-dashboard-panel,
+.mypage-records-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mypage-records-header h2 {
+  margin: 0;
+}
+
+.dashboard-summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.dashboard-summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.dashboard-summary-label {
+  font-size: 0.85rem;
+  color: #53626d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard-summary-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pb-value {
+  color: #ff3e00;
 }

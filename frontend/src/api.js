@@ -11,8 +11,8 @@ function toErrorMessage(error) {
 function withAuthorization(accessToken) {
   return accessToken
     ? {
-        Authorization: `Bearer ${accessToken}`,
-      }
+      Authorization: `Bearer ${accessToken}`,
+    }
     : {}
 }
 
