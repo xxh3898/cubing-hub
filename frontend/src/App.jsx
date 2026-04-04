@@ -1,10 +1,10 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
+import HomePage from './pages/HomePage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import { mockCurrentUser, mockDashboardSummary } from './constants/mockDashboard.js'
 import { mockLearningTabs } from './constants/mockLearning.js'
 import { mockRankingPages } from './constants/mockRankings.js'
-import { formatTimeMs } from './utils/formatTime.js'
 
 function PlaceholderPage({ title, description, metaItems = [] }) {
   return (
@@ -25,21 +25,6 @@ function PlaceholderPage({ title, description, metaItems = [] }) {
         </div>
       </div>
     </section>
-  )
-}
-
-function AppHomeSkeleton() {
-  return (
-    <PlaceholderPage
-      title="홈"
-      description="오늘의 스크램블과 개인 기록 요약을 빠르게 확인할 수 있는 대시보드입니다."
-      metaItems={[
-        { label: '오늘의 스크램블', value: mockDashboardSummary.todayScramble.eventType },
-        { label: '총 솔빙 횟수', value: String(mockDashboardSummary.solveCount.total) },
-        { label: 'PB', value: formatTimeMs(mockDashboardSummary.personalBest.timeMs) },
-        { label: '전체 평균', value: formatTimeMs(mockDashboardSummary.average.timeMs) },
-      ]}
-    />
   )
 }
 
@@ -71,7 +56,7 @@ function AppLayout() {
 
       <main className="page-shell">
         <Routes>
-          <Route path="/" element={<AppHomeSkeleton />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/timer" element={<TimerPage />} />
           <Route
             path="/rankings"

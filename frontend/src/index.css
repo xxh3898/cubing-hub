@@ -86,14 +86,18 @@ button {
 
 .topbar-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .topnav {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .topnav a {
@@ -113,6 +117,7 @@ button {
   padding: 8px 12px;
   border-radius: 999px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .status-chip.is-authenticated {
@@ -172,6 +177,122 @@ button {
 .panel h2,
 .panel h3 {
   margin-top: 0;
+}
+
+.home-page {
+  align-items: start;
+}
+
+.home-scramble-panel {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.7fr);
+}
+
+.home-scramble-copy h2 {
+  margin-bottom: 12px;
+}
+
+.home-scramble-text {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.6vw, 1.6rem);
+  line-height: 1.75;
+  letter-spacing: -0.02em;
+}
+
+.home-scramble-actions {
+  display: grid;
+  gap: 16px;
+  align-content: space-between;
+  padding: 20px;
+  border-radius: 20px;
+  background: #12202b;
+  color: #f8f5ef;
+}
+
+.home-action-link {
+  justify-self: start;
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.dashboard-card-label {
+  margin: 0;
+  color: #53626d;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-card-value {
+  font-size: clamp(1.35rem, 2.8vw, 2rem);
+  line-height: 1;
+}
+
+.dashboard-card-detail {
+  margin: 0;
+  color: #53626d;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.section-heading h3 {
+  margin-bottom: 0;
+}
+
+.home-record-link {
+  white-space: nowrap;
+}
+
+.record-table-wrap {
+  overflow-x: auto;
+}
+
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.record-table th,
+.record-table td {
+  padding: 14px 10px;
+  border-bottom: 1px solid rgba(18, 32, 43, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.record-table th {
+  color: #53626d;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.record-table-scramble {
+  min-width: 420px;
+  color: #31424f;
+  line-height: 1.6;
 }
 
 .placeholder-meta {
@@ -387,7 +508,9 @@ button {
 @media (max-width: 900px) {
   .topbar,
   .two-up,
-  .split-grid {
+  .split-grid,
+  .home-scramble-panel,
+  .dashboard-grid {
     grid-template-columns: 1fr;
   }
 
@@ -406,5 +529,10 @@ button {
 
   .app-shell {
     padding: 16px;
+  }
+
+  .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
