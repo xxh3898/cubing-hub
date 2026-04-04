@@ -1,10 +1,10 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import HomePage from './pages/HomePage.jsx'
+import LearningPage from './pages/LearningPage.jsx'
 import RankingsPage from './pages/RankingsPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import { mockCurrentUser } from './constants/mockDashboard.js'
-import { mockLearningTabs } from './constants/mockLearning.js'
 
 function PlaceholderPage({ title, description, metaItems = [] }) {
   return (
@@ -59,19 +59,7 @@ function AppLayout() {
           <Route path="/" element={<HomePage />} />
           <Route path="/timer" element={<TimerPage />} />
           <Route path="/rankings" element={<RankingsPage />} />
-          <Route
-            path="/learning"
-            element={
-              <PlaceholderPage
-                title="학습"
-                description="F2L, OLL, PLL 케이스를 이미지와 회전기호로 정리한 학습 라이브러리입니다."
-                metaItems={mockLearningTabs.map((tab) => ({
-                  label: tab.label,
-                  value: `${tab.itemCount} cases`,
-                }))}
-              />
-            }
-          />
+          <Route path="/learning" element={<LearningPage />} />
           <Route
             path="/community"
             element={
