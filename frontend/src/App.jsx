@@ -6,6 +6,7 @@ import LearningPage from './pages/LearningPage.jsx'
 import RankingsPage from './pages/RankingsPage.jsx'
 import CommunityDetailPage from './pages/CommunityDetailPage.jsx'
 import CommunityWritePage from './pages/CommunityWritePage.jsx'
+import FeedbackPage from './pages/FeedbackPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import { mockCurrentUser } from './constants/mockDashboard.js'
 
@@ -93,15 +94,7 @@ function AppLayout() {
               />
             }
           />
-          <Route
-            path="/feedback"
-            element={
-              <PlaceholderPage
-                title="개발자 피드백"
-                description="서비스 사용 중 느낀 점과 개선 의견을 전달할 수 있습니다."
-              />
-            }
-          />
+          <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
         </Routes>
       </main>
