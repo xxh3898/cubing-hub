@@ -1,10 +1,10 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import HomePage from './pages/HomePage.jsx'
+import RankingsPage from './pages/RankingsPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
-import { mockCurrentUser, mockDashboardSummary } from './constants/mockDashboard.js'
+import { mockCurrentUser } from './constants/mockDashboard.js'
 import { mockLearningTabs } from './constants/mockLearning.js'
-import { mockRankingPages } from './constants/mockRankings.js'
 
 function PlaceholderPage({ title, description, metaItems = [] }) {
   return (
@@ -58,19 +58,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/timer" element={<TimerPage />} />
-          <Route
-            path="/rankings"
-            element={
-              <PlaceholderPage
-                title="랭킹"
-                description="종목별 기록을 빠르게 비교할 수 있는 랭킹 보드입니다."
-                metaItems={[
-                  { label: '페이지 크기', value: `${mockRankingPages.pageSize}개` },
-                  { label: '총 샘플 수', value: `${mockRankingPages.totalCount}개` },
-                ]}
-              />
-            }
-          />
+          <Route path="/rankings" element={<RankingsPage />} />
           <Route
             path="/learning"
             element={

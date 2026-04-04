@@ -1,5 +1,5 @@
 export const mockRankingPages = {
-  pageSize: 50,
+  pageSize: 25,
   totalCount: 100,
 }
 

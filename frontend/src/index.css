@@ -611,6 +611,76 @@ button {
   text-align: center;
 }
 
+.rankings-page {
+  align-items: start;
+}
+
+.rankings-header-panel {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+}
+
+.rankings-header-copy h2 {
+  margin-bottom: 12px;
+}
+
+.rankings-toolbar {
+  display: flex;
+  gap: 16px;
+  align-content: start;
+  justify-content: flex-end;
+}
+
+.rankings-event-field {
+  max-width: 220px;
+}
+
+.rankings-search-field {
+  min-width: 240px;
+}
+
+.rankings-table-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.rankings-table {
+  table-layout: fixed;
+}
+
+.rankings-col-rank {
+  width: 120px;
+}
+
+.rankings-col-nickname {
+  width: 36%;
+}
+
+.rankings-col-event {
+  width: 24%;
+}
+
+.rankings-col-time {
+  width: 160px;
+}
+
+.rankings-table td:last-child,
+.rankings-table th:last-child {
+  white-space: nowrap;
+}
+
+.rankings-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.rankings-page-button {
+  white-space: nowrap;
+}
+
 .split-grid {
   display: grid;
   gap: 20px;
@@ -639,6 +709,7 @@ button {
   .two-up,
   .split-grid,
   .home-scramble-panel,
+  .rankings-header-panel,
   .dashboard-grid,
   .timer-layout {
     grid-template-columns: 1fr;

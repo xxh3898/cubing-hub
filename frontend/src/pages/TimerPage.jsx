@@ -71,7 +71,6 @@ export default function TimerPage() {
   const [scrambleData, setScrambleData] = useState(null)
   const [scrambleMessage, setScrambleMessage] = useState(null)
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
   const lastAutoSavedRecordRef = useRef(null)
@@ -124,46 +123,8 @@ export default function TimerPage() {
     }
   }
 
-  const appendRecentSavedRecord = (recordId, timeMs, scramble) => {
-    setRecentSavedRecords((current) => [
-      {
-        id: recordId ?? Date.now(),
-        eventType: selectedEvent,
-        timeMs,
-        scramble,
-      },
-      ...current,
-    ].slice(0, 5))
-  }
-
   const handleDeleteRecentRecord = (recordId) => {
     setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
-  }
-
-  const persistRecord = async () => {
-    if (!isAuthenticated || !finalTime || !scrambleData?.scramble || !isSupported) {
-      return
-    }
-
-    setIsSaving(true)
-    setSaveMessage(null)
-
-    try {
-      const response = await saveRecord(accessToken, {
-        eventType: selectedEvent,
-        timeMs: Math.max(1, Math.round(finalTime)),
-        penalty: 'NONE',
-        scramble: scrambleData.scramble,
-      })
-
-      appendRecentSavedRecord(response.data?.id, Math.max(1, Math.round(finalTime)), scrambleData.scramble)
-      setSaveMessage({ type: 'success', text: `${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.` })
-      lastAutoSavedRecordRef.current = `${selectedEvent}:${Math.round(finalTime)}:${scrambleData.scramble}`
-    } catch (error) {
-      setSaveMessage({ type: 'error', text: error.message })
-    } finally {
-      setIsSaving(false)
-    }
   }
 
   useEffect(() => {
@@ -182,8 +143,36 @@ export default function TimerPage() {
       return
     }
 
+    const persistRecord = async () => {
+      setSaveMessage(null)
+
+      try {
+        const roundedTime = Math.max(1, Math.round(finalTime))
+        const response = await saveRecord(accessToken, {
+          eventType: selectedEvent,
+          timeMs: roundedTime,
+          penalty: 'NONE',
+          scramble: scrambleData.scramble,
+        })
+
+        setRecentSavedRecords((current) => [
+          {
+            id: response.data?.id ?? Date.now(),
+            eventType: selectedEvent,
+            timeMs: roundedTime,
+            scramble: scrambleData.scramble,
+          },
+          ...current,
+        ].slice(0, 5))
+        setSaveMessage({ type: 'success', text: `${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.` })
+        lastAutoSavedRecordRef.current = `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`
+      } catch (error) {
+        setSaveMessage({ type: 'error', text: error.message })
+      }
+    }
+
     persistRecord()
-  }, [finalTime, isAuthenticated, isSupported, scrambleData?.scramble, selectedEvent, status])
+  }, [accessToken, finalTime, isAuthenticated, isSupported, scrambleData, selectedEvent, status])
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
   const statusLabel = getStatusLabel(status)
