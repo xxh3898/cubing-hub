@@ -1,8 +1,11 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
+import CommunityPage from './pages/CommunityPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import LearningPage from './pages/LearningPage.jsx'
 import RankingsPage from './pages/RankingsPage.jsx'
+import CommunityDetailPage from './pages/CommunityDetailPage.jsx'
+import CommunityWritePage from './pages/CommunityWritePage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import { mockCurrentUser } from './constants/mockDashboard.js'
 
@@ -60,15 +63,9 @@ function AppLayout() {
           <Route path="/timer" element={<TimerPage />} />
           <Route path="/rankings" element={<RankingsPage />} />
           <Route path="/learning" element={<LearningPage />} />
-          <Route
-            path="/community"
-            element={
-              <PlaceholderPage
-                title="커뮤니티"
-                description="게시글을 목록으로 확인하고 주제별로 탐색할 수 있는 커뮤니티 보드입니다."
-              />
-            }
-          />
+          <Route path="/community" element={<CommunityPage />} />
+          <Route path="/community/write" element={<CommunityWritePage />} />
+          <Route path="/community/:id" element={<CommunityDetailPage />} />
           <Route
             path="/login"
             element={
