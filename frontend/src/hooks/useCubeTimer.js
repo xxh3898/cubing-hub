@@ -69,12 +69,17 @@ export function useCubeTimer({ enabled }) {
   })
 
   const handleKeyDown = useEffectEvent((event) => {
-    if (!enabled || event.code !== 'Space' || event.repeat || isInteractiveTarget(event.target)) {
+    if (event.code !== 'Space' || event.repeat || isInteractiveTarget(event.target)) {
+      return
+    }
+
+    event.preventDefault()
+
+    if (!enabled) {
       return
     }
 
     if (status === 'idle') {
-      event.preventDefault()
       setStatus('holding')
       clearHoldTimeout()
       holdTimeoutRef.current = window.setTimeout(() => {
@@ -84,7 +89,6 @@ export function useCubeTimer({ enabled }) {
     }
 
     if (status === 'running') {
-      event.preventDefault()
       stopAnimation()
       const nextFinalTime = performance.now() - startTimeRef.current
       setDisplayTime(nextFinalTime)
@@ -94,19 +98,23 @@ export function useCubeTimer({ enabled }) {
   })
 
   const handleKeyUp = useEffectEvent((event) => {
-    if (!enabled || event.code !== 'Space' || isInteractiveTarget(event.target)) {
+    if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
+      return
+    }
+
+    event.preventDefault()
+
+    if (!enabled) {
       return
     }
 
     if (status === 'holding') {
-      event.preventDefault()
       clearHoldTimeout()
       setStatus('idle')
       return
     }
 
     if (status === 'ready') {
-      event.preventDefault()
       clearHoldTimeout()
       startTimeRef.current = performance.now()
       setDisplayTime(0)
@@ -116,18 +124,28 @@ export function useCubeTimer({ enabled }) {
     }
   })
 
+  const handleKeyPress = useEffectEvent((event) => {
+    if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
+      return
+    }
+
+    event.preventDefault()
+  })
+
   const handleWindowBlur = useEffectEvent(() => {
     resetTimer()
   })
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    window.addEventListener('keyup', handleKeyUp, { capture: true })
+    window.addEventListener('keypress', handleKeyPress, { capture: true })
     window.addEventListener('blur', handleWindowBlur)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('keydown', handleKeyDown, { capture: true })
+      window.removeEventListener('keyup', handleKeyUp, { capture: true })
+      window.removeEventListener('keypress', handleKeyPress, { capture: true })
       window.removeEventListener('blur', handleWindowBlur)
       clearHoldTimeout()
       stopAnimation()

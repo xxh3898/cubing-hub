@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getScramble, saveRecord } from '../api.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
@@ -39,10 +39,30 @@ function getTimerMessage(status, isSupported, hasScramble) {
   }
 
   if (status === 'stopped') {
-    return '기록 저장 버튼으로 현재 결과를 저장할 수 있습니다.'
+    return ''
   }
 
   return '스페이스바를 길게 눌러 준비 상태를 만든 뒤 손을 떼면 시작됩니다.'
+}
+
+function getStatusLabel(status) {
+  if (status === 'holding') {
+    return '홀드'
+  }
+
+  if (status === 'ready') {
+    return '준비'
+  }
+
+  if (status === 'running') {
+    return '진행 중'
+  }
+
+  if (status === 'stopped') {
+    return '정지'
+  }
+
+  return '대기'
 }
 
 export default function TimerPage() {
@@ -53,6 +73,8 @@ export default function TimerPage() {
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
+  const [recentSavedRecords, setRecentSavedRecords] = useState([])
+  const lastAutoSavedRecordRef = useRef(null)
 
   const currentEvent = useMemo(() => findEventOption(selectedEvent), [selectedEvent])
   const isSupported = Boolean(currentEvent?.supported)
@@ -102,7 +124,23 @@ export default function TimerPage() {
     }
   }
 
-  const handleSaveRecord = async () => {
+  const appendRecentSavedRecord = (recordId, timeMs, scramble) => {
+    setRecentSavedRecords((current) => [
+      {
+        id: recordId ?? Date.now(),
+        eventType: selectedEvent,
+        timeMs,
+        scramble,
+      },
+      ...current,
+    ].slice(0, 5))
+  }
+
+  const handleDeleteRecentRecord = (recordId) => {
+    setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
+  }
+
+  const persistRecord = async () => {
     if (!isAuthenticated || !finalTime || !scrambleData?.scramble || !isSupported) {
       return
     }
@@ -118,9 +156,9 @@ export default function TimerPage() {
         scramble: scrambleData.scramble,
       })
 
-      setSaveMessage({ type: 'success', text: `${response.message} 다음 스크램블을 불러옵니다.` })
-      resetTimer()
-      await loadScramble(selectedEvent)
+      appendRecentSavedRecord(response.data?.id, Math.max(1, Math.round(finalTime)), scrambleData.scramble)
+      setSaveMessage({ type: 'success', text: `${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.` })
+      lastAutoSavedRecordRef.current = `${selectedEvent}:${Math.round(finalTime)}:${scrambleData.scramble}`
     } catch (error) {
       setSaveMessage({ type: 'error', text: error.message })
     } finally {
@@ -128,84 +166,99 @@ export default function TimerPage() {
     }
   }
 
+  useEffect(() => {
+    if (status !== 'stopped' || !finalTime || !scrambleData?.scramble || !isSupported) {
+      return
+    }
+
+    if (!isAuthenticated) {
+      setSaveMessage({ type: 'info', text: '로그인 후 기록이 자동 저장됩니다.' })
+      return
+    }
+
+    const nextSaveKey = `${selectedEvent}:${Math.round(finalTime)}:${scrambleData.scramble}`
+
+    if (lastAutoSavedRecordRef.current === nextSaveKey) {
+      return
+    }
+
+    persistRecord()
+  }, [finalTime, isAuthenticated, isSupported, scrambleData?.scramble, selectedEvent, status])
+
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
+  const statusLabel = getStatusLabel(status)
 
   return (
-    <section className="page-grid">
-      <div className="panel split-grid">
-        <section className="timer-hero">
-          <div className="field">
-            <label htmlFor="event-type">큐브 종목</label>
-            <select id="event-type" value={selectedEvent} onChange={handleEventChange}>
-              {eventOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className={`timer-display is-${status}`}>
-            <p className="timer-caption">{status.toUpperCase()}</p>
-            <h2 className="timer-value">{formattedTime}</h2>
-            <p className="helper-text">{timerMessage}</p>
-          </div>
-
-          <div className="scramble-box">
-            <p>Current Scramble</p>
-            <p className="scramble-text">
+    <section className="page-grid timer-page">
+      <div className="panel timer-layout">
+        <div className="timer-scramble-panel timer-scramble-full">
+          <div className="timer-scramble-copy">
+            <p className="eyebrow">현재 스크램블</p>
+            <p className="scramble-text timer-scramble-text">
               {isLoadingScramble
                 ? '스크램블을 불러오는 중입니다...'
-                : scrambleData?.scramble ?? '지원 종목을 선택하거나 재시도를 눌러주세요.'}
+                : scrambleData?.scramble ?? '지원 종목을 선택하거나 스크램블을 다시 불러와 주세요.'}
             </p>
           </div>
+        </div>
+
+        <section className="timer-main">
+          <div className="timer-toolbar">
+            <div className="field timer-event-field">
+              <label htmlFor="event-type">종목</label>
+              <select id="event-type" value={selectedEvent} onChange={handleEventChange}>
+                {eventOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="timer-actions timer-actions-row timer-toolbar-actions">
+              <button className="ghost-button" type="button" onClick={handleScrambleRetry} disabled={!isSupported || isLoadingScramble}>
+                스크램블 초기화
+              </button>
+              <button className="secondary-button" type="button" onClick={resetTimer}>
+                타이머 초기화
+              </button>
+            </div>
+
+            <div className="timer-toolbar-status">
+              {saveMessage ? <p className={`message ${saveMessage.type}`}>{saveMessage.text}</p> : null}
+            </div>
+          </div>
+
+          <div className={`timer-display timer-focus-display is-${status}`}>
+            <p className="timer-caption">{statusLabel}</p>
+            <h2 className="timer-value">{formattedTime}</h2>
+            <p className="helper-text timer-helper">{timerMessage}</p>
+          </div>
+
+          <section className="timer-recent-panel">
+            <div className="section-heading timer-recent-heading">
+              <div>
+                <h3>최근 기록</h3>
+              </div>
+            </div>
+            {recentSavedRecords.length === 0 ? (
+              <p className="helper-text">현재 세션에서 저장된 기록이 아직 없습니다.</p>
+            ) : (
+              <div className="timer-recent-list">
+                {recentSavedRecords.map((record) => (
+                  <article key={record.id} className="timer-recent-item">
+                    <p className="timer-recent-time">{formatRecordedTime(record.timeMs)}</p>
+                    <button className="ghost-button timer-delete-button" type="button" onClick={() => handleDeleteRecentRecord(record.id)}>
+                      삭제
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
           {scrambleMessage ? <p className={`message ${scrambleMessage.type}`}>{scrambleMessage.text}</p> : null}
-          {saveMessage ? <p className={`message ${saveMessage.type}`}>{saveMessage.text}</p> : null}
-
-          <div className="timer-actions">
-            <button className="ghost-button" type="button" onClick={handleScrambleRetry} disabled={!isSupported || isLoadingScramble}>
-              스크램블 재시도
-            </button>
-            <button
-              className="primary-button"
-              type="button"
-              onClick={handleSaveRecord}
-              disabled={!isAuthenticated || !finalTime || !hasScramble || !isSupported || isSaving}
-            >
-              {isSaving ? '저장 중...' : '기록 저장'}
-            </button>
-            <button className="secondary-button" type="button" onClick={resetTimer}>
-              타이머 초기화
-            </button>
-          </div>
         </section>
-
-        <aside className="panel stat-list">
-          <div className="stat-row">
-            <span>현재 종목</span>
-            <strong>{currentEvent?.label ?? selectedEvent}</strong>
-          </div>
-          <div className="stat-row">
-            <span>지원 여부</span>
-            <strong>{isSupported ? '지원됨' : '미지원'}</strong>
-          </div>
-          <div className="stat-row">
-            <span>로그인 상태</span>
-            <strong>{isAuthenticated ? '저장 가능' : '타이머만 사용 가능'}</strong>
-          </div>
-          <div className="stat-row">
-            <span>현재 스크램블</span>
-            <strong>{hasScramble ? '준비됨' : '없음'}</strong>
-          </div>
-          <div className="stat-row">
-            <span>마지막 기록</span>
-            <strong>{finalTime ? formatRecordedTime(finalTime) : '없음'}</strong>
-          </div>
-          <p className="helper-text">
-            Day 12에서는 `WCA_333`만 실제 저장 흐름을 지원합니다. 다른 종목은 의도적으로 막아둡니다.
-          </p>
-        </aside>
       </div>
     </section>
   )

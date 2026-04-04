@@ -417,30 +417,88 @@ button {
   justify-items: stretch;
 }
 
+.timer-page {
+  align-items: start;
+}
+
+.timer-layout {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+.timer-main {
+  display: grid;
+  gap: 20px;
+}
+
+.timer-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.timer-scramble-full {
+  grid-column: 1 / -1;
+}
+
+.timer-scramble-panel {
+  display: grid;
+  padding: 22px;
+  border-radius: 24px;
+  background: #12202b;
+  color: #f8f5ef;
+}
+
+.timer-scramble-copy {
+  width: 100%;
+}
+
+.timer-scramble-panel .eyebrow,
+.timer-scramble-panel .helper-text,
+.timer-scramble-panel label {
+  color: rgba(248, 245, 239, 0.76);
+}
+
+.timer-event-field select {
+  border-color: rgba(248, 245, 239, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.timer-event-field {
+  width: 180px;
+}
+
 .timer-display {
   display: grid;
   gap: 12px;
   justify-items: center;
-  padding: 28px 20px;
+  padding: 40px 28px;
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(243, 245, 238, 0.96));
   border: 1px solid rgba(18, 32, 43, 0.08);
 }
 
+.timer-focus-display {
+  min-height: 360px;
+  align-content: center;
+}
+
 .timer-display.is-holding {
-  background: linear-gradient(180deg, rgba(255, 244, 214, 0.95), rgba(255, 236, 179, 0.95));
+  background: linear-gradient(180deg, rgba(255, 244, 214, 0.72), rgba(255, 236, 179, 0.7));
 }
 
 .timer-display.is-ready {
-  background: linear-gradient(180deg, rgba(216, 243, 220, 0.96), rgba(183, 228, 199, 0.96));
+  background: linear-gradient(180deg, rgba(216, 243, 220, 0.74), rgba(183, 228, 199, 0.72));
 }
 
 .timer-display.is-running {
-  background: linear-gradient(180deg, rgba(241, 250, 238, 0.96), rgba(210, 233, 214, 0.96));
+  background: linear-gradient(180deg, rgba(241, 250, 238, 0.9), rgba(210, 233, 214, 0.82));
 }
 
 .timer-display.is-stopped {
-  background: linear-gradient(180deg, rgba(255, 232, 214, 0.96), rgba(244, 162, 97, 0.28));
+  background: linear-gradient(180deg, rgba(255, 232, 214, 0.78), rgba(244, 162, 97, 0.2));
 }
 
 .timer-value {
@@ -476,10 +534,81 @@ button {
   word-break: break-word;
 }
 
+.timer-scramble-text {
+  margin-top: 12px !important;
+  font-size: clamp(1.15rem, 2.8vw, 1.5rem);
+  line-height: 1.85;
+}
+
 .timer-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.timer-actions-row {
+  justify-content: flex-start;
+}
+
+.timer-toolbar-actions {
+  align-items: center;
+}
+
+.timer-toolbar-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  justify-content: flex-end;
+  max-width: 420px;
+}
+
+.timer-recent-panel {
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.timer-recent-heading {
+  margin-bottom: 12px;
+}
+
+.timer-recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.timer-recent-item {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(18, 32, 43, 0.06);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.timer-recent-item:first-child {
+  padding-top: 10px;
+}
+
+.timer-recent-time {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.timer-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.timer-helper {
+  max-width: 480px;
+  text-align: center;
 }
 
 .split-grid {
@@ -510,8 +639,19 @@ button {
   .two-up,
   .split-grid,
   .home-scramble-panel,
-  .dashboard-grid {
+  .dashboard-grid,
+  .timer-layout {
     grid-template-columns: 1fr;
+  }
+
+  .timer-toolbar {
+    align-items: stretch;
+  }
+
+  .timer-toolbar-status {
+    margin-left: 0;
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .topbar {
