@@ -47,6 +47,19 @@ button {
   padding: 24px;
 }
 
+.app-topbar {
+  padding: 20px 24px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  box-shadow: 0 18px 48px rgba(18, 32, 43, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.brand-block {
+  max-width: 420px;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -117,6 +130,29 @@ button {
   margin: 0 auto;
 }
 
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 24px auto 0;
+  padding: 20px 24px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  box-shadow: 0 18px 48px rgba(18, 32, 43, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.footer-feedback-link {
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: #12202b;
+  color: #f8f5ef;
+  font-weight: 700;
+}
+
 .page-grid {
   display: grid;
   gap: 20px;
@@ -136,6 +172,33 @@ button {
 .panel h2,
 .panel h3 {
   margin-top: 0;
+}
+
+.placeholder-meta {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.placeholder-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.placeholder-card strong {
+  font-size: 1.2rem;
+}
+
+.placeholder-label {
+  margin: 0;
+  color: #53626d;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .two-up {
@@ -333,6 +396,11 @@ button {
   }
 
   .topbar-meta {
+    align-items: flex-start;
+  }
+
+  .app-footer {
+    flex-direction: column;
     align-items: flex-start;
   }
 
