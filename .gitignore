@@ -199,3 +199,8 @@ build/
 
 # Documentation
 docs/*.internal.md
+
+# AI
+docs/ai/
+tmp/ai/
+/AGENTS.md
