@@ -1,6 +1,6 @@
 package com.cubinghub.domain.record.dto;
 
-import com.cubinghub.domain.record.EventType;
+import com.cubinghub.domain.record.entity.EventType;
 import lombok.Getter;
 
 @Getter

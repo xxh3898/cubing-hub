@@ -1,7 +1,7 @@
 package com.cubinghub.security;
 
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRepository;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;

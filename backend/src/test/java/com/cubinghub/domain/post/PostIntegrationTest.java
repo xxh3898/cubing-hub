@@ -1,11 +1,11 @@
-package com.cubinghub.domain.post;
+package com.cubinghub.domain.post.service;
 
 import com.cubinghub.domain.post.dto.PostCreateRequest;
 import com.cubinghub.domain.post.dto.PostUpdateRequest;
-import com.cubinghub.domain.user.User;
-import com.cubinghub.domain.user.UserRepository;
-import com.cubinghub.domain.user.UserRole;
-import com.cubinghub.domain.user.UserStatus;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.repository.UserRepository;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.RestDocsBaseTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;

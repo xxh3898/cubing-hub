@@ -2,7 +2,7 @@ package com.cubinghub.config;
 
 import com.cubinghub.security.JwtAuthenticationFilter;
 import com.cubinghub.security.JwtTokenProvider;
-import com.cubinghub.domain.auth.RedisBlackListService;
+import com.cubinghub.domain.auth.service.blacklist.RedisBlackListService;
 
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;

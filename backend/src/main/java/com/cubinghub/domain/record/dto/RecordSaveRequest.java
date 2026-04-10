@@ -1,7 +1,7 @@
 package com.cubinghub.domain.record.dto;
 
-import com.cubinghub.domain.record.EventType;
-import com.cubinghub.domain.record.Penalty;
+import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.Penalty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;

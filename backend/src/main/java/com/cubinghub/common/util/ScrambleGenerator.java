@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import com.cubinghub.domain.record.EventType;
+import com.cubinghub.domain.record.entity.EventType;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

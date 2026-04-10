@@ -1,6 +1,6 @@
 package com.cubinghub.domain.post.dto;
 
-import com.cubinghub.domain.post.PostCategory;
+import com.cubinghub.domain.post.entity.PostCategory;
 import lombok.Getter;
 
 import java.time.LocalDateTime;

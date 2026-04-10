@@ -1,6 +1,6 @@
 package com.cubinghub.security;
 
-import com.cubinghub.domain.auth.RedisBlackListService;
+import com.cubinghub.domain.auth.service.blacklist.RedisBlackListService;
 import com.cubinghub.common.exception.CustomApiException;
 import org.springframework.http.HttpStatus;
 
