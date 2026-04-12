@@ -1,5 +1,8 @@
 # Cubing Hub: 고성능 백엔드 아키텍처 구축 및 단계별 최적화 로드맵
 
+> 이 문서는 일정/로드맵 보조 문서입니다.
+> 정식 설계 문서는 [README](../README.md), [Project Overview](./Project%20Overview.md), [System Architecture](./System%20Architecture.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md)를 참고하세요.
+
 ```mermaid
 gantt
     title Cubing Hub Development Schedule

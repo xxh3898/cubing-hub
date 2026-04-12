@@ -41,7 +41,7 @@
 
 - 일반 화면 영역에서 `Space`를 눌러도 페이지가 스크롤되지 않는다.
 - 타이머는 기존 상태 전이대로 동작한다.
-  - `idle -> holding -> ready -> running -> stopped`
+	- `idle -> holding -> ready -> running -> stopped`
 - 폼 요소에 포커스가 있는 경우에는 기존 입력 동작을 방해하지 않는다.
 
 ## 재확인 방법
