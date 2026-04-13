@@ -20,11 +20,11 @@
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | UI 구현, 현재 mock 데이터 기반 / 실제 API 연동 예정 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | UI 구현, 현재 mock 데이터 기반 / 실제 API 연동 예정 |
-| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | UI 구현, 현재 목업 처리 / 실제 API 연동 예정 |
-| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | UI 구현, 현재 mock 데이터 및 로컬 state 기반 |
-| 로그인 | `/login` | 이메일/비밀번호 입력 | UI 구현, 현재 mock 로그인 처리 |
-| 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | UI 구현, 현재 mock 가입 처리 |
-| 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | UI 구현, 현재 mock 데이터 기반 |
+| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route 적용 완료 / 제출은 아직 목업 처리 |
+| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | UI 구현, mock 데이터 기반 / 비로그인 댓글 CTA 적용 |
+| 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
+| 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
+| 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | 보호 route와 로그아웃 연동 완료 / 데이터는 mock 기반 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | UI 구현, 현재 로컬 폼 처리 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
@@ -51,8 +51,8 @@
 ### 시나리오 4. 회원가입 후 개인화
 
 1. 사용자는 회원가입에서 이메일, 닉네임, 주 종목을 입력한다.
-2. 로그인 후 마이페이지에서 프로필과 기록 요약을 본다.
-3. 현재는 mock 상태지만, 최종적으로는 인증 연동과 대시보드 API가 연결된다.
+2. 가입 완료 후 로그인 화면으로 이동하고, 로그인 성공 시 원래 보호 경로 또는 홈으로 복귀한다.
+3. 로그인 후 마이페이지에서 인증된 사용자 닉네임과 mock 기반 기록 요약을 본다.
 
 ## 4. 공통 상태 및 예외 정책
 
@@ -222,8 +222,8 @@
   - 제목/본문 입력
   - 제출
 - 현재 상태
-  - 현재는 목업 제출 처리만 구현되어 있다.
-  - 실제 게시글 생성 API 연동은 구현 예정이다.
+  - 현재 보호 route가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
+  - 제출 자체는 아직 목업 처리이며 실제 게시글 생성 API 연동은 구현 예정이다.
 
 ### 커뮤니티 상세
 
@@ -251,6 +251,7 @@
   - 목록으로 복귀
 - 현재 상태
   - 현재는 `mockCommunityPosts`와 로컬 state를 사용한다.
+  - 비로그인 상태에서는 댓글 입력 대신 로그인 CTA를 노출한다.
   - 댓글 API와 실제 게시글 상세/삭제 연동은 구현 예정이다.
 
 ### 로그인
@@ -275,8 +276,8 @@
   - 로그인 요청
   - 회원가입 이동
 - 현재 상태
-  - 현재는 mock access token 저장만 수행한다.
-  - 백엔드 `POST /api/auth/login` 연동은 구현 예정이다.
+  - `POST /api/auth/login` 연동이 구현되어 있다.
+  - 로그인 성공 시 access token 저장 후 원래 보호 경로 또는 홈으로 복귀한다.
 
 ### 회원가입
 
@@ -291,14 +292,14 @@
 - 상태 및 예외
   - validation error
   - 이메일/닉네임 중복 처리
-  - 가입 후 로그인 또는 로그인 화면 이동 결정 필요
+  - 가입 후 로그인 화면 이동 및 안내 메시지 처리
 - 사용자 액션
   - 입력
   - 비밀번호 확인
   - 회원가입 제출
 - 현재 상태
-  - 현재는 목업 가입 완료 처리만 수행한다.
-  - 백엔드 `POST /api/auth/signup` 연동은 구현 예정이다.
+  - `POST /api/auth/signup` 연동이 구현되어 있다.
+  - 가입 성공 시 로그인 화면으로 이동하고 이메일을 미리 채운다.
 
 ### 마이페이지
 
@@ -322,8 +323,9 @@
   - 로그아웃
   - 기록 확인
 - 현재 상태
-  - 현재는 `mockDashboardSummary`, `mockRecentRecords` 기반이다.
-  - 실제 기록 조회/통계 API 연동은 구현 예정이다.
+  - 보호 route와 `/api/auth/logout` 연동이 구현되어 있다.
+  - 헤더 닉네임은 `/api/me` 기준으로 표시된다.
+  - 기록 요약과 전체 기록 데이터는 아직 `mockDashboardSummary`, `mockRecentRecords` 기반이다.
 
 ### 피드백
 
@@ -377,8 +379,8 @@
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 상세 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 미연동 |
-| 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 미연동 |
-| 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 미연동 |
+| 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 연동 |
+| 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | 추후 마이페이지 API | 프로필/통계/기록 조회 | 미구현 |
 | 피드백 | 추후 피드백 API | 관리자 전달 및 저장 | 미구현 |
 
@@ -437,7 +439,7 @@
 ### Frontend
 
 - 라우트 기준: `frontend/src/App.jsx`
-- 인증 상태: `frontend/src/context/AuthContext.jsx`, `frontend/src/authStorage.js`
+- 인증 상태: `frontend/src/context/AuthContext.jsx`, `frontend/src/authStorage.js` (`Day 15`에 메모리 access token store 기준으로 재정리 예정)
 - 공통 API 클라이언트: `frontend/src/lib/apiClient.js`
 - 타이머 핵심 로직: `frontend/src/hooks/useCubeTimer.js`
 

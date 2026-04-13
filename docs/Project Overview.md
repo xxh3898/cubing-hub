@@ -52,6 +52,7 @@
 
 - 인증/인가
   - JWT Access Token + Redis Refresh Token Rotation
+  - Access Token 메모리 보관 + Refresh Token `HttpOnly` cookie
   - Access Token Blacklist
 - 동적 쿼리
   - QueryDSL 기반 게시판 검색 및 랭킹 조회 기준선 구현
@@ -194,8 +195,9 @@ flowchart TD
 ## 10. 현재 구현 단계 메모
 
 - 인증
-  - 백엔드 인증 API는 구현되어 있다.
-  - 프런트 로그인/회원가입 화면의 실제 API 연동은 구현 예정이다.
+  - 백엔드 인증 API와 `GET /api/me`가 구현되어 있다.
+  - 프런트 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
+  - 현재 프런트 토큰 저장은 `localStorage` 기반이지만, 문서 기준 확정 방향은 `메모리 Access Token + HttpOnly Refresh Cookie`이며 Day 15에서 전환 예정이다.
 - 랭킹
   - 현재 V1은 `records` 테이블 기반 QueryDSL 조회다.
   - 최종 목표는 Redis ZSET 기반 실시간 랭킹이다.
@@ -203,7 +205,8 @@ flowchart TD
   - 게시글 CRUD API는 구현되어 있다.
   - 댓글 API는 구현 예정이다.
 - 마이페이지 / 피드백
-  - 화면 범위는 정의되어 있으나 일부 프런트/백엔드 연동은 구현 예정이다.
+  - 마이페이지는 인증 껍데기와 로그아웃은 연동됐지만 통계/기록 데이터는 아직 mock 기반이다.
+  - 피드백은 화면만 있고 백엔드 연동은 구현 예정이다.
 - 운영
   - 로컬 Docker Compose, CI, REST Docs는 준비되어 있다.
   - 프로덕션 배포 스크립트, 도메인, HTTPS, 부하 테스트 결과는 구현 예정이다.
@@ -223,7 +226,7 @@ flowchart TD
 - 현재 구현 상태와 목표 구조를 분리해 문서화했다는 점
 - 랭킹을 V1(`records` 조회)과 V2(Redis ZSET)로 나눠 개선 경로를 설명한다는 점
 - 인증, 테스트, 문서화, 모니터링, 배포까지 서비스 관점으로 설계했다는 점
-- 아직 미완성인 프런트 인증 연동, 랭킹 V2, 프로덕션 배포, `k6` 결과는 숨기지 않고 예정 범위로 분리했다는 점
+- 랭킹 V2, 댓글, 피드백, 마이페이지 데이터 API, 프로덕션 배포, `k6` 결과 같은 남은 범위를 숨기지 않고 분리했다는 점
 
 ## 13. 미확정 사항
 

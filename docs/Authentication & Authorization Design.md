@@ -31,6 +31,7 @@
 
 - 위 공개 경로를 제외한 나머지 API
 - 예시
+  - `GET /api/me`
   - `POST /api/records`
   - `POST /api/posts`
   - `PUT /api/posts/{postId}`
@@ -105,10 +106,15 @@
   - `POST /api/auth/login`
   - `POST /api/auth/refresh`
   - `POST /api/auth/logout`
+- 현재 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
+  - 응답 최소 필드: `userId`, `email`, `nickname`
+  - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
 - 현재 백엔드는 Access Token을 응답 body로, Refresh Token을 `HttpOnly` cookie로 전달한다.
-- 프런트는 `AuthContext` + `localStorage`로 Access Token을 보관한다.
+- 현재 프런트 구현은 `AuthContext` + `authStorage.js` 기반 `localStorage` 보관 구조다.
+- 문서 기준 확정 방향은 `Access Token = 메모리`, `Refresh Token = HttpOnly cookie`다.
+- Day 15에서 프런트 저장 전략을 이 구조로 정리한다.
 - 프런트 `apiClient`는 `withCredentials: true`로 설정되어 있다.
-- 로그인/회원가입 화면의 실제 백엔드 연동은 구현 예정이다.
+- 프런트 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
 
 ### 토큰 세부 정책
 
@@ -116,13 +122,18 @@
 
 - 저장/전달
   - 응답 body의 `data.accessToken`
-  - 프런트 현재 상태: `localStorage` 저장
+  - 문서 기준 목표 상태: 메모리 저장
+  - 현재 구현 상태: `localStorage` 저장, Day 15 전환 예정
 - 주요 정보
   - `subject`: 사용자 이메일
   - `role`: 권한 claim
   - `jti`: 토큰 식별자
 - 사용 목적
   - API 인증 헤더 `Authorization: Bearer <token>`
+  - `GET /api/me` 같은 현재 사용자 컨텍스트 조회
+- 세션 복구
+  - 앱 초기 진입/새로고침 시 영속 저장소에서 직접 복원하지 않는다.
+  - `refresh_token` cookie를 사용해 Access Token을 재발급받은 뒤 메모리에 다시 적재한다.
 - 만료 시간
   - 로컬 설정: `86400000` (1일)
   - 테스트 설정: `10000`
@@ -132,7 +143,10 @@
 
 - 저장/전달
   - 응답 cookie `refresh_token`
-  - `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth`
+  - `HttpOnly`, `SameSite=Strict`, `Path=/api/auth`
+  - `Secure` 속성은 환경 설정으로 분기한다.
+    - local: `false`
+    - prod: `true`
 - 주요 정보
   - `subject`: 사용자 이메일
   - `jti`: 토큰 식별자
@@ -174,21 +188,26 @@
 ### 설계 선택 2
 
 - 선택한 방식:
-  - Access Token은 응답 body, Refresh Token은 `HttpOnly` cookie로 분리한다.
+  - Access Token은 응답 body로 받고 프런트 메모리에만 보관한다.
+  - Refresh Token은 `HttpOnly` cookie로 유지한다.
 - 선택 이유:
-  - Access Token은 API 호출 시 직접 헤더에 넣어야 하므로 프런트가 즉시 읽을 수 있어야 한다.
+  - Access Token은 API 호출 시 직접 헤더에 넣어야 하므로 프런트가 읽을 수 있어야 한다.
+  - 다만 영속 JS 저장소에 남기지 않으면 XSS 시 장기 노출면을 줄일 수 있다.
   - Refresh Token은 재발급 전용이므로 브라우저 스크립트 접근을 막는 편이 안전하다.
 - 검토한 대안:
+  - Access Token `localStorage` + Refresh Token `HttpOnly` cookie
   - 두 토큰 모두 `localStorage`
   - 두 토큰 모두 cookie
 - 대안을 배제한 이유:
-  - 전자는 Refresh Token 노출 면적이 커진다.
-  - 후자는 프런트 제어와 API 호출 흐름 설명이 복잡해질 수 있다.
+  - 첫 번째 대안은 Access Token이 XSS에 더 오래 노출된다.
+  - 두 번째 대안은 Refresh Token까지 JS 저장소에 노출된다.
+  - 세 번째 대안은 이 프로젝트의 SPA 구조에서 CSRF, 브라우저 제어, 프런트 요청 흐름이 더 복잡해질 수 있다.
 - 트레이드오프:
-  - 현재 프런트는 Access Token을 `localStorage`에 저장해 XSS 관점의 노출 면이 남아 있다.
+  - 새로고침/새 탭은 refresh 성공 여부에 따라 세션이 복구된다.
+  - `withCredentials`, `SameSite`, `Secure`, CORS, 필요 시 `CSRF` 방어까지 함께 관리해야 한다.
   - 쿠키와 헤더를 함께 다뤄야 하므로 프런트 구현이 조금 복잡해진다.
 - 보안상 영향:
-  - 최소한 Refresh Token은 JS에서 직접 접근할 수 없다.
+  - Refresh Token은 JS에서 직접 접근할 수 없고, Access Token도 영속 JS 저장소에 남지 않는다.
 
 ### 설계 선택 3
 
@@ -221,18 +240,32 @@
 ## 9. 프런트 처리 규칙
 
 - 보호 라우트 처리:
-  - 현재는 완전한 보호 라우트보다 API 호출 시 인증 여부를 판단하는 구조에 가깝다.
-  - 최종적으로는 보호 화면(`mypage`, `community/write`)에 명시적 가드가 필요하다.
+  - 현재 `mypage`, `community/write`에 명시적 보호 라우트가 적용되어 있다.
+  - `login`, `signup`에는 guest-only route가 적용되어 있다.
+- 현재 사용자 컨텍스트 처리:
+  - 현재 헤더와 전역 auth-aware UI는 `GET /api/me`를 사용해 최소 사용자 컨텍스트를 조회한다.
+  - `GET /api/me`는 `userId`, `email`, `nickname`만 반환하고, 상세 프로필은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리한다.
+  - 보안상 `userId`를 파라미터로 받지 않고 인증 주체 기준으로만 조회한다.
+  - 문서 기준 구조에서는 앱 초기 진입/새로고침 시 먼저 refresh로 Access Token을 복구한 뒤 `/api/me`를 조회한다.
+  - refresh 또는 `/api/me` 조회가 실패하면 세션을 유효하지 않은 상태로 보고 access token과 사용자 컨텍스트를 정리한다.
+  - 이때 현재 경로가 보호 라우트면 `/login`으로 이동하고, public route면 guest 상태로 남긴다.
+- bootstrapping 처리:
+  - 메모리 기반 Access Token 구조에서는 앱 시작 시 인증 상태가 즉시 확정되지 않는다.
+  - 따라서 `AuthContext` 또는 상위 auth 상태는 초기 복구가 끝날 때까지 `bootstrapping/loading` 상태를 가져야 한다.
 - 401 처리:
-  - 현재는 에러 메시지 기반 처리 단계다.
-  - 최종적으로는 refresh 재발급 또는 로그인 이동 분기가 필요하다.
+  - 현재 `apiClient`가 `401 -> refresh -> retry`를 1회 수행한다.
+  - 동시에 여러 요청이 `401`을 받을 수 있으므로 refresh 요청은 단일 in-flight 요청으로 공유해야 한다.
+  - refresh 실패 시 대기 중 요청을 모두 실패 처리하고 access token과 사용자 컨텍스트를 함께 정리한다.
 - 403 처리:
   - 작성자/관리자 권한이 없는 경우 작업 버튼 비활성화 또는 오류 메시지 처리가 필요하다.
 - 로그인 성공 후 이동:
-  - 현재 mock 흐름 기준 홈 이동이다.
-  - 실제 연동 시 이전 화면 복귀 여부는 추가 결정이 필요하다.
+  - 현재는 보호 경로에서 로그인 화면으로 이동한 경우 원래 경로로 복귀한다.
+  - 기본 진입은 홈(`/`)으로 복귀한다.
 - 재로그인/재발급 UX:
-  - 현재 프런트는 완성되지 않았으므로, 현재 상태와 목표 상태를 분리해 설명한다.
+  - 현재는 refresh 실패 시 세션을 정리하고 보호 경로 기준으로 로그인 이동을 수행한다.
+- 로그아웃 처리:
+  - `/api/auth/logout` 호출 성공 여부와 무관하게 클라이언트는 `finally`에서 메모리 auth state를 정리해야 한다.
+  - 서버 실패는 사용자에게 알릴 수 있지만, 사용자를 로그인 상태에 가둬서는 안 된다.
 
 ## 10. 인증 / 인가 다이어그램
 
@@ -270,12 +303,12 @@ flowchart TD
 
 ## 11. 면접 / 포트폴리오 포인트
 
-- 백엔드 인증은 구현됐지만 프런트 연동은 아직 중간 단계라는 점을 솔직하게 설명할 수 있다.
+- 백엔드 인증 API와 프런트 auth UX를 Day 14에서 실제 연결했다는 점을 설명할 수 있다.
 - Refresh Token Rotation, blacklist, stateless filter를 조합한 이유를 구조적으로 설명할 수 있다.
-- 현재 프런트가 `localStorage` 기반이라는 한계와 후속 개선 방향을 함께 말할 수 있다.
+- `메모리 Access Token + HttpOnly Refresh Cookie`를 선택한 이유와 트레이드오프를 설명할 수 있다.
 
 ## 12. 미확정 사항
 
-- 프런트 최종 토큰 저장 전략
-- 로그인 성공 후 복귀 경로와 재발급 실패 UX
+- `SameSite`, `Secure`, CORS, 필요 시 `CSRF` 대응의 최종 운영 정책
+- `/api/users/me/profile`의 최종 계약 범위
 - 프로덕션 설정의 `jwt.refresh-expiration` 정리 방식

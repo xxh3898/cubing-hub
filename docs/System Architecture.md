@@ -86,9 +86,11 @@ Client ↔ AWS Nginx
 ## 4. 인증 흐름
 
 1. 로그인 시 Spring Boot가 Access Token과 Refresh Token을 발급한다.
-2. Refresh Token은 Redis에 저장되고, 브라우저에는 `HttpOnly` cookie로 전달된다.
-3. 보호 API 요청 시 Access Token이 JWT 필터를 통과하면 비즈니스 로직으로 진입한다.
-4. 로그아웃 시 Refresh Token은 Redis에서 제거되고 Access Token은 blacklist에 등록된다.
+2. Access Token은 응답 body로 전달되고, 클라이언트는 이를 메모리에만 유지한다.
+3. Refresh Token은 Redis에 저장되고, 브라우저에는 `HttpOnly` cookie로 전달된다.
+4. 앱 초기 진입/새로고침 시 클라이언트는 refresh cookie로 Access Token을 재발급받아 세션을 복구한다.
+5. 보호 API 요청 시 Access Token이 JWT 필터를 통과하면 비즈니스 로직으로 진입한다.
+6. 로그아웃 시 Refresh Token은 Redis에서 제거되고 Access Token은 blacklist에 등록된다.
 
 ## 5. 데이터 흐름
 

@@ -7,6 +7,7 @@
 - 인증 방식:
   - Access Token: `Authorization: Bearer <token>`
   - Refresh Token: `refresh_token` cookie
+  - 프런트 사용 규칙: Access Token은 메모리에만 두고, 앱 초기 진입/새로고침 시 `refresh_token` cookie로 재발급받아 사용한다.
 - 공통 응답 포맷: `ApiResponse`
 - 공개 API와 보호 API의 경계는 `SecurityFilterChain` 기준으로 관리한다.
 
@@ -59,6 +60,7 @@
 | `POST` | `/api/auth/login` | Public | 로그인 | 구현됨 |
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
 | `POST` | `/api/auth/logout` | 인증 토큰/쿠키 전달 | 로그아웃 | 구현됨 |
+| `GET` | `/api/me` | Auth | 현재 로그인 사용자 컨텍스트 조회 | 구현됨 |
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
 | `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V1 기준) |
 | `GET` | `/api/scramble` | Public | 스크램블 조회 | 구현됨 |
@@ -114,7 +116,7 @@
 
 | 이름 | 설명 |
 | --- | --- |
-| `refresh_token` | Refresh Token, `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth` |
+| `refresh_token` | Refresh Token, `HttpOnly`, `SameSite=Strict`, `Path=/api/auth`, `Secure`는 환경 설정으로 분기 |
 
 ### `POST /api/auth/refresh`
 
@@ -139,7 +141,7 @@
 
 | 이름 | 설명 |
 | --- | --- |
-| `refresh_token` | 새 Refresh Token |
+| `refresh_token` | 새 Refresh Token, `Secure`는 환경 설정으로 분기 |
 
 ### `POST /api/auth/logout`
 
@@ -160,20 +162,59 @@
 - `data`: `null`
 - `refresh_token` 쿠키는 `maxAge=0`으로 만료 처리된다.
 
+#### 로그아웃 처리 비고
+
+- 서버 로그아웃 호출이 실패하더라도 프런트는 메모리 인증 상태를 정리해 사용자 세션을 종료해야 한다.
+
+### `GET /api/me`
+
+- 설명: 현재 로그인 사용자의 전역 사용자 컨텍스트를 조회한다.
+- 상태: 구현됨
+- 인증: Access Token 필요
+- 멱등성: 멱등
+
+#### 설계 목적
+
+- 헤더와 전역 auth-aware UI에서 공통으로 사용할 최소 사용자 정보를 제공한다.
+- 마이페이지 상세 조회와는 분리된 경량 컨텍스트 API로 둔다.
+
+#### Request
+
+- `Authorization: Bearer <accessToken>`
+- `userId` 같은 식별자를 query parameter나 path parameter로 받지 않는다.
+
+#### Response Body
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.userId` | Number | 현재 로그인 사용자 ID |
+| `data.email` | String | 현재 로그인 사용자 이메일 |
+| `data.nickname` | String | 현재 로그인 사용자 닉네임 |
+
+#### 비고
+
+- 상세 프로필, 통계, 기록은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리할 수 있다.
+
 ### 설계 판단
 
 - 이 구조를 선택한 이유:
-  - Access Token은 API 호출 시 즉시 사용해야 하므로 body로 전달하고, Refresh Token은 HttpOnly cookie로 분리해 브라우저 스크립트 노출을 줄였다.
+  - Access Token은 API 호출 시 즉시 사용해야 하므로 body로 전달하고, 프런트 메모리에서만 유지한다.
+  - Refresh Token은 HttpOnly cookie로 분리해 브라우저 스크립트 노출을 줄였다.
   - 로그아웃 시 Refresh Token 삭제와 Access Token blacklist 등록을 함께 수행해 재사용 위험을 줄인다.
 - 검토한 대안:
   - 세션 기반 인증
+  - Access Token `localStorage` + Refresh Token `HttpOnly` cookie
   - Access/Refresh Token 모두 body 또는 `localStorage` 저장
 - 대안을 배제한 이유:
   - 세션 기반은 stateless API와 다중 환경 확장 설명이 약하다.
+  - Access Token을 영속 JS 저장소에 두면 XSS 노출면이 커진다.
   - Refresh Token을 JS 접근 가능한 저장소에 두면 노출 면적이 커진다.
 - 트레이드오프:
-  - 현재 프런트는 Access Token을 `localStorage`에 보관하는 중간 단계라 최종 이상형과 간극이 있다.
+  - 메모리 기반 Access Token 구조에서는 앱 초기 진입/새로고침 때 refresh 기반 부트스트랩이 필요하다.
   - 토큰 생명주기 관리가 단순 세션보다 복잡하다.
+  - 로그인 응답에 사용자 프로필을 과도하게 싣지 않는 대신, 헤더/전역 컨텍스트를 위한 `/api/me` 같은 보조 조회 API가 필요해진다.
+  - local/prod 환경 차이 때문에 `refresh_token` cookie의 `Secure` 속성을 설정으로 분기 관리해야 한다.
+  - `withCredentials`, `SameSite`, 필요 시 `CSRF` 정책을 함께 설계해야 한다.
 - 연관 저장소:
   - Redis(`refresh:{email}:{jti}`, `blacklist:{accessToken}`)
 
@@ -459,4 +500,3 @@
 
 - 댓글, 피드백, 마이페이지 API의 최종 응답 스키마
 - 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부
-- 인증 프런트 연동 후 `401` 재처리 UX와 refresh 재발급 흐름
