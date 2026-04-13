@@ -1,0 +1,225 @@
+package com.cubinghub.domain.auth;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.SignUpRequest;
+import com.cubinghub.domain.auth.repository.RefreshTokenService;
+import com.cubinghub.domain.user.entity.User;
+import com.cubinghub.domain.user.entity.UserRole;
+import com.cubinghub.domain.user.entity.UserStatus;
+import com.cubinghub.domain.user.repository.UserRepository;
+import com.cubinghub.integration.JpaIntegrationTest;
+import com.cubinghub.security.JwtTokenProvider;
+import com.cubinghub.support.TestFixtures;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.Cookie;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+@AutoConfigureMockMvc
+@DisplayName("AuthController 통합 테스트")
+class AuthControllerIntegrationTest extends JpaIntegrationTest {
+
+    private static final String TEST_PASSWORD = "password123!";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RefreshTokenService refreshTokenService;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    private final List<String> cleanupEmails = new ArrayList<>();
+
+    @AfterEach
+    void tearDown() {
+        cleanupEmails.forEach(this::deleteRefreshTokens);
+    }
+
+    @Test
+    @DisplayName("회원가입 성공 시 사용자를 저장한다")
+    void should_create_user_when_signup_request_is_valid() throws Exception {
+        String email = newEmail("signup");
+        SignUpRequest request = new SignUpRequest(email, TEST_PASSWORD, newNickname("CubeMaster"), "3x3x3");
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("회원가입이 완료되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        assertThat(userRepository.findByEmail(email)).isPresent();
+    }
+
+    @Test
+    @DisplayName("로그인 성공 시 Refresh Token을 Redis에 저장한다")
+    void should_store_refresh_token_when_login_succeeds() throws Exception {
+        String email = newEmail("login");
+        saveActiveUser(email, newNickname("Tester"));
+
+        AuthSession session = login(email, TEST_PASSWORD);
+
+        assertThat(refreshTokenService.get(email, jwtTokenProvider.getJti(session.refreshToken())))
+                .isEqualTo(session.refreshToken());
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 성공 시 기존 Refresh Token을 삭제하고 새 토큰을 저장한다")
+    void should_rotate_refresh_token_when_refresh_request_succeeds() throws Exception {
+        String email = newEmail("refresh");
+        saveActiveUser(email, newNickname("Tester"));
+        AuthSession initialSession = login(email, TEST_PASSWORD);
+
+        MvcResult result = mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(initialSession.refreshCookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("토큰이 재발급되었습니다."))
+                .andExpect(cookie().exists("refresh_token"))
+                .andReturn();
+
+        Cookie currentRefreshCookie = result.getResponse().getCookie("refresh_token");
+        assertThat(currentRefreshCookie).isNotNull();
+
+        String newRefreshToken = currentRefreshCookie.getValue();
+        String oldJti = jwtTokenProvider.getJti(initialSession.refreshToken());
+        String newJti = jwtTokenProvider.getJti(newRefreshToken);
+
+        assertThat(refreshTokenService.get(email, oldJti)).isNull();
+        assertThat(refreshTokenService.get(email, newJti)).isEqualTo(newRefreshToken);
+    }
+
+    @Test
+    @DisplayName("로그아웃 성공 시 Redis에서 Refresh Token을 삭제한다")
+    void should_delete_refresh_token_when_logout_succeeds() throws Exception {
+        String email = newEmail("logout");
+        saveActiveUser(email, newNickname("Tester"));
+        AuthSession session = login(email, TEST_PASSWORD);
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + session.accessToken())
+                        .cookie(session.refreshCookie()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃이 완료되었습니다."))
+                .andExpect(cookie().maxAge("refresh_token", 0));
+
+        assertThat(refreshTokenService.get(email, jwtTokenProvider.getJti(session.refreshToken()))).isNull();
+    }
+
+    @Test
+    @DisplayName("Refresh Token 쿠키 없이 재발급 요청을 보내면 400을 반환한다")
+    void should_return_bad_request_when_refresh_cookie_is_missing() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("refresh_token 쿠키가 필요합니다."));
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 Refresh Token 쿠키로 재발급 요청을 보내면 400을 반환한다")
+    void should_return_bad_request_when_refresh_cookie_is_malformed() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refresh_token", "invalid.refresh.token")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("유효하지 않거나 만료된 리프레시 토큰입니다.")));
+    }
+
+    @Test
+    @DisplayName("Refresh Token 쿠키 없이 로그아웃을 요청해도 정상 응답을 반환한다")
+    void should_return_ok_when_logout_is_requested_without_refresh_cookie() throws Exception {
+        String email = newEmail("logout-no-cookie");
+        User user = saveActiveUser(email, newNickname("Tester"));
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + TestFixtures.generateAccessToken(jwtTokenProvider, user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃이 완료되었습니다."))
+                .andExpect(cookie().maxAge("refresh_token", 0));
+    }
+
+    private User saveActiveUser(String email, String nickname) {
+        return userRepository.save(User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(TEST_PASSWORD))
+                .nickname(nickname)
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+    }
+
+    private AuthSession login(String email, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String accessToken = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("accessToken")
+                .asText();
+        Cookie refreshCookie = result.getResponse().getCookie("refresh_token");
+        if (refreshCookie == null) {
+            throw new IllegalStateException("refresh_token cookie missing");
+        }
+
+        return new AuthSession(accessToken, refreshCookie.getValue(), refreshCookie);
+    }
+
+    private String newEmail(String prefix) {
+        String email = prefix + "-" + UUID.randomUUID().toString().substring(0, 8) + "@cubinghub.com";
+        cleanupEmails.add(email);
+        return email;
+    }
+
+    private String newNickname(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private void deleteRefreshTokens(String email) {
+        Set<String> keys = redisTemplate.keys("refresh:" + email + ":*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
+    private record AuthSession(String accessToken, String refreshToken, Cookie refreshCookie) {
+    }
+}

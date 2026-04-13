@@ -2,17 +2,15 @@ package com.cubinghub.domain.auth;
 
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
-import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
-import com.cubinghub.integration.RestDocsBaseTest;
-import com.cubinghub.security.JwtTokenProvider;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class AuthDocsTest extends RestDocsBaseTest {
+class AuthDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -44,19 +42,12 @@ class AuthDocsTest extends RestDocsBaseTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private RefreshTokenService refreshTokenService;
-
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-
-    private final String testEmail = "test@cubinghub.com";
-    private final String testPassword = "password123!";
+    private static final String TEST_PASSWORD = "password123!";
 
     @Test
     @DisplayName("회원가입에 성공한다")
     void should_create_user_when_signup_request_is_valid() throws Exception {
-        SignUpRequest request = new SignUpRequest(testEmail, testPassword, "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest(newEmail("signup"), TEST_PASSWORD, newNickname("CubeMaster"), "3x3x3");
 
         ResultActions result = mockMvc.perform(post("/api/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -79,23 +70,15 @@ class AuthDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
-
-        boolean exists = userRepository.existsByEmail(testEmail);
-        assertThat(exists).isTrue();
     }
 
     @Test
     @DisplayName("로그인에 성공하고 Access Token과 Refresh Token을 반환한다")
-    void should_return_tokens_and_store_refresh_token_when_login_succeeds() throws Exception {
-        userRepository.save(User.builder()
-                .email(testEmail)
-                .password(passwordEncoder.encode(testPassword))
-                .nickname("TestUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .build());
+    void should_return_tokens_when_login_succeeds() throws Exception {
+        String email = newEmail("login");
+        saveActiveUser(email, newNickname("TestUser"));
 
-        LoginRequest request = new LoginRequest(testEmail, testPassword);
+        LoginRequest request = new LoginRequest(email, TEST_PASSWORD);
 
         ResultActions result = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -125,33 +108,17 @@ class AuthDocsTest extends RestDocsBaseTest {
                                 cookieWithName("refresh_token").description("Refresh Token (만료 7일, HttpOnly/Secure)")
                         )
                 ));
-
-        Cookie refreshCookie = result.andReturn().getResponse().getCookie("refresh_token");
-        assertThat(refreshCookie).isNotNull();
-        String cookieValue = refreshCookie.getValue();
-        String jti = jwtTokenProvider.getJti(cookieValue);
-        String savedRefreshToken = refreshTokenService.get(testEmail, jti);
-        assertThat(savedRefreshToken).isNotNull();
-        assertThat(savedRefreshToken).isEqualTo(cookieValue);
     }
 
     @Test
     @DisplayName("Refresh Token을 사용하여 토큰 갱신(Rotation)에 성공한다")
     void should_rotate_refresh_token_when_refresh_token_is_valid() throws Exception {
-        userRepository.save(User.builder()
-                .email(testEmail)
-                .password(passwordEncoder.encode(testPassword))
-                .nickname("TestUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .build());
-
-        String initialRefreshToken = jwtTokenProvider.generateRefreshToken(testEmail);
-        String initialJti = jwtTokenProvider.getJti(initialRefreshToken);
-        refreshTokenService.save(testEmail, initialJti, initialRefreshToken, 1000000);
+        String email = newEmail("refresh");
+        saveActiveUser(email, newNickname("TestUser"));
+        AuthSession session = login(email, TEST_PASSWORD);
 
         ResultActions result = mockMvc.perform(post("/api/auth/refresh")
-                .cookie(new Cookie("refresh_token", initialRefreshToken)));
+                .cookie(session.refreshCookie()));
 
         result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
@@ -176,40 +143,18 @@ class AuthDocsTest extends RestDocsBaseTest {
                                 cookieWithName("refresh_token").description("새로운 Refresh Token (Rotation 처리됨)")
                         )
                 ));
-
-        Cookie currentRefreshCookie = result.andReturn().getResponse().getCookie("refresh_token");
-        assertThat(currentRefreshCookie).isNotNull();
-        String currentRefreshToken = currentRefreshCookie.getValue();
-        String newJti = jwtTokenProvider.getJti(currentRefreshToken);
-        String savedRefreshToken = refreshTokenService.get(testEmail, newJti);
-        assertThat(savedRefreshToken).isNotNull();
-        assertThat(savedRefreshToken).isNotEqualTo(initialRefreshToken);
-
-        String deletedRefreshToken = refreshTokenService.get(testEmail, initialJti);
-        assertThat(deletedRefreshToken).isNull();
     }
 
     @Test
-    @DisplayName("로그아웃을 수행하면 Redis에서 Refresh Token이 삭제된다")
-    void should_remove_refresh_token_when_logout_succeeds() throws Exception {
-        userRepository.save(User.builder()
-                .email(testEmail)
-                .password(passwordEncoder.encode(testPassword))
-                .nickname("TestUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .build());
-
-        String mockAccessToken = jwtTokenProvider.generateAccessToken(
-                org.springframework.security.core.userdetails.User.builder()
-                        .username(testEmail).password("").authorities(UserRole.ROLE_USER.name()).build());
-        String initialRefreshToken = jwtTokenProvider.generateRefreshToken(testEmail);
-        String jti = jwtTokenProvider.getJti(initialRefreshToken);
-        refreshTokenService.save(testEmail, jti, initialRefreshToken, 100000);
+    @DisplayName("로그아웃을 수행하면 Refresh Token 쿠키를 만료시킨다")
+    void should_expire_refresh_token_cookie_when_logout_succeeds() throws Exception {
+        String email = newEmail("logout");
+        saveActiveUser(email, newNickname("TestUser"));
+        AuthSession session = login(email, TEST_PASSWORD);
 
         ResultActions result = mockMvc.perform(post("/api/auth/logout")
-                .header("Authorization", "Bearer " + mockAccessToken)
-                .cookie(new Cookie("refresh_token", initialRefreshToken)));
+                .header("Authorization", "Bearer " + session.accessToken())
+                .cookie(session.refreshCookie()));
 
         result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
@@ -229,8 +174,43 @@ class AuthDocsTest extends RestDocsBaseTest {
                                 cookieWithName("refresh_token").description("만료 처리된 Refresh Token 쿠키")
                         )
                 ));
+    }
 
-        String deletedToken = refreshTokenService.get(testEmail, jti);
-        assertThat(deletedToken).isNull();
+    private void saveActiveUser(String email, String nickname) {
+        userRepository.save(User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(TEST_PASSWORD))
+                .nickname(nickname)
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+    }
+
+    private AuthSession login(String email, String password) throws Exception {
+        ResultActions result = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequest(email, password))));
+
+        String accessToken = objectMapper.readTree(result.andReturn().getResponse().getContentAsString())
+                .path("data")
+                .path("accessToken")
+                .asText();
+        Cookie refreshCookie = result.andReturn().getResponse().getCookie("refresh_token");
+        if (refreshCookie == null) {
+            throw new IllegalStateException("refresh_token cookie missing");
+        }
+
+        return new AuthSession(accessToken, refreshCookie);
+    }
+
+    private String newEmail(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8) + "@cubinghub.com";
+    }
+
+    private String newNickname(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private record AuthSession(String accessToken, Cookie refreshCookie) {
     }
 }
