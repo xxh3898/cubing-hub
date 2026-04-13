@@ -25,7 +25,7 @@ public class EntityMappingTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("User 엔티티 매핑과 오디팅 필드를 검증한다")
-    void user_엔티티_매핑_및_오디팅() {
+    void should_persist_user_auditing_fields_when_user_is_saved() {
         // given
         User user = User.builder()
                 .email("test@test.com")
@@ -50,7 +50,7 @@ public class EntityMappingTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("Record와 UserPB 연관관계 매핑을 검증한다")
-    void record_userPB_연관관계_매핑() {
+    void should_map_record_and_user_pb_relationship_when_entities_are_persisted() {
         // given
         User user = User.builder()
                 .email("record@test.com")
@@ -95,7 +95,7 @@ public class EntityMappingTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("Post와 Comment 연관관계 매핑을 검증한다")
-    void post_comment_연관관계_매핑() {
+    void should_map_post_and_comment_relationship_when_entities_are_persisted() {
         // given
         User user = User.builder()
                 .email("post@test.com")

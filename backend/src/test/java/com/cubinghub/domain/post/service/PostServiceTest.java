@@ -42,7 +42,7 @@ class PostServiceTest {
 
     @Test
     @DisplayName("존재하지 않는 게시글 상세 조회는 404 예외를 반환한다")
-    void getPost_없는게시글_404예외() {
+    void should_throw_not_found_exception_when_post_does_not_exist() {
         // given
         when(postRepository.findWithUserById(999L)).thenReturn(Optional.empty());
 
@@ -58,7 +58,7 @@ class PostServiceTest {
 
     @Test
     @DisplayName("일반 사용자는 다른 사용자의 게시글을 수정할 수 없다")
-    void updatePost_비작성자_403예외() {
+    void should_throw_forbidden_exception_when_non_author_updates_post() {
         // given
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
         User otherUser = TestFixtures.createUser(2L, "other@cubinghub.com", "Other", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -85,7 +85,7 @@ class PostServiceTest {
 
     @Test
     @DisplayName("관리자는 다른 사용자의 게시글을 삭제할 수 있다")
-    void deletePost_관리자_삭제성공() {
+    void should_delete_post_when_admin_deletes_other_users_post() {
         // given
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
         User admin = TestFixtures.createUser(99L, "admin@cubinghub.com", "Admin", UserRole.ROLE_ADMIN, UserStatus.ACTIVE);

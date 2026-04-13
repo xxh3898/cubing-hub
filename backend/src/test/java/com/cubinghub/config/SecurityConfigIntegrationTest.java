@@ -22,7 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 @DisplayName("SecurityConfig 통합 테스트")
-class SecurityConfigTest extends BaseIntegrationTest {
+class SecurityConfigIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
@@ -35,7 +35,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("인증 없이 /api/auth/login 요청은 컨트롤러까지 도달해 400을 반환한다")
-    void auth_경로_인증없이_접근허용() {
+    void should_allow_access_to_auth_path_when_authentication_is_missing() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -55,7 +55,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("토큰 없이 보호된 API에 접근하면 401을 반환한다")
-    void 토큰없이_보호된API_접근시_401반환() {
+    void should_return_unauthorized_when_accessing_protected_api_without_token() {
         // when
         ResponseEntity<String> response = restTemplate.postForEntity("/api/records", null, String.class);
         Map<String, Object> body = readBody(response);
@@ -69,7 +69,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("잘못된 형식의 토큰으로 보호된 API에 접근하면 401을 반환한다")
-    void 잘못된_토큰으로_보호된API_접근시_401반환() {
+    void should_return_unauthorized_when_accessing_protected_api_with_invalid_token() {
         // given
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer invalid.token.value");
@@ -89,7 +89,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("로그아웃된 access token으로 보호된 API에 접근하면 401을 반환한다")
-    void 로그아웃된_accessToken으로_보호된API_접근시_401반환() {
+    void should_return_unauthorized_when_accessing_protected_api_with_blacklisted_access_token() {
         // given
         String accessToken = TestFixtures.generateAccessToken(
                 jwtTokenProvider,
@@ -127,7 +127,7 @@ class SecurityConfigTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("Actuator 헬스 체크 경로는 인증 없이 접근이 가능하다")
-    void actuator_헬스체크_인증없이_접근가능() {
+    void should_allow_access_to_actuator_health_when_authentication_is_missing() {
         // when
         ResponseEntity<String> response = restTemplate.getForEntity("/actuator/health", String.class);
 

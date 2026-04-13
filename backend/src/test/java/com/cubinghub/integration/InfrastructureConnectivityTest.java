@@ -18,14 +18,14 @@ class InfrastructureConnectivityTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("MySQL 컨테이너 연결 및 쿼리 실행 확인")
-    void mysqlConnectionTest() {
+    void should_return_one_when_mysql_select_one_is_executed() {
         Integer result = jdbcTemplate.queryForObject("SELECT 1", Integer.class);
         assertThat(result).isEqualTo(1);
     }
 
     @Test
     @DisplayName("Redis 컨테이너 연결 및 데이터 저장/조회 확인")
-    void redisConnectionTest() {
+    void should_store_and_load_value_when_redis_connection_is_available() {
         String key = "test:connection";
         String value = "success";
 

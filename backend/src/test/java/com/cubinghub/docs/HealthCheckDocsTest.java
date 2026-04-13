@@ -13,7 +13,7 @@ import com.cubinghub.integration.RestDocsBaseTest;
 class HealthCheckDocsTest extends RestDocsBaseTest {
 
     @Test
-    void healthCheck_문서화() throws Exception {
+    void should_document_health_status_when_health_endpoint_is_called() throws Exception {
         mockMvc.perform(get("/actuator/health")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())

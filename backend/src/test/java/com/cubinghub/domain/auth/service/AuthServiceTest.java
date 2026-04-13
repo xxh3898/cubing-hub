@@ -79,7 +79,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("이미 사용 중인 이메일이면 회원가입에 실패한다")
-    void signUp_중복이메일_예외() {
+    void should_throw_illegal_argument_exception_when_sign_up_with_duplicate_email() {
         // given
         SignUpRequest request = new SignUpRequest("duplicate@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
@@ -96,7 +96,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("인증 실패 시 로그인은 401 예외를 반환한다")
-    void login_인증실패_401예외() {
+    void should_throw_unauthorized_exception_when_login_authentication_fails() {
         // given
         LoginRequest request = new LoginRequest("test@cubinghub.com", "wrong-password");
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
@@ -114,7 +114,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("비정상적인 refresh token 재사용이 감지되면 모든 토큰을 삭제하고 401 예외를 반환한다")
-    void refresh_토큰재사용감지_전체삭제후_401예외() {
+    void should_throw_unauthorized_exception_when_refresh_token_reuse_is_detected() {
         // given
         String email = "test@cubinghub.com";
         String refreshToken = jwtTokenProvider.generateRefreshToken(email);
@@ -136,7 +136,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("비활성 사용자 계정은 토큰 재발급에 실패한다")
-    void refresh_비활성사용자_예외() {
+    void should_throw_illegal_state_exception_when_refreshing_deleted_user() {
         // given
         String email = "inactive@cubinghub.com";
         String refreshToken = jwtTokenProvider.generateRefreshToken(email);
@@ -158,7 +158,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("로그아웃 시 refresh token 삭제와 access token 블랙리스트 등록을 함께 수행한다")
-    void logout_refreshToken삭제와_블랙리스트등록() {
+    void should_delete_refresh_token_and_blacklist_access_token_when_logout_succeeds() {
         // given
         User user = TestFixtures.createUser(1L, "logout@cubinghub.com", "LogoutUser", UserRole.ROLE_USER, UserStatus.ACTIVE);
         String accessToken = jwtTokenProvider.generateAccessToken(TestFixtures.createUserDetails(user));

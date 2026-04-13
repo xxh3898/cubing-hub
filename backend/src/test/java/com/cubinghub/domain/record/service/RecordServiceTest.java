@@ -50,7 +50,7 @@ class RecordServiceTest {
 
     @Test
     @DisplayName("DNF 기록은 PB를 생성하거나 갱신하지 않는다")
-    void saveRecord_DNF는_PB미갱신() {
+    void should_not_create_or_update_pb_when_record_penalty_is_dnf() {
         // given
         User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
         Record savedRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 12000, Penalty.DNF, "scramble");
@@ -75,7 +75,7 @@ class RecordServiceTest {
 
     @Test
     @DisplayName("기존 PB보다 느린 기록은 PB를 유지한다")
-    void saveRecord_느린기록은_PB유지() {
+    void should_keep_existing_pb_when_saved_record_is_slower() {
         // given
         User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
         Record currentBestRecord = TestFixtures.createRecord(1L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
@@ -109,7 +109,7 @@ class RecordServiceTest {
 
     @Test
     @DisplayName("존재하지 않는 사용자는 기록 저장에 실패한다")
-    void saveRecord_사용자없음_예외() {
+    void should_throw_illegal_argument_exception_when_user_does_not_exist() {
         // given
         RecordSaveRequest request = RecordSaveRequest.builder()
                 .eventType(EventType.WCA_333)

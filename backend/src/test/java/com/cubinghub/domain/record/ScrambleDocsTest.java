@@ -18,11 +18,11 @@ import static org.springframework.restdocs.request.RequestDocumentation.queryPar
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class ScrambleIntegrationTest extends RestDocsBaseTest {
+class ScrambleDocsTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("지원 종목의 스크램블 조회에 성공한다")
-    void getScramble() throws Exception {
+    void should_return_scramble_when_supported_event_type_is_requested() throws Exception {
         ResultActions result = mockMvc.perform(get("/api/scramble")
                 .param("eventType", EventType.WCA_333.name())
                 .accept(MediaType.APPLICATION_JSON));
@@ -49,7 +49,7 @@ class ScrambleIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("미지원 종목으로 스크램블 조회 시 400을 반환한다")
-    void getScrambleWithUnsupportedEvent() throws Exception {
+    void should_return_bad_request_when_unsupported_event_type_is_requested() throws Exception {
         mockMvc.perform(get("/api/scramble")
                         .param("eventType", EventType.WCA_222.name())
                         .accept(MediaType.APPLICATION_JSON))

@@ -40,7 +40,7 @@ import static org.springframework.restdocs.request.RequestDocumentation.queryPar
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class PostIntegrationTest extends RestDocsBaseTest {
+class PostDocsTest extends RestDocsBaseTest {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -74,7 +74,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("인증된 사용자는 게시글을 생성할 수 있다")
-    void createPost() throws Exception {
+    void should_create_post_when_authenticated_user_submits_valid_request() throws Exception {
         PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
 
         ResultActions result = mockMvc.perform(post("/api/posts")
@@ -109,7 +109,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("인증 없이 게시글을 생성할 수 없다")
-    void createPostWithoutAuthentication() throws Exception {
+    void should_return_unauthorized_when_creating_post_without_authentication() throws Exception {
         PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
 
         mockMvc.perform(post("/api/posts")
@@ -120,7 +120,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
-    void createPostWithInvalidRequest() throws Exception {
+    void should_return_bad_request_when_creating_post_with_invalid_request() throws Exception {
         PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");
 
         mockMvc.perform(post("/api/posts")
@@ -134,7 +134,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("게시글 목록은 공개 조회되며 키워드와 작성자 조건으로 검색할 수 있다")
-    void getPosts() throws Exception {
+    void should_return_filtered_posts_when_keyword_and_author_are_provided() throws Exception {
         savePost(authorUser, PostCategory.FREE, "큐브 연습법", "OLL 연습 내용을 정리합니다.");
         savePost(otherUser, PostCategory.FREE, "대회 후기", "큐브 대회 후기와 기록");
         savePost(authorUser, PostCategory.NOTICE, "공지 제목", "운영 공지입니다.");
@@ -171,7 +171,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("게시글 상세 조회는 공개되며 조회 시 조회수가 증가한다")
-    void getPostDetail() throws Exception {
+    void should_increase_view_count_when_post_detail_is_requested() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "상세 제목", "상세 본문");
 
         ResultActions result = mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
@@ -210,7 +210,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
-    void getPostDetailNotFound() throws Exception {
+    void should_return_not_found_when_post_detail_does_not_exist() throws Exception {
         mockMvc.perform(get("/api/posts/{postId}", 99999L)
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
@@ -220,7 +220,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("작성자는 자신의 게시글을 수정할 수 있다")
-    void updatePostByAuthor() throws Exception {
+    void should_update_post_when_author_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
         PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "수정 후 제목", "수정 후 본문");
 
@@ -256,7 +256,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("관리자는 다른 사용자의 게시글을 수정할 수 있다")
-    void updatePostByAdmin() throws Exception {
+    void should_update_post_when_admin_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
         PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "관리자 수정", "관리자 본문");
 
@@ -273,7 +273,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("일반 사용자는 다른 사용자의 게시글을 수정할 수 없다")
-    void updatePostForbidden() throws Exception {
+    void should_return_forbidden_when_non_author_updates_post() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
         PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "실패 제목", "실패 본문");
 
@@ -287,7 +287,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("작성자는 자신의 게시글을 삭제할 수 있다")
-    void deletePostByAuthor() throws Exception {
+    void should_delete_post_when_author_requests_deletion() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "삭제 대상", "삭제 본문");
 
         mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
@@ -312,7 +312,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("관리자는 다른 사용자의 게시글을 삭제할 수 있다")
-    void deletePostByAdmin() throws Exception {
+    void should_delete_post_when_admin_requests_deletion() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "삭제 대상", "삭제 본문");
 
         mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
@@ -325,7 +325,7 @@ class PostIntegrationTest extends RestDocsBaseTest {
 
     @Test
     @DisplayName("일반 사용자는 다른 사용자의 게시글을 삭제할 수 없다")
-    void deletePostForbidden() throws Exception {
+    void should_return_forbidden_when_non_author_deletes_post() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "삭제 대상", "삭제 본문");
 
         mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
