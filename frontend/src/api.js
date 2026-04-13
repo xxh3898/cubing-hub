@@ -8,17 +8,11 @@ function toErrorMessage(error) {
   return error.response?.data?.message ?? error.message ?? '요청 처리 중 오류가 발생했습니다.'
 }
 
-function withAuthorization(accessToken) {
-  return accessToken
-    ? {
-      Authorization: `Bearer ${accessToken}`,
-    }
-    : {}
-}
-
 export async function signUp(payload) {
   try {
-    const response = await apiClient.post('/api/auth/signup', payload)
+    const response = await apiClient.post('/api/auth/signup', payload, {
+      _skipAuthRefresh: true,
+    })
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
@@ -27,7 +21,29 @@ export async function signUp(payload) {
 
 export async function login(payload) {
   try {
-    const response = await apiClient.post('/api/auth/login', payload)
+    const response = await apiClient.post('/api/auth/login', payload, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function logout() {
+  try {
+    const response = await apiClient.post('/api/auth/logout', null, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getMe() {
+  try {
+    const response = await apiClient.get('/api/me')
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
@@ -45,11 +61,9 @@ export async function getScramble(eventType) {
   }
 }
 
-export async function saveRecord(accessToken, payload) {
+export async function saveRecord(payload) {
   try {
-    const response = await apiClient.post('/api/records', payload, {
-      headers: withAuthorization(accessToken),
-    })
+    const response = await apiClient.post('/api/records', payload)
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
