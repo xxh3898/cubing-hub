@@ -9,6 +9,7 @@ import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
@@ -55,6 +56,17 @@ class ScrambleDocsTest extends RestDocsIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("아직 구현되지 않은 종목입니다."));
+                .andExpect(jsonPath("$.message").value("아직 구현되지 않은 종목입니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("scramble/get/bad-request",
+                        queryParameters(
+                                parameterWithName("eventType").description("스크램블을 생성할 WCA 종목 코드")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
+                        )
+                ));
     }
 }

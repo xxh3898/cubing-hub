@@ -20,6 +20,7 @@ import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.web.servlet.ResultActions;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.post;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
@@ -92,6 +93,40 @@ class RecordDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
                                 fieldWithPath("data.id").description("생성된 기록 ID")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 기록 저장 요청이면 400 Bad Request를 반환한다")
+    void should_return_bad_request_when_record_request_is_invalid() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(0)
+                .penalty(Penalty.NONE)
+                .scramble("")
+                .build();
+
+        ResultActions result = mockMvc.perform(post("/api/records")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("record/create/bad-request",
+                        requestFields(
+                                fieldWithPath("eventType").description("WCA 종목 코드 (e.g. WCA_333)"),
+                                fieldWithPath("timeMs").description("측정 시간 (밀리초)"),
+                                fieldWithPath("penalty").description("페널티 정보 (NONE, PLUS_TWO, DNF)"),
+                                fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
                         )
                 ));
     }

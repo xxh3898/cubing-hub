@@ -55,6 +55,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
     private User authorUser;
     private User otherUser;
     private String authorAccessToken;
+    private String otherAccessToken;
 
     @BeforeEach
     void setUp() {
@@ -62,6 +63,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
         otherUser = saveUser("other@cubinghub.com", "OtherUser", UserRole.ROLE_USER);
 
         authorAccessToken = generateAccessToken(authorUser);
+        otherAccessToken = generateAccessToken(otherUser);
     }
 
     @Test
@@ -89,6 +91,59 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
                                 fieldWithPath("data.id").description("생성된 게시글 ID")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("인증 없이 게시글 생성 요청을 보내면 401을 반환한다")
+    void should_return_unauthorized_when_creating_post_without_authentication() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
+
+        mockMvc.perform(post("/api/posts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("post/create/unauthorized",
+                        requestFields(
+                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
+                                fieldWithPath("title").description("게시글 제목"),
+                                fieldWithPath("content").description("게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
+    void should_return_bad_request_when_creating_post_with_invalid_request() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");
+
+        mockMvc.perform(post("/api/posts")
+                .header("Authorization", "Bearer " + authorAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("post/create/bad-request",
+                        requestFields(
+                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
+                                fieldWithPath("title").description("게시글 제목"),
+                                fieldWithPath("content").description("게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
                         )
                 ));
     }
@@ -167,6 +222,27 @@ class PostDocsTest extends RestDocsIntegrationTest {
     }
 
     @Test
+    @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
+    void should_return_not_found_when_post_detail_does_not_exist() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}", 99999L)
+                .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("게시글을 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("post/detail/not-found",
+                        pathParameters(
+                                parameterWithName("postId").description("조회할 게시글 ID")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
     @DisplayName("작성자는 자신의 게시글을 수정할 수 있다")
     void should_update_post_when_author_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
@@ -193,6 +269,37 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("일반 사용자가 다른 사람의 게시글 수정 요청을 보내면 403을 반환한다")
+    void should_return_forbidden_when_non_author_updates_post() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "실패 제목", "실패 본문");
+
+        mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
+                .header("Authorization", "Bearer " + otherAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("게시글 수정/삭제 권한이 없습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("post/update/forbidden",
+                        pathParameters(
+                                parameterWithName("postId").description("수정할 게시글 ID")
+                        ),
+                        requestFields(
+                                fieldWithPath("category").description("수정할 게시판 카테고리"),
+                                fieldWithPath("title").description("수정할 게시글 제목"),
+                                fieldWithPath("content").description("수정할 게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
                         )
                 ));
     }
