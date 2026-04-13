@@ -63,6 +63,15 @@ include::{snippets}/auth/logout/request-cookies.adoc[]
 include::{snippets}/auth/logout/http-response.adoc[]
 include::{snippets}/auth/logout/response-cookies.adoc[]
 
+=== 현재 로그인 사용자 조회
+==== 요청
+include::{snippets}/auth/me/http-request.adoc[]
+include::{snippets}/auth/me/request-headers.adoc[]
+
+==== 응답
+include::{snippets}/auth/me/http-response.adoc[]
+include::{snippets}/auth/me/response-fields.adoc[]
+
 == 기록 (Record)
 
 === 기록 저장

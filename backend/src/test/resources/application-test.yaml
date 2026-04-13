@@ -17,3 +17,7 @@ jwt:
 
 cors:
   allowed-origins: http://localhost:5173
+
+auth:
+  refresh-cookie:
+    secure: true

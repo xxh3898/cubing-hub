@@ -18,7 +18,12 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   expiration: 1800000 # 30 mins
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 cors:
   # TODO: 실제 배포 프론트엔드 도메인 주소로 변경
   allowed-origins: https://your-prod-domain.com
+
+auth:
+  refresh-cookie:
+    secure: true

@@ -2,6 +2,7 @@ package com.cubinghub.domain.auth.service;
 
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
+import com.cubinghub.domain.auth.dto.response.CurrentUserResponse;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.user.entity.User;
@@ -152,6 +153,14 @@ public class AuthService {
         log.info("토큰 갱신 성공: {}", email);
 
         return new TokenDto(newAccessToken, newRefreshToken);
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentUserResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
+
+        return new CurrentUserResponse(user.getId(), user.getEmail(), user.getNickname());
     }
 
     /**
