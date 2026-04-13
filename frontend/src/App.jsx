@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './context/useAuth.js'
 import CommunityPage from './pages/CommunityPage.jsx'
 import HomePage from './pages/HomePage.jsx'
@@ -11,11 +11,63 @@ import TimerPage from './pages/TimerPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
 import MyPage from './pages/MyPage.jsx'
-import { mockCurrentUser } from './constants/mockDashboard.js'
+
+function getReturnPath(location) {
+  return `${location.pathname}${location.search}${location.hash}`
+}
+
+function AuthLoadingPage() {
+  return (
+    <section className="page-grid auth-page">
+      <div className="panel auth-panel auth-status-panel">
+        <div className="auth-header">
+          <h2>인증 확인 중</h2>
+          <p className="helper-text">현재 로그인 상태를 확인하고 있습니다.</p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ProtectedRoute({ children }) {
+  const { hasAuthToken, isAuthenticated, isAuthLoading } = useAuth()
+  const location = useLocation()
+  const returnTo = getReturnPath(location)
+
+  if (!hasAuthToken) {
+    return <Navigate to="/login" replace state={{ from: returnTo }} />
+  }
+
+  if (isAuthLoading) {
+    return <AuthLoadingPage />
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: returnTo }} />
+  }
+
+  return children
+}
+
+function GuestOnlyRoute({ children }) {
+  const { hasAuthToken, isAuthenticated, isAuthLoading } = useAuth()
+  const location = useLocation()
+  const fallbackPath = typeof location.state?.from === 'string' ? location.state.from : '/'
+
+  if (hasAuthToken && isAuthLoading) {
+    return <AuthLoadingPage />
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to={fallbackPath} replace />
+  }
+
+  return children
+}
 
 function AppLayout() {
-  const { isAuthenticated } = useAuth()
-  const accountLabel = isAuthenticated ? mockCurrentUser.nickname : '로그인'
+  const { currentUser, hasAuthToken } = useAuth()
+  const accountLabel = currentUser?.nickname ?? (hasAuthToken ? '계정 확인 중' : '로그인')
 
   return (
     <div className="app-shell">
@@ -33,7 +85,7 @@ function AppLayout() {
             <NavLink to="/learning">학습</NavLink>
             <NavLink to="/community">커뮤니티</NavLink>
           </nav>
-          <NavLink className={`status-chip ${isAuthenticated ? 'is-authenticated' : 'is-guest'}`} to={isAuthenticated ? '/mypage' : '/login'}>
+          <NavLink className={`status-chip ${hasAuthToken ? 'is-authenticated' : 'is-guest'}`} to={hasAuthToken ? '/mypage' : '/login'}>
             {accountLabel}
           </NavLink>
         </div>
@@ -46,11 +98,39 @@ function AppLayout() {
           <Route path="/rankings" element={<RankingsPage />} />
           <Route path="/learning" element={<LearningPage />} />
           <Route path="/community" element={<CommunityPage />} />
-          <Route path="/community/write" element={<CommunityWritePage />} />
+          <Route
+            path="/community/write"
+            element={(
+              <ProtectedRoute>
+                <CommunityWritePage />
+              </ProtectedRoute>
+            )}
+          />
           <Route path="/community/:id" element={<CommunityDetailPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/mypage" element={<MyPage />} />
+          <Route
+            path="/login"
+            element={(
+              <GuestOnlyRoute>
+                <LoginPage />
+              </GuestOnlyRoute>
+            )}
+          />
+          <Route
+            path="/signup"
+            element={(
+              <GuestOnlyRoute>
+                <SignupPage />
+              </GuestOnlyRoute>
+            )}
+          />
+          <Route
+            path="/mypage"
+            element={(
+              <ProtectedRoute>
+                <MyPage />
+              </ProtectedRoute>
+            )}
+          />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
         </Routes>

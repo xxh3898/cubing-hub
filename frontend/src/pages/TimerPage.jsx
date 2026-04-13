@@ -66,7 +66,7 @@ function getStatusLabel(status) {
 }
 
 export default function TimerPage() {
-  const { accessToken, isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth()
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
   const [scrambleData, setScrambleData] = useState(null)
   const [scrambleMessage, setScrambleMessage] = useState(null)
@@ -148,7 +148,7 @@ export default function TimerPage() {
 
       try {
         const roundedTime = Math.max(1, Math.round(finalTime))
-        const response = await saveRecord(accessToken, {
+        const response = await saveRecord({
           eventType: selectedEvent,
           timeMs: roundedTime,
           penalty: 'NONE',
@@ -172,7 +172,7 @@ export default function TimerPage() {
     }
 
     persistRecord()
-  }, [accessToken, finalTime, isAuthenticated, isSupported, scrambleData, selectedEvent, status])
+  }, [finalTime, isAuthenticated, isSupported, scrambleData, selectedEvent, status])
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
   const statusLabel = getStatusLabel(status)

@@ -1,25 +1,52 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { login } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { setAccessToken } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = typeof location.state?.from === 'string' ? location.state.from : '/'
+  const noticeMessage = typeof location.state?.notice === 'string' ? location.state.notice : null
+  const prefilledEmail = typeof location.state?.email === 'string' ? location.state.email : ''
 
-  const handleLogin = (e) => {
+  useEffect(() => {
+    if (prefilledEmail) {
+      setEmail(prefilledEmail)
+    }
+  }, [prefilledEmail])
+
+  const handleLogin = async (e) => {
     e.preventDefault()
-    
+
     if (!email || !password) {
-      alert('이메일과 비밀번호를 모두 입력해주세요.')
+      setErrorMessage('이메일과 비밀번호를 모두 입력해주세요.')
       return
     }
 
-    // 목업 로그인 동작
-    setAccessToken('mock_token_12345')
-    alert('로그인되었습니다. (목업)')
-    navigate('/', { replace: true })
+    setIsSubmitting(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await login({ email, password })
+      const nextAccessToken = response.data?.accessToken
+
+      if (!nextAccessToken) {
+        throw new Error('로그인 응답에 access token이 없습니다.')
+      }
+
+      setAccessToken(nextAccessToken)
+      navigate(returnTo, { replace: true })
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -29,6 +56,8 @@ export default function LoginPage() {
           <h2>로그인</h2>
           <p className="helper-text">서비스 이용을 위해 로그인해주세요.</p>
         </div>
+        {noticeMessage ? <p className="message success auth-message">{noticeMessage}</p> : null}
+        {errorMessage ? <p className="message error auth-message">{errorMessage}</p> : null}
         <form onSubmit={handleLogin} className="form-grid auth-form">
           <div className="field">
             <label htmlFor="login-email">이메일</label>
@@ -38,6 +67,8 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@cubinghub.com"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="field">
@@ -48,17 +79,19 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호를 입력하세요"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="auth-actions">
-            <button type="submit" className="primary-button auth-submit">
-              로그인
+            <button type="submit" className="primary-button auth-submit" disabled={isSubmitting}>
+              {isSubmitting ? '로그인 중...' : '로그인'}
             </button>
           </div>
         </form>
         <div className="auth-footer">
           <p className="helper-text">아직 계정이 없으신가요?</p>
-          <Link to="/signup" className="ghost-button">회원가입</Link>
+          <Link to="/signup" state={{ from: returnTo }} className="ghost-button">회원가입</Link>
         </div>
       </div>
     </section>

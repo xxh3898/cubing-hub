@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { logout } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import { mockCurrentUser, mockDashboardSummary, mockRecentRecords } from '../constants/mockDashboard.js'
 
@@ -16,11 +18,23 @@ function parseRecordTime(timeMs) {
 }
 
 export default function MyPage() {
-  const { clearAccessToken } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const { clearAccessToken, currentUser } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    if (window.confirm('로그아웃 하시겠습니까?')) {
+  const handleLogout = async () => {
+    if (!window.confirm('로그아웃 하시겠습니까?')) {
+      return
+    }
+
+    setIsLoggingOut(true)
+
+    try {
+      await logout()
+    } catch (error) {
+      window.alert(`${error.message}\n로컬 세션은 정리됩니다.`)
+    } finally {
+      setIsLoggingOut(false)
       clearAccessToken()
       navigate('/', { replace: true })
     }
@@ -31,15 +45,15 @@ export default function MyPage() {
       <div className="panel mypage-profile-panel">
         <div className="mypage-profile-header">
           <h2>내 정보</h2>
-          <button className="ghost-button mypage-logout" onClick={handleLogout}>
-            로그아웃
+          <button className="ghost-button mypage-logout" onClick={handleLogout} disabled={isLoggingOut}>
+            {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
           </button>
         </div>
         
         <div className="mypage-info">
           <p className="mypage-info-item">
             <span className="mypage-info-label">닉네임</span>
-            <strong>{mockCurrentUser.nickname}</strong>
+            <strong>{currentUser?.nickname ?? mockCurrentUser.nickname}</strong>
           </p>
           <p className="mypage-info-item">
             <span className="mypage-info-label">주 종목</span>

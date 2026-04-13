@@ -1,6 +1,7 @@
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { mockCommunityPosts } from '../constants/mockCommunity.js'
+import { useAuth } from '../context/useAuth.js'
 
 function formatCommunityDate(value) {
   const date = new Date(value)
@@ -9,16 +10,17 @@ function formatCommunityDate(value) {
 
 export default function CommunityDetailPage() {
   const { id } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const { currentUser, isAuthenticated } = useAuth()
   const postId = parseInt(id, 10)
   const post = mockCommunityPosts.find((p) => p.id === postId)
   
   const [comments, setComments] = useState(post ? (post.comments || []) : [])
   const [newComment, setNewComment] = useState('')
 
-  // Mock authentication state
-  const currentUsername = 'guest_user'
-  const isAdmin = false
+  const currentUsername = currentUser?.nickname ?? null
+  const returnTo = `${location.pathname}${location.search}${location.hash}`
 
   if (!post) {
     return (
@@ -39,9 +41,9 @@ export default function CommunityDetailPage() {
 
     const newCommentObj = {
       id: Date.now(),
-      authorNickname: currentUsername, // Use mocked user
+      authorNickname: currentUsername,
       content: newComment.trim(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     }
 
     setComments([...comments, newCommentObj])
@@ -50,12 +52,12 @@ export default function CommunityDetailPage() {
 
   const handleDeleteComment = (commentId) => {
     if (window.confirm('댓글을 삭제하시겠습니까?')) {
-      setComments(comments.filter(c => c.id !== commentId))
+      setComments(comments.filter((comment) => comment.id !== commentId))
     }
   }
 
   const canDelete = (authorItem) => {
-    return authorItem === currentUsername || isAdmin || currentUsername === 'admin'
+    return Boolean(currentUsername && authorItem === currentUsername)
   }
 
   const handleDeletePost = () => {
@@ -131,20 +133,29 @@ export default function CommunityDetailPage() {
           )}
         </div>
 
-        <form className="community-comment-form" onSubmit={handleAddComment}>
-          <textarea
-            className="community-comment-input"
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="댓글을 작성해주세요."
-            rows={3}
-          />
-          <div className="community-comment-form-actions">
-            <button type="submit" className="primary-button" disabled={!newComment.trim()}>
-              등록
-            </button>
+        {!isAuthenticated ? (
+          <div className="community-comment-login-cta">
+            <p className="helper-text">댓글 작성은 로그인 후 이용할 수 있습니다.</p>
+            <Link to="/login" state={{ from: returnTo }} className="ghost-button">
+              로그인하러 가기
+            </Link>
           </div>
-        </form>
+        ) : (
+          <form className="community-comment-form" onSubmit={handleAddComment}>
+            <textarea
+              className="community-comment-input"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="댓글을 작성해주세요."
+              rows={3}
+            />
+            <div className="community-comment-form-actions">
+              <button type="submit" className="primary-button" disabled={!newComment.trim()}>
+                등록
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </section>
   )

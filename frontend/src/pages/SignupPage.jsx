@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { signUp } from '../api.js'
 import { eventOptions } from '../constants/eventOptions.js'
 
 export default function SignupPage() {
@@ -8,28 +9,43 @@ export default function SignupPage() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [nickname, setNickname] = useState('')
   const [mainEvent, setMainEvent] = useState('WCA_333')
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = typeof location.state?.from === 'string' ? location.state.from : '/'
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault()
-    
+
     if (!email || !password || !passwordConfirm || !nickname) {
-      alert('모든 입력란을 채워주세요.')
+      setErrorMessage('모든 입력란을 채워주세요.')
       return
     }
 
     if (password !== passwordConfirm) {
-      alert('비밀번호가 일치하지 않습니다.')
+      setErrorMessage('비밀번호가 일치하지 않습니다.')
       return
     }
 
-    // [TODO] API 연동 시 아래 주석 해제 및 활용
-    // const payload = { email, password, nickname, mainEvent }
-    // await signUp(payload)
+    setIsSubmitting(true)
+    setErrorMessage(null)
 
-    // 목업 회원가입 동작
-    alert('회원가입이 완료되었습니다! 로그인해주세요. (목업)')
-    navigate('/login', { replace: true })
+    try {
+      await signUp({ email, password, nickname, mainEvent })
+      navigate('/login', {
+        replace: true,
+        state: {
+          from: returnTo,
+          notice: '회원가입이 완료되었습니다. 로그인해주세요.',
+          email,
+        },
+      })
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -39,6 +55,7 @@ export default function SignupPage() {
           <h2>회원가입</h2>
           <p className="helper-text">서비스 이용을 위해 계정을 생성합니다.</p>
         </div>
+        {errorMessage ? <p className="message error auth-message">{errorMessage}</p> : null}
         <form onSubmit={handleSignup} className="form-grid auth-form">
           <div className="field">
             <label htmlFor="signup-email">이메일</label>
@@ -48,6 +65,8 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@cubinghub.com"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="field">
@@ -58,6 +77,8 @@ export default function SignupPage() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="사용할 닉네임을 입력하세요"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="field">
@@ -66,6 +87,7 @@ export default function SignupPage() {
               id="signup-main-event"
               value={mainEvent}
               onChange={(e) => setMainEvent(e.target.value)}
+              disabled={isSubmitting}
             >
               {eventOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -82,6 +104,8 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호를 입력하세요"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="field">
@@ -92,17 +116,19 @@ export default function SignupPage() {
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               placeholder="비밀번호를 다시 입력하세요"
+              required
+              disabled={isSubmitting}
             />
           </div>
           <div className="auth-actions">
-            <button type="submit" className="primary-button auth-submit">
-              가입완료
+            <button type="submit" className="primary-button auth-submit" disabled={isSubmitting}>
+              {isSubmitting ? '가입 중...' : '가입완료'}
             </button>
           </div>
         </form>
         <div className="auth-footer">
           <p className="helper-text">이미 계정이 있으신가요?</p>
-          <Link to="/login" className="ghost-button">로그인하러 가기</Link>
+          <Link to="/login" state={{ from: returnTo }} className="ghost-button">로그인하러 가기</Link>
         </div>
       </div>
     </section>

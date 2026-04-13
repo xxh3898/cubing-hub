@@ -1146,6 +1146,14 @@ button {
   margin-top: 24px;
 }
 
+.auth-message {
+  margin-bottom: 16px;
+}
+
+.auth-status-panel {
+  text-align: center;
+}
+
 .auth-submit {
   width: 100%;
 }
