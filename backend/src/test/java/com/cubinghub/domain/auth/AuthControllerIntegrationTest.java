@@ -100,6 +100,21 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("이메일 또는 비밀번호가 일치하지 않으면 로그인은 401을 반환한다")
+    void should_return_unauthorized_when_login_credentials_are_invalid() throws Exception {
+        String email = newEmail("login-fail");
+        saveActiveUser(email, newNickname("Tester"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, "wrong-password"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("이메일 또는 비밀번호가 일치하지 않습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
+    @Test
     @DisplayName("토큰 재발급 성공 시 기존 Refresh Token을 삭제하고 새 토큰을 저장한다")
     void should_rotate_refresh_token_when_refresh_request_succeeds() throws Exception {
         String email = newEmail("refresh");
@@ -158,6 +173,33 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                         .cookie(new Cookie("refresh_token", "invalid.refresh.token")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("유효하지 않거나 만료된 리프레시 토큰입니다.")));
+    }
+
+    @Test
+    @DisplayName("회전된 이전 Refresh Token을 재사용하면 401을 반환하고 해당 사용자의 모든 Refresh Token을 삭제한다")
+    void should_return_unauthorized_and_delete_all_refresh_tokens_when_rotated_refresh_token_is_reused() throws Exception {
+        String email = newEmail("refresh-reuse");
+        saveActiveUser(email, newNickname("Tester"));
+        AuthSession initialSession = login(email, TEST_PASSWORD);
+
+        MvcResult rotationResult = mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(initialSession.refreshCookie()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Cookie rotatedRefreshCookie = rotationResult.getResponse().getCookie("refresh_token");
+        assertThat(rotatedRefreshCookie).isNotNull();
+        assertThat(refreshTokenService.get(email, jwtTokenProvider.getJti(rotatedRefreshCookie.getValue())))
+                .isEqualTo(rotatedRefreshCookie.getValue());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(initialSession.refreshCookie()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("비정상적인 접근이 감지되어 모든 인증이 만료되었습니다. 다시 로그인해주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        assertThat(redisTemplate.keys("refresh:" + email + ":*")).isNullOrEmpty();
     }
 
     @Test

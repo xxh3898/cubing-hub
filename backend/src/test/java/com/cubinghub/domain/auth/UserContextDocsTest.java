@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
 import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
@@ -73,6 +74,23 @@ class UserContextDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data.userId").type(JsonFieldType.NUMBER).description("현재 로그인 사용자 ID"),
                                 fieldWithPath("data.email").type(JsonFieldType.STRING).description("현재 로그인 사용자 이메일"),
                                 fieldWithPath("data.nickname").type(JsonFieldType.STRING).description("현재 로그인 사용자 닉네임")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("Authorization 헤더 없이 현재 로그인 사용자 조회를 요청하면 401을 반환한다")
+    void should_return_unauthorized_when_authorization_header_is_missing() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/me/unauthorized",
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
                         )
                 ));
     }
