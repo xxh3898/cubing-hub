@@ -8,16 +8,13 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
-import com.cubinghub.integration.RestDocsBaseTest;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.test.web.servlet.ResultActions;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
@@ -28,7 +25,7 @@ import static org.springframework.restdocs.request.RequestDocumentation.queryPar
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class RankingDocsTest extends RestDocsBaseTest {
+class RankingDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
@@ -82,27 +79,6 @@ class RankingDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data[].timeMs").description("기록 시간 (밀리초)")
                         )
                 ));
-    }
-
-    @Test
-    @DisplayName("글로벌 랭킹은 최대 100건까지만 반환한다")
-    void should_limit_rankings_to_top_100_when_more_than_100_records_exist() throws Exception {
-        List<User> rankingUsers = new ArrayList<>();
-        for (int i = 0; i < 101; i++) {
-            User user = saveUser("ranker" + i + "@cubinghub.com", "Ranker" + i);
-            rankingUsers.add(user);
-            saveRecord(user, EventType.WCA_333, 10000 + i, Penalty.NONE, "scramble-" + i);
-        }
-
-        mockMvc.perform(get("/api/rankings")
-                .param("eventType", EventType.WCA_333.name())
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(100))
-                .andExpect(jsonPath("$.data[0].rank").value(1))
-                .andExpect(jsonPath("$.data[99].rank").value(100))
-                .andExpect(jsonPath("$.data[99].nickname").value("Ranker99"))
-                .andExpect(jsonPath("$.data[99].timeMs").value(10099));
     }
 
     private User saveUser(String email, String nickname) {

@@ -8,9 +8,9 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWit
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.cubinghub.integration.RestDocsBaseTest;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 
-class HealthCheckDocsTest extends RestDocsBaseTest {
+class HealthCheckDocsTest extends RestDocsIntegrationTest {
 
     @Test
     void should_document_health_status_when_health_endpoint_is_called() throws Exception {

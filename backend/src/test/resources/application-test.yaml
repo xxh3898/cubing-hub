@@ -8,7 +8,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-    show-sql: true
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
 
 jwt:
   secret: testSecretKeyForTestingPurposes12345678901234

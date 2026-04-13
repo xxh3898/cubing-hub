@@ -10,7 +10,7 @@ import com.cubinghub.domain.record.entity.UserPB;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
-import com.cubinghub.integration.BaseIntegrationTest;
+import com.cubinghub.integration.JpaIntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class EntityMappingTest extends BaseIntegrationTest {
+public class EntityMappingTest extends JpaIntegrationTest {
 
     @Autowired
     private EntityManager em;

@@ -14,7 +14,7 @@ import com.cubinghub.config.RestDocsConfig;
 
 @ExtendWith(RestDocumentationExtension.class)
 @Import(RestDocsConfig.class)
-public abstract class RestDocsBaseTest extends BaseIntegrationTest {
+public abstract class RestDocsIntegrationTest extends JpaIntegrationTest {
 
     protected MockMvc mockMvc;
 

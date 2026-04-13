@@ -1,7 +1,7 @@
 package com.cubinghub.domain.record;
 
 import com.cubinghub.domain.record.entity.EventType;
-import com.cubinghub.integration.RestDocsBaseTest;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -18,7 +18,7 @@ import static org.springframework.restdocs.request.RequestDocumentation.queryPar
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class ScrambleDocsTest extends RestDocsBaseTest {
+class ScrambleDocsTest extends RestDocsIntegrationTest {
 
     @Test
     @DisplayName("지원 종목의 스크램블 조회에 성공한다")

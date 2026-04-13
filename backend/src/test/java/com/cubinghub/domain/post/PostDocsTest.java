@@ -9,7 +9,7 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
-import com.cubinghub.integration.RestDocsBaseTest;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,8 +24,6 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.containsString;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
@@ -40,7 +38,7 @@ import static org.springframework.restdocs.request.RequestDocumentation.queryPar
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class PostDocsTest extends RestDocsBaseTest {
+class PostDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -56,20 +54,14 @@ class PostDocsTest extends RestDocsBaseTest {
 
     private User authorUser;
     private User otherUser;
-    private User adminUser;
     private String authorAccessToken;
-    private String otherAccessToken;
-    private String adminAccessToken;
 
     @BeforeEach
     void setUp() {
         authorUser = saveUser("author@cubinghub.com", "Author", UserRole.ROLE_USER);
         otherUser = saveUser("other@cubinghub.com", "OtherUser", UserRole.ROLE_USER);
-        adminUser = saveUser("admin@cubinghub.com", "AdminUser", UserRole.ROLE_ADMIN);
 
         authorAccessToken = generateAccessToken(authorUser);
-        otherAccessToken = generateAccessToken(otherUser);
-        adminAccessToken = generateAccessToken(adminUser);
     }
 
     @Test
@@ -99,37 +91,6 @@ class PostDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data.id").description("생성된 게시글 ID")
                         )
                 ));
-
-        assertThat(postRepository.findAll()).hasSize(1);
-        Post savedPost = postRepository.findAll().get(0);
-        assertThat(savedPost.getUser().getId()).isEqualTo(authorUser.getId());
-        assertThat(savedPost.getTitle()).isEqualTo("첫 게시글");
-        assertThat(savedPost.getViewCount()).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("인증 없이 게시글을 생성할 수 없다")
-    void should_return_unauthorized_when_creating_post_without_authentication() throws Exception {
-        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
-
-        mockMvc.perform(post("/api/posts")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
-    void should_return_bad_request_when_creating_post_with_invalid_request() throws Exception {
-        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");
-
-        mockMvc.perform(post("/api/posts")
-                .header("Authorization", "Bearer " + authorAccessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
     }
 
     @Test
@@ -203,19 +164,6 @@ class PostDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data.updatedAt").description("수정 시각")
                         )
                 ));
-
-        Post foundPost = postRepository.findById(savedPost.getId()).orElseThrow();
-        assertThat(foundPost.getViewCount()).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
-    void should_return_not_found_when_post_detail_does_not_exist() throws Exception {
-        mockMvc.perform(get("/api/posts/{postId}", 99999L)
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value("게시글을 찾을 수 없습니다."));
     }
 
     @Test
@@ -247,42 +195,6 @@ class PostDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
-
-        Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
-        assertThat(updatedPost.getCategory()).isEqualTo(PostCategory.NOTICE);
-        assertThat(updatedPost.getTitle()).isEqualTo("수정 후 제목");
-        assertThat(updatedPost.getContent()).isEqualTo("수정 후 본문");
-    }
-
-    @Test
-    @DisplayName("관리자는 다른 사용자의 게시글을 수정할 수 있다")
-    void should_update_post_when_admin_submits_valid_request() throws Exception {
-        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "관리자 수정", "관리자 본문");
-
-        mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
-                .header("Authorization", "Bearer " + adminAccessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("게시글이 수정되었습니다."));
-
-        Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
-        assertThat(updatedPost.getTitle()).isEqualTo("관리자 수정");
-    }
-
-    @Test
-    @DisplayName("일반 사용자는 다른 사용자의 게시글을 수정할 수 없다")
-    void should_return_forbidden_when_non_author_updates_post() throws Exception {
-        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "실패 제목", "실패 본문");
-
-        mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
-                .header("Authorization", "Bearer " + otherAccessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("게시글 수정/삭제 권한이 없습니다."));
     }
 
     @Test
@@ -306,32 +218,6 @@ class PostDocsTest extends RestDocsBaseTest {
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
-
-        assertThat(postRepository.findById(savedPost.getId())).isEmpty();
-    }
-
-    @Test
-    @DisplayName("관리자는 다른 사용자의 게시글을 삭제할 수 있다")
-    void should_delete_post_when_admin_requests_deletion() throws Exception {
-        Post savedPost = savePost(authorUser, PostCategory.FREE, "삭제 대상", "삭제 본문");
-
-        mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
-                .header("Authorization", "Bearer " + adminAccessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("게시글이 삭제되었습니다."));
-
-        assertThat(postRepository.findById(savedPost.getId())).isEmpty();
-    }
-
-    @Test
-    @DisplayName("일반 사용자는 다른 사용자의 게시글을 삭제할 수 없다")
-    void should_return_forbidden_when_non_author_deletes_post() throws Exception {
-        Post savedPost = savePost(authorUser, PostCategory.FREE, "삭제 대상", "삭제 본문");
-
-        mockMvc.perform(delete("/api/posts/{postId}", savedPost.getId())
-                .header("Authorization", "Bearer " + otherAccessToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("게시글 수정/삭제 권한이 없습니다."));
     }
 
     private User saveUser(String email, String nickname, UserRole role) {

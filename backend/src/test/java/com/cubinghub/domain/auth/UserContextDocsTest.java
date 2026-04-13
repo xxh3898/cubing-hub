@@ -4,7 +4,7 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
-import com.cubinghub.integration.RestDocsBaseTest;
+import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.response
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class UserContextDocsTest extends RestDocsBaseTest {
+class UserContextDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
