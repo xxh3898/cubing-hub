@@ -83,7 +83,8 @@
 #### 해결 방법
 - `auth.refresh-cookie.secure` 설정을 `application-local.yaml`, `application-prod.yaml`, `application-test.yaml`에 추가했다.
 - `AuthController`는 이 설정값을 읽어 login/refresh/logout cookie 생성에 공통 적용하도록 정리했다.
-- `/api/me`와 함께 `AuthIntegrationTest`, REST Docs, AsciiDoc 인덱스를 갱신했다.
+- `/api/me`와 함께 당시 인증 문서화 테스트와 REST Docs, AsciiDoc 인덱스를 갱신했다.
+- 현재 코드 기준으로 해당 문서화 테스트는 `AuthDocsTest`, `UserContextDocsTest`로 분리되어 있다.
 
 #### 결과
 - local/prod/test 환경별 cookie 정책을 설정으로 다룰 수 있게 됐다.

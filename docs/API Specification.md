@@ -494,7 +494,7 @@
 ## 12. 문서화 메모
 
 - 현재 API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthIntegrationTest`, `RecordIntegrationTest`, `ScrambleIntegrationTest`, `PostIntegrationTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`에서 생성된다.
 
 ## 13. 미확정 사항
 
