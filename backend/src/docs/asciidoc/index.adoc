@@ -140,6 +140,24 @@ include::{snippets}/record/create/bad-request/request-fields.adoc[]
 include::{snippets}/record/create/bad-request/http-response.adoc[]
 include::{snippets}/record/create/bad-request/response-fields.adoc[]
 
+=== 기록 페널티 수정
+==== 요청
+include::{snippets}/record/update/http-request.adoc[]
+include::{snippets}/record/update/path-parameters.adoc[]
+include::{snippets}/record/update/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/record/update/http-response.adoc[]
+include::{snippets}/record/update/response-fields.adoc[]
+
+==== 실패 응답
+===== 유효하지 않은 수정 요청
+include::{snippets}/record/update/bad-request/http-request.adoc[]
+include::{snippets}/record/update/bad-request/path-parameters.adoc[]
+include::{snippets}/record/update/bad-request/request-fields.adoc[]
+include::{snippets}/record/update/bad-request/http-response.adoc[]
+include::{snippets}/record/update/bad-request/response-fields.adoc[]
+
 == 랭킹 (Ranking)
 
 === 글로벌 랭킹 조회

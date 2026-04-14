@@ -41,7 +41,7 @@ class RecordRepositoryRankingIntegrationTest extends JpaIntegrationTest {
         User beta = saveUser("beta@test.com", "Beta");
         User gamma = saveUser("gamma@test.com", "Gamma");
 
-        saveRecord(alpha, EventType.WCA_333, 12000, Penalty.NONE, "scramble-a");
+        saveRecord(alpha, EventType.WCA_333, 10000, Penalty.PLUS_TWO, "scramble-a");
         saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "scramble-b");
         saveRecord(gamma, EventType.WCA_333, 9000, Penalty.DNF, "scramble-c");
         saveRecord(gamma, EventType.WCA_222, 7000, Penalty.NONE, "scramble-d");
@@ -54,15 +54,15 @@ class RecordRepositoryRankingIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
-    @DisplayName("동일 기록이면 createdAt 오름차순, 같은 시각이면 ID 오름차순으로 정렬한다")
-    void should_order_rankings_by_created_at_and_id_when_times_are_equal() {
+    @DisplayName("유효 기록 시간이 같으면 createdAt 오름차순, 같은 시각이면 ID 오름차순으로 정렬한다")
+    void should_order_rankings_by_created_at_and_id_when_effective_times_are_equal() {
         User first = saveUser("first@test.com", "First");
         User second = saveUser("second@test.com", "Second");
         User third = saveUser("third@test.com", "Third");
 
-        Record firstRecord = saveRecord(first, EventType.WCA_333, 10000, Penalty.NONE, "scramble-1");
-        Record secondRecord = saveRecord(second, EventType.WCA_333, 10000, Penalty.NONE, "scramble-2");
-        Record thirdRecord = saveRecord(third, EventType.WCA_333, 10000, Penalty.NONE, "scramble-3");
+        Record firstRecord = saveRecord(first, EventType.WCA_333, 10000, Penalty.PLUS_TWO, "scramble-1");
+        Record secondRecord = saveRecord(second, EventType.WCA_333, 12000, Penalty.NONE, "scramble-2");
+        Record thirdRecord = saveRecord(third, EventType.WCA_333, 12000, Penalty.NONE, "scramble-3");
 
         LocalDateTime baseTime = LocalDateTime.of(2026, 4, 13, 11, 0, 0);
         updateRecordTimestamps(firstRecord.getId(), baseTime);
@@ -73,6 +73,8 @@ class RecordRepositoryRankingIntegrationTest extends JpaIntegrationTest {
 
         assertThat(result).extracting(RankingQueryResult::getNickname)
                 .containsExactly("First", "Third", "Second");
+        assertThat(result).extracting(RankingQueryResult::getTimeMs)
+                .containsExactly(12000, 12000, 12000);
     }
 
     @Test

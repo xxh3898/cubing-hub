@@ -1,6 +1,9 @@
 package com.cubinghub.domain.record.service;
 
+import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.repository.RankingQueryResult;
+import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
 import com.cubinghub.domain.record.dto.response.RankingResponse;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
 import com.cubinghub.domain.record.entity.EventType;
@@ -12,6 +15,7 @@ import com.cubinghub.domain.record.repository.UserPBRepository;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,8 +50,7 @@ public class RecordService {
 
     @Transactional
     public Long saveRecord(String email, RecordSaveRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+        User user = findUserByEmail(email);
 
         Record record = Record.builder()
                 .user(user)
@@ -59,31 +62,76 @@ public class RecordService {
 
         Record savedRecord = recordRepository.save(record);
 
-        // PB 갱신 로직 (DNF가 아닌 경우에만)
-        if (request.getPenalty() != Penalty.DNF) {
-            updateUserPB(user, savedRecord);
+        if (request.getPenalty().isRankable()) {
+            recalculateUserPb(user, request.getEventType());
         }
 
         return savedRecord.getId();
     }
 
-    private void updateUserPB(User user, Record record) {
-        userPBRepository.findByUserAndEventType(user, record.getEventType())
-                .ifPresentOrElse(
-                        pb -> {
-                            if (record.getTimeMs() < pb.getBestTimeMs()) {
-                                pb.updateBestTime(record.getTimeMs(), record);
-                            }
-                        },
-                        () -> {
-                            UserPB newPB = UserPB.builder()
-                                    .user(user)
-                                    .eventType(record.getEventType())
-                                    .bestTimeMs(record.getTimeMs())
-                                    .record(record)
-                                    .build();
-                            userPBRepository.save(newPB);
-                        }
-                );
+    @Transactional
+    public RecordPenaltyUpdateResponse updateRecordPenalty(Long recordId, String email, RecordPenaltyUpdateRequest request) {
+        User currentUser = findUserByEmail(email);
+        Record record = findRecordById(recordId);
+
+        validateOwnership(record, currentUser);
+        record.updatePenalty(request.getPenalty());
+        recalculateUserPb(currentUser, record.getEventType());
+
+        return RecordPenaltyUpdateResponse.from(record);
+    }
+
+    private User findUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+    }
+
+    private Record findRecordById(Long recordId) {
+        return recordRepository.findById(recordId)
+                .orElseThrow(() -> new CustomApiException("기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+    }
+
+    private void validateOwnership(Record record, User currentUser) {
+        if (!record.getUser().getId().equals(currentUser.getId())) {
+            throw new CustomApiException("기록 수정 권한이 없습니다.", HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private void recalculateUserPb(User user, EventType eventType) {
+        Record bestRecord = recordRepository.findBestRecordByUserIdAndEventType(user.getId(), eventType)
+                .orElse(null);
+        UserPB existingPb = userPBRepository.findByUserAndEventType(user, eventType)
+                .orElse(null);
+
+        if (bestRecord == null) {
+            if (existingPb != null) {
+                userPBRepository.delete(existingPb);
+            }
+            return;
+        }
+
+        Integer bestTimeMs = bestRecord.getEffectiveTimeMs();
+
+        if (existingPb == null) {
+            UserPB newPB = UserPB.builder()
+                    .user(user)
+                    .eventType(eventType)
+                    .bestTimeMs(bestTimeMs)
+                    .record(bestRecord)
+                    .build();
+            userPBRepository.save(newPB);
+            return;
+        }
+
+        if (isSamePb(existingPb, bestRecord, bestTimeMs)) {
+            return;
+        }
+
+        existingPb.updateBestTime(bestTimeMs, bestRecord);
+    }
+
+    private boolean isSamePb(UserPB existingPb, Record bestRecord, Integer bestTimeMs) {
+        return existingPb.getBestTimeMs().equals(bestTimeMs)
+                && existingPb.getRecord().getId().equals(bestRecord.getId());
     }
 }

@@ -41,7 +41,7 @@ class RankingDocsTest extends RestDocsIntegrationTest {
         User beta = saveUser("beta@cubinghub.com", "Beta");
         User gamma = saveUser("gamma@cubinghub.com", "Gamma");
 
-        saveRecord(alpha, EventType.WCA_333, 12000, Penalty.NONE, "scramble-a");
+        saveRecord(alpha, EventType.WCA_333, 10000, Penalty.PLUS_TWO, "scramble-a");
         saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "scramble-b");
         saveRecord(gamma, EventType.WCA_333, 11000, Penalty.NONE, "scramble-c");
         saveRecord(testUser, EventType.WCA_333, 9000, Penalty.DNF, "scramble-dnf");
@@ -76,7 +76,7 @@ class RankingDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data[].rank").description("랭킹 순위 (1부터 시작)"),
                                 fieldWithPath("data[].nickname").description("사용자 닉네임"),
                                 fieldWithPath("data[].eventType").description("WCA 종목 코드"),
-                                fieldWithPath("data[].timeMs").description("기록 시간 (밀리초)")
+                                fieldWithPath("data[].timeMs").description("페널티 반영 기록 시간 (밀리초)")
                         )
                 ));
     }

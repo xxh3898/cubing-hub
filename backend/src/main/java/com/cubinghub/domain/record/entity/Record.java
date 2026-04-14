@@ -57,4 +57,12 @@ public class Record extends BaseTimeEntity {
         this.penalty = penalty;
         this.scramble = scramble;
     }
+
+    public void updatePenalty(Penalty penalty) {
+        this.penalty = penalty;
+    }
+
+    public Integer getEffectiveTimeMs() {
+        return penalty.applyTo(timeMs);
+    }
 }

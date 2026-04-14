@@ -63,4 +63,47 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data[99].nickname").value("Ranker99"))
                 .andExpect(jsonPath("$.data[99].timeMs").value(10099));
     }
+
+    @Test
+    @DisplayName("랭킹 조회는 PLUS_TWO 페널티를 반영한 시간을 반환한다")
+    void should_return_effective_time_when_plus_two_penalty_exists() throws Exception {
+        User alpha = userRepository.save(User.builder()
+                .email("alpha@cubinghub.com")
+                .password("password")
+                .nickname("Alpha")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+        User beta = userRepository.save(User.builder()
+                .email("beta@cubinghub.com")
+                .password("password")
+                .nickname("Beta")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+
+        recordRepository.save(Record.builder()
+                .user(alpha)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.PLUS_TWO)
+                .scramble("alpha")
+                .build());
+        recordRepository.save(Record.builder()
+                .user(beta)
+                .eventType(EventType.WCA_333)
+                .timeMs(11000)
+                .penalty(Penalty.NONE)
+                .scramble("beta")
+                .build());
+
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_333.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].nickname").value("Beta"))
+                .andExpect(jsonPath("$.data[0].timeMs").value(11000))
+                .andExpect(jsonPath("$.data[1].nickname").value("Alpha"))
+                .andExpect(jsonPath("$.data[1].timeMs").value(12000));
+    }
 }

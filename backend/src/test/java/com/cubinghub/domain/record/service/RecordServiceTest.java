@@ -3,12 +3,16 @@ package com.cubinghub.domain.record.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
+import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
 import com.cubinghub.domain.record.dto.response.RankingResponse;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
@@ -75,6 +79,32 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("PLUS_TWO 기록 저장 시 PB는 페널티가 반영된 유효 시간으로 생성된다")
+    void should_create_pb_with_effective_time_when_plus_two_record_is_saved() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record savedRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 9800, Penalty.PLUS_TWO, "scramble");
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(9800)
+                .penalty(Penalty.PLUS_TWO)
+                .scramble("scramble")
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.save(any(Record.class))).thenReturn(savedRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(savedRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
+
+        Long recordId = recordService.saveRecord(user.getEmail(), request);
+
+        ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
+        assertThat(recordId).isEqualTo(savedRecord.getId());
+        verify(userPBRepository).save(pbCaptor.capture());
+        assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(11800);
+        assertThat(pbCaptor.getValue().getRecord()).isEqualTo(savedRecord);
+    }
+
+    @Test
     @DisplayName("PB가 없으면 새 PB를 생성한다")
     void should_create_pb_when_no_existing_pb_exists() {
         User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -88,6 +118,7 @@ class RecordServiceTest {
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(recordRepository.save(any(Record.class))).thenReturn(savedRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(savedRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
 
         Long recordId = recordService.saveRecord(user.getEmail(), request);
@@ -123,6 +154,7 @@ class RecordServiceTest {
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(recordRepository.save(any(Record.class))).thenReturn(fasterRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(fasterRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
         Long recordId = recordService.saveRecord(user.getEmail(), request);
@@ -154,6 +186,7 @@ class RecordServiceTest {
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(recordRepository.save(any(Record.class))).thenReturn(slowerRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(currentBestRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
         Long recordId = recordService.saveRecord(user.getEmail(), request);
@@ -185,6 +218,7 @@ class RecordServiceTest {
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(recordRepository.save(any(Record.class))).thenReturn(sameTimeRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(currentBestRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
         recordService.saveRecord(user.getEmail(), request);
@@ -209,6 +243,103 @@ class RecordServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("User not found: missing@cubinghub.com");
+    }
+
+    @Test
+    @DisplayName("기록 페널티를 PLUS_TWO로 수정하면 PB를 다시 계산한다")
+    void should_recalculate_pb_when_record_penalty_is_updated_to_plus_two() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        Record fallbackRecord = TestFixtures.createRecord(11L, user, EventType.WCA_333, 10500, Penalty.NONE, "fallback");
+        UserPB existingPb = spy(UserPB.builder()
+                .id(21L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build());
+        RecordPenaltyUpdateRequest request = RecordPenaltyUpdateRequest.builder()
+                .penalty(Penalty.PLUS_TWO)
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(currentBestRecord.getId())).thenReturn(Optional.of(currentBestRecord));
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(fallbackRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
+
+        RecordPenaltyUpdateResponse response = recordService.updateRecordPenalty(currentBestRecord.getId(), user.getEmail(), request);
+
+        assertThat(response.getPenalty()).isEqualTo(Penalty.PLUS_TWO);
+        assertThat(currentBestRecord.getPenalty()).isEqualTo(Penalty.PLUS_TWO);
+        verify(existingPb).updateBestTime(10500, fallbackRecord);
+    }
+
+    @Test
+    @DisplayName("마지막 PB 기록을 DNF로 수정하면 PB를 제거한다")
+    void should_delete_pb_when_only_best_record_is_updated_to_dnf() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        UserPB existingPb = UserPB.builder()
+                .id(21L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build();
+        RecordPenaltyUpdateRequest request = RecordPenaltyUpdateRequest.builder()
+                .penalty(Penalty.DNF)
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(currentBestRecord.getId())).thenReturn(Optional.of(currentBestRecord));
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.empty());
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
+
+        RecordPenaltyUpdateResponse response = recordService.updateRecordPenalty(currentBestRecord.getId(), user.getEmail(), request);
+
+        assertThat(response.getPenalty()).isEqualTo(Penalty.DNF);
+        assertThat(response.getEffectiveTimeMs()).isNull();
+        verify(userPBRepository).delete(existingPb);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 기록 페널티 수정은 금지된다")
+    void should_throw_forbidden_exception_when_non_owner_updates_record_penalty() {
+        User owner = TestFixtures.createUser(1L, "owner@cubinghub.com", "Owner", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User otherUser = TestFixtures.createUser(2L, "other@cubinghub.com", "Other", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record record = TestFixtures.createRecord(10L, owner, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        RecordPenaltyUpdateRequest request = RecordPenaltyUpdateRequest.builder()
+                .penalty(Penalty.PLUS_TWO)
+                .build();
+
+        when(userRepository.findByEmail(otherUser.getEmail())).thenReturn(Optional.of(otherUser));
+        when(recordRepository.findById(record.getId())).thenReturn(Optional.of(record));
+
+        Throwable thrown = catchThrowable(() -> recordService.updateRecordPenalty(record.getId(), otherUser.getEmail(), request));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("기록 수정 권한이 없습니다.");
+        verify(userPBRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 기록 페널티 수정은 404 예외를 던진다")
+    void should_throw_not_found_exception_when_record_to_update_does_not_exist() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        RecordPenaltyUpdateRequest request = RecordPenaltyUpdateRequest.builder()
+                .penalty(Penalty.PLUS_TWO)
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(999L)).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> recordService.updateRecordPenalty(999L, user.getEmail(), request));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("기록을 찾을 수 없습니다.");
+        verify(recordRepository, never()).findBestRecordByUserIdAndEventType(any(), any());
     }
 
     @Test
