@@ -60,8 +60,11 @@ npm run dev
 ```bash
 cd backend
 ./gradlew test
+./gradlew test jacocoTestReport
 ./gradlew build
 ```
+
+JaCoCo HTML 리포트는 `backend/build/reports/jacoco/test/html/index.html`에서 확인할 수 있습니다.
 
 ### 프런트엔드
 
