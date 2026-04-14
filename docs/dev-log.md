@@ -26,8 +26,8 @@
 
 | 구간 | 로그 | 설명 |
 | --- | --- | --- |
-| Week 1 | [Day 1](./Development%20Log/Day%201.md) ~ [Day 7](./Development%20Log/Day%207.md) | 인프라, Testcontainers, REST Docs, 모니터링, 보안 기반 |
-| Core API | [Day 8](./Development%20Log/Day%208.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
+| Week 1 | [Day 1](./Development%20Log/Day%2001.md) ~ [Day 7](./Development%20Log/Day%2007.md) | 인프라, Testcontainers, REST Docs, 모니터링, 보안 기반 |
+| Core API | [Day 8](./Development%20Log/Day%2008.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
 | 최신 로그 | [Day 15](./Development%20Log/Day%2015.md) | auth 계약 정리, 랭킹 V1 정합성 마감, 프런트 실연동, 수동 검증, JaCoCo 기준선/보정 |
@@ -37,7 +37,7 @@
 - 인증/인가 구조: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Day 12](./Development%20Log/Day%2012.md), [Day 14](./Development%20Log/Day%2014.md), [Day 15](./Development%20Log/Day%2015.md)
 - 랭킹 V1 -> V2 전략: [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Day 10](./Development%20Log/Day%2010.md), [Internal Schedule](./Internal%20Schedule.internal.md)
 - 프런트 mock -> 실연동 전환: [Screen Specification](./Screen%20Specification.md), [Day 13](./Development%20Log/Day%2013.md), [Day 14](./Development%20Log/Day%2014.md)
-- 테스트/문서화/CI 기준선: [Day 2](./Development%20Log/Day%202.md), [Day 3](./Development%20Log/Day%203.md), [Day 4](./Development%20Log/Day%204.md)
+- 테스트/문서화/CI 기준선: [Day 2](./Development%20Log/Day%2002.md), [Day 3](./Development%20Log/Day%2003.md), [Day 4](./Development%20Log/Day%2004.md)
 
 ## 최근 정리 문서
 
