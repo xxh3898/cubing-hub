@@ -32,13 +32,24 @@
 
 ### Test
 
-- Testcontainers 기반 MySQL / Redis
-- GitHub Actions에서 `./gradlew test jacocoTestReport --no-daemon`
-- REST Docs 검증을 위한 `./gradlew build -x test`
-- 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
+- GitHub Actions workflow는 변경 경로 기준으로 backend/frontend를 분리해 실행한다.
+- Backend CI
+  - Testcontainers 기반 MySQL / Redis
+  - `./gradlew test jacocoTestReport --no-daemon`
+  - REST Docs 검증을 위한 `./gradlew build -x test`
+  - 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
+  - 실패 시 `backend/build/reports/tests/`를 `test-report` artifact로 업로드
+  - 항상 `backend/build/reports/jacoco/test/`를 `jacoco-report` artifact로 업로드
+- Frontend CI
+  - `npm ci`
+  - `npm run lint`
+  - `npm test -- --run`
+  - `npm run build`
+  - 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
 - 목적
   - 실제 DB/Redis와 가까운 통합 테스트
   - 문서화 자동화 검증
+  - 프런트 정적 검증과 실패 분석 산출물 회수
 
 ### Production (목표)
 
@@ -105,12 +116,13 @@
 ### 구현 상태
 
 1. GitHub Push
-2. GitHub Actions 실행
-3. `./gradlew test jacocoTestReport --no-daemon` 수행
-4. `./gradlew build -x test --no-daemon` 수행
-5. 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
-6. 실패 시 테스트 리포트 업로드
-7. 항상 JaCoCo 리포트 업로드
+2. 변경 경로에 따라 `Backend CI` 또는 `Frontend CI` 실행
+3. Backend 변경 시 `./gradlew test jacocoTestReport --no-daemon` 수행
+4. Backend 변경 시 `./gradlew build -x test --no-daemon` 수행
+5. Backend 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
+6. Backend 실패 시 `test-report`, 항상 `jacoco-report` 업로드
+7. Frontend 변경 시 `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build` 수행
+8. Frontend 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
 
 ### 목표 흐름
 
@@ -148,7 +160,7 @@
 | Redis 장애 | 토큰/캐시 영향 범위 확인 | Redis 배치 전략 또는 영속화 옵션 재검토 |
 | RDS 연결 실패 | DB 접속 정보와 네트워크 설정 점검 | 보안 그룹 / 애플리케이션 설정 재검토 |
 | CloudFront / S3 정적 배포 문제 | 캐시 무효화 및 배포 산출물 재확인 | 배포 파이프라인 검토 |
-| CI 실패 | 테스트 리포트 확인 | 테스트/문서 생성 단계 원인 분리 |
+| CI 실패 | backend는 `test-report`, `jacoco-report`, frontend는 `frontend-failure-reports` 확인 | backend는 테스트/문서 단계, frontend는 lint/test/build 단계로 원인 분리 |
 
 ## 9. 배포 다이어그램
 

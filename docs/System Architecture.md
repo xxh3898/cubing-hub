@@ -132,7 +132,9 @@ Client ↔ AWS Nginx
 
 - Prometheus는 Spring Boot Actuator 메트릭을 수집한다.
 - Grafana는 Prometheus 데이터를 시각화한다.
-- GitHub Actions는 테스트 및 문서화 검증 후 배포 파이프라인으로 연결된다.
+- GitHub Actions는 변경 경로 기준으로 `Backend CI`, `Frontend CI`를 분리 실행한다.
+- `Backend CI`는 Testcontainers 통합 테스트, JaCoCo 리포트, REST Docs 빌드와 artifact 회수를 담당한다.
+- `Frontend CI`는 `npm ci`, lint, vitest, build 검증과 실패 산출물 회수를 담당한다.
 
 ## 6. 성능 / 확장 고려
 
@@ -163,7 +165,9 @@ Client ↔ AWS Nginx
 ## 8. 준비 상태
 
 - 로컬 저장소에는 `docker-compose.yml` 기반 MySQL, Redis, Prometheus, Grafana 구성이 존재한다.
-- GitHub Actions에는 Testcontainers 기반 테스트와 REST Docs 빌드 검증이 반영되어 있다.
+- GitHub Actions에는 backend/frontend 분리 CI가 반영되어 있다.
+- Backend CI에는 Testcontainers 기반 테스트와 REST Docs 빌드 검증이 반영되어 있다.
+- Frontend CI에는 lint, vitest, build 검증과 실패 산출물 회수가 반영되어 있다.
 - 프로덕션 배포 스크립트, 도메인 연결, HTTPS 적용은 미구현 상태다.
 
 ## 9. 미확정 사항
