@@ -6,6 +6,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -51,10 +53,20 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) ->
-                                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "인증이 필요합니다."))
-                        .accessDeniedHandler((request, response, accessDeniedException) ->
-                                writeJsonError(response, HttpServletResponse.SC_FORBIDDEN, "접근 권한이 없습니다."))
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            log.warn("인증 실패 응답 - status: {}, request: {}, reason: {}",
+                                    HttpServletResponse.SC_UNAUTHORIZED,
+                                    requestSummary(request),
+                                    authException.getClass().getSimpleName());
+                            writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "인증이 필요합니다.");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            log.warn("인가 거부 응답 - status: {}, request: {}, reason: {}",
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    requestSummary(request),
+                                    accessDeniedException.getClass().getSimpleName());
+                            writeJsonError(response, HttpServletResponse.SC_FORBIDDEN, "접근 권한이 없습니다.");
+                        })
                 )
                 // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 삽입
                 .addFilterBefore(
@@ -94,5 +106,9 @@ public class SecurityConfig {
         response.getWriter().write(objectMapper.writeValueAsString(
                 ApiResponse.error(HttpStatus.valueOf(status), message)
         ));
+    }
+
+    private String requestSummary(jakarta.servlet.http.HttpServletRequest request) {
+        return request.getMethod() + " " + request.getRequestURI();
     }
 }
