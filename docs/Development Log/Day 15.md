@@ -12,6 +12,7 @@
 - Rotation 이후 이전 Refresh Token 재사용 `401` HTTP 계약과 REST Docs 대표 예시 추가, `docs/` 문서 동기화
 - root `.env.example`, `application-local.yaml`, `docker-compose.yml` 기준으로 local secret/env 분리와 README/배포 문서 동기화
 - React에 `Vitest`, `Testing Library`, `jsdom`, `axios-mock-adapter`, 공통 setup, smoke 테스트 추가
+- GitHub Actions에서 generated REST Docs HTML을 `restdocs-site` artifact로 다운로드 가능하게 정리
 
 ---
 
@@ -359,6 +360,43 @@
 
 #### 한 줄 요약
 - JaCoCo report 생성과 CI artifact 업로드를 붙여 Day 15 커버리지 기준선을 실제로 측정 가능한 상태로 만들었다.
+
+### REST Docs HTML artifact 추가
+
+#### 문제 상황
+- CI는 `./gradlew build -x test`로 generated REST Docs HTML을 만들고 있었지만, GitHub Actions artifact로는 올리지 않아 브라우저에서 바로 다운로드해 확인할 수 없었다.
+
+#### 해결 방법
+- `.github/workflows/ci.yml`에 `REST Docs HTML 업로드` step을 추가했다.
+- 업로드 경로는 `backend/build/docs/asciidoc/`로 두고, artifact 이름은 `restdocs-site`로 고정했다.
+- 업로드 조건은 `if: success()`로 제한해 문서 생성이 성공한 경우에만 HTML artifact를 남기도록 했다.
+- `generated-snippets`는 제외하고, 리뷰에 직접 필요한 HTML만 업로드 대상으로 유지했다.
+
+#### 선택 이유
+- reviewers가 로컬 Asciidoctor 실행 없이 CI에서 생성된 최종 HTML을 바로 확인할 수 있어야 했다.
+- snippets까지 올리면 artifact가 커지고 실제로 확인해야 할 대상이 분산된다.
+
+#### 판단 근거
+- workflow 기준 docs build 경로는 이미 `backend/build/docs/asciidoc/`로 고정돼 있었다.
+- `cd backend && ./gradlew build -x test --no-daemon`가 통과하면 해당 경로에 HTML 문서가 생성된다.
+
+#### 트레이드오프
+- CI artifact가 하나 더 늘어난다.
+- 대신 rendered docs 확인을 위해 로컬에서 다시 build할 필요가 줄어든다.
+
+#### 결과
+- GitHub Actions 성공 실행에서는 generated REST Docs HTML을 `restdocs-site` artifact로 직접 다운로드할 수 있게 됐다.
+- JaCoCo report와 성격이 다른 “문서 렌더 결과”도 CI 산출물로 같이 회수할 수 있게 됐다.
+
+#### 문서 반영
+- 반영한 문서:
+  - `docs/Deployment & Infrastructure Design.md`
+  - `docs/dev-log.md`
+- 반영 내용:
+  - 현재 CI가 JaCoCo report와 REST Docs HTML artifact를 함께 회수한다는 상태 반영
+
+#### 한 줄 요약
+- CI가 generated REST Docs HTML까지 artifact로 보관해 rendered docs 확인 경로를 추가했다.
 
 ### JaCoCo 기준선 보정과 공통 로직 커버리지 보강
 

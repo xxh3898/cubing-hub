@@ -19,7 +19,7 @@
 | 상태 | Day 15 보안 기본기와 auth 계약/테스트 정리 범위 완료 |
 | 범위 | auth 예외 계약 보정, refresh 재사용 감지 `401` 문서화, 백엔드 테스트 구조 재편, local secret/env 분리, React auth 테스트 실행 환경, `메모리 Access Token + HttpOnly Refresh Cookie` 전환, React auth 회귀 테스트, JaCoCo 기반 커버리지 기준선과 generated class 왜곡 보정 |
 | 핵심 리스크 | Day 15 범위는 닫혔고, 다음 리스크는 Day 16 랭킹 정합성 수정과 실연동에서 넘어온다 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 15](./Development%20Log/Day%2015.md) |
+| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 15](./Development%20Log/Day%2015.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
 | 다음 로그 대상 | Day 16 랭킹 정합성 수정과 랭킹 실연동 |
 
 ## 로그 파일 목록
@@ -43,6 +43,7 @@
 
 - 최근 일자 로그: [Day 15](./Development%20Log/Day%2015.md)
 - 현재 작업 요약: [Day 15](./Development%20Log/Day%2015.md)
+- 현재 단계 리뷰: [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md)
 - 인증 설계 기준: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md)
 - API 계약 기준: [API Specification](./API%20Specification.md)
 - 현재 내부 일정: [Internal Schedule](./Internal%20Schedule.internal.md)
@@ -72,6 +73,7 @@
 - `refresh_token` 누락 요청은 현재 `400 Bad Request`와 `refresh_token 쿠키가 필요합니다.` 메시지로 정리됐다.
 - Rotation 이후 이전 `refresh_token` 재사용은 현재 `401 Unauthorized`와 전체 세션 만료 메시지로 정리됐다.
 - generated REST Docs도 로그인 실패, refresh `400/401`, 보호 API `401`, 게시글 `401/400/404/403` 예시를 포함하도록 맞췄다.
+- GitHub Actions는 현재 generated REST Docs HTML(`restdocs-site`)과 JaCoCo 리포트를 artifact로 회수할 수 있다.
 - 공통 예외와 보안 예외 응답은 외부 메시지를 유지한 채 내부 로그를 남기도록 정리했다.
 - JaCoCo는 현재 Querydsl generated `Q*` class를 제외한 기준으로 다시 읽고, `ScrambleGenerator`, `GlobalExceptionHandler`, `Post` 생성자 분기 테스트를 추가해 `common.util`, `common.exception`, entity 기준선을 보정했다.
 - root `.env.example`와 local env 분리 기준을 추가해 local DB password, JWT secret, Grafana 기본 비밀번호 하드코딩을 제거했다.

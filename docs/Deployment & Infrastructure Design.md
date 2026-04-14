@@ -33,8 +33,9 @@
 ### Test
 
 - Testcontainers 기반 MySQL / Redis
-- GitHub Actions에서 `./gradlew test`
+- GitHub Actions에서 `./gradlew test jacocoTestReport --no-daemon`
 - REST Docs 검증을 위한 `./gradlew build -x test`
+- 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
 - 목적
   - 실제 DB/Redis와 가까운 통합 테스트
   - 문서화 자동화 검증
@@ -105,9 +106,11 @@
 
 1. GitHub Push
 2. GitHub Actions 실행
-3. `./gradlew test --no-daemon` 수행
+3. `./gradlew test jacocoTestReport --no-daemon` 수행
 4. `./gradlew build -x test --no-daemon` 수행
-5. 실패 시 테스트 리포트 업로드
+5. 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
+6. 실패 시 테스트 리포트 업로드
+7. 항상 JaCoCo 리포트 업로드
 
 ### 목표 흐름
 
