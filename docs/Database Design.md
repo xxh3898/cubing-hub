@@ -70,7 +70,7 @@ Records 1:1 (또는 1:0) User_PBs
 | `id` | `bigint` | 기록 ID (PK, Auto Increment) |
 | `user_id` | `bigint` | 측정자 ID (FK -> `users.id`) |
 | `event_type` | `varchar(20)` | 종목 (`WCA_333`, `WCA_222` 등) |
-| `time_ms` | `int` | 해결 시간(밀리초) |
+| `time_ms` | `int` | 원본 해결 시간(밀리초) |
 | `penalty` | `varchar(10)` | 페널티 (`NONE`, `PLUS_TWO`, `DNF`) |
 | `scramble` | `text` | 사용된 스크램블 문자열 |
 | `created_at` | `timestamp` | 측정 시각 |
@@ -80,13 +80,15 @@ Records 1:1 (또는 1:0) User_PBs
 
 | 인덱스명 | 컬럼 | 목적 |
 | --- | --- | --- |
-| `idx_record_event_time` | `event_type, time_ms` | 종목별 랭킹 정렬 기준 |
+| `idx_record_event_time` | `event_type, time_ms` | 종목별 원본 기록 탐색과 정렬 보조 |
 | `idx_record_user_id` | `user_id` | 사용자 기준 기록 조회 |
 
 #### 제약 / 비즈니스 규칙
 
 - `DNF`는 저장하되 PB 갱신 대상에서는 제외한다.
-- 기록은 원본 로그이므로 삭제/수정 정책은 별도 합의가 필요하다.
+- `PLUS_TWO`는 `time_ms`를 덮어쓰지 않고, 비즈니스 로직에서 `time_ms + 2000`의 유효 시간으로 계산한다.
+- 기록 소유자는 본인 기록의 penalty를 수정하거나 기록을 삭제할 수 있다.
+- PB를 참조하던 기록이 수정/삭제되면 `user_pbs`를 다시 계산한다.
 
 ### `user_pbs`
 
@@ -100,7 +102,7 @@ Records 1:1 (또는 1:0) User_PBs
 | `id` | `bigint` | 최고 기록 ID (PK, Auto Increment) |
 | `user_id` | `bigint` | 측정자 ID (FK -> `users.id`) |
 | `event_type` | `varchar(20)` | 종목 |
-| `best_time_ms` | `int` | 최고 기록(밀리초) |
+| `best_time_ms` | `int` | penalty 반영 유효 시간 기준 최고 기록(밀리초) |
 | `record_id` | `bigint` | 원본 측정 기록 ID (FK -> `records.id`) |
 | `created_at` | `timestamp` | 생성 시각 |
 | `updated_at` | `timestamp` | 최고 기록 갱신 시각 |
@@ -117,6 +119,7 @@ Records 1:1 (또는 1:0) User_PBs
 
 - 사용자당 종목별 PB는 1건만 허용한다.
 - 반드시 원본 `records` 한 건을 참조한다.
+- `best_time_ms`는 `records.time_ms` 원값이 아니라 penalty를 반영한 유효 시간이다.
 
 ### `posts`
 
@@ -215,7 +218,8 @@ Records 1:1 (또는 1:0) User_PBs
 
 - 명시된 soft delete 적용 테이블은 없다.
 - 게시글은 물리 삭제 기준이다.
-- 기록 데이터는 원본 로그 성격이 강하므로 삭제 정책을 신중히 다뤄야 한다.
+- 기록 데이터는 원본 로그지만 현재는 기록 소유자 기준 물리 삭제를 허용한다.
+- 기록 삭제 시 해당 기록이 PB를 대표하던 경우 `user_pbs`를 다시 계산하거나 제거한다.
 - 피드백은 메일 전송만 사용할 경우 DB 저장 없이 처리할 수도 있다.
 
 ## 7. 성능 고려
@@ -227,10 +231,11 @@ Records 1:1 (또는 1:0) User_PBs
   - `posts.category`, `posts.user_id`
   - `comments.post_id`
 - 페이징/정렬 기준
-  - 랭킹: 시간 오름차순
+  - 랭킹: `user_pbs.best_time_ms asc`, 동률 시 `records.created_at asc -> records.id asc`
+  - 마이페이지 전체 기록: `records.created_at desc`
   - 게시글: 생성일/ID 내림차순
 - 구조 한계
-  - V1 랭킹은 `records` 원본 조회라 읽기 부하가 커질 수 있다.
+  - V1 랭킹은 `user_pbs` 기반 PB 조회로 사용자 중복은 제거했지만, 읽기 hot path는 여전히 MySQL에 남아 있다.
 - 후속 최적화 방향
   - Redis ZSET 기반 랭킹 V2
   - 필요 시 통계성 조회를 위한 별도 집계/캐시 구조

@@ -13,6 +13,10 @@
 - root `.env.example`, `application-local.yaml`, `docker-compose.yml` 기준으로 local secret/env 분리와 README/배포 문서 동기화
 - React에 `Vitest`, `Testing Library`, `jsdom`, `axios-mock-adapter`, 공통 setup, smoke 테스트 추가
 - GitHub Actions에서 generated REST Docs HTML을 `restdocs-site` artifact로 다운로드 가능하게 정리
+- 랭킹 V1 조회 원본을 `records`에서 `user_pbs` 기반 PB 조회로 전환하고 검색/페이지네이션 계약을 추가
+- `PATCH` / `DELETE /api/records/{recordId}`, `GET /api/users/me/profile`, `GET /api/users/me/records`를 추가하고 PB 재계산 규칙을 정리
+- `RankingsPage`, `TimerPage`, `MyPage`를 실제 API와 연결하고 랭킹/기록 관리 프런트 테스트를 추가
+- 랭킹/마이페이지 관련 설계 문서, 일정 문서, 허브 로그를 현재 구현 상태와 맞게 동기화
 
 ---
 
@@ -557,6 +561,55 @@ public ResponseEntity<ApiResponse<Void>> handleMissingRequestCookieException(Mis
 
 ---
 
+## 랭킹 V1 정합성 마감
+
+### `records` 기준 solve leaderboard -> `user_pbs` 기준 PB leaderboard 전환
+
+- 문제:
+  - 문서 최상위 의도는 사용자 대표 기록(PB) 랭킹인데, 실제 `GET /api/rankings`는 `records` 상위 solve 목록이라 같은 사용자가 여러 번 노출될 수 있었다.
+- 해결:
+  - V1 랭킹 조회를 `user_pbs` 기준으로 바꾸고, `nickname`, `page`, `size`를 받는 서버 페이지네이션 계약으로 정리했다.
+  - 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`로 고정했다.
+- 결과:
+  - 랭킹 페이지에 같은 사용자가 같은 종목에서 중복 노출되지 않게 됐다.
+  - `PLUS_TWO`를 반영한 PB 시간이 랭킹 정렬에도 그대로 반영된다.
+
+### 기록 penalty 수정/삭제와 PB 재계산 흐름 추가
+
+- 문제:
+  - `Penalty.PLUS_TWO`와 `DNF`는 enum과 저장 필드만 있고, 사용자가 저장 후 수정하거나 삭제할 수 있는 API와 UI가 없었다.
+- 해결:
+  - `PATCH /api/records/{recordId}`와 `DELETE /api/records/{recordId}`를 추가했다.
+  - penalty 변경이나 기록 삭제 후 현재 PB를 다시 계산하도록 `RecordService` 흐름을 정리했다.
+  - `GET /api/users/me/profile`, `GET /api/users/me/records`를 추가해 마이페이지 프로필/요약과 전체 기록 조회를 분리했다.
+- 결과:
+  - `TimerPage`, `MyPage`에서 `PLUS_TWO`, `DNF`, 삭제를 수행하면 `user_pbs`, 랭킹, 마이페이지 요약이 같은 기준으로 갱신된다.
+
+### 랭킹/기록 관리 프런트 실연동과 테스트 보강
+
+- 문제:
+  - `RankingsPage`는 mock 기반이었고, `MyPage`도 로그아웃 껍데기만 연결된 상태라 랭킹 정합성 변화가 실제 화면까지 이어지지 않았다.
+- 해결:
+  - `RankingsPage`를 `GET /api/rankings` 기반으로 연결하고 `loading`, `empty`, `error`, 재시도, 서버 페이지 이동을 반영했다.
+  - `TimerPage`, `MyPage`에서 기록 penalty 수정/삭제와 마이페이지 서버 페이지네이션을 연결했다.
+  - `RankingsPage.test.jsx`, `TimerPage.test.jsx`, `MyPage.test.jsx`를 추가/보강했다.
+- 결과:
+  - Day 15 기준 랭킹 V1 정합성은 백엔드 계약, 프런트 화면, 테스트까지 같은 기준으로 맞춰졌다.
+  - 브라우저 수동 검증 전 기준선까지 닫았다.
+
+### 브라우저 수동 검증 마감
+
+- 확인:
+  - `RankingsPage`에서 종목 변경, 닉네임 검색, 빈 결과, 페이지 이동이 정상 동작했다.
+  - `RankingsPage` 에러 상태에서 백엔드 복구 후 `다시 시도` 클릭으로 정상 목록 복구를 확인했다.
+  - `TimerPage`, `MyPage`에서 `PLUS_TWO`, `DNF`, 삭제 후 화면 갱신과 PB/랭킹 반영이 정상 동작했다.
+  - 브라우저 네트워크 탭에서 `GET /api/rankings`, `PATCH /api/records/{recordId}`, `DELETE /api/records/{recordId}`, `GET /api/users/me/profile`, `GET /api/users/me/records` 흐름이 기대한 순서로 나가는 것을 확인했다.
+- 결과:
+  - Day 15 랭킹 V1 정합성 슬라이스는 브라우저 수동 검증까지 완료했다.
+  - 남은 것은 Day 16 커뮤니티/댓글/홈 대시보드 실연동이다.
+
+---
+
 ## 다음 작업
 
-- Day 16 랭킹 정합성 수정과 `RankingsPage` 실연동
+- Day 16 커뮤니티, 댓글, 홈 대시보드 실연동

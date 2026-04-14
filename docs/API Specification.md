@@ -62,7 +62,11 @@
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
 | `POST` | `/api/auth/logout` | 인증 토큰/쿠키 전달 | 로그아웃 | 구현됨 |
 | `GET` | `/api/me` | Auth | 로그인 사용자 컨텍스트 조회 | 구현됨 |
+| `GET` | `/api/users/me/profile` | Auth | 마이페이지 프로필/요약 조회 | 구현됨 |
+| `GET` | `/api/users/me/records` | Auth | 마이페이지 전체 기록 페이지 조회 | 구현됨 |
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
+| `PATCH` | `/api/records/{recordId}` | Auth | 기록 penalty 수정 | 구현됨 |
+| `DELETE` | `/api/records/{recordId}` | Auth | 기록 삭제 | 구현됨 |
 | `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V1 기준) |
 | `GET` | `/api/scramble` | Public | 스크램블 조회 | 구현됨 |
 | `POST` | `/api/posts` | Auth | 게시글 생성 | 구현됨 |
@@ -203,9 +207,58 @@
 
 #### 비고
 
-- 상세 프로필, 통계, 기록은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리할 수 있다.
+- 상세 프로필과 기록 목록은 `/api/users/me/profile`, `/api/users/me/records`로 분리되어 있다.
 
-## 7. 기록 API
+## 7. 마이페이지 API
+
+### `GET /api/users/me/profile`
+
+- 설명: 로그인 사용자의 프로필과 기록 요약을 조회한다.
+- 인증: Access Token 필요
+- 멱등성: 멱등
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.userId` | Number | 로그인 사용자 ID |
+| `data.nickname` | String | 로그인 사용자 닉네임 |
+| `data.mainEvent` | String | 로그인 사용자 주 종목 |
+| `data.summary.totalSolveCount` | Number | 전체 기록 수 |
+| `data.summary.personalBestTimeMs` | Number / Null | penalty 반영 유효 시간 기준 PB (밀리초) |
+| `data.summary.averageTimeMs` | Number / Null | `DNF` 제외 평균 기록 (밀리초) |
+
+### `GET /api/users/me/records`
+
+- 설명: 로그인 사용자의 전체 기록을 페이지 단위로 조회한다.
+- 인증: Access Token 필요
+- 멱등성: 멱등
+
+#### Query Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `page` | Number | 아니오 | 1부터 시작하는 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지 크기, 기본값 `10`, 최대 `100` |
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.items[].id` | Number | 기록 ID |
+| `data.items[].eventType` | String | WCA 종목 코드 |
+| `data.items[].timeMs` | Number | 원본 측정 시간(밀리초) |
+| `data.items[].effectiveTimeMs` | Number / Null | penalty 반영 유효 시간(밀리초), `DNF`면 `null` |
+| `data.items[].penalty` | String | `NONE`, `PLUS_TWO`, `DNF` |
+| `data.items[].createdAt` | String | 기록 생성 시각 |
+| `data.page` | Number | 현재 페이지 번호 |
+| `data.size` | Number | 페이지 크기 |
+| `data.totalElements` | Number | 전체 기록 수 |
+| `data.totalPages` | Number | 전체 페이지 수 |
+| `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
+| `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
+
+## 8. 기록 API
 
 ### `POST /api/records`
 
@@ -230,7 +283,54 @@
 | --- | --- | --- |
 | `data.id` | Number | 생성된 기록 ID |
 
-## 8. 랭킹 API
+### `PATCH /api/records/{recordId}`
+
+- 설명: 본인 기록의 penalty를 수정하고, 변경 후 `user_pbs`를 다시 계산한다.
+- 인증: Access Token 필요
+- 인가: 기록 소유자 본인
+- 멱등성: 약한 멱등
+
+#### Path Parameter
+
+| 이름 | 타입 | 설명 |
+| --- | --- | --- |
+| `recordId` | Number | 수정할 기록 ID |
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `penalty` | String | 예 | `NONE`, `PLUS_TWO`, `DNF` |
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.id` | Number | 수정된 기록 ID |
+| `data.eventType` | String | WCA 종목 코드 |
+| `data.timeMs` | Number | 원본 측정 시간(밀리초) |
+| `data.effectiveTimeMs` | Number / Null | penalty 반영 유효 시간(밀리초), `DNF`면 `null` |
+| `data.penalty` | String | 수정 후 penalty |
+
+### `DELETE /api/records/{recordId}`
+
+- 설명: 본인 기록을 삭제하고, 삭제 대상이 PB면 `user_pbs`를 다시 계산한다.
+- 인증: Access Token 필요
+- 인가: 기록 소유자 본인
+- 멱등성: 멱등
+
+#### Path Parameter
+
+| 이름 | 타입 | 설명 |
+| --- | --- | --- |
+| `recordId` | Number | 삭제할 기록 ID |
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+## 9. 랭킹 API
 
 ### `GET /api/rankings`
 
@@ -243,23 +343,34 @@
 | 이름 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `eventType` | String | 예 | 조회할 WCA 종목 코드 |
+| `nickname` | String | 아니오 | 닉네임 포함 검색어 |
+| `page` | Number | 아니오 | 1부터 시작하는 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지 크기, 기본값 `25`, 최대 `100` |
 
 #### Response
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `data[].rank` | Number | 1부터 시작하는 순위 |
-| `data[].nickname` | String | 사용자 닉네임 |
-| `data[].eventType` | String | WCA 종목 코드 |
-| `data[].timeMs` | Number | 기록 시간(밀리초) |
+| `data.items[].rank` | Number | 1부터 시작하는 순위 |
+| `data.items[].nickname` | String | 사용자 닉네임 |
+| `data.items[].eventType` | String | WCA 종목 코드 |
+| `data.items[].timeMs` | Number | PB 기준 기록 시간(밀리초) |
+| `data.page` | Number | 현재 페이지 번호 |
+| `data.size` | Number | 페이지 크기 |
+| `data.totalElements` | Number | 전체 랭킹 수 |
+| `data.totalPages` | Number | 전체 페이지 수 |
+| `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
+| `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
 
 #### 상태 메모
 
 - 상태: V1
-- `records` 테이블에서 `DNF`를 제외하고 종목별 상위 100건을 빠른 순으로 조회한다.
+- `user_pbs`와 원본 `records`를 사용해 사용자당 종목별 PB 1건만 조회한다.
+- 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`다.
+- 닉네임 검색과 서버 페이지네이션을 지원한다.
 - 최종 목표는 Redis ZSET 기반 실시간 랭킹 구조다.
 
-## 9. 스크램블 API
+## 10. 스크램블 API
 
 ### `GET /api/scramble`
 
@@ -285,7 +396,7 @@
 - 지원 범위: `WCA_333`
 - 미지원 종목 요청 시 `400 Bad Request`를 반환한다.
 
-## 10. 게시판 API
+## 11. 게시판 API
 
 ### `POST /api/posts`
 
@@ -403,7 +514,7 @@
 - 상태 코드: `200 OK`
 - `data`: `null`
 
-## 11. 미구현 API
+## 12. 미구현 API
 
 - 댓글 API
   - 댓글 작성, 삭제, 목록 조회
@@ -411,16 +522,16 @@
 - 피드백 전달 API
   - 관리자 메일 전달 및 필요 시 저장
   - `TODO`
-- 마이페이지/대시보드 API
-  - 프로필, 통계, 최근 기록, 전체 기록 조회/수정
+- 홈 대시보드 API
+  - 오늘의 스크램블, 통계, 최근 기록 조회
   - `TODO`
 
-## 12. 문서화 메모
+## 13. 문서화 메모
 
 - API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`에서 생성된다.
 
-## 13. 미확정 사항
+## 14. 미확정 사항
 
-- 댓글, 피드백, 마이페이지 API의 최종 응답 스키마
+- 댓글, 피드백, 홈 대시보드 API의 최종 응답 스키마
 - 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부

@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Day 15 보안 기본기 + Auth 계약/테스트 정리 |
-| 상태 | Day 15 보안 기본기와 auth 계약/테스트 정리 범위 완료 |
-| 범위 | auth 예외 계약 보정, refresh 재사용 감지 `401` 문서화, 백엔드 테스트 구조 재편, local secret/env 분리, React auth 테스트 실행 환경, `메모리 Access Token + HttpOnly Refresh Cookie` 전환, React auth 회귀 테스트, JaCoCo 기반 커버리지 기준선과 generated class 왜곡 보정 |
-| 핵심 리스크 | Day 15 범위는 닫혔고, 다음 리스크는 Day 16 랭킹 정합성 수정과 실연동에서 넘어온다 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 15](./Development%20Log/Day%2015.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
-| 다음 로그 대상 | Day 16 랭킹 정합성 수정과 랭킹 실연동 |
+| 작업명 | Day 15 랭킹 V1 정합성 마감 |
+| 상태 | Day 15 범위에서 랭킹 기준, 기록 관리 API, 프런트 실연동, 문서 동기화, 수동 검증까지 완료 |
+| 범위 | `user_pbs` 기반 PB 랭킹 조회, `GET /api/rankings` 검색/페이지네이션, `PATCH`/`DELETE /api/records/{recordId}`, `GET /api/users/me/profile`, `GET /api/users/me/records`, `RankingsPage`, `TimerPage`, `MyPage` 실연동, 랭킹/마이페이지 문서 동기화 |
+| 핵심 리스크 | Day 15 랭킹 슬라이스는 닫혔고, 이후 Day 16에는 커뮤니티/댓글/홈 대시보드 실연동이 남아 있다 |
+| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 15](./Development%20Log/Day%2015.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
+| 다음 로그 대상 | Day 16 커뮤니티/홈 실연동 |
 
 ## 로그 파일 목록
 
@@ -30,7 +30,7 @@
 | Core API | [Day 8](./Development%20Log/Day%208.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 15](./Development%20Log/Day%2015.md) | auth 계약 정리, React 저장 전략 전환, 회귀 테스트, JaCoCo 기준선/보정 |
+| 최신 로그 | [Day 15](./Development%20Log/Day%2015.md) | auth 계약 정리, 랭킹 V1 정합성 마감, 프런트 실연동, 수동 검증, JaCoCo 기준선/보정 |
 
 ## 주요 설계 결정 추적
 
@@ -81,4 +81,4 @@
 - React auth는 access token을 메모리에만 저장하고 앱 초기 `refresh -> /api/me`로 세션을 복구하도록 전환했다.
 - React auth 회귀 테스트로 `AuthContext`, `apiClient` refresh queue, 보호/guest-only route 핵심 분기를 고정했다.
 - 로그인 직후 새로고침 세션 복구, 복구 실패 세션 정리, 비로그인 보호 route 접근, 권한 부족 `403`까지 수동 검증으로 확인했다.
-- Day 15 범위는 닫혔고, 다음 단계는 Day 16 랭킹 정합성 수정과 `RankingsPage` 실연동이다.
+- Day 15 랭킹 슬라이스는 수동 검증까지 끝났고, 다음 단계는 Day 16 커뮤니티/홈 실연동이다.

@@ -32,7 +32,11 @@
 - 위 공개 경로를 제외한 나머지 API
 - 예시
   - `GET /api/me`
+  - `GET /api/users/me/profile`
+  - `GET /api/users/me/records`
   - `POST /api/records`
+  - `PATCH /api/records/{recordId}`
+  - `DELETE /api/records/{recordId}`
   - `POST /api/posts`
   - `PUT /api/posts/{postId}`
   - `DELETE /api/posts/{postId}`
@@ -41,6 +45,8 @@
 
 - 게시글 수정/삭제는 인증만으로 끝나지 않는다.
 - 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
+- 기록 penalty 수정/삭제는 인증만으로 끝나지 않는다.
+- 기록 소유자 본인만 허용한다.
 
 ## 4. 인증 흐름
 
@@ -109,6 +115,12 @@
 - 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
   - 응답 최소 필드: `userId`, `email`, `nickname`
   - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
+- 마이페이지 상세 조회 API가 구현되어 있다.
+  - `GET /api/users/me/profile`
+  - `GET /api/users/me/records`
+- 기록 관리 API가 구현되어 있다.
+  - `PATCH /api/records/{recordId}`
+  - `DELETE /api/records/{recordId}`
 - 백엔드는 Access Token을 응답 body로, Refresh Token을 `HttpOnly` cookie로 전달한다.
 - React는 `AuthContext` + `authStorage.js` 기반 메모리 보관 구조를 사용한다.
 - React는 앱 초기 `refresh -> /api/me` 순서로 사용자 컨텍스트를 동기화한다.
@@ -180,7 +192,7 @@
 | 로그인 실패 | `401` | `AuthService`에서 `CustomApiException` 반환 | 에러 메시지 표시 |
 | 만료/무효 토큰 | `401` | JWT 검증 실패 또는 블랙리스트 검사 실패 | 재로그인 또는 재발급 유도 |
 | 권한 부족 | `403` | `accessDeniedHandler` 또는 서비스 계층 인가 예외 | 권한 없음 메시지 표시 |
-| 소유자 조건 불일치 | `403` | 게시글 수정/삭제 거부 | 상세 또는 목록 화면 복귀 |
+| 소유자 조건 불일치 | `403` | 게시글 수정/삭제 또는 기록 수정/삭제 거부 | 상세 또는 목록 화면 복귀 |
 | 중복 회원가입 | `409` | `DataIntegrityViolationException` 처리 | 입력값 수정 유도 |
 
 ## 8. 프런트 처리 규칙
@@ -190,7 +202,7 @@
   - `login`, `signup`에는 guest-only route가 적용되어 있다.
 - 로그인 사용자 컨텍스트 처리:
   - 헤더와 전역 auth-aware UI는 `GET /api/me`를 사용해 최소 사용자 컨텍스트를 조회한다.
-  - `GET /api/me`는 `userId`, `email`, `nickname`만 반환하고, 상세 프로필은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리한다.
+  - `GET /api/me`는 `userId`, `email`, `nickname`만 반환하고, 상세 프로필/기록은 `/api/users/me/profile`, `/api/users/me/records`로 분리한다.
   - 보안상 `userId`를 파라미터로 받지 않고 인증 주체 기준으로만 조회한다.
   - 앱 초기 진입/새로고침 시 먼저 refresh로 Access Token을 복구한 뒤 `/api/me`를 조회한다.
   - refresh 또는 `/api/me` 조회가 실패하면 세션을 유효하지 않은 상태로 보고 access token과 사용자 컨텍스트를 정리한다.
@@ -251,5 +263,5 @@ flowchart TD
 ## 10. 미확정 사항
 
 - `SameSite`, `Secure`, CORS, 필요 시 `CSRF` 대응의 최종 운영 정책
-- `/api/users/me/profile`의 최종 계약 범위
+- 홈 대시보드 API의 최종 계약 범위
 - 프로덕션 설정의 `jwt.refresh-expiration` 정리 방식

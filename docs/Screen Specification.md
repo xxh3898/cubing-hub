@@ -16,15 +16,15 @@
 | 화면 | 경로 | 핵심 기능 | 상태 |
 | --- | --- | --- | --- |
 | 홈 | `/` | 오늘의 스크램블, 프로필/통계 요약, 최근 기록 | UI 구현 / mock 데이터 기반 |
-| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST /api/records` 연동 완료 |
-| 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | UI 구현 / mock 데이터 기반 / 실제 API 미연동 |
+| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
+| 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | UI 구현 / mock 데이터 기반 / 실제 API 미연동 |
 | 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route 적용 완료 / 제출은 아직 목업 처리 |
 | 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | UI 구현, mock 데이터 기반 / 비로그인 댓글 CTA 적용 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
 | 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
-| 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | 보호 route와 로그아웃 연동 완료 / 데이터는 mock 기반 |
+| 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | UI 구현 / 로컬 폼 처리 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
@@ -46,13 +46,13 @@
 
 1. 사용자는 랭킹 화면에서 종목과 닉네임으로 결과를 좁힌다.
 2. 커뮤니티 목록에서 검색/필터 후 상세 화면으로 이동한다.
-3. 프런트 데이터 소스는 mock 기반이며, 목표 상태는 실제 API 연동이다.
+3. 랭킹 화면은 실제 API를 사용하고, 커뮤니티 화면은 아직 mock 기반이다.
 
 ### 시나리오 4. 회원가입 후 개인화
 
 1. 사용자는 회원가입에서 이메일, 닉네임, 주 종목을 입력한다.
 2. 가입 완료 후 로그인 화면으로 이동하고, 로그인 성공 시 원래 보호 경로 또는 홈으로 복귀한다.
-3. 로그인 후 마이페이지에서 인증된 사용자 닉네임과 mock 기반 기록 요약을 본다.
+3. 로그인 후 마이페이지에서 프로필, 기록 요약, 전체 기록 페이지를 조회하고 penalty 수정/삭제를 수행한다.
 
 ## 4. 공통 상태 및 예외 정책
 
@@ -104,6 +104,8 @@
 - 화면 데이터 요구사항
   - `GET /api/scramble`
   - `POST /api/records`
+  - `PATCH /api/records/{recordId}`
+  - `DELETE /api/records/{recordId}`
   - 세션 최근 저장 기록
   - 인증 상태(`accessToken`, `isAuthenticated`)
 - 상태 및 예외
@@ -115,9 +117,10 @@
   - 종목 선택
   - 스크램블 다시 조회
   - 홀드 후 타이머 시작 / 정지
-  - 최근 기록 제거
+  - 최근 기록 penalty 수정
+  - 최근 기록 삭제
 - 구현 상태
-  - `GET /api/scramble`, `POST /api/records` 연동이 구현되어 있다.
+  - `GET /api/scramble`, `POST /api/records`, `PATCH /api/records/{recordId}`, `DELETE /api/records/{recordId}` 연동이 구현되어 있다.
   - 지원 범위: `WCA_333`
   - 지원하지 않는 종목은 안내 메시지와 함께 차단된다.
 
@@ -133,21 +136,23 @@
   - 종목 select
   - 페이지 이동 버튼
 - 화면 데이터 요구사항
-  - 랭킹 목록
+  - `GET /api/rankings`
   - 종목 필터
   - 닉네임 검색
-  - 총 페이지 수
+  - 현재 페이지 / 총 페이지 수
 - 상태 및 예외
   - `empty`: 검색 결과 0건
-  - 최종 연동 시 `loading`, `error` 상태가 필요하다.
+  - `loading`: 랭킹 조회 중
+  - `error`: 랭킹 조회 실패
 - 사용자 액션
   - 종목 전환
   - 닉네임 검색
   - 페이지 이동
+  - 오류 시 재시도
 - 구현 상태
-  - 화면과 상호작용은 구현되어 있다.
-  - 데이터 소스는 `mockRankingItems`다.
-  - `/api/rankings` 실연동과 Redis ZSET 기반 실시간 랭킹 반영은 미구현 상태다.
+  - `/api/rankings` 실연동이 구현되어 있다.
+  - 서버 검색, 서버 페이지네이션, `loading`, `empty`, `error`, 재시도 상태가 반영되어 있다.
+  - Redis ZSET 기반 실시간 랭킹 반영은 미구현 상태다.
 
 ### 학습
 
@@ -313,6 +318,10 @@
   - 로그아웃 버튼
   - 기록 테이블
 - 화면 데이터 요구사항
+  - `GET /api/users/me/profile`
+  - `GET /api/users/me/records`
+  - `PATCH /api/records/{recordId}`
+  - `DELETE /api/records/{recordId}`
   - 프로필
   - 통계
   - 전체 기록 목록
@@ -322,11 +331,15 @@
   - `loading`, `empty`, `error`, `auth failure`가 모두 필요하다.
 - 사용자 액션
   - 로그아웃
-  - 기록 확인
+  - 기록 페이지 이동
+  - 기록 penalty 수정
+  - 기록 삭제
 - 구현 상태
   - 보호 route와 `/api/auth/logout` 연동이 구현되어 있다.
   - 헤더 닉네임은 `/api/me` 기준으로 표시된다.
-  - 기록 요약과 전체 기록 데이터는 아직 `mockDashboardSummary`, `mockRecentRecords` 기반이다.
+  - `/api/users/me/profile`로 프로필/요약을 조회한다.
+  - `/api/users/me/records?page&size`로 전체 기록을 서버 페이지네이션으로 조회한다.
+  - 기록 penalty 수정과 삭제 후 프로필/기록을 다시 조회해 화면을 갱신한다.
 
 ### 피드백
 
@@ -374,7 +387,9 @@
 | 홈 | 대시보드 API(목표) | 오늘의 스크램블, 통계, 최근 기록 조회 | 미구현 |
 | 타이머 | `GET /api/scramble` | 종목별 스크램블 조회 | 연동 완료 |
 | 타이머 | `POST /api/records` | 기록 저장 | 연동 완료 |
-| 랭킹 | `GET /api/rankings` | 종목별 랭킹 조회 | 백엔드 구현 / 프런트 미연동 |
+| 타이머 | `PATCH /api/records/{recordId}` | 최근 기록 penalty 수정 | 연동 완료 |
+| 타이머 | `DELETE /api/records/{recordId}` | 최근 기록 삭제 | 연동 완료 |
+| 랭킹 | `GET /api/rankings` | 종목별 랭킹 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}` | 게시글 상세 조회 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 미연동 |
@@ -382,7 +397,10 @@
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 미연동 |
 | 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 연동 |
-| 마이페이지 | 마이페이지 API(목표) | 프로필/통계/기록 조회 | 미구현 |
+| 마이페이지 | `GET /api/users/me/profile` | 프로필/요약 조회 | 백엔드 구현 / 프런트 연동 |
+| 마이페이지 | `GET /api/users/me/records` | 전체 기록 페이지 조회 | 백엔드 구현 / 프런트 연동 |
+| 마이페이지 | `PATCH /api/records/{recordId}` | 기록 penalty 수정 | 백엔드 구현 / 프런트 연동 |
+| 마이페이지 | `DELETE /api/records/{recordId}` | 기록 삭제 | 백엔드 구현 / 프런트 연동 |
 | 피드백 | 피드백 API(목표) | 관리자 전달 및 저장 | 미구현 |
 
 ## 7. 구현 참고
@@ -408,10 +426,10 @@
 - 타이머 외 화면의 실제 API 연동 여부를 문서와 코드에서 동시에 갱신할 것
 - 보호 화면(`mypage`, `community/write`)의 인증 실패 UX를 명시할 것
 - 홈, 랭킹, 커뮤니티, 마이페이지에 `loading`, `empty`, `error` 상태를 구현 시점에 점검할 것
-- 댓글, 피드백, 마이페이지 API가 생기면 이 문서의 API 요약 표를 함께 갱신할 것
+- 댓글, 피드백, 홈 대시보드 API가 생기면 이 문서의 API 요약 표를 함께 갱신할 것
 
 ## 9. 미확정 사항
 
-- 홈 / 마이페이지 대시보드 API의 최종 응답 구조
+- 홈 대시보드 API의 최종 응답 구조
 - 로그인 성공 후 이동 경로와 토큰 만료 시 재로그인 UX
 - 커뮤니티 상세의 댓글 UX와 권한 분기 표현
