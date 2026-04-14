@@ -563,11 +563,11 @@ button {
 }
 
 .timer-recent-item {
-  display: inline-flex;
+  display: grid;
   gap: 10px;
-  align-items: center;
+  align-items: start;
   padding: 10px 12px;
-  border-radius: 999px;
+  border-radius: 20px;
   background: rgba(18, 32, 43, 0.06);
   border: 1px solid rgba(18, 32, 43, 0.08);
 }
@@ -576,11 +576,42 @@ button {
   padding-top: 10px;
 }
 
+.timer-recent-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .timer-recent-time {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.timer-recent-penalty {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(18, 32, 43, 0.08);
+  color: #53626d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.timer-recent-actions,
+.mypage-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timer-penalty-button,
+.mypage-penalty-button {
+  min-width: 56px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
 }
 
 .timer-delete-button {
@@ -1224,6 +1255,31 @@ button {
 
 .mypage-records-header h2 {
   margin: 0;
+}
+
+.mypage-records-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mypage-record-actions {
+  justify-content: flex-end;
+}
+
+.mypage-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mypage-pagination-label {
+  min-width: 88px;
+  text-align: center;
 }
 
 .dashboard-summary-grid {

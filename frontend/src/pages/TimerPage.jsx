@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getScramble, saveRecord } from '../api.js'
+import { deleteRecord, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
@@ -65,6 +65,26 @@ function getStatusLabel(status) {
   return '대기'
 }
 
+function getPenaltyLabel(penalty) {
+  if (penalty === 'PLUS_TWO') {
+    return '+2'
+  }
+
+  if (penalty === 'DNF') {
+    return 'DNF'
+  }
+
+  return '기본'
+}
+
+function getDisplayTime(record) {
+  if (record.penalty === 'DNF') {
+    return 'DNF'
+  }
+
+  return formatRecordedTime(record.effectiveTimeMs ?? record.timeMs)
+}
+
 export default function TimerPage() {
   const { isAuthenticated } = useAuth()
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
@@ -73,6 +93,8 @@ export default function TimerPage() {
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
+  const [updatingRecordId, setUpdatingRecordId] = useState(null)
+  const [deletingRecordId, setDeletingRecordId] = useState(null)
   const lastAutoSavedRecordRef = useRef(null)
 
   const currentEvent = useMemo(() => findEventOption(selectedEvent), [selectedEvent])
@@ -123,8 +145,49 @@ export default function TimerPage() {
     }
   }
 
-  const handleDeleteRecentRecord = (recordId) => {
-    setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
+  const handleDeleteRecentRecord = async (recordId) => {
+    if (!window.confirm('이 기록을 삭제하시겠습니까?')) {
+      return
+    }
+
+    setDeletingRecordId(recordId)
+    setSaveMessage(null)
+
+    try {
+      const response = await deleteRecord(recordId)
+      setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
+      setSaveMessage({ type: 'success', text: response.message })
+    } catch (error) {
+      setSaveMessage({ type: 'error', text: error.message })
+    } finally {
+      setDeletingRecordId(null)
+    }
+  }
+
+  const handleUpdateRecentRecordPenalty = async (recordId, penalty) => {
+    setUpdatingRecordId(recordId)
+    setSaveMessage(null)
+
+    try {
+      const response = await updateRecordPenalty(recordId, { penalty })
+      setRecentSavedRecords((current) =>
+        current.map((record) =>
+          record.id === recordId
+            ? {
+                ...record,
+                penalty: response.data.penalty,
+                timeMs: response.data.timeMs,
+                effectiveTimeMs: response.data.effectiveTimeMs,
+              }
+            : record,
+        ),
+      )
+      setSaveMessage({ type: 'success', text: response.message })
+    } catch (error) {
+      setSaveMessage({ type: 'error', text: error.message })
+    } finally {
+      setUpdatingRecordId(null)
+    }
   }
 
   useEffect(() => {
@@ -160,6 +223,8 @@ export default function TimerPage() {
             id: response.data?.id ?? Date.now(),
             eventType: selectedEvent,
             timeMs: roundedTime,
+            effectiveTimeMs: roundedTime,
+            penalty: 'NONE',
             scramble: scrambleData.scramble,
           },
           ...current,
@@ -236,10 +301,35 @@ export default function TimerPage() {
               <div className="timer-recent-list">
                 {recentSavedRecords.map((record) => (
                   <article key={record.id} className="timer-recent-item">
-                    <p className="timer-recent-time">{formatRecordedTime(record.timeMs)}</p>
-                    <button className="ghost-button timer-delete-button" type="button" onClick={() => handleDeleteRecentRecord(record.id)}>
-                      삭제
-                    </button>
+                    <div className="timer-recent-meta">
+                      <p className="timer-recent-time">{getDisplayTime(record)}</p>
+                      <span className="timer-recent-penalty">{getPenaltyLabel(record.penalty)}</span>
+                    </div>
+                    <div className="timer-recent-actions">
+                      {['NONE', 'PLUS_TWO', 'DNF'].map((penalty) => {
+                        const isMutating = updatingRecordId === record.id || deletingRecordId === record.id
+
+                        return (
+                          <button
+                            key={penalty}
+                            className={record.penalty === penalty ? 'secondary-button timer-penalty-button' : 'ghost-button timer-penalty-button'}
+                            type="button"
+                            onClick={() => handleUpdateRecentRecordPenalty(record.id, penalty)}
+                            disabled={isMutating || record.penalty === penalty}
+                          >
+                            {getPenaltyLabel(penalty)}
+                          </button>
+                        )
+                      })}
+                      <button
+                        className="ghost-button timer-delete-button"
+                        type="button"
+                        onClick={() => handleDeleteRecentRecord(record.id)}
+                        disabled={updatingRecordId === record.id || deletingRecordId === record.id}
+                      >
+                        {deletingRecordId === record.id ? '삭제 중...' : '삭제'}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

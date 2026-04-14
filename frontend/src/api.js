@@ -61,6 +61,26 @@ export async function getMe() {
   }
 }
 
+export async function getMyProfile() {
+  try {
+    const response = await apiClient.get('/api/users/me/profile')
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getMyRecords(params) {
+  try {
+    const response = await apiClient.get('/api/users/me/records', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getScramble(eventType) {
   try {
     const response = await apiClient.get('/api/scramble', {
@@ -75,6 +95,24 @@ export async function getScramble(eventType) {
 export async function saveRecord(payload) {
   try {
     const response = await apiClient.post('/api/records', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function updateRecordPenalty(recordId, payload) {
+  try {
+    const response = await apiClient.patch(`/api/records/${recordId}`, payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function deleteRecord(recordId) {
+  try {
+    const response = await apiClient.delete(`/api/records/${recordId}`)
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
