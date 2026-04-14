@@ -13,7 +13,7 @@ import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
 import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
-import com.cubinghub.domain.record.dto.response.RankingResponse;
+import com.cubinghub.domain.record.dto.response.RankingPageResponse;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
@@ -35,6 +35,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RecordService 단위 테스트")
@@ -343,19 +345,52 @@ class RecordServiceTest {
     }
 
     @Test
-    @DisplayName("랭킹 조회 시 순번을 1부터 차례로 부여한다")
-    void should_assign_sequential_ranks_when_rankings_are_requested() {
-        when(recordRepository.findTop100RankingsByEventType(EventType.WCA_333)).thenReturn(List.of(
-                new RankingQueryResult("Alpha", EventType.WCA_333, 9800),
-                new RankingQueryResult("Beta", EventType.WCA_333, 10100)
-        ));
+    @DisplayName("랭킹 조회는 페이지 offset을 반영해 순번을 부여한다")
+    void should_assign_offset_rank_when_rankings_are_requested_with_pagination() {
+        when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq("a"), eq(PageRequest.of(1, 2))))
+                .thenReturn(new PageImpl<>(
+                        List.of(
+                                new RankingQueryResult("Alpha", EventType.WCA_333, 9800),
+                                new RankingQueryResult("Beta", EventType.WCA_333, 10100)
+                        ),
+                        PageRequest.of(1, 2),
+                        5
+                ));
 
-        List<RankingResponse> responses = recordService.getRankings(EventType.WCA_333);
+        RankingPageResponse response = recordService.getRankings(EventType.WCA_333, "a", 2, 2);
 
-        assertThat(responses).hasSize(2);
-        assertThat(responses.get(0).getRank()).isEqualTo(1);
-        assertThat(responses.get(0).getNickname()).isEqualTo("Alpha");
-        assertThat(responses.get(1).getRank()).isEqualTo(2);
-        assertThat(responses.get(1).getTimeMs()).isEqualTo(10100);
+        assertThat(response.getItems()).hasSize(2);
+        assertThat(response.getItems().get(0).getRank()).isEqualTo(3);
+        assertThat(response.getItems().get(0).getNickname()).isEqualTo("Alpha");
+        assertThat(response.getItems().get(1).getRank()).isEqualTo(4);
+        assertThat(response.getItems().get(1).getTimeMs()).isEqualTo(10100);
+        assertThat(response.getPage()).isEqualTo(2);
+        assertThat(response.getSize()).isEqualTo(2);
+        assertThat(response.getTotalElements()).isEqualTo(5);
+        assertThat(response.getTotalPages()).isEqualTo(3);
+        assertThat(response.isHasNext()).isTrue();
+        assertThat(response.isHasPrevious()).isTrue();
+    }
+
+    @Test
+    @DisplayName("랭킹 조회 page가 1보다 작으면 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_ranking_page_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> recordService.getRankings(EventType.WCA_333, null, 0, 25));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page는 1 이상이어야 합니다.");
+        verify(userPBRepository, never()).searchRankings(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("랭킹 조회 size가 범위를 벗어나면 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_ranking_size_is_out_of_range() {
+        Throwable thrown = catchThrowable(() -> recordService.getRankings(EventType.WCA_333, null, 1, 101));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("size는 1 이상 100 이하여야 합니다.");
+        verify(userPBRepository, never()).searchRankings(any(), any(), any());
     }
 }

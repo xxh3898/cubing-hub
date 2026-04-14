@@ -9,6 +9,6 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface UserPBRepository extends JpaRepository<UserPB, Long> {
+public interface UserPBRepository extends JpaRepository<UserPB, Long>, UserPBRepositoryCustom {
     Optional<UserPB> findByUserAndEventType(User user, EventType eventType);
 }
