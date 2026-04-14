@@ -42,6 +42,13 @@ jobs:
         working-directory: ./backend
         run: ./gradlew build -x test --no-daemon
 
+      - name: REST Docs HTML 업로드
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restdocs-site
+          path: backend/build/docs/asciidoc/
+
       - name: 테스트 리포트 업로드 (실패 시)
         if: failure()
         uses: actions/upload-artifact@v4
