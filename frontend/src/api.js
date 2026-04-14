@@ -81,6 +81,17 @@ export async function getMyRecords(params) {
   }
 }
 
+export async function getRankings(params) {
+  try {
+    const response = await apiClient.get('/api/rankings', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getScramble(eventType) {
   try {
     const response = await apiClient.get('/api/scramble', {
