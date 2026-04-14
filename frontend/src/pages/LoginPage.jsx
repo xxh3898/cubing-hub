@@ -40,7 +40,7 @@ export default function LoginPage() {
         throw new Error('로그인 응답에 access token이 없습니다.')
       }
 
-      setAccessToken(nextAccessToken)
+      await setAccessToken(nextAccessToken)
       navigate(returnTo, { replace: true })
     } catch (error) {
       setErrorMessage(error.message)

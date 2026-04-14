@@ -34,12 +34,12 @@ function ProtectedRoute({ children }) {
   const location = useLocation()
   const returnTo = getReturnPath(location)
 
-  if (!hasAuthToken) {
-    return <Navigate to="/login" replace state={{ from: returnTo }} />
-  }
-
   if (isAuthLoading) {
     return <AuthLoadingPage />
+  }
+
+  if (!hasAuthToken) {
+    return <Navigate to="/login" replace state={{ from: returnTo }} />
   }
 
   if (!isAuthenticated) {
@@ -50,11 +50,11 @@ function ProtectedRoute({ children }) {
 }
 
 function GuestOnlyRoute({ children }) {
-  const { hasAuthToken, isAuthenticated, isAuthLoading } = useAuth()
+  const { isAuthenticated, isAuthLoading } = useAuth()
   const location = useLocation()
   const fallbackPath = typeof location.state?.from === 'string' ? location.state.from : '/'
 
-  if (hasAuthToken && isAuthLoading) {
+  if (isAuthLoading) {
     return <AuthLoadingPage />
   }
 
@@ -66,8 +66,8 @@ function GuestOnlyRoute({ children }) {
 }
 
 function AppLayout() {
-  const { currentUser, hasAuthToken } = useAuth()
-  const accountLabel = currentUser?.nickname ?? (hasAuthToken ? '계정 확인 중' : '로그인')
+  const { currentUser, hasAuthToken, isAuthLoading } = useAuth()
+  const accountLabel = isAuthLoading ? '계정 확인 중' : (currentUser?.nickname ?? '로그인')
 
   return (
     <div className="app-shell">

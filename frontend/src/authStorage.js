@@ -1,4 +1,4 @@
-const ACCESS_TOKEN_KEY = 'cubinghub.accessToken'
+let accessToken = null
 const accessTokenListeners = new Set()
 
 function notifyAccessTokenListeners(nextToken) {
@@ -8,21 +8,21 @@ function notifyAccessTokenListeners(nextToken) {
 }
 
 export function getStoredAccessToken() {
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY)
+  return accessToken
 }
 
-export function setStoredAccessToken(accessToken) {
-  if (!accessToken) {
+export function setStoredAccessToken(nextAccessToken) {
+  if (!nextAccessToken) {
     clearStoredAccessToken()
     return
   }
 
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
-  notifyAccessTokenListeners(accessToken)
+  accessToken = nextAccessToken
+  notifyAccessTokenListeners(nextAccessToken)
 }
 
 export function clearStoredAccessToken() {
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY)
+  accessToken = null
   notifyAccessTokenListeners(null)
 }
 

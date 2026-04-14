@@ -41,6 +41,17 @@ export async function logout() {
   }
 }
 
+export async function refreshSession() {
+  try {
+    const response = await apiClient.post('/api/auth/refresh', null, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getMe() {
   try {
     const response = await apiClient.get('/api/me')
