@@ -30,6 +30,11 @@ ext {
 	set('snippetsDir', file("build/generated-snippets"))
 }
 
+def jacocoExcludes = [
+	'**/domain/**/entity/Q*.class',
+	'**/common/Q*.class'
+]
+
 dependencies {
 	// 1. web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -85,6 +90,11 @@ tasks.named('test') {
 
 tasks.named('jacocoTestReport') {
 	dependsOn test
+	classDirectories.setFrom(
+			files(sourceSets.main.output.classesDirs.asFileTree.matching {
+				exclude jacocoExcludes
+			})
+	)
 	reports {
 		xml.required = true
 		html.required = true
