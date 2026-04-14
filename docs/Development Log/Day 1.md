@@ -38,7 +38,7 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: "0122"
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD}
       MYSQL_DATABASE: cubing_hub
 ```
 

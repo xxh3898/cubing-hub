@@ -55,6 +55,19 @@
 
 ## 4. 환경 변수 / 비밀값 관리
 
+### Local
+
+- root `.env.example`를 복사해 root `.env`를 만든 뒤 local 실행에 필요한 값을 채운다.
+- 현재 local 실행에서 직접 사용하는 값:
+  - `LOCAL_DB_PASSWORD`
+  - `LOCAL_JWT_SECRET`
+  - `LOCAL_GRAFANA_ADMIN_PASSWORD`
+- `docker compose up -d`
+  - `LOCAL_DB_PASSWORD`, `LOCAL_GRAFANA_ADMIN_PASSWORD`를 사용한다.
+- `cd backend && ./gradlew bootRun`
+  - `application-local.yaml`이 root `.env`의 property 형식 값을 읽어 `LOCAL_DB_PASSWORD`, `LOCAL_JWT_SECRET`를 사용한다.
+- 실제 값 파일은 Git 추적 대상에 포함하지 않는다.
+
 ### Backend Production
 
 `application-prod.yaml` 기준:
@@ -72,7 +85,7 @@
 - `jwt.expiration`
   - 프로덕션 Access Token 만료 시간
 - `jwt.refresh-expiration`
-  - `application-local.yaml`에는 정의되어 있으나 `application-prod.yaml`에는 현재 추가/정리 필요
+  - 프로덕션 Refresh Token 만료 시간 (`JWT_REFRESH_EXPIRATION`, 기본 7일)
 
 ### Frontend
 
@@ -83,6 +96,7 @@
 
 - 비밀값은 코드에 하드코딩하지 않는다.
 - 프로덕션용 민감 정보는 환경 변수나 승인된 배포 설정에서 주입한다.
+- local 개발용 값도 추적 파일에 직접 넣지 않고 `.env` 같은 비추적 파일로 분리한다.
 - 로컬 개발 편의 설정은 프로덕션 보안 정책으로 그대로 승격하지 않는다.
 
 ## 5. CI/CD 파이프라인
