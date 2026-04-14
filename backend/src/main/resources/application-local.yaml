@@ -1,8 +1,12 @@
 spring:
+  config:
+    import:
+      - optional:file:../.env[.properties]
+
   datasource:
     url: jdbc:mysql://localhost:3306/cubing_hub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     username: root
-    password: "0122"
+    password: ${LOCAL_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -37,7 +41,7 @@ management:
       application: ${spring.application.name}
 
 jwt:
-  secret: aW52YWxpZFNlY3JldEtleUZvckxvY2FsRGV2ZWxvcG1lbnQxMjM0NTY3ODkwMTI=
+  secret: ${LOCAL_JWT_SECRET}
   expiration: 86400000       # Access Token: 1일
   refresh-expiration: 604800000  # Refresh Token: 7일
 

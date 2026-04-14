@@ -7,7 +7,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: "0122"
+      MYSQL_ROOT_PASSWORD: ${LOCAL_DB_PASSWORD:?LOCAL_DB_PASSWORD is required}
       MYSQL_DATABASE: cubing_hub
     volumes:
       - mysql_data:/var/lib/mysql
@@ -34,7 +34,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${LOCAL_GRAFANA_ADMIN_PASSWORD:?LOCAL_GRAFANA_ADMIN_PASSWORD is required}
     volumes:
       - grafana_data:/var/lib/grafana
 

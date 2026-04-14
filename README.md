@@ -19,6 +19,18 @@
 
 ## 실행 방법
 
+로컬 실행 전 root `.env` 파일이 필요합니다.
+
+```bash
+cp .env.example .env
+```
+
+`.env`에는 최소 아래 값들을 채워야 합니다.
+
+- `LOCAL_DB_PASSWORD`
+- `LOCAL_JWT_SECRET`
+- `LOCAL_GRAFANA_ADMIN_PASSWORD`
+
 ### 로컬 인프라
 
 ```bash
@@ -34,7 +46,7 @@ cd backend
 
 `bootRun`은 현재 설정상 `asciidoctor`와 `test`를 선행하므로 서버 기동 전에 테스트와 REST Docs 생성이 함께 수행됩니다.
 
-### 프런트엔드 실행
+### React 실행
 
 ```bash
 cd frontend
@@ -67,6 +79,9 @@ npm run build
 - 로컬 개발 설정: `backend/src/main/resources/application-local.yaml`
 - 프로덕션 설정: `backend/src/main/resources/application-prod.yaml`
 - 테스트 설정: `backend/src/test/resources/application-test.yaml`
+- local 실행 전 root `.env`를 읽어 아래 값을 주입합니다.
+  - `LOCAL_DB_PASSWORD`
+  - `LOCAL_JWT_SECRET`
 
 프로덕션 기준 주요 값:
 
@@ -82,7 +97,7 @@ npm run build
 - `jwt.refresh-expiration`
 	- `application-prod.yaml` 기준 추가 정리 필요
 
-### Frontend
+### React
 
 - API base URL: `VITE_API_BASE_URL`
 	- 미설정 시 기본값은 `http://localhost:8080`
