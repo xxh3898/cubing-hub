@@ -102,6 +102,13 @@ npm run build
 - API base URL: `VITE_API_BASE_URL`
 	- 미설정 시 기본값은 `http://localhost:8080`
 
+### React 테스트
+
+```bash
+cd frontend
+npm run test -- --run
+```
+
 ## 기타 참고 사항
 
 - 백엔드 API 문서는 Spring REST Docs + Asciidoctor 기반으로 생성됩니다.
