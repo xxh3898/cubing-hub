@@ -7,8 +7,8 @@
 - 인증 방식:
   - Access Token: `Authorization: Bearer <token>`
   - Refresh Token: `refresh_token` cookie
-  - 현재 구현: React는 access token을 메모리에만 저장하고, 앱 초기 `refresh_token` cookie -> `/api/me` 순서로 세션을 복구한다.
-  - 현재 구현: `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
+  - 구현 상태: React는 access token을 메모리에만 저장하고, 앱 초기 `refresh_token` cookie -> `/api/me` 순서로 세션을 복구한다.
+  - 구현 상태: `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
 - 공통 응답 포맷: `ApiResponse`
 - 공개 API와 보호 API의 경계는 `SecurityFilterChain` 기준으로 관리한다.
 
@@ -34,7 +34,7 @@
 
 ## 3. 공통 응답 구조
 
-현재 백엔드 응답은 `ApiResponse` 구조를 사용한다.
+백엔드 응답은 `ApiResponse` 구조를 사용한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -44,7 +44,7 @@
 
 ## 4. 공통 에러 정책
 
-| HTTP Status | 의미 | 현재 확인 근거 | 프런트 처리 |
+| HTTP Status | 의미 | 확인 근거 | 프런트 처리 |
 | --- | --- | --- | --- |
 | `400` | 잘못된 요청, validation 실패, 필수 cookie 누락, 잘못된 refresh token, 미지원 종목 등 | `GlobalExceptionHandler`, `AuthService`, `ScrambleService` | 입력값 수정 또는 재시도 안내 |
 | `401` | 로그인 실패, 만료/무효 토큰, 블랙리스트 토큰, refresh token 재사용 감지 | `AuthService`, `JwtAuthenticationFilter`, `SecurityConfig` | 로그인 유도 또는 토큰 재발급/재로그인 |
@@ -53,7 +53,7 @@
 | `409` | 중복 데이터 또는 무결성 충돌 | `GlobalExceptionHandler.handleDataIntegrityViolationException` | 중복 입력 수정 유도 |
 | `500` | 서버 내부 오류 | `GlobalExceptionHandler.handleGenericException` | 재시도 안내 및 운영 로그 확인 |
 
-## 5. 현재 구현 API 목록
+## 5. 구현 API 목록
 
 | Method | Path | 인증 | 설명 | 상태 |
 | --- | --- | --- | --- | --- |
@@ -61,7 +61,7 @@
 | `POST` | `/api/auth/login` | Public | 로그인 | 구현됨 |
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
 | `POST` | `/api/auth/logout` | 인증 토큰/쿠키 전달 | 로그아웃 | 구현됨 |
-| `GET` | `/api/me` | Auth | 현재 로그인 사용자 컨텍스트 조회 | 구현됨 |
+| `GET` | `/api/me` | Auth | 로그인 사용자 컨텍스트 조회 | 구현됨 |
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
 | `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V1 기준) |
 | `GET` | `/api/scramble` | Public | 스크램블 조회 | 구현됨 |
@@ -134,10 +134,10 @@
 #### 에러 계약
 
 - `400 Bad Request`
-  - `refresh_token` cookie가 없으면 현재 메시지는 `refresh_token 쿠키가 필요합니다.`
-  - `refresh_token` 값이 잘못됐거나 만료됐으면 현재 메시지는 `유효하지 않거나 만료된 리프레시 토큰입니다.`
+  - `refresh_token` cookie가 없으면 응답 메시지는 `refresh_token 쿠키가 필요합니다.`
+  - `refresh_token` 값이 잘못됐거나 만료됐으면 응답 메시지는 `유효하지 않거나 만료된 리프레시 토큰입니다.`
 - `401 Unauthorized`
-  - Rotation 이후 이전 refresh token 재사용이 감지되면 현재 메시지는 `비정상적인 접근이 감지되어 모든 인증이 만료되었습니다. 다시 로그인해주세요.`
+  - Rotation 이후 이전 refresh token 재사용이 감지되면 응답 메시지는 `비정상적인 접근이 감지되어 모든 인증이 만료되었습니다. 다시 로그인해주세요.`
   - 이 경우 서버는 해당 사용자의 Refresh Token을 모두 제거하고 재로그인을 요구한다.
 
 #### Response Body
@@ -178,7 +178,7 @@
 
 ### `GET /api/me`
 
-- 설명: 현재 로그인 사용자의 전역 사용자 컨텍스트를 조회한다.
+- 설명: 로그인 사용자의 전역 사용자 컨텍스트를 조회한다.
 - 상태: 구현됨
 - 인증: Access Token 필요
 - 멱등성: 멱등
@@ -197,44 +197,13 @@
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `data.userId` | Number | 현재 로그인 사용자 ID |
-| `data.email` | String | 현재 로그인 사용자 이메일 |
-| `data.nickname` | String | 현재 로그인 사용자 닉네임 |
+| `data.userId` | Number | 로그인 사용자 ID |
+| `data.email` | String | 로그인 사용자 이메일 |
+| `data.nickname` | String | 로그인 사용자 닉네임 |
 
 #### 비고
 
 - 상세 프로필, 통계, 기록은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리할 수 있다.
-
-### 설계 판단
-
-- 현재 구현 기준:
-  - Access Token은 응답 body로 받고 React 메모리에만 저장한다.
-  - 앱 초기 cold start에서는 `refresh_token` cookie로 Access Token을 먼저 복구한 뒤 `/api/me`를 조회한다.
-  - `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
-- 유지 이유:
-  - Access Token은 API 호출 시 즉시 사용해야 하므로 body로 전달하고, React 메모리에만 유지한다.
-  - 앱 초기 진입/새로고침 시 `refresh_token` cookie로 Access Token을 재발급받은 뒤 `/api/me`를 조회한다.
-  - Refresh Token은 HttpOnly cookie로 분리해 브라우저 스크립트 노출을 줄인다.
-  - 로그아웃 시 Refresh Token 삭제와 Access Token blacklist 등록을 함께 수행해 재사용 위험을 줄인다.
-- 목표 구조를 선택한 이유:
-  - Access Token을 영속 JS 저장소에 남기지 않으면 XSS 시 장기 노출면을 줄일 수 있다.
-  - Refresh Token은 재발급 전용이므로 브라우저 스크립트 접근을 막는 편이 안전하다.
-- 검토한 대안:
-  - 세션 기반 인증
-  - Access Token `localStorage` + Refresh Token `HttpOnly` cookie
-  - Access/Refresh Token 모두 body 또는 `localStorage` 저장
-- 대안을 배제한 이유:
-  - 세션 기반은 stateless API와 다중 환경 확장 설명이 약하다.
-  - Access Token을 영속 JS 저장소에 두면 XSS 노출면이 커진다.
-  - Refresh Token을 JS 접근 가능한 저장소에 두면 노출 면적이 커진다.
-- 트레이드오프:
-  - 메모리 기반 Access Token 구조에서는 앱 초기 진입/새로고침 때 refresh 기반 부트스트랩이 필요하다.
-  - 토큰 생명주기 관리가 단순 세션보다 복잡하다.
-  - 로그인 응답에 사용자 프로필을 과도하게 싣지 않는 대신, 헤더/전역 컨텍스트를 위한 `/api/me` 같은 보조 조회 API가 필요해진다.
-  - local/prod 환경 차이 때문에 `refresh_token` cookie의 `Secure` 속성을 설정으로 분기 관리해야 한다.
-  - `withCredentials`, `SameSite`, 필요 시 `CSRF` 정책을 함께 설계해야 한다.
-- 연관 저장소:
-  - Redis(`refresh:{email}:{jti}`, `blacklist:{accessToken}`)
 
 ## 7. 기록 API
 
@@ -261,23 +230,6 @@
 | --- | --- | --- |
 | `data.id` | Number | 생성된 기록 ID |
 
-### 설계 판단
-
-- 이 구조를 선택한 이유:
-  - 타이머 결과는 매 요청마다 새 solve를 저장하는 이벤트 성격이라 `POST`가 맞다.
-  - 기록 저장과 PB 갱신을 같은 트랜잭션 흐름에 넣어 원본 로그와 대표 기록을 함께 관리한다.
-- 검토한 대안:
-  - PB만 저장하는 구조
-  - 기록 저장과 PB 갱신을 별도 API로 분리
-- 대안을 배제한 이유:
-  - PB만 남기면 분석과 이력 추적이 불가능하다.
-  - API를 분리하면 호출 순서와 일관성 관리가 복잡해진다.
-- 트레이드오프:
-  - 저장 시점의 쓰기 작업이 늘어난다.
-  - 랭킹 V2까지 연결되면 후속 캐시 동기화도 필요하다.
-- 연관 DB:
-  - `records`, `user_pbs`
-
 ## 8. 랭킹 API
 
 ### `GET /api/rankings`
@@ -301,28 +253,11 @@
 | `data[].eventType` | String | WCA 종목 코드 |
 | `data[].timeMs` | Number | 기록 시간(밀리초) |
 
-#### 현재 상태 메모
+#### 상태 메모
 
-- 현재 구현은 V1 기준이다.
+- 상태: V1
 - `records` 테이블에서 `DNF`를 제외하고 종목별 상위 100건을 빠른 순으로 조회한다.
 - 최종 목표는 Redis ZSET 기반 실시간 랭킹 구조다.
-
-### 설계 판단
-
-- 이 구조를 선택한 이유:
-  - 초기 구현에서는 `records` 기반 조회가 가장 단순한 기준선이다.
-  - 개선 전 구조를 남겨 두어 향후 Redis ZSET 전환 이유를 수치화하기 쉽다.
-- 검토한 대안:
-  - 처음부터 Redis ZSET만 사용하는 구조
-  - `user_pbs`만 바로 조회하는 구조
-- 대안을 배제한 이유:
-  - 전자는 현재 한계를 설명할 비교 기준이 없다.
-  - 후자는 Redis V2 목표와의 차이를 설명하기 어렵다.
-- 트레이드오프:
-  - 현재 API는 사용자 대표 기록이 아니라 원본 `records` 정렬 결과를 사용한다.
-  - 대규모 읽기 부하에서는 RDB 정렬/스캔 부담이 커질 수 있다.
-- 후속 계획:
-  - 개발 완료 후 `k6` 전/후 비교 문서와 연결한다.
 
 ## 9. 스크램블 API
 
@@ -345,22 +280,10 @@
 | `data.eventType` | String | WCA 종목 코드 |
 | `data.scramble` | String | 생성된 스크램블 문자열 |
 
-#### 현재 상태 메모
+#### 상태 메모
 
-- 현재는 `WCA_333`만 지원한다.
+- 지원 범위: `WCA_333`
 - 미지원 종목 요청 시 `400 Bad Request`를 반환한다.
-
-### 설계 판단
-
-- 이 구조를 선택한 이유:
-  - 타이머 UX에서 스크램블 조회는 기록 저장 전 필수 단계다.
-  - 우선 `WCA_333`만 안정적으로 지원해 핵심 슬라이스를 닫는 것이 범위 통제에 유리하다.
-- 검토한 대안:
-  - 여러 WCA 종목을 동시에 지원
-- 대안을 배제한 이유:
-  - 스크램블 생성 규칙과 UI 예외 처리가 함께 늘어나 MVP 범위가 커진다.
-- 트레이드오프:
-  - 현재는 다른 종목 선택 시 사용자 경험이 제한된다.
 
 ## 10. 게시판 API
 
@@ -480,24 +403,7 @@
 - 상태 코드: `200 OK`
 - `data`: `null`
 
-### 설계 판단
-
-- 이 구조를 선택한 이유:
-  - 목록/상세/작성/수정/삭제를 리소스 중심으로 나누고, 권한 검사는 서비스 계층에서 추가로 수행한다.
-  - 검색은 QueryDSL로 `keyword`, `author` 조건을 선택적으로 조합한다.
-- 검토한 대안:
-  - 검색 전용 별도 엔드포인트
-  - SQL 문자열 기반 동적 쿼리
-- 대안을 배제한 이유:
-  - 검색 조건 수가 늘어날수록 별도 엔드포인트는 관리 비용이 커진다.
-  - QueryDSL이 타입 안전성과 유지보수 측면에서 유리하다.
-- 트레이드오프:
-  - `GET /api/posts/{postId}`는 조회수 증가 부작용이 있어 엄격한 의미의 멱등 조회와는 다르다.
-  - 게시글 API는 구현됐지만 댓글 API가 아직 없어 커뮤니티 전체 흐름은 미완성이다.
-- 연관 DB:
-  - `posts`, `users`
-
-## 11. 구현 예정 API
+## 11. 미구현 API
 
 - 댓글 API
   - 댓글 작성, 삭제, 목록 조회
@@ -511,7 +417,7 @@
 
 ## 12. 문서화 메모
 
-- 현재 API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
+- API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
 - 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`에서 생성된다.
 
 ## 13. 미확정 사항
