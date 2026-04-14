@@ -16,11 +16,11 @@
 | 필드 | 값 |
 | --- | --- |
 | 작업명 | Day 15 보안 기본기 + Auth 계약/테스트 정리 |
-| 상태 | 계획 확정, 문서 반영 완료, 구현 예정 |
-| 범위 | secret/basic password 정리, `메모리 Access Token + HttpOnly Refresh Cookie`, auth 예외 계약, 인증 최소 테스트 |
-| 핵심 리스크 | 앱 초기 `refresh -> /api/me` 부트스트랩, `refresh_token` cookie의 `SameSite`/`Secure`/CORS `credentials`, refresh 실패 시 세션 종료 UX, same-tab auth 상태 책임 재정리 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [Project Schedule](./Project%20Schedule.md), [Day 14](./Development%20Log/Day%2014.md) |
-| 다음 로그 대상 | Day 15 토큰 저장 전략 전환과 auth 예외/테스트 정리 |
+| 상태 | Day 15 보안 기본기와 auth 계약/테스트 정리 범위 완료 |
+| 범위 | auth 예외 계약 보정, refresh 재사용 감지 `401` 문서화, 백엔드 테스트 구조 재편, local secret/env 분리, React auth 테스트 실행 환경, `메모리 Access Token + HttpOnly Refresh Cookie` 전환, React auth 회귀 테스트, JaCoCo 기반 커버리지 기준선과 generated class 왜곡 보정 |
+| 핵심 리스크 | Day 15 범위는 닫혔고, 다음 리스크는 Day 16 랭킹 정합성 수정과 실연동에서 넘어온다 |
+| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 15](./Development%20Log/Day%2015.md) |
+| 다음 로그 대상 | Day 16 랭킹 정합성 수정과 랭킹 실연동 |
 
 ## 로그 파일 목록
 
@@ -30,19 +30,19 @@
 | Core API | [Day 8](./Development%20Log/Day%208.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 14](./Development%20Log/Day%2014.md) | 인증 실연동 구현과 정적 검증 결과 |
+| 최신 로그 | [Day 15](./Development%20Log/Day%2015.md) | auth 계약 정리, React 저장 전략 전환, 회귀 테스트, JaCoCo 기준선/보정 |
 
 ## 주요 설계 결정 추적
 
-- 인증/인가 구조: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Day 12](./Development%20Log/Day%2012.md), [Day 14](./Development%20Log/Day%2014.md)
+- 인증/인가 구조: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [Day 12](./Development%20Log/Day%2012.md), [Day 14](./Development%20Log/Day%2014.md), [Day 15](./Development%20Log/Day%2015.md)
 - 랭킹 V1 -> V2 전략: [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Day 10](./Development%20Log/Day%2010.md), [Internal Schedule](./Internal%20Schedule.internal.md)
 - 프런트 mock -> 실연동 전환: [Screen Specification](./Screen%20Specification.md), [Day 13](./Development%20Log/Day%2013.md), [Day 14](./Development%20Log/Day%2014.md)
 - 테스트/문서화/CI 기준선: [Day 2](./Development%20Log/Day%202.md), [Day 3](./Development%20Log/Day%203.md), [Day 4](./Development%20Log/Day%204.md)
 
 ## 최근 정리 문서
 
-- 최근 일자 로그: [Day 14](./Development%20Log/Day%2014.md)
-- 현재 작업 요약: [Day 14](./Development%20Log/Day%2014.md)
+- 최근 일자 로그: [Day 15](./Development%20Log/Day%2015.md)
+- 현재 작업 요약: [Day 15](./Development%20Log/Day%2015.md)
 - 인증 설계 기준: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md)
 - API 계약 기준: [API Specification](./API%20Specification.md)
 - 현재 내부 일정: [Internal Schedule](./Internal%20Schedule.internal.md)
@@ -51,8 +51,8 @@
 
 - [x] `docs/dev-log.md`가 허브 문서 역할로 전환됨
 - [x] 현재 작업 링크가 일정표, 설계 문서, 일자별 로그와 연결됨
-- [x] `docs/Development Log/Day 14.md` 작성
-- [x] Day 14 완료 후 `최근 정리 문서` 갱신
+- [x] `docs/Development Log/Day 15.md` 작성
+- [x] Day 15 진행 상태 기준으로 `최근 정리 문서` 갱신
 - [x] 주요 설계 결정 추적 링크 추가 보강 여부 재검토
 
 ## 면접용 우선 복습 대상
@@ -66,7 +66,17 @@
 ## 운영 메모
 
 - 이 문서는 허브다. 상세 로그는 `docs/Development Log/Day *.md`에 남긴다.
-- 현재 Day 14 구현 결과와 수동 검증 결과는 `docs/Development Log/Day 14.md`에 정리했다.
+- 현재 Day 15 보안 기본기와 auth 계약/테스트 정리 결과는 `docs/Development Log/Day 15.md`에 정리했다.
 - 상세 작업 메모와 중간 정리 문서는 이 허브에 직접 노출하지 않고, 최종 결정과 상태만 유지한다.
 - 상단 계정 chip은 현재 `/api/me` 기반으로 동작한다.
-- local `Secure` cookie의 실제 브라우저 동작은 확인 완료했고, 다음 단계에서는 `메모리 Access Token + HttpOnly Refresh Cookie` 구조로 저장 전략을 정리한다.
+- `refresh_token` 누락 요청은 현재 `400 Bad Request`와 `refresh_token 쿠키가 필요합니다.` 메시지로 정리됐다.
+- Rotation 이후 이전 `refresh_token` 재사용은 현재 `401 Unauthorized`와 전체 세션 만료 메시지로 정리됐다.
+- generated REST Docs도 로그인 실패, refresh `400/401`, 보호 API `401`, 게시글 `401/400/404/403` 예시를 포함하도록 맞췄다.
+- 공통 예외와 보안 예외 응답은 외부 메시지를 유지한 채 내부 로그를 남기도록 정리했다.
+- JaCoCo는 현재 Querydsl generated `Q*` class를 제외한 기준으로 다시 읽고, `ScrambleGenerator`, `GlobalExceptionHandler`, `Post` 생성자 분기 테스트를 추가해 `common.util`, `common.exception`, entity 기준선을 보정했다.
+- root `.env.example`와 local env 분리 기준을 추가해 local DB password, JWT secret, Grafana 기본 비밀번호 하드코딩을 제거했다.
+- React에는 `Vitest`, `Testing Library`, `jsdom`, `axios-mock-adapter`와 공통 setup, smoke 테스트를 추가했다.
+- React auth는 access token을 메모리에만 저장하고 앱 초기 `refresh -> /api/me`로 세션을 복구하도록 전환했다.
+- React auth 회귀 테스트로 `AuthContext`, `apiClient` refresh queue, 보호/guest-only route 핵심 분기를 고정했다.
+- 로그인 직후 새로고침 세션 복구, 복구 실패 세션 정리, 비로그인 보호 route 접근, 권한 부족 `403`까지 수동 검증으로 확인했다.
+- Day 15 범위는 닫혔고, 다음 단계는 Day 16 랭킹 정합성 수정과 `RankingsPage` 실연동이다.

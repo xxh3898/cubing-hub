@@ -51,13 +51,13 @@
 ### 시스템 기능
 
 - 인증/인가
-  - JWT Access Token + Redis Refresh Token Rotation
-  - Access Token 메모리 보관 + Refresh Token `HttpOnly` cookie
+  - 현재 구현: JWT Access Token + Redis Refresh Token Rotation + Refresh Token `HttpOnly` cookie
+  - 현재 구현: React는 메모리 access token과 `401 -> refresh -> retry`, 앱 초기 `refresh -> /api/me` 세션 복구를 사용한다.
   - Access Token Blacklist
 - 동적 쿼리
   - QueryDSL 기반 게시판 검색 및 랭킹 조회 기준선 구현
 - 신뢰성 검증
-  - Testcontainers 기반 통합 테스트
+  - Testcontainers 기반 통합 테스트와 JaCoCo 리포트 기준선 관리
 - 문서화 자동화
   - Spring REST Docs 기반 API 문서 생성
 - 모니터링
@@ -196,8 +196,8 @@ flowchart TD
 
 - 인증
   - 백엔드 인증 API와 `GET /api/me`가 구현되어 있다.
-  - 프런트 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
-  - 현재 프런트 토큰 저장은 `localStorage` 기반이지만, 문서 기준 확정 방향은 `메모리 Access Token + HttpOnly Refresh Cookie`이며 Day 15에서 전환 예정이다.
+  - React 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
+  - 현재 구현: React access token 저장은 메모리 기반이고, 앱 초기 `refresh -> /api/me`로 사용자 컨텍스트를 복구한다.
 - 랭킹
   - 현재 V1은 `records` 테이블 기반 QueryDSL 조회다.
   - 최종 목표는 Redis ZSET 기반 실시간 랭킹이다.

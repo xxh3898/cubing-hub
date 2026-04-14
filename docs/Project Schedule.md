@@ -102,9 +102,13 @@ gantt
 - [X] 인증 관련 수동 검증과 문서 동기화
 
 **Day 15 (화, 2026-04-14): 보안 기본기 + Auth 계약/테스트 정리**
-- [ ] secret/basic password 정리와 env 분리
-- [ ] auth 예외 계약과 `메모리 Access Token + HttpOnly Refresh Cookie` 반영
-- [ ] 인증 최소 테스트 보강
+- [X] secret/basic password 정리와 env 분리
+- [X] `메모리 Access Token + HttpOnly Refresh Cookie` 반영
+- [X] React auth 회귀 테스트 추가
+- [X] JaCoCo 기반 테스트 커버리지 기준선 도입과 generated class 왜곡 보정
+- [X] auth 예외 계약 일부 정리와 백엔드 인증 테스트 구조 보강
+- [X] `refresh_token` 누락/재사용 감지 `401`을 포함한 auth 실패 응답과 generated REST Docs 정렬
+- [X] 인증 관련 수동 검증과 문서 동기화
 
 **Day 16 (수, 2026-04-15): 랭킹 정합성 수정 + 랭킹 실연동**
 - [ ] `PLUS_TWO` 보정과 랭킹 기준 확정
