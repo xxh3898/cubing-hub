@@ -32,9 +32,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: 테스트 실행 (Testcontainers)
+      - name: 테스트 실행과 JaCoCo 리포트 생성
         working-directory: ./backend
-        run: ./gradlew test --no-daemon
+        run: ./gradlew test jacocoTestReport --no-daemon
         env:
           SPRING_PROFILES_ACTIVE: test
 
@@ -48,3 +48,10 @@ jobs:
         with:
           name: test-report
           path: backend/build/reports/tests/
+
+      - name: JaCoCo 리포트 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/build/reports/jacoco/test/
