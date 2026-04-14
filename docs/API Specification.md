@@ -7,7 +7,8 @@
 - 인증 방식:
   - Access Token: `Authorization: Bearer <token>`
   - Refresh Token: `refresh_token` cookie
-  - 프런트 사용 규칙: Access Token은 메모리에만 두고, 앱 초기 진입/새로고침 시 `refresh_token` cookie로 재발급받아 사용한다.
+  - 현재 구현: React는 access token을 메모리에만 저장하고, 앱 초기 `refresh_token` cookie -> `/api/me` 순서로 세션을 복구한다.
+  - 현재 구현: `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
 - 공통 응답 포맷: `ApiResponse`
 - 공개 API와 보호 API의 경계는 `SecurityFilterChain` 기준으로 관리한다.
 
@@ -45,8 +46,8 @@
 
 | HTTP Status | 의미 | 현재 확인 근거 | 프런트 처리 |
 | --- | --- | --- | --- |
-| `400` | 잘못된 요청, validation 실패, 미지원 종목 등 | `GlobalExceptionHandler`, `ScrambleService` | 입력값 수정 또는 재시도 안내 |
-| `401` | 로그인 실패, 만료/무효 토큰, 블랙리스트 토큰 | `AuthService`, `JwtAuthenticationFilter`, `SecurityConfig` | 로그인 유도 또는 토큰 재발급/재로그인 |
+| `400` | 잘못된 요청, validation 실패, 필수 cookie 누락, 잘못된 refresh token, 미지원 종목 등 | `GlobalExceptionHandler`, `AuthService`, `ScrambleService` | 입력값 수정 또는 재시도 안내 |
+| `401` | 로그인 실패, 만료/무효 토큰, 블랙리스트 토큰, refresh token 재사용 감지 | `AuthService`, `JwtAuthenticationFilter`, `SecurityConfig` | 로그인 유도 또는 토큰 재발급/재로그인 |
 | `403` | 소유자/관리자 권한 부족 | `PostService.validateOwnershipOrAdmin` | 권한 없음 메시지 노출 |
 | `404` | 게시글 등 리소스를 찾을 수 없음 | `PostService.findPostById` | 목록 복귀 또는 안내 메시지 |
 | `409` | 중복 데이터 또는 무결성 충돌 | `GlobalExceptionHandler.handleDataIntegrityViolationException` | 중복 입력 수정 유도 |
@@ -130,6 +131,15 @@
 | --- | --- |
 | `refresh_token` | 기존 Refresh Token |
 
+#### 에러 계약
+
+- `400 Bad Request`
+  - `refresh_token` cookie가 없으면 현재 메시지는 `refresh_token 쿠키가 필요합니다.`
+  - `refresh_token` 값이 잘못됐거나 만료됐으면 현재 메시지는 `유효하지 않거나 만료된 리프레시 토큰입니다.`
+- `401 Unauthorized`
+  - Rotation 이후 이전 refresh token 재사용이 감지되면 현재 메시지는 `비정상적인 접근이 감지되어 모든 인증이 만료되었습니다. 다시 로그인해주세요.`
+  - 이 경우 서버는 해당 사용자의 Refresh Token을 모두 제거하고 재로그인을 요구한다.
+
 #### Response Body
 
 | 필드 | 타입 | 설명 |
@@ -164,7 +174,7 @@
 
 #### 로그아웃 처리 비고
 
-- 서버 로그아웃 호출이 실패하더라도 프런트는 메모리 인증 상태를 정리해 사용자 세션을 종료해야 한다.
+- 서버 로그아웃 호출이 실패하더라도 프런트는 클라이언트 인증 상태를 정리해 사용자 세션을 종료해야 한다.
 
 ### `GET /api/me`
 
@@ -197,10 +207,18 @@
 
 ### 설계 판단
 
-- 이 구조를 선택한 이유:
-  - Access Token은 API 호출 시 즉시 사용해야 하므로 body로 전달하고, 프런트 메모리에서만 유지한다.
-  - Refresh Token은 HttpOnly cookie로 분리해 브라우저 스크립트 노출을 줄였다.
+- 현재 구현 기준:
+  - Access Token은 응답 body로 받고 React 메모리에만 저장한다.
+  - 앱 초기 cold start에서는 `refresh_token` cookie로 Access Token을 먼저 복구한 뒤 `/api/me`를 조회한다.
+  - `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
+- 유지 이유:
+  - Access Token은 API 호출 시 즉시 사용해야 하므로 body로 전달하고, React 메모리에만 유지한다.
+  - 앱 초기 진입/새로고침 시 `refresh_token` cookie로 Access Token을 재발급받은 뒤 `/api/me`를 조회한다.
+  - Refresh Token은 HttpOnly cookie로 분리해 브라우저 스크립트 노출을 줄인다.
   - 로그아웃 시 Refresh Token 삭제와 Access Token blacklist 등록을 함께 수행해 재사용 위험을 줄인다.
+- 목표 구조를 선택한 이유:
+  - Access Token을 영속 JS 저장소에 남기지 않으면 XSS 시 장기 노출면을 줄일 수 있다.
+  - Refresh Token은 재발급 전용이므로 브라우저 스크립트 접근을 막는 편이 안전하다.
 - 검토한 대안:
   - 세션 기반 인증
   - Access Token `localStorage` + Refresh Token `HttpOnly` cookie

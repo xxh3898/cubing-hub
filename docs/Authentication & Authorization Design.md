@@ -60,12 +60,12 @@
 
 ### 3. 토큰 재발급
 
-1. `refresh_token` cookie를 전달한다.
+1. `refresh_token` cookie를 전달한다. cookie가 없으면 `400 Bad Request`를 반환한다.
 2. Refresh Token 자체 유효성을 검증한다.
 3. 토큰에서 `email`, `jti`를 추출한다.
 4. Redis 저장 값과 비교해 일치 여부를 확인한다.
-5. 불일치 시 해당 사용자의 모든 Refresh Token을 제거한다.
-6. 기존 Refresh Token을 삭제하고 새 Access/Refresh Token을 발급한다.
+5. 불일치 시 해당 사용자의 모든 Refresh Token을 제거하고 `401 Unauthorized`를 반환해 재로그인을 강제한다.
+6. 일치하면 기존 Refresh Token을 삭제하고 새 Access/Refresh Token을 발급한다.
 
 ### 4. 로그아웃
 
@@ -110,11 +110,17 @@
   - 응답 최소 필드: `userId`, `email`, `nickname`
   - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
 - 현재 백엔드는 Access Token을 응답 body로, Refresh Token을 `HttpOnly` cookie로 전달한다.
-- 현재 프런트 구현은 `AuthContext` + `authStorage.js` 기반 `localStorage` 보관 구조다.
-- 문서 기준 확정 방향은 `Access Token = 메모리`, `Refresh Token = HttpOnly cookie`다.
-- Day 15에서 프런트 저장 전략을 이 구조로 정리한다.
-- 프런트 `apiClient`는 `withCredentials: true`로 설정되어 있다.
-- 프런트 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
+- 현재 React 구현은 `AuthContext` + `authStorage.js` 기반 메모리 보관 구조다.
+- 현재 React는 앱 초기 `refresh -> /api/me` 순서로 사용자 컨텍스트를 동기화한다.
+- 현재 `apiClient`는 `withCredentials: true`와 `401 -> refresh -> retry`를 사용한다.
+- React 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
+
+### 현재 React 구조
+
+- `Access Token = 메모리`, `Refresh Token = HttpOnly cookie`를 단일 기준으로 맞춘다.
+- 앱 초기 진입/새로고침 시 `refresh -> /api/me` 순서로 세션을 복구한다.
+- refresh 또는 `/api/me`가 실패하면 access token과 사용자 컨텍스트를 함께 정리한다.
+- React `apiClient`는 `withCredentials: true`로 설정되어 있다.
 
 ### 토큰 세부 정책
 
@@ -122,8 +128,7 @@
 
 - 저장/전달
   - 응답 body의 `data.accessToken`
-  - 문서 기준 목표 상태: 메모리 저장
-  - 현재 구현 상태: `localStorage` 저장, Day 15 전환 예정
+  - 현재 구현 상태: React 메모리 저장
 - 주요 정보
   - `subject`: 사용자 이메일
   - `role`: 권한 claim
@@ -132,8 +137,8 @@
   - API 인증 헤더 `Authorization: Bearer <token>`
   - `GET /api/me` 같은 현재 사용자 컨텍스트 조회
 - 세션 복구
-  - 앱 초기 진입/새로고침 시 영속 저장소에서 직접 복원하지 않는다.
-  - `refresh_token` cookie를 사용해 Access Token을 재발급받은 뒤 메모리에 다시 적재한다.
+  - 현재 구현: 앱 초기 cold start에서 `refresh_token` cookie로 Access Token을 재발급받은 뒤 메모리에 다시 적재하고 `/api/me`를 조회한다.
+  - 현재 구현: refresh 또는 `/api/me`가 실패하면 메모리 token과 사용자 컨텍스트를 함께 정리한다.
 - 만료 시간
   - 로컬 설정: `86400000` (1일)
   - 테스트 설정: `10000`
@@ -156,7 +161,7 @@
 - 만료 시간
   - 로컬 설정: `604800000` (7일)
   - 테스트 설정: `60000`
-  - 프로덕션 설정: `application-prod.yaml` 기준 추가/정리 필요
+  - 프로덕션 설정: `application-prod.yaml`의 `JWT_REFRESH_EXPIRATION`으로 관리하며 기본값은 `604800000`이다.
 
 #### Access Token Blacklist
 
@@ -188,10 +193,11 @@
 ### 설계 선택 2
 
 - 선택한 방식:
-  - Access Token은 응답 body로 받고 프런트 메모리에만 보관한다.
-  - Refresh Token은 `HttpOnly` cookie로 유지한다.
+  - 현재 구현: Access Token은 응답 body로 받고 React 메모리에 저장한다.
+  - 현재 구현: Refresh Token은 `HttpOnly` cookie로 유지하고, 보호 API `401` 시 `refresh -> retry`를 수행한다.
+  - 현재 구현: Refresh Token은 `HttpOnly` cookie로 유지하고, 앱 초기 진입/새로고침 시 `refresh -> /api/me` 순서로 세션을 복구한다.
 - 선택 이유:
-  - Access Token은 API 호출 시 직접 헤더에 넣어야 하므로 프런트가 읽을 수 있어야 한다.
+  - Access Token은 API 호출 시 직접 헤더에 넣어야 하므로 React가 읽을 수 있어야 한다.
   - 다만 영속 JS 저장소에 남기지 않으면 XSS 시 장기 노출면을 줄일 수 있다.
   - Refresh Token은 재발급 전용이므로 브라우저 스크립트 접근을 막는 편이 안전하다.
 - 검토한 대안:
@@ -203,11 +209,12 @@
   - 두 번째 대안은 Refresh Token까지 JS 저장소에 노출된다.
   - 세 번째 대안은 이 프로젝트의 SPA 구조에서 CSRF, 브라우저 제어, 프런트 요청 흐름이 더 복잡해질 수 있다.
 - 트레이드오프:
-  - 새로고침/새 탭은 refresh 성공 여부에 따라 세션이 복구된다.
+  - 현재 구현에서는 새로고침/새 탭이 refresh 성공 여부에 따라 세션을 복구한다.
   - `withCredentials`, `SameSite`, `Secure`, CORS, 필요 시 `CSRF` 방어까지 함께 관리해야 한다.
-  - 쿠키와 헤더를 함께 다뤄야 하므로 프런트 구현이 조금 복잡해진다.
+  - 쿠키와 헤더를 함께 다뤄야 하므로 React 구현이 조금 복잡해진다.
 - 보안상 영향:
-  - Refresh Token은 JS에서 직접 접근할 수 없고, Access Token도 영속 JS 저장소에 남지 않는다.
+  - 현재 구현에서도 Refresh Token은 JS에서 직접 접근할 수 없다.
+  - 현재 구현에서도 Access Token은 영속 JS 저장소에 남지 않는다.
 
 ### 설계 선택 3
 
@@ -230,6 +237,9 @@
 
 | 상황 | HTTP Status | 백엔드 처리 | 프런트 처리 |
 | --- | --- | --- | --- |
+| `refresh_token` cookie 누락 | `400` | `GlobalExceptionHandler`의 `MissingRequestCookieException` 처리 | 세션 확인 또는 재로그인 유도 |
+| 잘못된 refresh token | `400` | `AuthService`의 `IllegalArgumentException` 처리 | refresh 재시도 중단, 세션 정리 판단 |
+| Refresh Token 재사용 감지 | `401` | `AuthService`가 Redis 불일치 감지 후 해당 사용자의 Refresh Token을 전체 삭제 | 세션 전체 정리 후 재로그인 유도 |
 | 인증 정보 없음 | `401` | `SecurityConfig`의 `authenticationEntryPoint`에서 JSON 응답 | 로그인 화면 유도 |
 | 로그인 실패 | `401` | `AuthService`에서 `CustomApiException` 반환 | 에러 메시지 표시 |
 | 만료/무효 토큰 | `401` | JWT 검증 실패 또는 블랙리스트 검사 실패 | 재로그인 또는 재발급 유도 |
@@ -246,16 +256,16 @@
   - 현재 헤더와 전역 auth-aware UI는 `GET /api/me`를 사용해 최소 사용자 컨텍스트를 조회한다.
   - `GET /api/me`는 `userId`, `email`, `nickname`만 반환하고, 상세 프로필은 후속 `/api/users/me/profile` 또는 별도 마이페이지 API로 분리한다.
   - 보안상 `userId`를 파라미터로 받지 않고 인증 주체 기준으로만 조회한다.
-  - 문서 기준 구조에서는 앱 초기 진입/새로고침 시 먼저 refresh로 Access Token을 복구한 뒤 `/api/me`를 조회한다.
+  - 현재 구현에서는 앱 초기 진입/새로고침 시 먼저 refresh로 Access Token을 복구한 뒤 `/api/me`를 조회한다.
   - refresh 또는 `/api/me` 조회가 실패하면 세션을 유효하지 않은 상태로 보고 access token과 사용자 컨텍스트를 정리한다.
   - 이때 현재 경로가 보호 라우트면 `/login`으로 이동하고, public route면 guest 상태로 남긴다.
 - bootstrapping 처리:
-  - 메모리 기반 Access Token 구조에서는 앱 시작 시 인증 상태가 즉시 확정되지 않는다.
-  - 따라서 `AuthContext` 또는 상위 auth 상태는 초기 복구가 끝날 때까지 `bootstrapping/loading` 상태를 가져야 한다.
+  - 현재 구현에서는 앱 시작 시 인증 상태가 즉시 확정되지 않으므로 `AuthContext`가 초기 복구가 끝날 때까지 `bootstrapping/loading` 상태를 가진다.
 - 401 처리:
   - 현재 `apiClient`가 `401 -> refresh -> retry`를 1회 수행한다.
   - 동시에 여러 요청이 `401`을 받을 수 있으므로 refresh 요청은 단일 in-flight 요청으로 공유해야 한다.
   - refresh 실패 시 대기 중 요청을 모두 실패 처리하고 access token과 사용자 컨텍스트를 함께 정리한다.
+  - `POST /api/auth/refresh` 자체가 `401`이면 토큰 재사용 감지로 보고 재시도 없이 세션 전체를 정리한 뒤 로그인으로 보낸다.
 - 403 처리:
   - 작성자/관리자 권한이 없는 경우 작업 버튼 비활성화 또는 오류 메시지 처리가 필요하다.
 - 로그인 성공 후 이동:
@@ -264,7 +274,8 @@
 - 재로그인/재발급 UX:
   - 현재는 refresh 실패 시 세션을 정리하고 보호 경로 기준으로 로그인 이동을 수행한다.
 - 로그아웃 처리:
-  - `/api/auth/logout` 호출 성공 여부와 무관하게 클라이언트는 `finally`에서 메모리 auth state를 정리해야 한다.
+  - `/api/auth/logout` 호출 성공 여부와 무관하게 클라이언트는 `finally`에서 인증 상태를 정리해야 한다.
+  - 현재 구현에서는 메모리 access token과 사용자 컨텍스트를 함께 비운다.
   - 서버 실패는 사용자에게 알릴 수 있지만, 사용자를 로그인 상태에 가둬서는 안 된다.
 
 ## 10. 인증 / 인가 다이어그램

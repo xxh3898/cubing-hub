@@ -277,7 +277,8 @@
   - 회원가입 이동
 - 현재 상태
   - `POST /api/auth/login` 연동이 구현되어 있다.
-  - 로그인 성공 시 access token 저장 후 원래 보호 경로 또는 홈으로 복귀한다.
+  - 현재 구현은 로그인 성공 시 access token을 메모리에 저장하고 `/api/me` 사용자 컨텍스트 동기화 뒤 원래 보호 경로 또는 홈으로 복귀한다.
+  - 앱 초기 진입/새로고침 시에는 `refresh -> /api/me` 부트스트랩으로 로그인 상태를 복구한다.
 
 ### 회원가입
 
@@ -439,7 +440,9 @@
 ### Frontend
 
 - 라우트 기준: `frontend/src/App.jsx`
-- 인증 상태: `frontend/src/context/AuthContext.jsx`, `frontend/src/authStorage.js` (`Day 15`에 메모리 access token store 기준으로 재정리 예정)
+- 인증 상태:
+  - 현재 구현: `frontend/src/context/AuthContext.jsx`, `frontend/src/authStorage.js` 기반 메모리 access token과 앱 초기 `refresh -> /api/me` 부트스트랩
+  - 현재 검증: `AuthContext`, `apiClient` refresh queue, 보호/guest-only route 회귀 테스트 추가
 - 공통 API 클라이언트: `frontend/src/lib/apiClient.js`
 - 타이머 핵심 로직: `frontend/src/hooks/useCubeTimer.js`
 
