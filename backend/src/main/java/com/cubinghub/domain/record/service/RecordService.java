@@ -91,11 +91,35 @@ public class RecordService {
         User currentUser = findUserByEmail(email);
         Record record = findRecordById(recordId);
 
-        validateOwnership(record, currentUser);
+        validateOwnership(record, currentUser, "기록 수정 권한이 없습니다.");
         record.updatePenalty(request.getPenalty());
         recalculateUserPb(currentUser, record.getEventType());
 
         return RecordPenaltyUpdateResponse.from(record);
+    }
+
+    @Transactional
+    public void deleteRecord(Long recordId, String email) {
+        User currentUser = findUserByEmail(email);
+        Record record = findRecordById(recordId);
+
+        validateOwnership(record, currentUser, "기록 삭제 권한이 없습니다.");
+
+        UserPB existingPb = userPBRepository.findByUserAndEventType(currentUser, record.getEventType())
+                .orElse(null);
+        boolean deletingCurrentPb = existingPb != null
+                && existingPb.getRecord().getId().equals(record.getId());
+
+        if (deletingCurrentPb) {
+            userPBRepository.delete(existingPb);
+        }
+
+        recordRepository.delete(record);
+        recordRepository.flush();
+
+        if (record.getPenalty().isRankable()) {
+            recalculateUserPb(currentUser, record.getEventType());
+        }
     }
 
     private User findUserByEmail(String email) {
@@ -108,9 +132,9 @@ public class RecordService {
                 .orElseThrow(() -> new CustomApiException("기록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
-    private void validateOwnership(Record record, User currentUser) {
+    private void validateOwnership(Record record, User currentUser, String message) {
         if (!record.getUser().getId().equals(currentUser.getId())) {
-            throw new CustomApiException("기록 수정 권한이 없습니다.", HttpStatus.FORBIDDEN);
+            throw new CustomApiException(message, HttpStatus.FORBIDDEN);
         }
     }
 

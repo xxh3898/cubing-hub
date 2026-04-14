@@ -345,6 +345,98 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("현재 PB 기록을 삭제하면 다음 기록으로 PB를 다시 계산한다")
+    void should_recalculate_pb_when_current_pb_record_is_deleted() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        Record fallbackRecord = TestFixtures.createRecord(11L, user, EventType.WCA_333, 10500, Penalty.NONE, "fallback");
+        UserPB existingPb = spy(UserPB.builder()
+                .id(21L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build());
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(currentBestRecord.getId())).thenReturn(Optional.of(currentBestRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333))
+                .thenReturn(Optional.of(existingPb), Optional.empty());
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(fallbackRecord));
+
+        recordService.deleteRecord(currentBestRecord.getId(), user.getEmail());
+
+        ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
+        verify(userPBRepository).delete(existingPb);
+        verify(recordRepository).delete(currentBestRecord);
+        verify(recordRepository).flush();
+        verify(userPBRepository).save(pbCaptor.capture());
+        assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(10500);
+        assertThat(pbCaptor.getValue().getRecord()).isEqualTo(fallbackRecord);
+    }
+
+    @Test
+    @DisplayName("마지막 PB 기록을 삭제하면 PB를 제거하고 새 PB는 만들지 않는다")
+    void should_remove_pb_without_recreating_when_last_rankable_record_is_deleted() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        UserPB existingPb = UserPB.builder()
+                .id(21L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(currentBestRecord.getId())).thenReturn(Optional.of(currentBestRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333))
+                .thenReturn(Optional.of(existingPb), Optional.empty());
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.empty());
+
+        recordService.deleteRecord(currentBestRecord.getId(), user.getEmail());
+
+        verify(userPBRepository).delete(existingPb);
+        verify(recordRepository).delete(currentBestRecord);
+        verify(recordRepository).flush();
+        verify(userPBRepository, never()).save(any(UserPB.class));
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 기록 삭제는 금지된다")
+    void should_throw_forbidden_exception_when_non_owner_deletes_record() {
+        User owner = TestFixtures.createUser(1L, "owner@cubinghub.com", "Owner", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User otherUser = TestFixtures.createUser(2L, "other@cubinghub.com", "Other", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record record = TestFixtures.createRecord(10L, owner, EventType.WCA_333, 10000, Penalty.NONE, "best");
+
+        when(userRepository.findByEmail(otherUser.getEmail())).thenReturn(Optional.of(otherUser));
+        when(recordRepository.findById(record.getId())).thenReturn(Optional.of(record));
+
+        Throwable thrown = catchThrowable(() -> recordService.deleteRecord(record.getId(), otherUser.getEmail()));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("기록 삭제 권한이 없습니다.");
+        verify(recordRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 기록 삭제는 404 예외를 던진다")
+    void should_throw_not_found_exception_when_record_to_delete_does_not_exist() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(999L)).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> recordService.deleteRecord(999L, user.getEmail()));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("기록을 찾을 수 없습니다.");
+        verify(recordRepository, never()).delete(any());
+    }
+
+    @Test
     @DisplayName("랭킹 조회는 페이지 offset을 반영해 순번을 부여한다")
     void should_assign_offset_rank_when_rankings_are_requested_with_pagination() {
         when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq("a"), eq(PageRequest.of(1, 2))))

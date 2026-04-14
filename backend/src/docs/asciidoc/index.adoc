@@ -123,6 +123,33 @@ include::{snippets}/auth/me/unauthorized/http-request.adoc[]
 include::{snippets}/auth/me/unauthorized/http-response.adoc[]
 include::{snippets}/auth/me/unauthorized/response-fields.adoc[]
 
+== 사용자 (User)
+
+=== 마이페이지 프로필 조회
+==== 요청
+include::{snippets}/user/profile/http-request.adoc[]
+include::{snippets}/user/profile/request-headers.adoc[]
+
+==== 응답
+include::{snippets}/user/profile/http-response.adoc[]
+include::{snippets}/user/profile/response-fields.adoc[]
+
+==== 실패 응답
+===== 인증 헤더 누락
+include::{snippets}/user/profile/unauthorized/http-request.adoc[]
+include::{snippets}/user/profile/unauthorized/http-response.adoc[]
+include::{snippets}/user/profile/unauthorized/response-fields.adoc[]
+
+=== 마이페이지 기록 조회
+==== 요청
+include::{snippets}/user/records/http-request.adoc[]
+include::{snippets}/user/records/request-headers.adoc[]
+include::{snippets}/user/records/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/user/records/http-response.adoc[]
+include::{snippets}/user/records/response-fields.adoc[]
+
 == 기록 (Record)
 
 === 기록 저장
@@ -157,6 +184,15 @@ include::{snippets}/record/update/bad-request/path-parameters.adoc[]
 include::{snippets}/record/update/bad-request/request-fields.adoc[]
 include::{snippets}/record/update/bad-request/http-response.adoc[]
 include::{snippets}/record/update/bad-request/response-fields.adoc[]
+
+=== 기록 삭제
+==== 요청
+include::{snippets}/record/delete/http-request.adoc[]
+include::{snippets}/record/delete/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/record/delete/http-response.adoc[]
+include::{snippets}/record/delete/response-fields.adoc[]
 
 == 랭킹 (Ranking)
 

@@ -2,6 +2,8 @@ package com.cubinghub.domain.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -360,5 +362,130 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value(containsString("잘못된 입력값입니다")));
+    }
+
+    @Test
+    @DisplayName("기록 소유자가 비 PB 기록을 삭제하면 기록만 제거한다")
+    void should_delete_non_pb_record_when_record_owner_requests_deletion() throws Exception {
+        Record bestRecord = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("best")
+                .build());
+        Record otherRecord = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(11000)
+                .penalty(Penalty.NONE)
+                .scramble("other")
+                .build());
+        userPBRepository.save(UserPB.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(bestRecord)
+                .build());
+
+        mockMvc.perform(delete("/api/records/{recordId}", otherRecord.getId())
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("기록이 삭제되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        User foundUser = userRepository.findById(testUser.getId()).orElseThrow();
+        assertThat(recordRepository.findById(otherRecord.getId())).isEmpty();
+        assertThat(userPBRepository.findByUserAndEventType(foundUser, EventType.WCA_333))
+                .get()
+                .extracting(UserPB::getRecord)
+                .extracting(Record::getId)
+                .isEqualTo(bestRecord.getId());
+    }
+
+    @Test
+    @DisplayName("기록 소유자가 현재 PB를 삭제하면 다음 기록으로 PB를 다시 계산한다")
+    void should_recalculate_pb_when_record_owner_deletes_current_pb() throws Exception {
+        Record bestRecord = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("best")
+                .build());
+        Record fallbackRecord = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10500)
+                .penalty(Penalty.NONE)
+                .scramble("fallback")
+                .build());
+        userPBRepository.save(UserPB.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(bestRecord)
+                .build());
+
+        mockMvc.perform(delete("/api/records/{recordId}", bestRecord.getId())
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("기록이 삭제되었습니다."));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        User foundUser = userRepository.findById(testUser.getId()).orElseThrow();
+        UserPB updatedPb = userPBRepository.findByUserAndEventType(foundUser, EventType.WCA_333).orElseThrow();
+
+        assertThat(recordRepository.findById(bestRecord.getId())).isEmpty();
+        assertThat(updatedPb.getBestTimeMs()).isEqualTo(10500);
+        assertThat(updatedPb.getRecord().getId()).isEqualTo(fallbackRecord.getId());
+    }
+
+    @Test
+    @DisplayName("인증 없이 기록 삭제 요청을 보내면 401을 반환한다")
+    void should_return_unauthorized_when_deleting_record_without_authentication() throws Exception {
+        Record record = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("record")
+                .build());
+
+        mockMvc.perform(delete("/api/records/{recordId}", record.getId()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 기록 삭제 요청을 보내면 403을 반환한다")
+    void should_return_forbidden_when_non_owner_deletes_record() throws Exception {
+        Record record = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("record")
+                .build());
+
+        mockMvc.perform(delete("/api/records/{recordId}", record.getId())
+                        .header("Authorization", "Bearer " + otherAccessToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("기록 삭제 권한이 없습니다."));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 기록 삭제 요청을 보내면 404를 반환한다")
+    void should_return_not_found_when_deleting_missing_record() throws Exception {
+        mockMvc.perform(delete("/api/records/{recordId}", 99999L)
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("기록을 찾을 수 없습니다."));
     }
 }

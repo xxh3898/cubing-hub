@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
+import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.patch;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.post;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
@@ -225,6 +226,42 @@ class RecordDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("기록을 삭제하고 성공 시 200 OK를 반환한다")
+    void should_delete_record_when_record_delete_request_is_valid() throws Exception {
+        Record bestRecord = recordRepository.save(Record.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("best")
+                .build());
+        userPBRepository.save(UserPB.builder()
+                .user(testUser)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(bestRecord)
+                .build());
+
+        ResultActions result = mockMvc.perform(delete("/api/records/{recordId}", bestRecord.getId())
+                .header("Authorization", "Bearer " + accessToken));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("기록이 삭제되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("record/delete",
+                        pathParameters(
+                                parameterWithName("recordId").description("삭제할 기록 ID")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("삭제 성공 시 추가 데이터 없음")
                         )
                 ));
     }
