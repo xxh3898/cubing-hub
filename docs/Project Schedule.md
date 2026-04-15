@@ -14,8 +14,8 @@ gantt
     Auth Integration                  :done, 2026-04-13, 1d
 
     section Finish Track
-    Ranking Finish                    :2026-04-14, 1d
-    Core Feature Completion           :2026-04-15, 1d
+    Ranking Finish                    :done, 2026-04-14, 1d
+    Core Feature Completion           :done, 2026-04-15, 1d
     V1 Close Check & Stabilization    :2026-04-16, 1d
     Tests + Docs + Bug Fix            :2026-04-17, 1d
     Ranking V2 Refactor               :2026-04-18, 1d
@@ -104,14 +104,16 @@ gantt
 - [X] 랭킹/기록 관리 수동 검증
 
 **Day 16 (수, 2026-04-15): 핵심 기능 구현 완료**
-- [ ] 커뮤니티 목록/상세/작성/삭제 실연동
-- [ ] 댓글 API와 댓글 UI 실연동
-- [ ] 홈 대시보드, 피드백 실연동
+- [X] 커뮤니티 목록/상세/작성/삭제 실연동
+- [X] 댓글 API와 댓글 UI 실연동
+- [X] 홈 대시보드, 피드백 실연동
+- [X] 관련 문서 동기화와 자동 회귀 검증
+- [X] 브라우저 수동 검증 완료
 
 **Day 17 (목, 2026-04-16): V1 마감 점검 및 안정화**
 - [ ] 누락 validation/auth/권한 체크 보완
 - [ ] 계약 충돌과 통합 버그 수정
-- [ ] V1 범위 최종 확인
+- [ ] V1 범위 최종 확인과 마감 판단
 
 **Day 18 (금, 2026-04-17): 테스트 + 문서 + CSS + 잔버그 정리**
 - [ ] 핵심 테스트 보강
