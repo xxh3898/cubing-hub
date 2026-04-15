@@ -113,7 +113,7 @@
   - `POST /api/auth/refresh`
   - `POST /api/auth/logout`
 - 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
-  - 응답 최소 필드: `userId`, `email`, `nickname`
+  - 응답 최소 필드: `userId`, `email`, `nickname`, `role`
   - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
 - 마이페이지 상세 조회 API가 구현되어 있다.
   - `GET /api/users/me/profile`
@@ -202,7 +202,8 @@
   - `login`, `signup`에는 guest-only route가 적용되어 있다.
 - 로그인 사용자 컨텍스트 처리:
   - 헤더와 전역 auth-aware UI는 `GET /api/me`를 사용해 최소 사용자 컨텍스트를 조회한다.
-  - `GET /api/me`는 `userId`, `email`, `nickname`만 반환하고, 상세 프로필/기록은 `/api/users/me/profile`, `/api/users/me/records`로 분리한다.
+  - `GET /api/me`는 `userId`, `email`, `nickname`, `role`을 반환하고, 상세 프로필/기록은 `/api/users/me/profile`, `/api/users/me/records`로 분리한다.
+  - `role`은 커뮤니티 작성 화면의 `NOTICE` 노출과 게시글 상세 삭제 버튼 노출 기준으로 사용한다.
   - 보안상 `userId`를 파라미터로 받지 않고 인증 주체 기준으로만 조회한다.
   - 앱 초기 진입/새로고침 시 먼저 refresh로 Access Token을 복구한 뒤 `/api/me`를 조회한다.
   - refresh 또는 `/api/me` 조회가 실패하면 세션을 유효하지 않은 상태로 보고 access token과 사용자 컨텍스트를 정리한다.

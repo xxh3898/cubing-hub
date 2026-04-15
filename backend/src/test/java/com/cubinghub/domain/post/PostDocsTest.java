@@ -82,7 +82,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data.id").exists())
                 .andDo(document("post/create",
                         requestFields(
-                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
+                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`, NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("게시글 제목"),
                                 fieldWithPath("content").description("게시글 본문")
                         ),
@@ -109,7 +109,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("post/create/unauthorized",
                         requestFields(
-                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
+                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`, NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("게시글 제목"),
                                 fieldWithPath("content").description("게시글 본문")
                         ),
@@ -136,7 +136,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("post/create/bad-request",
                         requestFields(
-                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`)"),
+                                fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`, NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("게시글 제목"),
                                 fieldWithPath("content").description("게시글 본문")
                         ),
@@ -263,7 +263,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
     @DisplayName("작성자는 자신의 게시글을 수정할 수 있다")
     void should_update_post_when_author_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "수정 후 제목", "수정 후 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "수정 후 제목", "수정 후 본문");
 
         mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
                 .header("Authorization", "Bearer " + authorAccessToken)
@@ -278,7 +278,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 parameterWithName("postId").description("수정할 게시글 ID")
                         ),
                         requestFields(
-                                fieldWithPath("category").description("수정할 게시판 카테고리"),
+                                fieldWithPath("category").description("수정할 게시판 카테고리 (NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("수정할 게시글 제목"),
                                 fieldWithPath("content").description("수정할 게시글 본문")
                         ),
@@ -309,7 +309,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 parameterWithName("postId").description("수정할 게시글 ID")
                         ),
                         requestFields(
-                                fieldWithPath("category").description("수정할 게시판 카테고리"),
+                                fieldWithPath("category").description("수정할 게시판 카테고리 (NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("수정할 게시글 제목"),
                                 fieldWithPath("content").description("수정할 게시글 본문")
                         ),

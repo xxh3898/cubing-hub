@@ -95,6 +95,20 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("일반 사용자가 공지사항 게시글 생성 요청을 보내면 403을 반환한다")
+    void should_return_forbidden_when_non_admin_creates_notice_post() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.NOTICE, "공지 제목", "공지 본문");
+
+        mockMvc.perform(post("/api/posts")
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("공지사항 작성/수정 권한이 없습니다."));
+    }
+
+    @Test
     @DisplayName("인증 없이 게시글 생성 요청을 보내면 401을 반환한다")
     void should_return_unauthorized_when_creating_post_without_authentication() throws Exception {
         PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
@@ -202,7 +216,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     @DisplayName("작성자가 유효한 수정 요청을 보내면 게시글을 변경한다")
     void should_update_post_when_author_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "수정 후 제목", "수정 후 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "수정 후 제목", "수정 후 본문");
 
         mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
                         .header("Authorization", "Bearer " + authorAccessToken)
@@ -215,7 +229,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
         entityManager.clear();
 
         Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
-        assertThat(updatedPost.getCategory()).isEqualTo(PostCategory.NOTICE);
+        assertThat(updatedPost.getCategory()).isEqualTo(PostCategory.FREE);
         assertThat(updatedPost.getTitle()).isEqualTo("수정 후 제목");
         assertThat(updatedPost.getContent()).isEqualTo("수정 후 본문");
     }
@@ -224,7 +238,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     @DisplayName("관리자가 수정 요청을 보내면 다른 사용자의 게시글도 변경할 수 있다")
     void should_update_post_when_admin_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "관리자 수정", "관리자 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "관리자 수정", "관리자 본문");
 
         mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
                         .header("Authorization", "Bearer " + adminAccessToken)
@@ -237,8 +251,24 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
         entityManager.clear();
 
         Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
+        assertThat(updatedPost.getCategory()).isEqualTo(PostCategory.NOTICE);
         assertThat(updatedPost.getTitle()).isEqualTo("관리자 수정");
         assertThat(updatedPost.getContent()).isEqualTo("관리자 본문");
+    }
+
+    @Test
+    @DisplayName("일반 사용자가 공지사항 게시글 수정 요청을 보내면 403을 반환한다")
+    void should_return_forbidden_when_non_admin_updates_post_to_notice() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "공지 제목", "공지 본문");
+
+        mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("공지사항 작성/수정 권한이 없습니다."));
     }
 
     @Test

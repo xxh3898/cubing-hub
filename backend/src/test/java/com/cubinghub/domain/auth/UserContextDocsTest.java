@@ -63,6 +63,7 @@ class UserContextDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data.userId").value(savedUser.getId()))
                 .andExpect(jsonPath("$.data.email").value(testEmail))
                 .andExpect(jsonPath("$.data.nickname").value("TestUser"))
+                .andExpect(jsonPath("$.data.role").value("ROLE_USER"))
                 .andDo(document("auth/me",
                         requestHeaders(
                                 headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
@@ -73,7 +74,8 @@ class UserContextDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("현재 로그인 사용자 컨텍스트"),
                                 fieldWithPath("data.userId").type(JsonFieldType.NUMBER).description("현재 로그인 사용자 ID"),
                                 fieldWithPath("data.email").type(JsonFieldType.STRING).description("현재 로그인 사용자 이메일"),
-                                fieldWithPath("data.nickname").type(JsonFieldType.STRING).description("현재 로그인 사용자 닉네임")
+                                fieldWithPath("data.nickname").type(JsonFieldType.STRING).description("현재 로그인 사용자 닉네임"),
+                                fieldWithPath("data.role").type(JsonFieldType.STRING).description("현재 로그인 사용자 권한 (`ROLE_USER`, `ROLE_ADMIN`)")
                         )
                 ));
     }

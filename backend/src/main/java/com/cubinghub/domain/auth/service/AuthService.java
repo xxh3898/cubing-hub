@@ -160,7 +160,7 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
 
-        return new CurrentUserResponse(user.getId(), user.getEmail(), user.getNickname());
+        return new CurrentUserResponse(user.getId(), user.getEmail(), user.getNickname(), user.getRole());
     }
 
     /**

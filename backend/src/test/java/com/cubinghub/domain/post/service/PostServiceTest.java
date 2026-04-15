@@ -72,6 +72,25 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("일반 사용자는 공지사항 게시글을 생성할 수 없다")
+    void should_throw_forbidden_exception_when_non_admin_creates_notice_post() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() ->
+                postService.createPost(
+                        author.getEmail(),
+                        new PostCreateRequest(PostCategory.NOTICE, "공지 제목", "공지 본문")
+                )
+        );
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(exception.getMessage()).isEqualTo("공지사항 작성/수정 권한이 없습니다.");
+    }
+
+    @Test
     @DisplayName("게시글 생성 시 작성자가 없으면 실패한다")
     void should_throw_illegal_argument_exception_when_user_does_not_exist_on_create() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
@@ -154,16 +173,39 @@ class PostServiceTest {
     void should_update_post_when_author_updates_own_post() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
         Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
-        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "수정 제목", "수정 본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.FREE, "수정 제목", "수정 본문");
 
         when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
         when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
 
         postService.updatePost(post.getId(), author.getEmail(), request);
 
-        assertThat(post.getCategory()).isEqualTo(PostCategory.NOTICE);
+        assertThat(post.getCategory()).isEqualTo(PostCategory.FREE);
         assertThat(post.getTitle()).isEqualTo("수정 제목");
         assertThat(post.getContent()).isEqualTo("수정 본문");
+    }
+
+    @Test
+    @DisplayName("일반 사용자는 공지사항 게시글로 수정할 수 없다")
+    void should_throw_forbidden_exception_when_non_admin_updates_post_to_notice() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+
+        Throwable thrown = catchThrowable(() ->
+                postService.updatePost(
+                        post.getId(),
+                        author.getEmail(),
+                        new PostUpdateRequest(PostCategory.NOTICE, "공지 제목", "공지 본문")
+                )
+        );
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(exception.getMessage()).isEqualTo("공지사항 작성/수정 권한이 없습니다.");
     }
 
     @Test
@@ -228,6 +270,24 @@ class PostServiceTest {
         CustomApiException exception = (CustomApiException) thrown;
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(exception.getMessage()).isEqualTo("게시글 수정/삭제 권한이 없습니다.");
+    }
+
+    @Test
+    @DisplayName("관리자는 다른 사용자의 게시글을 공지사항으로 수정할 수 있다")
+    void should_update_post_to_notice_when_admin_updates_other_users_post() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User admin = TestFixtures.createUser(99L, "admin@cubinghub.com", "Admin", UserRole.ROLE_ADMIN, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostUpdateRequest request = new PostUpdateRequest(PostCategory.NOTICE, "공지 제목", "공지 본문");
+
+        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+
+        postService.updatePost(post.getId(), admin.getEmail(), request);
+
+        assertThat(post.getCategory()).isEqualTo(PostCategory.NOTICE);
+        assertThat(post.getTitle()).isEqualTo("공지 제목");
+        assertThat(post.getContent()).isEqualTo("공지 본문");
     }
 
     @Test

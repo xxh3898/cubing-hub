@@ -12,7 +12,6 @@ import com.cubinghub.domain.post.repository.PostSearchResult;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.repository.UserRepository;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +28,7 @@ public class PostService {
     @Transactional
     public Long createPost(String email, PostCreateRequest request) {
         User user = findUserByEmail(email);
+        validateNoticeWritePermission(request.getCategory(), user);
 
         Post post = Post.builder()
                 .user(user)
@@ -72,6 +72,7 @@ public class PostService {
         Post post = findPostById(postId);
 
         validateOwnershipOrAdmin(post, currentUser);
+        validateNoticeWritePermission(request.getCategory(), currentUser);
         post.update(request.getCategory(), request.getTitle(), request.getContent());
     }
 
@@ -106,6 +107,16 @@ public class PostService {
 
         if (!post.getUser().getId().equals(currentUser.getId())) {
             throw new CustomApiException("게시글 수정/삭제 권한이 없습니다.", HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private void validateNoticeWritePermission(PostCategory category, User currentUser) {
+        if (category != PostCategory.NOTICE) {
+            return;
+        }
+
+        if (currentUser.getRole() != UserRole.ROLE_ADMIN) {
+            throw new CustomApiException("공지사항 작성/수정 권한이 없습니다.", HttpStatus.FORBIDDEN);
         }
     }
 

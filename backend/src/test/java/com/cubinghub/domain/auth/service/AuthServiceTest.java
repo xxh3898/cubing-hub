@@ -355,6 +355,7 @@ class AuthServiceTest {
         assertThat(response.getUserId()).isEqualTo(user.getId());
         assertThat(response.getEmail()).isEqualTo(user.getEmail());
         assertThat(response.getNickname()).isEqualTo(user.getNickname());
+        assertThat(response.getRole()).isEqualTo(user.getRole());
     }
 
     @Test

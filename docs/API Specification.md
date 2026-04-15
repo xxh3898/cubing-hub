@@ -204,6 +204,7 @@
 | `data.userId` | Number | 로그인 사용자 ID |
 | `data.email` | String | 로그인 사용자 이메일 |
 | `data.nickname` | String | 로그인 사용자 닉네임 |
+| `data.role` | String | 로그인 사용자 권한 (`ROLE_USER`, `ROLE_ADMIN`) |
 
 #### 비고
 
@@ -402,13 +403,14 @@
 
 - 설명: 게시글을 생성한다.
 - 인증: Access Token 필요
+- 추가 인가: `category=NOTICE`는 `ROLE_ADMIN`만 작성 가능
 - 멱등성: 비멱등
 
 #### Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `category` | String | 예 | `NOTICE`, `FREE` |
+| `category` | String | 예 | `NOTICE`, `FREE` (`NOTICE`는 `ROLE_ADMIN`만 작성 가능) |
 | `title` | String | 예 | 게시글 제목 |
 | `content` | String | 예 | 게시글 본문 |
 
@@ -485,6 +487,7 @@
 - 설명: 게시글을 수정한다.
 - 인증: Access Token 필요
 - 인가: 작성자 본인 또는 `ROLE_ADMIN`
+- 추가 인가: `category=NOTICE`는 `ROLE_ADMIN`만 설정 가능
 - 멱등성: 멱등
 
 #### Path Parameter
@@ -497,7 +500,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `category` | String | 예 | 수정할 카테고리 |
+| `category` | String | 예 | 수정할 카테고리 (`NOTICE`는 `ROLE_ADMIN`만 설정 가능) |
 | `title` | String | 예 | 수정할 제목 |
 | `content` | String | 예 | 수정할 본문 |
 

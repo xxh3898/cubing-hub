@@ -19,6 +19,7 @@ function AuthStateProbe() {
       <span data-testid="is-authenticated">{String(isAuthenticated)}</span>
       <span data-testid="is-auth-loading">{String(isAuthLoading)}</span>
       <span data-testid="nickname">{currentUser?.nickname ?? 'none'}</span>
+      <span data-testid="role">{currentUser?.role ?? 'none'}</span>
     </div>
   )
 }
@@ -38,6 +39,7 @@ describe('AuthProvider', () => {
     vi.mocked(getMe).mockResolvedValue({
       data: {
         nickname: 'CubeMaster',
+        role: 'ROLE_ADMIN',
       },
     })
 
@@ -54,6 +56,7 @@ describe('AuthProvider', () => {
       expect(screen.getByTestId('is-authenticated')).toHaveTextContent('true')
       expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
       expect(screen.getByTestId('nickname')).toHaveTextContent('CubeMaster')
+      expect(screen.getByTestId('role')).toHaveTextContent('ROLE_ADMIN')
     })
 
     expect(refreshSession).toHaveBeenCalledTimes(1)
@@ -74,6 +77,7 @@ describe('AuthProvider', () => {
       expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false')
       expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
       expect(screen.getByTestId('nickname')).toHaveTextContent('none')
+      expect(screen.getByTestId('role')).toHaveTextContent('none')
     })
 
     expect(getMe).not.toHaveBeenCalled()

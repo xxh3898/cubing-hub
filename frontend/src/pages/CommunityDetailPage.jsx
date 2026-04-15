@@ -1,32 +1,110 @@
-import { useParams, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
-import { mockCommunityPosts } from '../constants/mockCommunity.js'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { deletePost, getPost } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 
 function formatCommunityDate(value) {
   const date = new Date(value)
+
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function formatCategoryLabel(category) {
+  return category === 'NOTICE' ? '공지' : '자유'
 }
 
 export default function CommunityDetailPage() {
   const { id } = useParams()
-  const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, isAuthenticated } = useAuth()
-  const postId = parseInt(id, 10)
-  const post = mockCommunityPosts.find((p) => p.id === postId)
-  
-  const [comments, setComments] = useState(post ? (post.comments || []) : [])
-  const [newComment, setNewComment] = useState('')
+  const { currentUser } = useAuth()
+  const [post, setPost] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  const currentUsername = currentUser?.nickname ?? null
-  const returnTo = `${location.pathname}${location.search}${location.hash}`
+  useEffect(() => {
+    const postId = Number.parseInt(id, 10)
 
-  if (!post) {
+    if (Number.isNaN(postId)) {
+      setPost(null)
+      setErrorMessage('게시글을 찾을 수 없습니다.')
+      setIsLoading(false)
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const loadPost = async () => {
+      setIsLoading(true)
+      setErrorMessage(null)
+
+      try {
+        const response = await getPost(postId)
+
+        if (isCancelled) {
+          return
+        }
+
+        setPost(response.data ?? null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setPost(null)
+        setErrorMessage(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadPost()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [id])
+
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN'
+  const isAuthor = Boolean(post && currentUser?.nickname === post.authorNickname)
+  const canDelete = Boolean(post && (isAdmin || isAuthor))
+
+  const handleDeletePost = async () => {
+    if (!post || !window.confirm('게시글을 삭제하시겠습니까?')) {
+      return
+    }
+
+    setIsDeleting(true)
+    setDeleteErrorMessage(null)
+
+    try {
+      await deletePost(post.id)
+      navigate('/community', { replace: true })
+    } catch (error) {
+      setDeleteErrorMessage(error.message)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  if (isLoading) {
     return (
       <section className="page-grid community-detail-page">
         <div className="panel">
-          <p className="message error">게시글을 찾을 수 없습니다.</p>
+          <p className="helper-text">게시글을 불러오는 중입니다.</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (errorMessage || !post) {
+    return (
+      <section className="page-grid community-detail-page">
+        <div className="panel">
+          <p className="message error">{errorMessage ?? '게시글을 찾을 수 없습니다.'}</p>
           <div style={{ marginTop: '20px' }}>
             <Link to="/community" className="ghost-button">목록으로</Link>
           </div>
@@ -35,43 +113,11 @@ export default function CommunityDetailPage() {
     )
   }
 
-  const handleAddComment = (e) => {
-    e.preventDefault()
-    if (!newComment.trim()) return
-
-    const newCommentObj = {
-      id: Date.now(),
-      authorNickname: currentUsername,
-      content: newComment.trim(),
-      createdAt: new Date().toISOString(),
-    }
-
-    setComments([...comments, newCommentObj])
-    setNewComment('')
-  }
-
-  const handleDeleteComment = (commentId) => {
-    if (window.confirm('댓글을 삭제하시겠습니까?')) {
-      setComments(comments.filter((comment) => comment.id !== commentId))
-    }
-  }
-
-  const canDelete = (authorItem) => {
-    return Boolean(currentUsername && authorItem === currentUsername)
-  }
-
-  const handleDeletePost = () => {
-    if (window.confirm('게시글을 삭제하시겠습니까?')) {
-      alert('게시글이 삭제되었습니다. (목업)')
-      navigate('/community')
-    }
-  }
-
   return (
     <section className="page-grid community-detail-page">
       <div className="panel community-detail-header-panel">
         <div className="community-detail-meta-row">
-          <span className="eyebrow">{post.category === 'NOTICE' ? '공지' : '자유'}</span>
+          <span className="eyebrow">{formatCategoryLabel(post.category)}</span>
         </div>
         <h2 className="community-detail-title">{post.title}</h2>
         <div className="community-detail-info">
@@ -82,80 +128,35 @@ export default function CommunityDetailPage() {
       </div>
 
       <div className="panel community-detail-content-panel">
+        {deleteErrorMessage ? <p className="message error auth-message">{deleteErrorMessage}</p> : null}
         <div className="community-detail-content">
           {post.content.split('\n').map((line, index) => (
-            <span key={index}>
+            <span key={`${post.id}-${index}`}>
               {line}
               <br />
             </span>
           ))}
         </div>
         <div className="community-detail-actions">
-          {canDelete(post.authorNickname) && (
-            <button 
+          {canDelete ? (
+            <button
               className="ghost-button community-post-delete"
+              type="button"
               onClick={handleDeletePost}
+              disabled={isDeleting}
             >
-              삭제
+              {isDeleting ? '삭제 중...' : '삭제'}
             </button>
-          )}
+          ) : null}
           <Link to="/community" className="ghost-button community-back-button">목록으로</Link>
         </div>
       </div>
 
       <div className="panel community-comments-panel">
-        <h3 className="community-comments-title">댓글 {comments.length}</h3>
-        
+        <h3 className="community-comments-title">댓글</h3>
         <div className="community-comments-list">
-          {comments.length === 0 ? (
-            <p className="community-comments-empty">아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
-          ) : (
-            comments.map((comment) => (
-              <div key={comment.id} className="community-comment-item">
-                <div className="community-comment-header">
-                  <div className="community-comment-meta">
-                    <span className="community-comment-author">{comment.authorNickname}</span>
-                    <span className="community-comment-date">{formatCommunityDate(comment.createdAt)}</span>
-                  </div>
-                  {canDelete(comment.authorNickname) && (
-                    <button 
-                      className="community-comment-delete" 
-                      onClick={() => handleDeleteComment(comment.id)}
-                      aria-label="댓글 삭제"
-                    >
-                      삭제
-                    </button>
-                  )}
-                </div>
-                <div className="community-comment-content">{comment.content}</div>
-              </div>
-            ))
-          )}
+          <p className="community-comments-empty">댓글 기능은 다음 커밋에서 연동됩니다.</p>
         </div>
-
-        {!isAuthenticated ? (
-          <div className="community-comment-login-cta">
-            <p className="helper-text">댓글 작성은 로그인 후 이용할 수 있습니다.</p>
-            <Link to="/login" state={{ from: returnTo }} className="ghost-button">
-              로그인하러 가기
-            </Link>
-          </div>
-        ) : (
-          <form className="community-comment-form" onSubmit={handleAddComment}>
-            <textarea
-              className="community-comment-input"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="댓글을 작성해주세요."
-              rows={3}
-            />
-            <div className="community-comment-form-actions">
-              <button type="submit" className="primary-button" disabled={!newComment.trim()}>
-                등록
-              </button>
-            </div>
-          </form>
-        )}
       </div>
     </section>
   )

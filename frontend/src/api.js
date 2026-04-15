@@ -103,6 +103,33 @@ export async function getPosts(params) {
   }
 }
 
+export async function createPost(payload) {
+  try {
+    const response = await apiClient.post('/api/posts', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getPost(postId) {
+  try {
+    const response = await apiClient.get(`/api/posts/${postId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function deletePost(postId) {
+  try {
+    const response = await apiClient.delete(`/api/posts/${postId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getScramble(eventType) {
   try {
     const response = await apiClient.get('/api/scramble', {
