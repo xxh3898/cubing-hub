@@ -81,6 +81,15 @@ export async function getMyRecords(params) {
   }
 }
 
+export async function getHome() {
+  try {
+    const response = await apiClient.get('/api/home')
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getRankings(params) {
   try {
     const response = await apiClient.get('/api/rankings', {

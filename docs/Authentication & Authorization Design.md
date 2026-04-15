@@ -19,6 +19,7 @@
 ### 공개 경로
 
 - `/api/auth/**`
+- `/api/home`
 - `/api/rankings`
 - `/api/scramble`
 - `/actuator/**`
@@ -118,6 +119,7 @@
   - `POST /api/auth/refresh`
   - `POST /api/auth/logout`
 - 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
+- `GET /api/home`는 공개 경로지만, Access Token이 있으면 개인화 데이터를 함께 반환한다.
   - 응답 최소 필드: `userId`, `email`, `nickname`, `role`
   - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
 - 마이페이지 상세 조회 API가 구현되어 있다.

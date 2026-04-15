@@ -223,6 +223,17 @@ include::{snippets}/scramble/get/bad-request/query-parameters.adoc[]
 include::{snippets}/scramble/get/bad-request/http-response.adoc[]
 include::{snippets}/scramble/get/bad-request/response-fields.adoc[]
 
+== 홈 (Home)
+
+=== 홈 대시보드 조회
+==== 요청
+include::{snippets}/home/get/http-request.adoc[]
+include::{snippets}/home/get/request-headers.adoc[]
+
+==== 응답
+include::{snippets}/home/get/http-response.adoc[]
+include::{snippets}/home/get/response-fields.adoc[]
+
 == 게시판 (Post)
 
 === 게시글 생성

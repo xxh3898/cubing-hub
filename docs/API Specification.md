@@ -62,6 +62,7 @@
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
 | `POST` | `/api/auth/logout` | 인증 토큰/쿠키 전달 | 로그아웃 | 구현됨 |
 | `GET` | `/api/me` | Auth | 로그인 사용자 컨텍스트 조회 | 구현됨 |
+| `GET` | `/api/home` | Public + Optional Auth | 홈 대시보드 조회 | 구현됨 |
 | `GET` | `/api/users/me/profile` | Auth | 마이페이지 프로필/요약 조회 | 구현됨 |
 | `GET` | `/api/users/me/records` | Auth | 마이페이지 전체 기록 페이지 조회 | 구현됨 |
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
@@ -612,21 +613,54 @@
 - 상태 코드: `200 OK`
 - `data`: `null`
 
-## 13. 미구현 API
+## 13. 홈 대시보드 API
+
+### `GET /api/home`
+
+- 설명: 홈 화면에 필요한 오늘의 스크램블, 최신 게시글, 로그인 사용자 요약/최근 기록을 한 번에 조회한다.
+- 인증: Public. Access Token이 있으면 개인화 데이터까지 함께 반환한다.
+- 멱등성: 멱등
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.todayScramble.eventType` | String | 오늘의 스크램블 종목 코드 |
+| `data.todayScramble.scramble` | String | 생성된 스크램블 문자열 |
+| `data.summary` | Object / Null | 로그인 사용자는 요약 객체, guest는 `null` |
+| `data.summary.nickname` | String | 로그인 사용자 닉네임 |
+| `data.summary.mainEvent` | String | 로그인 사용자 주 종목 |
+| `data.summary.totalSolveCount` | Number | 전체 기록 수 |
+| `data.summary.personalBestTimeMs` | Number / Null | 유효 시간 기준 최고 기록 |
+| `data.summary.averageTimeMs` | Number / Null | DNF 제외 평균 기록 |
+| `data.recentRecords` | Array | 최근 기록 최대 5건. guest는 빈 배열 |
+| `data.recentRecords[].id` | Number | 기록 ID |
+| `data.recentRecords[].eventType` | String | WCA 종목 코드 |
+| `data.recentRecords[].timeMs` | Number | 원본 측정 시간 |
+| `data.recentRecords[].effectiveTimeMs` | Number / Null | 페널티 반영 시간 |
+| `data.recentRecords[].penalty` | String | 페널티 |
+| `data.recentRecords[].scramble` | String | 기록 스크램블 |
+| `data.recentRecords[].createdAt` | String | 기록 생성 시각 |
+| `data.recentPosts` | Array | 최신 커뮤니티 게시글 최대 3건 |
+| `data.recentPosts[].id` | Number | 게시글 ID |
+| `data.recentPosts[].category` | String | 게시글 카테고리 |
+| `data.recentPosts[].title` | String | 게시글 제목 |
+| `data.recentPosts[].authorNickname` | String | 작성자 닉네임 |
+| `data.recentPosts[].viewCount` | Number | 게시글 조회수 |
+| `data.recentPosts[].createdAt` | String | 게시글 생성 시각 |
+
+## 14. 미구현 API
 
 - 피드백 전달 API
   - 관리자 메일 전달 및 필요 시 저장
   - `TODO`
-- 홈 대시보드 API
-  - 오늘의 스크램블, 통계, 최근 기록 조회
-  - `TODO`
 
-## 14. 문서화 메모
+## 15. 문서화 메모
 
 - API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `HomeDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
 
-## 15. 미확정 사항
+## 16. 미확정 사항
 
-- 피드백, 홈 대시보드 API의 최종 응답 스키마
+- 피드백 API의 최종 응답 스키마
 - 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부

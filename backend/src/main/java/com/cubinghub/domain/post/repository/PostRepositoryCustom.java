@@ -5,4 +5,6 @@ import com.cubinghub.domain.post.entity.PostCategory;
 public interface PostRepositoryCustom {
 
     PostSearchResult search(PostCategory category, String keyword, String author, int offset, int limit);
+
+    java.util.List<com.cubinghub.domain.post.dto.response.PostListItemResponse> findRecent(int limit);
 }

@@ -21,24 +21,12 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     @Override
     public PostSearchResult search(PostCategory category, String keyword, String author, int offset, int limit) {
-        List<PostListItemResponse> items = queryFactory
-                .select(Projections.constructor(
-                        PostListItemResponse.class,
-                        post.id,
-                        post.category,
-                        post.title,
-                        user.nickname,
-                        post.viewCount,
-                        post.createdAt
-                ))
-                .from(post)
-                .join(post.user, user)
+        List<PostListItemResponse> items = basePostListQuery()
                 .where(
                         categoryEq(category),
                         keywordContains(keyword),
                         authorContains(author)
                 )
-                .orderBy(post.createdAt.desc(), post.id.desc())
                 .offset(offset)
                 .limit(limit)
                 .fetch();
@@ -55,6 +43,29 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .fetchOne();
 
         return new PostSearchResult(items, totalElements != null ? totalElements : 0L);
+    }
+
+    @Override
+    public List<PostListItemResponse> findRecent(int limit) {
+        return basePostListQuery()
+                .limit(limit)
+                .fetch();
+    }
+
+    private com.querydsl.jpa.impl.JPAQuery<PostListItemResponse> basePostListQuery() {
+        return queryFactory
+                .select(Projections.constructor(
+                        PostListItemResponse.class,
+                        post.id,
+                        post.category,
+                        post.title,
+                        user.nickname,
+                        post.viewCount,
+                        post.createdAt
+                ))
+                .from(post)
+                .join(post.user, user)
+                .orderBy(post.createdAt.desc(), post.id.desc());
     }
 
     private BooleanExpression categoryEq(PostCategory category) {
