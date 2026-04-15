@@ -234,6 +234,32 @@ include::{snippets}/home/get/request-headers.adoc[]
 include::{snippets}/home/get/http-response.adoc[]
 include::{snippets}/home/get/response-fields.adoc[]
 
+== 피드백 (Feedback)
+
+=== 피드백 생성
+==== 요청
+include::{snippets}/feedback/create/http-request.adoc[]
+include::{snippets}/feedback/create/request-headers.adoc[]
+include::{snippets}/feedback/create/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/feedback/create/http-response.adoc[]
+include::{snippets}/feedback/create/response-fields.adoc[]
+
+==== 실패 응답
+===== 유효하지 않은 생성 요청
+include::{snippets}/feedback/create/bad-request/http-request.adoc[]
+include::{snippets}/feedback/create/bad-request/request-headers.adoc[]
+include::{snippets}/feedback/create/bad-request/request-fields.adoc[]
+include::{snippets}/feedback/create/bad-request/http-response.adoc[]
+include::{snippets}/feedback/create/bad-request/response-fields.adoc[]
+
+===== 인증 헤더 누락
+include::{snippets}/feedback/create/unauthorized/http-request.adoc[]
+include::{snippets}/feedback/create/unauthorized/request-fields.adoc[]
+include::{snippets}/feedback/create/unauthorized/http-response.adoc[]
+include::{snippets}/feedback/create/unauthorized/response-fields.adoc[]
+
 == 게시판 (Post)
 
 === 게시글 생성

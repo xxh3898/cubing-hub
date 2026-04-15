@@ -131,7 +131,14 @@ function AppLayout() {
               </ProtectedRoute>
             )}
           />
-          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route
+            path="/feedback"
+            element={(
+              <ProtectedRoute>
+                <FeedbackPage />
+              </ProtectedRoute>
+            )}
+          />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
         </Routes>
       </main>

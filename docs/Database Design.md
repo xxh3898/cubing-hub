@@ -17,8 +17,8 @@
 | `records` | 원본 solve 로그 저장 | JPA 엔티티 구현됨 |
 | `user_pbs` | 사용자별 대표 PB 저장 | JPA 엔티티 구현됨 |
 | `posts` | 게시글 저장 | JPA 엔티티 구현됨 |
-| `comments` | 댓글 저장 | JPA 엔티티 구현됨 / API 미구현 |
-| `feedbacks` | 피드백 저장 또는 아카이브 | 설계 유지 / 미구현 |
+| `comments` | 댓글 저장 | JPA 엔티티 구현됨 / API 구현됨 |
+| `feedbacks` | 피드백 저장 또는 아카이브 | JPA 엔티티 구현됨 / API 구현됨 |
 
 ## 3. 관계 요약
 
@@ -183,21 +183,24 @@ Records 1:1 (또는 1:0) User_PBs
 - 목적:
   - 피드백을 저장하거나 아카이브하는 선택 저장 모델이다.
 - 설명:
-  - 제품 기준 1차 전달 경로는 관리자 메일이며, 필요 시 DB 저장을 확장한다.
+  - Day 16 MVP는 로그인 사용자 기준 DB 저장을 기본 경로로 사용하고, 필요 시 관리자 메일 전달을 확장한다.
+  - 제출 시점의 회신용 이메일 주소를 `reply_email`에 함께 보관한다.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | `bigint` | 피드백 ID (PK, Auto Increment) |
-| `user_id` | `bigint` | 제보자 ID (FK -> `users.id`, 익명 시 null 가능) |
+| `user_id` | `bigint` | 제보자 ID (FK -> `users.id`) |
 | `type` | `varchar(20)` | 피드백 종류 (`BUG`, `FEATURE`, `UX`, `OTHER`) |
 | `title` | `varchar(100)` | 피드백 제목 |
+| `reply_email` | `varchar(255)` | 제출 시점 회신용 이메일 snapshot |
 | `content` | `text` | 피드백 상세 내용 |
 | `created_at` | `timestamp` | 제출일 |
 
 #### 비고
 
-- 메일 전달만 사용할 경우 필수 테이블은 아닐 수 있다.
-- 회신 이메일, 발송 상태, 처리 이력까지 관리하려면 스키마 보강이 필요하다.
+- 피드백은 로그인 사용자만 제출할 수 있다.
+- `user_id`와 `reply_email`을 함께 저장해 작성자 계정과 회신 주소를 분리 보관한다.
+- 발송 상태, 처리 이력까지 관리하려면 추가 스키마 보강이 필요하다.
 
 ## 5. 제약조건 정책
 
@@ -220,7 +223,7 @@ Records 1:1 (또는 1:0) User_PBs
 - 게시글은 물리 삭제 기준이다.
 - 기록 데이터는 원본 로그지만 현재는 기록 소유자 기준 물리 삭제를 허용한다.
 - 기록 삭제 시 해당 기록이 PB를 대표하던 경우 `user_pbs`를 다시 계산하거나 제거한다.
-- 피드백은 메일 전송만 사용할 경우 DB 저장 없이 처리할 수도 있다.
+- 피드백은 현재 DB 저장을 기준으로 운영하고, 메일 전달이 필요하면 추가 확장을 검토한다.
 
 ## 7. 성능 고려
 
@@ -305,6 +308,7 @@ erDiagram
         bigint user_id FK
         varchar type
         varchar title
+        varchar reply_email
         text content
         timestamp created_at
     }
@@ -313,5 +317,5 @@ erDiagram
 ## 9. 미확정 사항
 
 - 댓글 API 구현 시 수정/삭제 정책과 soft delete 도입 여부
-- 피드백을 메일 전송만 사용할지, `feedbacks` 테이블을 함께 운영할지
+- 피드백 메일 전달을 추가할 경우 전송 실패 처리와 보관 정책
 - 랭킹 V2 전환 시 `user_pbs`와 Redis ZSET 동기화 방식

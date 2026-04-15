@@ -90,6 +90,15 @@ export async function getHome() {
   }
 }
 
+export async function createFeedback(payload) {
+  try {
+    const response = await apiClient.post('/api/feedbacks', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getRankings(params) {
   try {
     const response = await apiClient.get('/api/rankings', {

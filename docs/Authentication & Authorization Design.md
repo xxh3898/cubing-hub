@@ -44,6 +44,8 @@
   - `DELETE /api/posts/{postId}`
   - `POST /api/posts/{postId}/comments`
   - `DELETE /api/posts/{postId}/comments/{commentId}`
+  - `POST /api/feedbacks`
+- `POST /api/feedbacks`는 인증 사용자 기준으로 `user_id`와 회신 이메일 snapshot을 함께 저장한다.
 
 ### 추가 인가 정책
 

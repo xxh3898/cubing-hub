@@ -52,6 +52,14 @@ describe('App auth routes', () => {
     expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 
+  it('should_redirect_to_login_when_feedback_route_is_requested_without_authenticated_user', () => {
+    vi.mocked(useAuth).mockReturnValue(buildAuthState())
+
+    renderApp('/feedback')
+
+    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
+  })
+
   it('should_redirect_to_home_when_guest_only_route_is_requested_by_authenticated_user', () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState({
       accessToken: 'fresh-token',
@@ -65,6 +73,6 @@ describe('App auth routes', () => {
     renderApp('/login')
 
     expect(screen.queryByRole('heading', { name: '로그인' })).not.toBeInTheDocument()
-    expect(screen.getByText('오늘의 스크램블')).toBeInTheDocument()
+    expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
   })
 })

@@ -1,23 +1,63 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { createFeedback } from '../api.js'
+import { useAuth } from '../context/useAuth.js'
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function FeedbackPage() {
+  const { currentUser } = useAuth()
   const [type, setType] = useState('BUG')
+  const [replyEmail, setReplyEmail] = useState(currentUser?.email ?? '')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [feedbackMessage, setFeedbackMessage] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const defaultReplyEmail = currentUser?.email ?? ''
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    setReplyEmail((previousReplyEmail) => previousReplyEmail || defaultReplyEmail)
+  }, [defaultReplyEmail])
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!title.trim() || !content.trim()) {
-      alert('제목과 내용을 모두 입력해주세요.')
+    const trimmedReplyEmail = replyEmail.trim()
+    const trimmedTitle = title.trim()
+    const trimmedContent = content.trim()
+
+    if (!trimmedReplyEmail || !trimmedTitle || !trimmedContent) {
+      setFeedbackMessage({ type: 'error', text: '회신 이메일, 제목, 내용을 모두 입력해주세요.' })
       return
     }
 
-    // 목업: 제출 성공 알림
-    alert('소중한 의견이 무사히 전달되었습니다! 감사합니다.')
-    navigate('/')
+    if (!EMAIL_PATTERN.test(trimmedReplyEmail)) {
+      setFeedbackMessage({ type: 'error', text: '올바른 이메일 주소를 입력해주세요.' })
+      return
+    }
+
+    setIsSubmitting(true)
+    setFeedbackMessage(null)
+
+    try {
+      const response = await createFeedback({
+        type,
+        replyEmail: trimmedReplyEmail,
+        title: trimmedTitle,
+        content: trimmedContent,
+      })
+
+      setType('BUG')
+      setReplyEmail(defaultReplyEmail)
+      setTitle('')
+      setContent('')
+      setFeedbackMessage({ type: 'success', text: response.message })
+    } catch (error) {
+      setFeedbackMessage({ type: 'error', text: error.message })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -34,7 +74,9 @@ export default function FeedbackPage() {
       </div>
 
       <div className="panel feedback-form-panel">
-        <form onSubmit={handleSubmit} className="form-grid">
+        <form onSubmit={handleSubmit} className="form-grid" noValidate>
+          {feedbackMessage ? <p className={`message ${feedbackMessage.type}`}>{feedbackMessage.text}</p> : null}
+
           <div className="field">
             <label htmlFor="feedback-type">피드백 종류</label>
             <select
@@ -50,6 +92,20 @@ export default function FeedbackPage() {
           </div>
 
           <div className="field">
+            <label htmlFor="feedback-reply-email">회신 이메일</label>
+            <input
+              type="email"
+              id="feedback-reply-email"
+              value={replyEmail}
+              onChange={(e) => setReplyEmail(e.target.value)}
+              placeholder="회신 받을 이메일 주소를 입력해주세요"
+              maxLength={255}
+              autoComplete="email"
+            />
+            <p className="helper-text">필요하면 이 주소로 답변을 보냅니다.</p>
+          </div>
+
+          <div className="field">
             <label htmlFor="feedback-title">제목</label>
             <input
               type="text"
@@ -57,6 +113,7 @@ export default function FeedbackPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="간략한 제목을 적어주세요"
+              maxLength={100}
             />
           </div>
 
@@ -76,11 +133,12 @@ export default function FeedbackPage() {
               type="button"
               className="ghost-button"
               onClick={() => navigate(-1)}
+              disabled={isSubmitting}
             >
               이전으로
             </button>
-            <button type="submit" className="primary-button">
-              제출하기
+            <button type="submit" className="primary-button" disabled={isSubmitting}>
+              {isSubmitting ? '제출 중...' : '제출하기'}
             </button>
           </div>
         </form>

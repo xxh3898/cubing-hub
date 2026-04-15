@@ -78,6 +78,7 @@
 | `GET` | `/api/posts/{postId}/comments` | Public | 댓글 목록 조회 | 구현됨 |
 | `POST` | `/api/posts/{postId}/comments` | Auth | 댓글 생성 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}/comments/{commentId}` | Auth | 댓글 삭제 | 구현됨 |
+| `POST` | `/api/feedbacks` | Auth | 피드백 접수 | 구현됨 |
 
 ## 6. 인증 API
 
@@ -649,18 +650,40 @@
 | `data.recentPosts[].viewCount` | Number | 게시글 조회수 |
 | `data.recentPosts[].createdAt` | String | 게시글 생성 시각 |
 
-## 14. 미구현 API
+## 14. 피드백 API
 
-- 피드백 전달 API
-  - 관리자 메일 전달 및 필요 시 저장
-  - `TODO`
+### `POST /api/feedbacks`
+
+- 설명: 버그 제보, 기능 제안 등 사용자 피드백을 저장한다.
+- 인증: Access Token 필요
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `type` | String | 예 | 피드백 종류 (`BUG`, `FEATURE`, `UX`, `OTHER`) |
+| `title` | String | 예 | 피드백 제목 |
+| `replyEmail` | String | 예 | 회신 받을 이메일 주소 |
+| `content` | String | 예 | 피드백 상세 내용 |
+
+#### Response
+
+- 상태 코드: `201 Created`
+- `data.id`: 생성된 피드백 ID
+- `replyEmail`은 제출 시점의 회신용 이메일 주소를 snapshot으로 저장한다.
+
+#### 실패 응답
+
+- `401 Unauthorized`
+  - `Authorization` 헤더가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
 
 ## 15. 문서화 메모
 
 - API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `HomeDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `HomeDocsTest`, `FeedbackDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
 
 ## 16. 미확정 사항
 
-- 피드백 API의 최종 응답 스키마
+- 피드백 메일 전달이 필요한 경우의 전송 실패 처리와 운영 정책
 - 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부

@@ -131,4 +131,15 @@ class SecurityAccessControlIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.message").value("홈 대시보드를 조회했습니다."));
     }
+
+    @Test
+    @DisplayName("피드백 생성 경로는 인증 없이 접근하면 401을 반환한다")
+    void should_return_unauthorized_when_accessing_feedback_create_without_authentication() throws Exception {
+        mockMvc.perform(post("/api/feedbacks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"BUG\",\"title\":\"버그 제보\",\"content\":\"상세 내용\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+    }
 }
