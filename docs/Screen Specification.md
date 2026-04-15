@@ -21,7 +21,7 @@
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
 | 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route + `POST /api/posts` 연동 완료 |
-| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | 게시글 상세/삭제는 연동 완료 / 댓글은 다음 단계 연동 예정 |
+| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | 게시글 상세/댓글/삭제 연동 완료 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
 | 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
 | 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
@@ -263,7 +263,9 @@
   - `GET /api/posts/{postId}` 연동이 구현되어 있다.
   - 삭제 버튼은 작성자 본인 또는 관리자에게만 노출하고 `DELETE /api/posts/{postId}`를 호출한다.
   - 존재하지 않는 게시글은 에러 메시지와 목록 복귀 버튼으로 처리한다.
-  - 댓글 영역은 다음 커밋에서 실연동 예정이며 현재는 준비 상태 메시지를 노출한다.
+  - 댓글 목록은 `GET /api/posts/{postId}/comments` 기준 5개 단위 서버 페이지네이션으로 동작한다.
+  - 로그인 사용자는 `POST /api/posts/{postId}/comments`로 댓글을 작성할 수 있고, 작성자 본인 또는 관리자는 `DELETE /api/posts/{postId}/comments/{commentId}`를 사용할 수 있다.
+  - 비로그인 상태에서는 댓글 입력 대신 로그인 CTA를 노출한다.
 
 ### 로그인
 
@@ -401,6 +403,9 @@
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 연동 |
+| 커뮤니티 상세 | `GET /api/posts/{postId}/comments` | 댓글 목록 조회 | 백엔드 구현 / 프런트 연동 |
+| 커뮤니티 상세 | `POST /api/posts/{postId}/comments` | 댓글 생성 | 백엔드 구현 / 프런트 연동 |
+| 커뮤니티 상세 | `DELETE /api/posts/{postId}/comments/{commentId}` | 댓글 삭제 | 백엔드 구현 / 프런트 연동 |
 | 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `GET /api/users/me/profile` | 프로필/요약 조회 | 백엔드 구현 / 프런트 연동 |

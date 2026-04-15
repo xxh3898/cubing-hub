@@ -130,6 +130,35 @@ export async function deletePost(postId) {
   }
 }
 
+export async function getComments(postId, params) {
+  try {
+    const response = await apiClient.get(`/api/posts/${postId}/comments`, {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function createComment(postId, payload) {
+  try {
+    const response = await apiClient.post(`/api/posts/${postId}/comments`, payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function deleteComment(postId, commentId) {
+  try {
+    const response = await apiClient.delete(`/api/posts/${postId}/comments/${commentId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getScramble(eventType) {
   try {
     const response = await apiClient.get('/api/scramble', {

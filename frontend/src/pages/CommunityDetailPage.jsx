@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { deletePost, getPost } from '../api.js'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { createComment, deleteComment, deletePost, getComments, getPost } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
+
+const COMMENT_PAGE_SIZE = 5
 
 function formatCommunityDate(value) {
   const date = new Date(value)
@@ -13,8 +15,13 @@ function formatCategoryLabel(category) {
   return category === 'NOTICE' ? '공지' : '자유'
 }
 
+function buildPageNumbers(totalPages) {
+  return Array.from({ length: totalPages }, (_, index) => index + 1)
+}
+
 export default function CommunityDetailPage() {
   const { id } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { currentUser } = useAuth()
   const [post, setPost] = useState(null)
@@ -22,10 +29,23 @@ export default function CommunityDetailPage() {
   const [errorMessage, setErrorMessage] = useState(null)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [currentCommentPage, setCurrentCommentPage] = useState(1)
+  const [commentsPage, setCommentsPage] = useState(null)
+  const [isCommentsLoading, setIsCommentsLoading] = useState(true)
+  const [commentsErrorMessage, setCommentsErrorMessage] = useState(null)
+  const [commentInput, setCommentInput] = useState('')
+  const [commentActionErrorMessage, setCommentActionErrorMessage] = useState(null)
+  const [isCommentSubmitting, setIsCommentSubmitting] = useState(false)
+  const [deletingCommentId, setDeletingCommentId] = useState(null)
+  const [commentReloadKey, setCommentReloadKey] = useState(0)
+
+  const postId = Number.parseInt(id, 10)
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN'
+  const isAuthor = Boolean(post && currentUser?.nickname === post.authorNickname)
+  const canDeletePost = Boolean(post && (isAdmin || isAuthor))
+  const returnTo = `${location.pathname}${location.search}${location.hash}`
 
   useEffect(() => {
-    const postId = Number.parseInt(id, 10)
-
     if (Number.isNaN(postId)) {
       setPost(null)
       setErrorMessage('게시글을 찾을 수 없습니다.')
@@ -66,11 +86,61 @@ export default function CommunityDetailPage() {
     return () => {
       isCancelled = true
     }
-  }, [id])
+  }, [postId])
 
-  const isAdmin = currentUser?.role === 'ROLE_ADMIN'
-  const isAuthor = Boolean(post && currentUser?.nickname === post.authorNickname)
-  const canDelete = Boolean(post && (isAdmin || isAuthor))
+  useEffect(() => {
+    if (Number.isNaN(postId)) {
+      setCommentsPage(null)
+      setCommentsErrorMessage('게시글을 찾을 수 없습니다.')
+      setIsCommentsLoading(false)
+      return undefined
+    }
+
+    let isCancelled = false
+
+    const loadComments = async () => {
+      setIsCommentsLoading(true)
+      setCommentsErrorMessage(null)
+
+      try {
+        const response = await getComments(postId, {
+          page: currentCommentPage,
+          size: COMMENT_PAGE_SIZE,
+        })
+
+        if (isCancelled) {
+          return
+        }
+
+        const nextPage = response.data
+        const normalizedPage = nextPage.totalPages > 0 ? Math.min(currentCommentPage, nextPage.totalPages) : 1
+
+        if (normalizedPage !== currentCommentPage) {
+          setCurrentCommentPage(normalizedPage)
+          return
+        }
+
+        setCommentsPage(nextPage)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setCommentsPage(null)
+        setCommentsErrorMessage(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsCommentsLoading(false)
+        }
+      }
+    }
+
+    loadComments()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [commentReloadKey, currentCommentPage, postId])
 
   const handleDeletePost = async () => {
     if (!post || !window.confirm('게시글을 삭제하시겠습니까?')) {
@@ -88,6 +158,63 @@ export default function CommunityDetailPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const handleRetryComments = () => {
+    setCommentReloadKey((current) => current + 1)
+  }
+
+  const handleAddComment = async (event) => {
+    event.preventDefault()
+
+    const nextContent = commentInput.trim()
+
+    if (!nextContent || !post) {
+      setCommentActionErrorMessage('댓글 내용을 입력해주세요.')
+      return
+    }
+
+    setIsCommentSubmitting(true)
+    setCommentActionErrorMessage(null)
+
+    try {
+      await createComment(post.id, {
+        content: nextContent,
+      })
+      setCommentInput('')
+      setCurrentCommentPage(1)
+      setCommentReloadKey((current) => current + 1)
+    } catch (error) {
+      setCommentActionErrorMessage(error.message)
+    } finally {
+      setIsCommentSubmitting(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId) => {
+    if (!post || !window.confirm('댓글을 삭제하시겠습니까?')) {
+      return
+    }
+
+    setDeletingCommentId(commentId)
+    setCommentActionErrorMessage(null)
+
+    try {
+      await deleteComment(post.id, commentId)
+      setCommentReloadKey((current) => current + 1)
+    } catch (error) {
+      setCommentActionErrorMessage(error.message)
+    } finally {
+      setDeletingCommentId(null)
+    }
+  }
+
+  const canDeleteComment = (commentAuthorNickname) => {
+    if (!currentUser) {
+      return false
+    }
+
+    return isAdmin || currentUser.nickname === commentAuthorNickname
   }
 
   if (isLoading) {
@@ -112,6 +239,9 @@ export default function CommunityDetailPage() {
       </section>
     )
   }
+
+  const commentItems = commentsPage?.items ?? []
+  const commentPageNumbers = buildPageNumbers(commentsPage?.totalPages ?? 0)
 
   return (
     <section className="page-grid community-detail-page">
@@ -138,7 +268,7 @@ export default function CommunityDetailPage() {
           ))}
         </div>
         <div className="community-detail-actions">
-          {canDelete ? (
+          {canDeletePost ? (
             <button
               className="ghost-button community-post-delete"
               type="button"
@@ -153,10 +283,109 @@ export default function CommunityDetailPage() {
       </div>
 
       <div className="panel community-comments-panel">
-        <h3 className="community-comments-title">댓글</h3>
-        <div className="community-comments-list">
-          <p className="community-comments-empty">댓글 기능은 다음 커밋에서 연동됩니다.</p>
-        </div>
+        <h3 className="community-comments-title">댓글 {commentsPage?.totalElements ?? 0}</h3>
+
+        {isCommentsLoading ? (
+          <p className="helper-text">댓글을 불러오는 중입니다.</p>
+        ) : commentsErrorMessage ? (
+          <>
+            <p className="message error">{commentsErrorMessage}</p>
+            <div className="community-pagination">
+              <button className="ghost-button community-page-button" type="button" onClick={handleRetryComments}>
+                다시 시도
+              </button>
+            </div>
+          </>
+        ) : commentItems.length === 0 ? (
+          <p className="community-comments-empty">아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
+        ) : (
+          <>
+            <div className="community-comments-list">
+              {commentItems.map((comment) => (
+                <div key={comment.id} className="community-comment-item">
+                  <div className="community-comment-header">
+                    <div className="community-comment-meta">
+                      <span className="community-comment-author">{comment.authorNickname}</span>
+                      <span className="community-comment-date">{formatCommunityDate(comment.createdAt)}</span>
+                    </div>
+                    {canDeleteComment(comment.authorNickname) ? (
+                      <button
+                        className="community-comment-delete"
+                        type="button"
+                        onClick={() => handleDeleteComment(comment.id)}
+                        disabled={deletingCommentId === comment.id}
+                        aria-label="댓글 삭제"
+                      >
+                        {deletingCommentId === comment.id ? '삭제 중...' : '삭제'}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="community-comment-content">{comment.content}</div>
+                </div>
+              ))}
+            </div>
+
+            {commentPageNumbers.length > 0 ? (
+              <div className="community-pagination">
+                <button
+                  className="ghost-button community-page-button"
+                  type="button"
+                  onClick={() => setCurrentCommentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentCommentPage <= 1}
+                >
+                  이전
+                </button>
+
+                {commentPageNumbers.map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    className={pageNumber === currentCommentPage ? 'primary-button community-page-button' : 'ghost-button community-page-button'}
+                    type="button"
+                    onClick={() => setCurrentCommentPage(pageNumber)}
+                    disabled={pageNumber === currentCommentPage}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+
+                <button
+                  className="ghost-button community-page-button"
+                  type="button"
+                  onClick={() => setCurrentCommentPage((page) => page + 1)}
+                  disabled={!commentsPage?.hasNext}
+                >
+                  다음
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {!currentUser ? (
+          <div className="community-comment-login-cta">
+            <p className="helper-text">댓글 작성은 로그인 후 이용할 수 있습니다.</p>
+            <Link to="/login" state={{ from: returnTo }} className="ghost-button">
+              로그인하러 가기
+            </Link>
+          </div>
+        ) : (
+          <form className="community-comment-form" onSubmit={handleAddComment}>
+            {commentActionErrorMessage ? <p className="message error">{commentActionErrorMessage}</p> : null}
+            <textarea
+              className="community-comment-input"
+              value={commentInput}
+              onChange={(event) => setCommentInput(event.target.value)}
+              placeholder="댓글을 작성해주세요."
+              rows={3}
+              disabled={isCommentSubmitting}
+            />
+            <div className="community-comment-form-actions">
+              <button type="submit" className="primary-button" disabled={isCommentSubmitting}>
+                {isCommentSubmitting ? '등록 중...' : '등록'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </section>
   )

@@ -4,7 +4,7 @@
 
 - 회원가입 / 로그인 / 토큰 재발급 / 로그아웃 API
 - 보호 API 접근 제어
-- 게시글 수정/삭제의 소유자 검증
+- 게시글과 댓글 삭제의 소유자 검증
 - 프런트의 Access Token 보관 및 API 호출 규칙
 
 ## 2. 사용자 역할
@@ -26,6 +26,7 @@
 - `/error`
 - `GET /api/posts`
 - `GET /api/posts/*`
+- `GET /api/posts/*/comments`
 
 ### 인증 필요 경로
 
@@ -40,11 +41,15 @@
   - `POST /api/posts`
   - `PUT /api/posts/{postId}`
   - `DELETE /api/posts/{postId}`
+  - `POST /api/posts/{postId}/comments`
+  - `DELETE /api/posts/{postId}/comments/{commentId}`
 
 ### 추가 인가 정책
 
 - 게시글 수정/삭제는 인증만으로 끝나지 않는다.
 - 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
+- 댓글 삭제는 인증만으로 끝나지 않는다.
+- 댓글 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
 - 기록 penalty 수정/삭제는 인증만으로 끝나지 않는다.
 - 기록 소유자 본인만 허용한다.
 
@@ -192,7 +197,7 @@
 | 로그인 실패 | `401` | `AuthService`에서 `CustomApiException` 반환 | 에러 메시지 표시 |
 | 만료/무효 토큰 | `401` | JWT 검증 실패 또는 블랙리스트 검사 실패 | 재로그인 또는 재발급 유도 |
 | 권한 부족 | `403` | `accessDeniedHandler` 또는 서비스 계층 인가 예외 | 권한 없음 메시지 표시 |
-| 소유자 조건 불일치 | `403` | 게시글 수정/삭제 또는 기록 수정/삭제 거부 | 상세 또는 목록 화면 복귀 |
+| 소유자 조건 불일치 | `403` | 게시글/댓글 수정·삭제 또는 기록 수정/삭제 거부 | 상세 또는 목록 화면 복귀 |
 | 중복 회원가입 | `409` | `DataIntegrityViolationException` 처리 | 입력값 수정 유도 |
 
 ## 8. 프런트 처리 규칙

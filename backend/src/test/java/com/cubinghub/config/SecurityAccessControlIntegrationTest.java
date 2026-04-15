@@ -113,4 +113,13 @@ class SecurityAccessControlIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.message").value("게시글을 찾을 수 없습니다."));
     }
+
+    @Test
+    @DisplayName("공개 댓글 목록 경로는 인증 없이도 접근할 수 있다")
+    void should_allow_access_to_public_comment_list_when_authentication_is_missing() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}/comments", 99999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("게시글을 찾을 수 없습니다."));
+    }
 }

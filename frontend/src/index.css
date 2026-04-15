@@ -1079,6 +1079,13 @@ button {
   justify-content: flex-end;
 }
 
+.community-comment-login-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .split-grid {
   display: grid;
   gap: 20px;

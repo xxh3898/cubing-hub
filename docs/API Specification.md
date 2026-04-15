@@ -74,6 +74,9 @@
 | `GET` | `/api/posts/{postId}` | Public | 게시글 상세 조회 | 구현됨 |
 | `PUT` | `/api/posts/{postId}` | Auth | 게시글 수정 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}` | Auth | 게시글 삭제 | 구현됨 |
+| `GET` | `/api/posts/{postId}/comments` | Public | 댓글 목록 조회 | 구현됨 |
+| `POST` | `/api/posts/{postId}/comments` | Auth | 댓글 생성 | 구현됨 |
+| `DELETE` | `/api/posts/{postId}/comments/{commentId}` | Auth | 댓글 삭제 | 구현됨 |
 
 ## 6. 인증 API
 
@@ -527,11 +530,90 @@
 - 상태 코드: `200 OK`
 - `data`: `null`
 
-## 12. 미구현 API
+## 12. 댓글 API
 
-- 댓글 API
-  - 댓글 작성, 삭제, 목록 조회
-  - `TODO`
+### `GET /api/posts/{postId}/comments`
+
+- 설명: 게시글 댓글 목록을 최신순으로 조회한다.
+- 인증: Public
+- 멱등성: 멱등
+
+#### Path Parameter
+
+| 이름 | 타입 | 설명 |
+| --- | --- | --- |
+| `postId` | Number | 댓글을 조회할 게시글 ID |
+
+#### Query Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지당 댓글 수, 기본값 `5` |
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.items[]` | Array | 댓글 목록 |
+| `data.items[].id` | Number | 댓글 ID |
+| `data.items[].authorNickname` | String | 작성자 닉네임 |
+| `data.items[].content` | String | 댓글 본문 |
+| `data.items[].createdAt` | String | 작성 시각 |
+| `data.page` | Number | 현재 페이지 번호 |
+| `data.size` | Number | 페이지당 댓글 수 |
+| `data.totalElements` | Number | 전체 댓글 수 |
+| `data.totalPages` | Number | 전체 페이지 수 |
+| `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
+| `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
+
+### `POST /api/posts/{postId}/comments`
+
+- 설명: 게시글에 댓글을 생성한다.
+- 인증: Access Token 필요
+- 멱등성: 비멱등
+
+#### Path Parameter
+
+| 이름 | 타입 | 설명 |
+| --- | --- | --- |
+| `postId` | Number | 댓글을 생성할 게시글 ID |
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `content` | String | 예 | 댓글 본문, 최대 500자 |
+
+#### Response
+
+- 상태 코드: `201 Created`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.id` | Number | 생성된 댓글 ID |
+
+### `DELETE /api/posts/{postId}/comments/{commentId}`
+
+- 설명: 게시글 댓글을 삭제한다.
+- 인증: Access Token 필요
+- 인가: 댓글 작성자 본인 또는 `ROLE_ADMIN`
+- 멱등성: 멱등
+
+#### Path Parameter
+
+| 이름 | 타입 | 설명 |
+| --- | --- | --- |
+| `postId` | Number | 댓글이 속한 게시글 ID |
+| `commentId` | Number | 삭제할 댓글 ID |
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+## 13. 미구현 API
+
 - 피드백 전달 API
   - 관리자 메일 전달 및 필요 시 저장
   - `TODO`
@@ -539,12 +621,12 @@
   - 오늘의 스크램블, 통계, 최근 기록 조회
   - `TODO`
 
-## 13. 문서화 메모
+## 14. 문서화 메모
 
 - API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
 
-## 14. 미확정 사항
+## 15. 미확정 사항
 
-- 댓글, 피드백, 홈 대시보드 API의 최종 응답 스키마
+- 피드백, 홈 대시보드 API의 최종 응답 스키마
 - 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부
