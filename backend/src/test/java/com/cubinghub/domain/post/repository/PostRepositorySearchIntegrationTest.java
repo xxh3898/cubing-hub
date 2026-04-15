@@ -44,12 +44,13 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
         savePost(cubeAuthor, PostCategory.FREE, "Weekly Journal", "Cube session summary");
         savePost(otherUser, PostCategory.FREE, "Cube Review", "Review written by another user");
 
-        List<PostListItemResponse> result = postRepository.search("cUbE", "author");
+        PostSearchResult result = postRepository.search(null, "cUbE", "author", 0, 10);
 
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(PostListItemResponse::getTitle)
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getItems()).hasSize(2);
+        assertThat(result.getItems()).extracting(PostListItemResponse::getTitle)
                 .containsExactly("Weekly Journal", "Cube Practice Notes");
-        assertThat(result).extracting(PostListItemResponse::getAuthorNickname)
+        assertThat(result.getItems()).extracting(PostListItemResponse::getAuthorNickname)
                 .containsOnly("CubeAuthor");
     }
 
@@ -69,9 +70,10 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
         updatePostTimestamps(sameTimestampHighId.getId(), baseTime);
         updatePostTimestamps(newest.getId(), baseTime.plusMinutes(5));
 
-        List<PostListItemResponse> result = postRepository.search(null, null);
+        PostSearchResult result = postRepository.search(null, null, null, 0, 10);
 
-        assertThat(result).extracting(PostListItemResponse::getTitle)
+        assertThat(result.getTotalElements()).isEqualTo(4);
+        assertThat(result.getItems()).extracting(PostListItemResponse::getTitle)
                 .containsExactly("Newest", "Same Timestamp High", "Same Timestamp Low", "Oldest");
     }
 
@@ -84,11 +86,12 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
         savePost(cubeAuthor, PostCategory.FREE, "Cube Tips", "content-1");
         savePost(otherUser, PostCategory.NOTICE, "Timer Setup", "content-2");
 
-        List<PostListItemResponse> result = postRepository.search(null, "master");
+        PostSearchResult result = postRepository.search(null, null, "master", 0, 10);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getTitle()).isEqualTo("Cube Tips");
-        assertThat(result.get(0).getAuthorNickname()).isEqualTo("CubeMaster");
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getTitle()).isEqualTo("Cube Tips");
+        assertThat(result.getItems().get(0).getAuthorNickname()).isEqualTo("CubeMaster");
     }
 
     @Test
@@ -100,11 +103,30 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
         savePost(searchUser, PostCategory.NOTICE, "Weekly Notes", "Cube memo and practice plan");
         savePost(searchUser, PostCategory.FREE, "Timer Setup", "Stackmat setting guide");
 
-        List<PostListItemResponse> result = postRepository.search("cube", null);
+        PostSearchResult result = postRepository.search(null, "cube", null, 0, 10);
 
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(PostListItemResponse::getTitle)
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getItems()).hasSize(2);
+        assertThat(result.getItems()).extracting(PostListItemResponse::getTitle)
                 .containsExactlyInAnyOrder("Cube Basics", "Weekly Notes");
+    }
+
+    @Test
+    @DisplayName("카테고리 조건과 페이지 정보가 있으면 해당 카테고리에서 요청한 범위만 조회한다")
+    void should_filter_posts_by_category_and_return_requested_page_when_category_and_pagination_are_provided() {
+        User user = saveUser("category-user@test.com", "CategoryUser");
+
+        savePost(user, PostCategory.FREE, "Free 1", "content-1");
+        savePost(user, PostCategory.NOTICE, "Notice 1", "content-2");
+        savePost(user, PostCategory.FREE, "Free 2", "content-3");
+        savePost(user, PostCategory.FREE, "Free 3", "content-4");
+
+        PostSearchResult result = postRepository.search(PostCategory.FREE, null, null, 1, 1);
+
+        assertThat(result.getTotalElements()).isEqualTo(3);
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getTitle()).isEqualTo("Free 2");
+        assertThat(result.getItems().get(0).getCategory()).isEqualTo(PostCategory.FREE);
     }
 
     private User saveUser(String email, String nickname) {

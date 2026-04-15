@@ -149,38 +149,55 @@ class PostDocsTest extends RestDocsIntegrationTest {
     }
 
     @Test
-    @DisplayName("게시글 목록은 공개 조회되며 키워드와 작성자 조건으로 검색할 수 있다")
-    void should_return_filtered_posts_when_keyword_and_author_are_provided() throws Exception {
+    @DisplayName("게시글 목록은 공개 조회되며 카테고리 검색과 페이지 메타데이터를 함께 반환한다")
+    void should_return_paginated_posts_when_category_keyword_author_and_pagination_are_provided() throws Exception {
         savePost(authorUser, PostCategory.FREE, "큐브 연습법", "OLL 연습 내용을 정리합니다.");
         savePost(otherUser, PostCategory.FREE, "대회 후기", "큐브 대회 후기와 기록");
         savePost(authorUser, PostCategory.NOTICE, "공지 제목", "운영 공지입니다.");
 
         ResultActions result = mockMvc.perform(get("/api/posts")
+                .param("category", "FREE")
                 .param("keyword", "큐브")
                 .param("author", "Author")
+                .param("page", "1")
+                .param("size", "1")
                 .accept(MediaType.APPLICATION_JSON));
 
         result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.message").value("게시글 목록을 조회했습니다."))
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].title").value("큐브 연습법"))
-                .andExpect(jsonPath("$.data[0].authorNickname").value("Author"))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("큐브 연습법"))
+                .andExpect(jsonPath("$.data.items[0].authorNickname").value("Author"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
                 .andDo(document("post/list",
                         queryParameters(
+                                parameterWithName("category").optional().description("게시판 카테고리 (`NOTICE`, `FREE`)"),
                                 parameterWithName("keyword").optional().description("제목/본문 키워드 검색어"),
-                                parameterWithName("author").optional().description("작성자 닉네임 검색어")
+                                parameterWithName("author").optional().description("작성자 닉네임 검색어"),
+                                parameterWithName("page").optional().description("조회할 페이지 번호 (1부터 시작)"),
+                                parameterWithName("size").optional().description("페이지당 게시글 수")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
-                                fieldWithPath("data").type(JsonFieldType.ARRAY).description("게시글 목록"),
-                                fieldWithPath("data[].id").description("게시글 ID"),
-                                fieldWithPath("data[].category").description("게시판 카테고리"),
-                                fieldWithPath("data[].title").description("게시글 제목"),
-                                fieldWithPath("data[].authorNickname").description("작성자 닉네임"),
-                                fieldWithPath("data[].viewCount").description("조회수"),
-                                fieldWithPath("data[].createdAt").description("작성 시각")
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("게시글 페이지 정보"),
+                                fieldWithPath("data.items").type(JsonFieldType.ARRAY).description("게시글 목록"),
+                                fieldWithPath("data.items[].id").description("게시글 ID"),
+                                fieldWithPath("data.items[].category").description("게시판 카테고리"),
+                                fieldWithPath("data.items[].title").description("게시글 제목"),
+                                fieldWithPath("data.items[].authorNickname").description("작성자 닉네임"),
+                                fieldWithPath("data.items[].viewCount").description("조회수"),
+                                fieldWithPath("data.items[].createdAt").description("작성 시각"),
+                                fieldWithPath("data.page").type(JsonFieldType.NUMBER).description("현재 페이지 번호"),
+                                fieldWithPath("data.size").type(JsonFieldType.NUMBER).description("페이지당 게시글 수"),
+                                fieldWithPath("data.totalElements").type(JsonFieldType.NUMBER).description("전체 게시글 수"),
+                                fieldWithPath("data.totalPages").type(JsonFieldType.NUMBER).description("전체 페이지 수"),
+                                fieldWithPath("data.hasNext").type(JsonFieldType.BOOLEAN).description("다음 페이지 존재 여부"),
+                                fieldWithPath("data.hasPrevious").type(JsonFieldType.BOOLEAN).description("이전 페이지 존재 여부")
                         )
                 ));
     }

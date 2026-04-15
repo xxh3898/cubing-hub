@@ -11,9 +11,11 @@ import com.cubinghub.domain.post.dto.request.PostCreateRequest;
 import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
 import com.cubinghub.domain.post.dto.response.PostDetailResponse;
 import com.cubinghub.domain.post.dto.response.PostListItemResponse;
+import com.cubinghub.domain.post.dto.response.PostPageResponse;
 import com.cubinghub.domain.post.entity.Post;
 import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.post.repository.PostRepository;
+import com.cubinghub.domain.post.repository.PostSearchResult;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -87,17 +89,34 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 목록 조회는 검색 조건을 repository에 위임한다")
-    void should_delegate_post_search_when_get_posts_is_called() {
+    @DisplayName("게시글 목록 조회는 검색 조건과 페이지 정보를 repository에 위임한다")
+    void should_delegate_post_search_with_pagination_when_get_posts_is_called() {
         List<PostListItemResponse> expected = List.of(
                 new PostListItemResponse(1L, PostCategory.FREE, "큐브 연습법", "Author", 3, null)
         );
-        when(postRepository.search("큐브", "Author")).thenReturn(expected);
+        when(postRepository.search(PostCategory.FREE, "큐브", "Author", 8, 8))
+                .thenReturn(new PostSearchResult(expected, 17L));
 
-        List<PostListItemResponse> result = postService.getPosts("큐브", "Author");
+        PostPageResponse result = postService.getPosts(PostCategory.FREE, "큐브", "Author", 2, 8);
 
-        assertThat(result).isEqualTo(expected);
-        verify(postRepository).search("큐브", "Author");
+        assertThat(result.getItems()).isEqualTo(expected);
+        assertThat(result.getPage()).isEqualTo(2);
+        assertThat(result.getSize()).isEqualTo(8);
+        assertThat(result.getTotalElements()).isEqualTo(17L);
+        assertThat(result.getTotalPages()).isEqualTo(3);
+        assertThat(result.isHasNext()).isTrue();
+        assertThat(result.isHasPrevious()).isTrue();
+        verify(postRepository).search(PostCategory.FREE, "큐브", "Author", 8, 8);
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 page가 1보다 작으면 실패한다")
+    void should_throw_illegal_argument_exception_when_page_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> postService.getPosts(null, null, null, 0, 8));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page는 1 이상이어야 합니다.");
     }
 
     @Test

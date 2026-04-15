@@ -1,9 +1,8 @@
 package com.cubinghub.domain.post.repository;
 
-import com.cubinghub.domain.post.dto.response.PostListItemResponse;
-
-import java.util.List;
+import com.cubinghub.domain.post.entity.PostCategory;
 
 public interface PostRepositoryCustom {
-    List<PostListItemResponse> search(String keyword, String author);
+
+    PostSearchResult search(PostCategory category, String keyword, String author, int offset, int limit);
 }

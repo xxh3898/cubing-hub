@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MissingRequestCookieException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -75,6 +76,18 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(), requestSummary(request), ex.getCookieName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(HttpStatus.BAD_REQUEST, ex.getCookieName() + " 쿠키가 필요합니다."));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request
+    ) {
+        String errorMessage = ex.getName() + " 파라미터 형식이 올바르지 않습니다.";
+        log.warn("파라미터 타입 불일치 - status: {}, request: {}, parameter: {}, value: {}",
+                HttpStatus.BAD_REQUEST.value(), requestSummary(request), ex.getName(), ex.getValue());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(HttpStatus.BAD_REQUEST, errorMessage));
     }
 
     @ExceptionHandler(AuthenticationException.class)

@@ -430,19 +430,29 @@
 
 | 이름 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
+| `category` | String | 아니오 | 게시판 카테고리 (`NOTICE`, `FREE`) |
 | `keyword` | String | 아니오 | 제목/본문 키워드 |
 | `author` | String | 아니오 | 작성자 닉네임 |
+| `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지당 게시글 수, 기본값 `8` |
 
 #### Response
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `data[].id` | Number | 게시글 ID |
-| `data[].category` | String | 게시판 카테고리 |
-| `data[].title` | String | 제목 |
-| `data[].authorNickname` | String | 작성자 닉네임 |
-| `data[].viewCount` | Number | 조회수 |
-| `data[].createdAt` | String | 작성 시각 |
+| `data.items[]` | Array | 게시글 목록 |
+| `data.items[].id` | Number | 게시글 ID |
+| `data.items[].category` | String | 게시판 카테고리 |
+| `data.items[].title` | String | 제목 |
+| `data.items[].authorNickname` | String | 작성자 닉네임 |
+| `data.items[].viewCount` | Number | 조회수 |
+| `data.items[].createdAt` | String | 작성 시각 |
+| `data.page` | Number | 현재 페이지 번호 |
+| `data.size` | Number | 페이지당 게시글 수 |
+| `data.totalElements` | Number | 전체 게시글 수 |
+| `data.totalPages` | Number | 전체 페이지 수 |
+| `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
+| `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
 
 ### `GET /api/posts/{postId}`
 

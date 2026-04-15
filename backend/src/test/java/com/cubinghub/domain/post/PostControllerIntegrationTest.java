@@ -122,6 +122,55 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("게시글 목록 조회 요청이 오면 카테고리 검색과 페이지 메타데이터를 함께 반환한다")
+    void should_return_paginated_posts_when_list_query_parameters_are_provided() throws Exception {
+        savePost(authorUser, PostCategory.FREE, "큐브 연습법", "OLL 연습 내용을 정리합니다.");
+        savePost(otherUser, PostCategory.FREE, "대회 후기", "큐브 대회 후기와 기록");
+        savePost(authorUser, PostCategory.NOTICE, "공지 제목", "운영 공지입니다.");
+
+        mockMvc.perform(get("/api/posts")
+                        .param("category", "FREE")
+                        .param("keyword", "큐브")
+                        .param("author", "Author")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글 목록을 조회했습니다."))
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("큐브 연습법"))
+                .andExpect(jsonPath("$.data.items[0].category").value("FREE"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.hasNext").value(false))
+                .andExpect(jsonPath("$.data.hasPrevious").value(false));
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회에서 page가 1보다 작으면 400을 반환한다")
+    void should_return_bad_request_when_post_list_page_is_less_than_one() throws Exception {
+        mockMvc.perform(get("/api/posts")
+                        .param("page", "0")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("page는 1 이상이어야 합니다."));
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회에서 category 형식이 잘못되면 400을 반환한다")
+    void should_return_bad_request_when_post_list_category_is_invalid() throws Exception {
+        mockMvc.perform(get("/api/posts")
+                        .param("category", "INVALID")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("category 파라미터 형식이 올바르지 않습니다."));
+    }
+
+    @Test
     @DisplayName("게시글 상세 조회 요청을 보내면 조회수가 증가한다")
     void should_increase_view_count_when_post_detail_is_requested() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "상세 제목", "상세 본문");

@@ -4,10 +4,12 @@ import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.common.response.IdResponse;
 import com.cubinghub.domain.post.dto.request.PostCreateRequest;
 import com.cubinghub.domain.post.dto.response.PostDetailResponse;
-import com.cubinghub.domain.post.dto.response.PostListItemResponse;
+import com.cubinghub.domain.post.dto.response.PostPageResponse;
 import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
+import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.post.service.PostService;
 import jakarta.validation.Valid;
+import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,9 +24,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -44,12 +43,15 @@ public class PostController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PostListItemResponse>>> getPosts(
+    public ResponseEntity<ApiResponse<PostPageResponse>> getPosts(
+            @RequestParam(required = false) PostCategory category,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String author
+            @RequestParam(required = false) String author,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "8") Integer size
     ) {
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, "게시글 목록을 조회했습니다.", postService.getPosts(keyword, author))
+                ApiResponse.success(HttpStatus.OK, "게시글 목록을 조회했습니다.", postService.getPosts(category, keyword, author, page, size))
         );
     }
 
