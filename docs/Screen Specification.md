@@ -19,7 +19,7 @@
 | 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
-| 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | UI 구현 / mock 데이터 기반 / 실제 API 미연동 |
+| 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
 | 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route 적용 완료 / 제출은 아직 목업 처리 |
 | 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | UI 구현, mock 데이터 기반 / 비로그인 댓글 CTA 적용 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
@@ -184,7 +184,8 @@
   - 페이지네이션
 - 주요 UI 요소
   - 카테고리 탭
-  - 검색 input
+  - 제목/본문 검색 input
+  - 작성자 검색 input
   - 상세 이동 링크
 - 화면 데이터 요구사항
   - 게시글 목록
@@ -200,9 +201,9 @@
   - 상세 이동
   - 작성 화면 이동
 - 구현 상태
-  - 화면은 구현되어 있다.
-  - 데이터 소스는 `mockCommunityPosts`다.
-  - 백엔드 게시글 API는 존재하지만 프런트 실연동은 미구현 상태다.
+  - `GET /api/posts` 실연동이 구현되어 있다.
+  - 카테고리, 제목/본문, 작성자 검색과 8개 단위 페이지네이션이 서버 기준으로 동작한다.
+  - `loading`, `empty`, `error`, `다시 시도` 상태가 반영되어 있다.
 
 ### 커뮤니티 작성
 
@@ -390,7 +391,7 @@
 | 타이머 | `PATCH /api/records/{recordId}` | 최근 기록 penalty 수정 | 연동 완료 |
 | 타이머 | `DELETE /api/records/{recordId}` | 최근 기록 삭제 | 연동 완료 |
 | 랭킹 | `GET /api/rankings` | 종목별 랭킹 조회 | 백엔드 구현 / 프런트 연동 |
-| 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 미연동 |
+| 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}` | 게시글 상세 조회 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 미연동 |
 | 커뮤니티 상세 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 미연동 |

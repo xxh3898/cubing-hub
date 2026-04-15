@@ -92,6 +92,17 @@ export async function getRankings(params) {
   }
 }
 
+export async function getPosts(params) {
+  try {
+    const response = await apiClient.get('/api/posts', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getScramble(eventType) {
   try {
     const response = await apiClient.get('/api/scramble', {

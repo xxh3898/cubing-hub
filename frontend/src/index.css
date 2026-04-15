@@ -823,6 +823,12 @@ button {
   width: 100%;
 }
 
+.community-search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
 .community-write-button {
   flex-shrink: 0;
 }

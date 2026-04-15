@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { communityCategories, communityPageSize, mockCommunityPosts } from '../constants/mockCommunity.js'
+import { getPosts } from '../api.js'
+import { communityCategories, communityPageSize } from '../constants/mockCommunity.js'
 
 function formatCommunityDate(value) {
   const date = new Date(value)
@@ -8,30 +9,68 @@ function formatCommunityDate(value) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
 }
 
+function buildPageNumbers(totalPages) {
+  return Array.from({ length: totalPages }, (_, index) => index + 1)
+}
+
 export default function CommunityPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL')
   const [keyword, setKeyword] = useState('')
+  const [authorQuery, setAuthorQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [postPage, setPostPage] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
-  const filteredPosts = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase()
+  useEffect(() => {
+    let isCancelled = false
 
-    return mockCommunityPosts.filter((post) => {
-      const categoryMatched = selectedCategory === 'ALL' || post.category === selectedCategory
-      const keywordMatched =
-        normalizedKeyword.length === 0 ||
-        post.title.toLowerCase().includes(normalizedKeyword) ||
-        post.authorNickname.toLowerCase().includes(normalizedKeyword)
+    const loadPosts = async () => {
+      setIsLoading(true)
+      setErrorMessage(null)
 
-      return categoryMatched && keywordMatched
-    })
-  }, [keyword, selectedCategory])
+      try {
+        const response = await getPosts({
+          category: selectedCategory === 'ALL' ? undefined : selectedCategory,
+          keyword: keyword.trim() || undefined,
+          author: authorQuery.trim() || undefined,
+          page: currentPage,
+          size: communityPageSize,
+        })
 
-  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / communityPageSize))
-  const pagePosts = useMemo(() => {
-    const startIndex = (currentPage - 1) * communityPageSize
-    return filteredPosts.slice(startIndex, startIndex + communityPageSize)
-  }, [currentPage, filteredPosts])
+        if (isCancelled) {
+          return
+        }
+
+        const nextPage = response.data
+        const normalizedPage = nextPage.totalPages > 0 ? Math.min(currentPage, nextPage.totalPages) : 1
+
+        if (normalizedPage !== currentPage) {
+          setCurrentPage(normalizedPage)
+          return
+        }
+
+        setPostPage(nextPage)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setErrorMessage(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadPosts()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authorQuery, currentPage, keyword, reloadKey, selectedCategory])
 
   const handleCategoryChange = (categoryKey) => {
     setSelectedCategory(categoryKey)
@@ -43,13 +82,25 @@ export default function CommunityPage() {
     setCurrentPage(1)
   }
 
+  const handleAuthorQueryChange = (event) => {
+    setAuthorQuery(event.target.value)
+    setCurrentPage(1)
+  }
+
+  const handleRetry = () => {
+    setReloadKey((current) => current + 1)
+  }
+
+  const pagePosts = postPage?.items ?? []
+  const pageNumbers = buildPageNumbers(postPage?.totalPages ?? 0)
+
   return (
     <section className="page-grid community-page">
       <div className="panel community-header-panel">
         <div className="community-header-copy">
           <p className="eyebrow">Community</p>
           <h2>커뮤니티</h2>
-          <p className="helper-text">게시글을 빠르게 훑고, 제목이나 작성자 기준으로 바로 찾을 수 있는 커뮤니티 보드입니다.</p>
+          <p className="helper-text">게시글을 빠르게 훑고, 제목/본문과 작성자 조건으로 필요한 글을 바로 찾을 수 있는 커뮤니티 보드입니다.</p>
         </div>
       </div>
 
@@ -73,18 +124,42 @@ export default function CommunityPage() {
           </Link>
         </div>
 
-        <div className="field community-search-field">
-          <label htmlFor="community-search" style={{ display: 'none' }}>검색</label>
-          <input
-            id="community-search"
-            type="text"
-            value={keyword}
-            onChange={handleKeywordChange}
-            placeholder="제목 또는 닉네임으로 검색"
-          />
+        <div className="community-search-grid">
+          <div className="field community-search-field">
+            <label htmlFor="community-keyword-search">제목/본문 검색</label>
+            <input
+              id="community-keyword-search"
+              type="text"
+              value={keyword}
+              onChange={handleKeywordChange}
+              placeholder="제목 또는 본문으로 검색"
+            />
+          </div>
+
+          <div className="field community-search-field">
+            <label htmlFor="community-author-search">작성자 검색</label>
+            <input
+              id="community-author-search"
+              type="text"
+              value={authorQuery}
+              onChange={handleAuthorQueryChange}
+              placeholder="작성자 닉네임으로 검색"
+            />
+          </div>
         </div>
 
-        {pagePosts.length === 0 ? (
+        {isLoading ? (
+          <p className="helper-text">게시글 목록을 불러오는 중입니다.</p>
+        ) : errorMessage ? (
+          <>
+            <p className="message error">{errorMessage}</p>
+            <div className="community-pagination">
+              <button className="ghost-button community-page-button" type="button" onClick={handleRetry}>
+                다시 시도
+              </button>
+            </div>
+          </>
+        ) : pagePosts.length === 0 ? (
           <p className="helper-text">조건에 맞는 게시글이 없습니다.</p>
         ) : (
           <div className="record-table-wrap">
@@ -122,11 +197,9 @@ export default function CommunityPage() {
           </div>
         )}
 
-        <div className="community-pagination">
-          {Array.from({ length: totalPages }, (_, index) => {
-            const pageNumber = index + 1
-
-            return (
+        {pageNumbers.length > 0 ? (
+          <div className="community-pagination">
+            {pageNumbers.map((pageNumber) => (
               <button
                 key={pageNumber}
                 className={pageNumber === currentPage ? 'primary-button community-page-button' : 'ghost-button community-page-button'}
@@ -136,9 +209,9 @@ export default function CommunityPage() {
               >
                 {pageNumber}
               </button>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   )
