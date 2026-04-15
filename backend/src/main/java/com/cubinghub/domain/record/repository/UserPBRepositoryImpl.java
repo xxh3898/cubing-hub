@@ -47,7 +47,7 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        Long total = queryFactory
+        long total = queryFactory
                 .select(userPB.count())
                 .from(userPB)
                 .join(userPB.user, user)
@@ -57,7 +57,7 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                 )
                 .fetchOne();
 
-        return new PageImpl<>(items, pageable, total == null ? 0 : total);
+        return new PageImpl<>(items, pageable, total);
     }
 
     private BooleanExpression nicknameContains(String nickname) {

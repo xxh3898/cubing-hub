@@ -126,6 +126,16 @@ class RefreshTokenServiceIntegrationTest extends RedisIntegrationTest {
     }
 
     @Test
+    @DisplayName("삭제할 Refresh Token이 없으면 전체 삭제는 조용히 종료된다")
+    void should_do_nothing_when_delete_all_user_tokens_finds_no_keys() {
+        String email = newEmail();
+
+        refreshTokenService.deleteAllByUser(email);
+
+        assertThat(redisTemplate.keys("refresh:" + email + ":*")).isNullOrEmpty();
+    }
+
+    @Test
     @DisplayName("Refresh Token 저장 시 Redis TTL이 함께 설정된다")
     void should_set_ttl_when_refresh_token_is_saved() {
         String email = newEmail();

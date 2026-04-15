@@ -436,4 +436,13 @@ class AuthServiceTest {
 
         verify(redisBlackListService, never()).setBlackList(eq(expiredAccessToken), any(Long.class));
     }
+
+    @Test
+    @DisplayName("refresh token과 access token이 모두 없으면 로그아웃은 아무 side effect 없이 종료된다")
+    void should_do_nothing_when_logout_tokens_are_both_null() {
+        authService.logout(null, null);
+
+        verify(refreshTokenService, never()).delete(any(), any());
+        verify(redisBlackListService, never()).setBlackList(any(), any(Long.class));
+    }
 }

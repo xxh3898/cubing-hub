@@ -230,6 +230,39 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("같은 PB 시간이지만 다른 기록이면 PB 기록 참조를 갱신한다")
+    void should_update_existing_pb_when_best_time_is_same_but_record_is_different() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(1L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        Record sameTimeNewBestRecord = TestFixtures.createRecord(2L, user, EventType.WCA_333, 10000, Penalty.NONE, "same-new");
+        UserPB existingPb = spy(UserPB.builder()
+                .id(11L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build());
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(10000)
+                .penalty(Penalty.NONE)
+                .scramble("same-new")
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.save(any(Record.class))).thenReturn(sameTimeNewBestRecord);
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333))
+                .thenReturn(Optional.of(sameTimeNewBestRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
+
+        Long recordId = recordService.saveRecord(user.getEmail(), request);
+
+        assertThat(recordId).isEqualTo(sameTimeNewBestRecord.getId());
+        verify(existingPb).updateBestTime(10000, sameTimeNewBestRecord);
+        verify(userPBRepository, never()).save(any(UserPB.class));
+    }
+
+    @Test
     @DisplayName("존재하지 않는 사용자는 기록 저장에 실패한다")
     void should_throw_illegal_argument_exception_when_user_does_not_exist() {
         RecordSaveRequest request = RecordSaveRequest.builder()
@@ -403,6 +436,24 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("현재 PB가 아닌 DNF 기록 삭제는 PB 삭제와 재계산을 수행하지 않는다")
+    void should_skip_pb_delete_and_recalculation_when_deleted_record_is_not_rankable_and_not_current_pb() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record deletedRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.DNF, "dnf");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(deletedRecord.getId())).thenReturn(Optional.of(deletedRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
+
+        recordService.deleteRecord(deletedRecord.getId(), user.getEmail());
+
+        verify(userPBRepository, never()).delete(any(UserPB.class));
+        verify(recordRepository).delete(deletedRecord);
+        verify(recordRepository).flush();
+        verify(recordRepository, never()).findBestRecordByUserIdAndEventType(any(), any());
+    }
+
+    @Test
     @DisplayName("다른 사용자의 기록 삭제는 금지된다")
     void should_throw_forbidden_exception_when_non_owner_deletes_record() {
         User owner = TestFixtures.createUser(1L, "owner@cubinghub.com", "Owner", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -472,6 +523,17 @@ class RecordServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page는 1 이상이어야 합니다.");
+        verify(userPBRepository, never()).searchRankings(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("랭킹 조회 size가 1보다 작으면 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_ranking_size_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> recordService.getRankings(EventType.WCA_333, null, 1, 0));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("size는 1 이상 100 이하여야 합니다.");
         verify(userPBRepository, never()).searchRankings(any(), any(), any());
     }
 

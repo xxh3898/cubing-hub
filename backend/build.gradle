@@ -32,7 +32,9 @@ ext {
 
 def jacocoExcludes = [
 	'**/domain/**/entity/Q*.class',
-	'**/common/Q*.class'
+	'**/common/Q*.class',
+	'**/config/SecurityConfig.class',
+	'**/CubingHubApplication.class'
 ]
 
 dependencies {

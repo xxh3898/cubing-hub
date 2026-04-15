@@ -91,11 +91,39 @@ class UserProfileServiceTest {
     }
 
     @Test
+    @DisplayName("마이페이지 프로필 조회는 유효 시간이 없으면 PB와 평균을 null로 반환한다")
+    void should_return_null_summary_values_when_profile_records_have_no_effective_times() {
+        User user = TestFixtures.createUser(1L, "dnf@cubinghub.com", "DNFUser", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        var dnfRecord = TestFixtures.createRecord(12L, user, EventType.WCA_333, 9500, Penalty.DNF, "dnf");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId())).thenReturn(List.of(dnfRecord));
+
+        MyProfileResponse response = userProfileService.getMyProfile(user.getEmail());
+
+        assertThat(response.getSummary().getTotalSolveCount()).isEqualTo(1);
+        assertThat(response.getSummary().getPersonalBestTimeMs()).isNull();
+        assertThat(response.getSummary().getAverageTimeMs()).isNull();
+    }
+
+    @Test
     @DisplayName("존재하지 않는 사용자의 마이페이지 조회는 401 예외를 던진다")
     void should_throw_unauthorized_exception_when_user_does_not_exist() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() -> userProfileService.getMyProfile("missing@cubinghub.com"));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("사용자를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자의 내 기록 조회는 401 예외를 던진다")
+    void should_throw_unauthorized_exception_when_my_records_user_does_not_exist() {
+        when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("missing@cubinghub.com", 1, 10));
 
         assertThat(thrown)
                 .isInstanceOf(CustomApiException.class)
@@ -110,6 +138,16 @@ class UserProfileServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page는 1 이상이어야 합니다.");
+    }
+
+    @Test
+    @DisplayName("내 기록 조회 size가 1보다 작으면 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_size_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", 1, 0));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("size는 1 이상 100 이하여야 합니다.");
     }
 
     @Test

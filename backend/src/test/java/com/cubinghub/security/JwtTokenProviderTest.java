@@ -1,5 +1,6 @@
 package com.cubinghub.security;
 
+import io.jsonwebtoken.Jwts;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,6 +67,14 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    @DisplayName("role claim이 없는 토큰은 빈 권한 목록을 반환한다")
+    void should_return_empty_authorities_when_role_claim_is_missing() {
+        String refreshToken = jwtTokenProvider.generateRefreshToken("test@test.com");
+
+        assertThat(jwtTokenProvider.getAuthorities(refreshToken)).isEmpty();
+    }
+
+    @Test
     @DisplayName("유효한 Access Token은 검증에 성공한다")
     void should_return_true_when_access_token_is_valid() {
         // when
@@ -107,6 +116,16 @@ class JwtTokenProviderTest {
     @DisplayName("빈 문자열 토큰은 검증에 실패한다")
     void should_return_false_when_access_token_is_blank() {
         assertThat(jwtTokenProvider.validateToken("")).isFalse();
+    }
+
+    @Test
+    @DisplayName("서명되지 않은 토큰은 unsupported 토큰으로 검증에 실패한다")
+    void should_return_false_when_token_is_unsigned() {
+        String unsupportedToken = Jwts.builder()
+                .subject("test@test.com")
+                .compact();
+
+        assertThat(jwtTokenProvider.validateToken(unsupportedToken)).isFalse();
     }
 
     @Test

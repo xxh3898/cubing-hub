@@ -216,6 +216,27 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(cookie().maxAge("refresh_token", 0));
     }
 
+    @Test
+    @DisplayName("Authorization 헤더 없이 로그아웃을 요청해도 정상 응답을 반환한다")
+    void should_return_ok_when_logout_is_requested_without_authorization_header() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃이 완료되었습니다."))
+                .andExpect(cookie().maxAge("refresh_token", 0));
+    }
+
+    @Test
+    @DisplayName("Bearer 접두사가 없는 Authorization 헤더로 로그아웃을 요청해도 정상 응답을 반환한다")
+    void should_return_ok_when_logout_authorization_header_has_no_bearer_prefix() throws Exception {
+        mockMvc.perform(post("/api/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, "invalid.token.value"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("로그아웃이 완료되었습니다."))
+                .andExpect(cookie().maxAge("refresh_token", 0));
+    }
+
     private User saveActiveUser(String email, String nickname) {
         return userRepository.save(User.builder()
                 .email(email)
