@@ -1,0 +1,286 @@
+.community-page {
+  align-items: start;
+}
+
+.community-header-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.community-header-copy h2 {
+  margin-bottom: 12px;
+}
+
+.community-board-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.community-search-field {
+  min-width: 0;
+  width: 100%;
+}
+
+.community-search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.community-write-button {
+  flex-shrink: 0;
+}
+
+.community-board-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.community-category-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.community-category-button,
+.community-page-button {
+  min-width: 88px;
+}
+
+.community-table {
+  table-layout: fixed;
+}
+
+.community-col-category {
+  width: 100px;
+}
+
+.community-col-title {
+  width: 42%;
+}
+
+.community-col-author {
+  width: 18%;
+}
+
+.community-col-views {
+  width: 100px;
+}
+
+.community-col-date {
+  width: 180px;
+}
+
+.community-title-cell {
+  font-weight: 700;
+}
+
+.community-title-cell a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.community-title-cell a:hover {
+  text-decoration: underline;
+  color: #ff3e00;
+}
+
+.community-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.community-detail-page {
+  display: grid;
+  gap: 20px;
+}
+
+.community-detail-header-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.community-detail-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.community-detail-info {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #385b73;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.community-detail-info > span {
+  display: flex;
+  align-items: center;
+}
+
+.community-detail-content-panel {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.community-detail-content {
+  flex-grow: 1;
+  line-height: 1.6;
+}
+
+.community-detail-actions {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(18, 32, 43, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.community-post-delete {
+  color: #ff3e00;
+  border-color: rgba(255, 62, 0, 0.2);
+}
+
+.community-post-delete:hover {
+  background-color: rgba(255, 62, 0, 0.05);
+  color: #d32f2f;
+  border-color: #ff3e00;
+}
+
+.community-write-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.community-comments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.community-comments-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #1a2a3a;
+}
+
+.community-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.community-comments-empty {
+  color: #385b73;
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 32px 0;
+}
+
+.community-comment-item {
+  padding: 16px;
+  background-color: #f7f9fa;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.community-comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.community-comment-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.community-comment-author {
+  font-weight: 600;
+  color: #1a2a3a;
+}
+
+.community-comment-delete {
+  background: none;
+  border: none;
+  color: #8da4b5;
+  font-size: 0.85rem;
+  padding: 4px;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-weight: 500;
+}
+
+.community-comment-delete:hover {
+  color: #ff3e00;
+  text-decoration: underline;
+}
+
+.community-comment-date {
+  color: #8da4b5;
+}
+
+.community-comment-content {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.community-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.community-comment-input {
+  width: 100%;
+  border: 1px solid rgba(18, 32, 43, 0.15);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 0.95rem;
+  resize: vertical;
+  background-color: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.community-comment-input:focus {
+  outline: none;
+  border-color: #ff3e00;
+  box-shadow: 0 0 0 2px rgba(255, 62, 0, 0.1);
+}
+
+.community-comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.community-comment-login-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}

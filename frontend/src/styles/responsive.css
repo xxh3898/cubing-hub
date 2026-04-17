@@ -1,0 +1,52 @@
+@media (max-width: 900px) {
+  .topbar,
+  .two-up,
+  .split-grid,
+  .home-scramble-panel,
+  .rankings-header-panel,
+  .community-header-panel,
+  .dashboard-grid,
+  .timer-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-case-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-case-card {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-toolbar {
+    align-items: stretch;
+  }
+
+  .timer-toolbar-status {
+    margin-left: 0;
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .topbar {
+    flex-direction: column;
+  }
+
+  .topbar-meta {
+    align-items: flex-start;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .app-shell {
+    padding: 16px;
+  }
+
+  .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

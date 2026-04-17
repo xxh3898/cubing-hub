@@ -1,0 +1,108 @@
+.mypage {
+  align-items: start;
+}
+
+.mypage-profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mypage-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mypage-profile-header h2 {
+  margin: 0;
+}
+
+.mypage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mypage-info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.mypage-info-label {
+  display: inline-block;
+  min-width: 80px;
+  color: #53626d;
+  font-size: 0.9rem;
+}
+
+.mypage-dashboard-panel,
+.mypage-records-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mypage-records-header h2 {
+  margin: 0;
+}
+
+.mypage-records-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mypage-record-actions {
+  justify-content: flex-end;
+}
+
+.mypage-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mypage-pagination-label {
+  min-width: 88px;
+  text-align: center;
+}
+
+.dashboard-summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.dashboard-summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.dashboard-summary-label {
+  font-size: 0.85rem;
+  color: #53626d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard-summary-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pb-value {
+  color: #ff3e00;
+}

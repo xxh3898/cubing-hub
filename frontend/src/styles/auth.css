@@ -1,0 +1,53 @@
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 70vh;
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 480px;
+  grid-column: span 12;
+  margin: 0 auto;
+}
+
+.auth-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.auth-header h2 {
+  margin-bottom: 8px;
+}
+
+.auth-actions {
+  margin-top: 24px;
+}
+
+.auth-message {
+  margin-bottom: 16px;
+}
+
+.auth-status-panel {
+  text-align: center;
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.auth-footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(18, 32, 43, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-footer .ghost-button {
+  width: 100%;
+  text-align: center;
+}
