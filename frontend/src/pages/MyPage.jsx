@@ -62,6 +62,8 @@ export default function MyPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
+  const [profileReloadKey, setProfileReloadKey] = useState(0)
+  const [recordsReloadKey, setRecordsReloadKey] = useState(0)
   const { clearAccessToken, currentUser } = useAuth()
   const navigate = useNavigate()
 
@@ -70,6 +72,7 @@ export default function MyPage() {
 
     const loadProfile = async () => {
       setIsLoadingProfile(true)
+      setProfileError(null)
 
       try {
         const response = await getMyProfile()
@@ -98,7 +101,7 @@ export default function MyPage() {
     return () => {
       isCancelled = true
     }
-  }, [])
+  }, [profileReloadKey])
 
   useEffect(() => {
     let isCancelled = false
@@ -107,6 +110,8 @@ export default function MyPage() {
       setIsLoadingRecords(true)
 
       try {
+        setRecordsError(null)
+
         const response = await getMyRecords({ page: currentPage, size: RECORDS_PAGE_SIZE })
 
         if (isCancelled) {
@@ -141,7 +146,7 @@ export default function MyPage() {
     return () => {
       isCancelled = true
     }
-  }, [currentPage])
+  }, [currentPage, recordsReloadKey])
 
   const handleLogout = async () => {
     if (!window.confirm('로그아웃 하시겠습니까?')) {
@@ -218,6 +223,14 @@ export default function MyPage() {
     }
   }
 
+  const handleRetryProfile = () => {
+    setProfileReloadKey((current) => current + 1)
+  }
+
+  const handleRetryRecords = () => {
+    setRecordsReloadKey((current) => current + 1)
+  }
+
   const records = recordsPage?.items ?? []
   const summary = profileData?.summary
   const nickname = profileData?.nickname ?? currentUser?.nickname ?? '-'
@@ -251,7 +264,12 @@ export default function MyPage() {
         <h2>기록 요약</h2>
         {feedbackMessage ? <p className={`message ${feedbackMessage.type}`}>{feedbackMessage.text}</p> : null}
         {profileError ? (
-          <p className="message error">{profileError}</p>
+          <>
+            <p className="message error">{profileError}</p>
+            <button className="ghost-button" type="button" onClick={handleRetryProfile}>
+              다시 시도
+            </button>
+          </>
         ) : isLoadingProfile ? (
           <p className="helper-text">마이페이지 요약을 불러오는 중입니다.</p>
         ) : (
@@ -279,7 +297,12 @@ export default function MyPage() {
         </div>
 
         {recordsError ? (
-          <p className="message error">{recordsError}</p>
+          <>
+            <p className="message error">{recordsError}</p>
+            <button className="ghost-button" type="button" onClick={handleRetryRecords}>
+              다시 시도
+            </button>
+          </>
         ) : isLoadingRecords ? (
           <p className="helper-text">마이페이지 기록을 불러오는 중입니다.</p>
         ) : records.length === 0 ? (

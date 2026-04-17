@@ -91,8 +91,8 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 생성 시 작성자가 없으면 실패한다")
-    void should_throw_illegal_argument_exception_when_user_does_not_exist_on_create() {
+    @DisplayName("게시글 생성 시 작성자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist_on_create() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() ->
@@ -102,9 +102,10 @@ class PostServiceTest {
                 )
         );
 
-        assertThat(thrown)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("User not found: missing@cubinghub.com");
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
     }
 
     @Test
@@ -209,8 +210,8 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 수정 시 사용자가 없으면 실패한다")
-    void should_throw_illegal_argument_exception_when_user_does_not_exist_on_update() {
+    @DisplayName("게시글 수정 시 사용자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist_on_update() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() ->
@@ -221,9 +222,10 @@ class PostServiceTest {
                 )
         );
 
-        assertThat(thrown)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("User not found: missing@cubinghub.com");
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
     }
 
     @Test
@@ -320,15 +322,16 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 삭제 시 사용자가 없으면 실패한다")
-    void should_throw_illegal_argument_exception_when_user_does_not_exist_on_delete() {
+    @DisplayName("게시글 삭제 시 사용자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist_on_delete() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() -> postService.deletePost(10L, "missing@cubinghub.com"));
 
-        assertThat(thrown)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("User not found: missing@cubinghub.com");
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
     }
 
     @Test

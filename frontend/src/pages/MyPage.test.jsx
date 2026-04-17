@@ -278,7 +278,20 @@ describe('MyPage', () => {
   })
 
   it('should_show_error_message_when_profile_loading_fails', async () => {
-    vi.mocked(getMyProfile).mockRejectedValue(new Error('프로필 조회 실패'))
+    vi.mocked(getMyProfile)
+      .mockRejectedValueOnce(new Error('프로필 조회 실패'))
+      .mockResolvedValueOnce({
+        data: {
+          userId: 1,
+          nickname: 'Tester',
+          mainEvent: '3x3x3',
+          summary: {
+            totalSolveCount: 0,
+            personalBestTimeMs: null,
+            averageTimeMs: null,
+          },
+        },
+      })
     vi.mocked(getMyRecords).mockResolvedValue({
       data: {
         items: [],
@@ -294,6 +307,11 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText('프로필 조회 실패')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
+
+    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(getMyProfile).toHaveBeenCalledTimes(2)
   })
 
   it('should_show_error_message_when_records_loading_fails', async () => {
@@ -309,11 +327,28 @@ describe('MyPage', () => {
         },
       },
     })
-    vi.mocked(getMyRecords).mockRejectedValue(new Error('기록 조회 실패'))
+    vi.mocked(getMyRecords)
+      .mockRejectedValueOnce(new Error('기록 조회 실패'))
+      .mockResolvedValueOnce({
+        data: {
+          items: [],
+          page: 1,
+          size: 10,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false,
+        },
+      })
 
     render(<MyPage />)
 
     expect(await screen.findByText('기록 조회 실패')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
+
+    expect(await screen.findByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
+    expect(getMyRecords).toHaveBeenCalledTimes(2)
   })
 
   it('should_show_error_message_when_record_penalty_update_fails', async () => {

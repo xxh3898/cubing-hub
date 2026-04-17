@@ -133,6 +133,27 @@ class CommentControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("인증 토큰의 사용자 정보가 없으면 댓글 생성 요청은 401을 반환한다")
+    void should_return_unauthorized_when_creating_comment_with_missing_user() throws Exception {
+        User missingUser = User.builder()
+                .email("missing@cubinghub.com")
+                .password("password")
+                .nickname("Missing")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        String missingUserAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, missingUser);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments", savedPost.getId())
+                        .header("Authorization", "Bearer " + missingUserAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CommentCreateRequest("댓글 본문입니다."))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("사용자를 찾을 수 없습니다."));
+    }
+
+    @Test
     @DisplayName("댓글 생성 요청이 유효하지 않으면 400을 반환한다")
     void should_return_bad_request_when_creating_comment_with_invalid_request() throws Exception {
         mockMvc.perform(post("/api/posts/{postId}/comments", savedPost.getId())

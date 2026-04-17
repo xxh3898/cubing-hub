@@ -37,6 +37,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RecordService 단위 테스트")
@@ -263,8 +264,8 @@ class RecordServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 사용자는 기록 저장에 실패한다")
-    void should_throw_illegal_argument_exception_when_user_does_not_exist() {
+    @DisplayName("존재하지 않는 사용자는 기록 저장 시 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist() {
         RecordSaveRequest request = RecordSaveRequest.builder()
                 .eventType(EventType.WCA_333)
                 .timeMs(11000)
@@ -275,9 +276,10 @@ class RecordServiceTest {
 
         Throwable thrown = catchThrowable(() -> recordService.saveRecord("missing@cubinghub.com", request));
 
-        assertThat(thrown)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("User not found: missing@cubinghub.com");
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
     }
 
     @Test

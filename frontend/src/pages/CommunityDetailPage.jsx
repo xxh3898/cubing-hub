@@ -377,6 +377,7 @@ export default function CommunityDetailPage() {
               onChange={(event) => setCommentInput(event.target.value)}
               placeholder="댓글을 작성해주세요."
               rows={3}
+              maxLength={500}
               disabled={isCommentSubmitting}
             />
             <div className="community-comment-form-actions">

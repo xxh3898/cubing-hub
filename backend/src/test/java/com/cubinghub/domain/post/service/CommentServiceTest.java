@@ -115,6 +115,25 @@ class CommentServiceTest {
     }
 
     @Test
+    @DisplayName("댓글 생성 시 사용자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist_on_create_comment() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() ->
+                commentService.createComment(post.getId(), "missing@cubinghub.com", new CommentCreateRequest("댓글 본문"))
+        );
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("댓글 삭제 시 작성자는 자신의 댓글을 삭제할 수 있다")
     void should_delete_comment_when_author_deletes_own_comment() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -162,6 +181,21 @@ class CommentServiceTest {
         CustomApiException exception = (CustomApiException) thrown;
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(exception.getMessage()).isEqualTo("댓글 삭제 권한이 없습니다.");
+    }
+
+    @Test
+    @DisplayName("댓글 삭제 시 사용자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_user_does_not_exist_on_delete_comment() {
+        when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() ->
+                commentService.deleteComment(10L, 30L, "missing@cubinghub.com")
+        );
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
     }
 
     @Test

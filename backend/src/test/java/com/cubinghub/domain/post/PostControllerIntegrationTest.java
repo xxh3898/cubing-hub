@@ -122,6 +122,28 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("인증 토큰의 사용자 정보가 없으면 게시글 생성 요청은 401을 반환한다")
+    void should_return_unauthorized_when_creating_post_with_missing_user() throws Exception {
+        User missingUser = User.builder()
+                .email("missing@cubinghub.com")
+                .password("password")
+                .nickname("Missing")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        String missingUserAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, missingUser);
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "첫 게시글", "게시글 본문입니다.");
+
+        mockMvc.perform(post("/api/posts")
+                        .header("Authorization", "Bearer " + missingUserAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("사용자를 찾을 수 없습니다."));
+    }
+
+    @Test
     @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
     void should_return_bad_request_when_creating_post_with_invalid_request() throws Exception {
         PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");

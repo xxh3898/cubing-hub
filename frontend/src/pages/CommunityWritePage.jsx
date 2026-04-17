@@ -81,6 +81,7 @@ export default function CommunityWritePage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="게시글 제목을 입력하세요"
+              maxLength={100}
               disabled={isSubmitting}
             />
           </div>
