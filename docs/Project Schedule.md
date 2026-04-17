@@ -16,8 +16,8 @@ gantt
     section Finish Track
     Ranking Finish                    :done, 2026-04-14, 1d
     Core Feature Completion           :done, 2026-04-15, 1d
-    V1 Close Check & Stabilization    :2026-04-16, 1d
-    Tests + Docs + Bug Fix            :2026-04-17, 1d
+    V1 Close Check & Stabilization    :done, 2026-04-16, 1d
+    Tests + Docs + Bug Fix            :done, 2026-04-17, 1d
     Ranking V2 Refactor               :2026-04-18, 1d
     Deploy + Project Closeout         :2026-04-19, 1d
 ```
@@ -111,14 +111,14 @@ gantt
 - [X] 브라우저 수동 검증 완료
 
 **Day 17 (목, 2026-04-16): V1 마감 점검 및 안정화**
-- [ ] 누락 validation/auth/권한 체크 보완
-- [ ] 계약 충돌과 통합 버그 수정
-- [ ] V1 범위 최종 확인과 마감 판단
+- [X] 커뮤니티/댓글/마이페이지 권한과 validation 경계 보완
+- [X] 홈 optional auth fallback과 피드백 상태 처리 안정화
+- [X] V1 범위 자동 회귀 재확인과 마감 판단 근거 정리
 
 **Day 18 (금, 2026-04-17): 테스트 + 문서 + CSS + 잔버그 정리**
-- [ ] 핵심 테스트 보강
-- [ ] 문서 동기화
-- [ ] CSS 구조 정리와 잔버그 수정
+- [X] 안정화 범위 테스트와 문서 동기화
+- [X] CSS 구조 정리와 피드백/커뮤니티 화면 잔버그 수정
+- [X] `frontend` lint/build/test 재실행
 
 **Day 19 (토, 2026-04-18): 랭킹 V2 리팩토링 + 배포 준비**
 - [ ] Redis ZSET 랭킹 V2 리팩토링
