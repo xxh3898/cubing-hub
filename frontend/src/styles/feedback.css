@@ -1,0 +1,29 @@
+.feedback-page {
+  align-items: start;
+}
+
+.feedback-header-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.feedback-header-copy {
+  max-width: 720px;
+}
+
+.feedback-header-copy h2 {
+  margin-bottom: 12px;
+}
+
+.feedback-form-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.feedback-form-panel .form-grid {
+  gap: 18px;
+}
+
+.feedback-form-panel .field textarea {
+  min-height: 240px;
+}

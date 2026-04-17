@@ -107,6 +107,13 @@
   gap: 16px;
 }
 
+.community-detail-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .community-detail-title {
   margin: 0;
   font-size: 1.5rem;
@@ -158,6 +165,27 @@
   background-color: rgba(255, 62, 0, 0.05);
   color: #d32f2f;
   border-color: #ff3e00;
+}
+
+.community-write-page {
+  align-items: start;
+}
+
+.community-write-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.community-write-title {
+  margin: 0;
+}
+
+.community-write-form {
+  gap: 18px;
+}
+
+.community-write-form .field textarea {
+  min-height: 280px;
 }
 
 .community-write-actions {
@@ -237,6 +265,12 @@
 .community-comment-delete:hover {
   color: #ff3e00;
   text-decoration: underline;
+}
+
+.community-comment-delete:disabled {
+  color: #aebfca;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .community-comment-date {
