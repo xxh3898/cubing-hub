@@ -109,4 +109,51 @@ describe('FeedbackPage', () => {
 
     expect(await screen.findByText('피드백 저장 실패')).toBeInTheDocument()
   })
+
+  it('should_disable_feedback_form_while_feedback_request_is_submitting', async () => {
+    let resolveRequest
+    vi.mocked(createFeedback).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+
+    renderFeedbackPage()
+
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '버그 제보' } })
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
+    fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
+
+    expect(screen.getByLabelText('피드백 종류')).toBeDisabled()
+    expect(screen.getByLabelText('회신 이메일')).toBeDisabled()
+    expect(screen.getByLabelText('제목')).toBeDisabled()
+    expect(screen.getByLabelText('내용')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '제출 중...' })).toBeDisabled()
+
+    resolveRequest({
+      message: '피드백이 접수되었습니다.',
+      data: {
+        id: 1,
+      },
+    })
+
+    expect(await screen.findByText('피드백이 접수되었습니다.')).toBeInTheDocument()
+  })
+
+  it('should_clear_feedback_message_when_feedback_field_changes_after_error', async () => {
+    vi.mocked(createFeedback).mockRejectedValue(new Error('피드백 저장 실패'))
+
+    renderFeedbackPage()
+
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '버그 제보' } })
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
+    fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
+
+    expect(await screen.findByText('피드백 저장 실패')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '내용 수정' } })
+
+    expect(screen.queryByText('피드백 저장 실패')).not.toBeInTheDocument()
+  })
 })

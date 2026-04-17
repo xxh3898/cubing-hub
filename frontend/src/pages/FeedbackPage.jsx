@@ -20,6 +20,30 @@ export default function FeedbackPage() {
     setReplyEmail((previousReplyEmail) => previousReplyEmail || defaultReplyEmail)
   }, [defaultReplyEmail])
 
+  const updateFeedbackField = (setter) => (value) => {
+    setter(value)
+
+    if (feedbackMessage) {
+      setFeedbackMessage(null)
+    }
+  }
+
+  const handleTypeChange = (event) => {
+    updateFeedbackField(setType)(event.target.value)
+  }
+
+  const handleReplyEmailChange = (event) => {
+    updateFeedbackField(setReplyEmail)(event.target.value)
+  }
+
+  const handleTitleChange = (event) => {
+    updateFeedbackField(setTitle)(event.target.value)
+  }
+
+  const handleContentChange = (event) => {
+    updateFeedbackField(setContent)(event.target.value)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
 
@@ -82,7 +106,8 @@ export default function FeedbackPage() {
             <select
               id="feedback-type"
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={handleTypeChange}
+              disabled={isSubmitting}
             >
               <option value="BUG">버그 및 오류 제보</option>
               <option value="FEATURE">새로운 기능 제안</option>
@@ -97,10 +122,11 @@ export default function FeedbackPage() {
               type="email"
               id="feedback-reply-email"
               value={replyEmail}
-              onChange={(e) => setReplyEmail(e.target.value)}
+              onChange={handleReplyEmailChange}
               placeholder="회신 받을 이메일 주소를 입력해주세요"
               maxLength={255}
               autoComplete="email"
+              disabled={isSubmitting}
             />
             <p className="helper-text">필요하면 이 주소로 답변을 보냅니다.</p>
           </div>
@@ -111,9 +137,10 @@ export default function FeedbackPage() {
               type="text"
               id="feedback-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={handleTitleChange}
               placeholder="간략한 제목을 적어주세요"
               maxLength={100}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -122,9 +149,10 @@ export default function FeedbackPage() {
             <textarea
               id="feedback-content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={handleContentChange}
               placeholder="어떤 상황에서 어떤 문제가 발생했는지, 혹은 어떤 기능이 있으면 좋을지 자유롭게 적어주세요!"
               rows={8}
+              disabled={isSubmitting}
             />
           </div>
 

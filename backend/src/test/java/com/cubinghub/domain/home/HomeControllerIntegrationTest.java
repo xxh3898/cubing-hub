@@ -84,6 +84,30 @@ class HomeControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data.recentPosts.length()").value(1));
     }
 
+    @Test
+    @DisplayName("인증 토큰의 사용자가 없으면 게스트 홈으로 fallback 한다")
+    void should_return_guest_home_when_access_token_user_does_not_exist() throws Exception {
+        User author = saveUser("guest-posts@cubinghub.com", "GuestAuthor", UserRole.ROLE_USER);
+        savePost(author, "첫 글");
+        User missingUser = User.builder()
+                .email("missing@cubinghub.com")
+                .password("password")
+                .nickname("MissingUser")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("3x3x3")
+                .build();
+        String missingUserAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, missingUser);
+
+        mockMvc.perform(get("/api/home")
+                        .header("Authorization", "Bearer " + missingUserAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.summary").value(nullValue()))
+                .andExpect(jsonPath("$.data.recentRecords.length()").value(0))
+                .andExpect(jsonPath("$.data.recentPosts.length()").value(1));
+    }
+
     private User saveUser(String email, String nickname, UserRole role) {
         return userRepository.save(User.builder()
                 .email(email)

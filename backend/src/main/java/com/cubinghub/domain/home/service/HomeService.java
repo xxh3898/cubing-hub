@@ -1,5 +1,6 @@
 package com.cubinghub.domain.home.service;
 
+import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.home.dto.response.HomeRecentRecordResponse;
 import com.cubinghub.domain.home.dto.response.HomeResponse;
 import com.cubinghub.domain.home.dto.response.HomeSummaryResponse;
@@ -15,6 +16,7 @@ import com.cubinghub.domain.user.service.UserProfileService;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,10 +40,19 @@ public class HomeService {
         List<PostListItemResponse> recentPosts = postRepository.findRecent(RECENT_POST_LIMIT);
 
         if (!StringUtils.hasText(email)) {
-            return new HomeResponse(todayScramble, null, Collections.emptyList(), recentPosts);
+            return guestHome(todayScramble, recentPosts);
         }
 
-        MyProfileResponse profile = userProfileService.getMyProfile(email);
+        MyProfileResponse profile;
+        try {
+            profile = userProfileService.getMyProfile(email);
+        } catch (CustomApiException ex) {
+            if (ex.getStatus() == HttpStatus.UNAUTHORIZED) {
+                return guestHome(todayScramble, recentPosts);
+            }
+            throw ex;
+        }
+
         List<HomeRecentRecordResponse> recentRecords = recordRepository.findByUserIdOrderByCreatedAtDesc(
                         profile.getUserId(),
                         PageRequest.of(0, RECENT_RECORD_LIMIT)
@@ -55,5 +66,9 @@ public class HomeService {
                 recentRecords,
                 recentPosts
         );
+    }
+
+    private HomeResponse guestHome(ScrambleResponse todayScramble, List<PostListItemResponse> recentPosts) {
+        return new HomeResponse(todayScramble, null, Collections.emptyList(), recentPosts);
     }
 }

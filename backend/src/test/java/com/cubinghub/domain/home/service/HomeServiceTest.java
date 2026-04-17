@@ -1,10 +1,12 @@
 package com.cubinghub.domain.home.service;
 
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.home.dto.response.HomeResponse;
 import com.cubinghub.domain.post.dto.response.PostListItemResponse;
 import com.cubinghub.domain.post.repository.PostRepository;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -104,5 +107,41 @@ class HomeServiceTest {
         assertThat(response.getRecentRecords().get(0).getScramble()).isEqualTo("first scramble");
         assertThat(response.getRecentPosts()).hasSize(1);
         verify(recordRepository).findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(0, 5));
+    }
+
+    @Test
+    @DisplayName("인증 이메일이 있지만 사용자 조회가 401이면 게스트 홈으로 fallback 한다")
+    void should_fallback_to_guest_home_when_authenticated_user_is_missing() {
+        List<PostListItemResponse> recentPosts = List.of(
+                new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, LocalDateTime.now())
+        );
+
+        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(postRepository.findRecent(3)).thenReturn(recentPosts);
+        when(userProfileService.getMyProfile("missing@cubinghub.com"))
+                .thenThrow(new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
+
+        HomeResponse response = homeService.getHome("missing@cubinghub.com");
+
+        assertThat(response.getSummary()).isNull();
+        assertThat(response.getRecentRecords()).isEmpty();
+        assertThat(response.getRecentPosts()).hasSize(1);
+        verifyNoInteractions(recordRepository);
+    }
+
+    @Test
+    @DisplayName("인증 이메일이 있지만 비인가 외 예외면 그대로 전파한다")
+    void should_rethrow_exception_when_authenticated_home_fails_with_non_unauthorized_error() {
+        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(postRepository.findRecent(3)).thenReturn(List.of());
+        when(userProfileService.getMyProfile("home@cubinghub.com"))
+                .thenThrow(new CustomApiException("프로필 조회 실패", HttpStatus.INTERNAL_SERVER_ERROR));
+
+        Throwable thrown = catchThrowable(() -> homeService.getHome("home@cubinghub.com"));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(exception.getMessage()).isEqualTo("프로필 조회 실패");
     }
 }

@@ -115,4 +115,27 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
     }
+
+    @Test
+    @DisplayName("인증 토큰의 사용자 정보가 없으면 피드백 생성 요청은 401을 반환한다")
+    void should_return_unauthorized_when_feedback_create_request_is_sent_with_missing_user() throws Exception {
+        User missingUser = User.builder()
+                .email("missing@cubinghub.com")
+                .password("password")
+                .nickname("MissingUser")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("3x3x3")
+                .build();
+        String missingUserAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, missingUser);
+        FeedbackCreateRequest request = new FeedbackCreateRequest(FeedbackType.BUG, "버그 제보", "reply@cubinghub.com", "내용");
+
+        mockMvc.perform(post("/api/feedbacks")
+                        .header("Authorization", "Bearer " + missingUserAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("사용자를 찾을 수 없습니다."));
+    }
 }
