@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Day 17 V1 안정화 + Day 18 테스트/문서/CSS/잔버그 정리 |
-| 상태 | Day 17 범위의 권한/auth/validation 안정화와 Day 18 범위의 테스트, 문서, CSS 구조, 화면 잔버그 정리를 커밋 단위로 완료 |
-| 범위 | 커뮤니티/댓글/홈/피드백/마이페이지 인증 경계 정리, `MyPage` 재시도 UX, `FeedbackPage` 상태 처리, `frontend/src/styles/*` CSS 분리, 일정/허브/날짜 로그 동기화 |
-| 핵심 리스크 | Day 17/18 자동 회귀는 통과했지만 안정화 후 브라우저 수동 재점검은 Day 19 시작 전 한 번 더 확인하는 편이 안전하다 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md), [Project Schedule](./Project%20Schedule.md), [Day 17](./Development%20Log/Day%2017.md), [Day 18](./Development%20Log/Day%2018.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
-| 다음 로그 대상 | Day 19 랭킹 V2 리팩토링 + 배포 준비 |
+| 작업명 | Day 19 `k6` baseline 측정 + Day 20 Redis 리팩토링/배포 마감 재정렬 |
+| 상태 | Day 17, Day 18 안정화는 완료됐고, 공식 일정과 내부 일정은 `2026-04-20` baseline 측정, `2026-04-21` Redis 리팩토링/재측정/배포/큐빙허브 문서 마감 기준으로 재정렬됐다 |
+| 범위 | 브라우저 핵심 흐름 재점검, Redis 리팩토링 전 V1 기준 `k6` baseline 측정과 기록, Redis ZSET 랭킹 V2 리팩토링, 동일 시나리오 재측정, 최종 배포, 큐빙허브 문서 마감 |
+| 핵심 리스크 | Day 19 baseline은 오늘 닫을 수 있지만, Day 20에 리팩토링, 재측정, 배포, 문서 마감이 하루에 몰려 있어 실행량이 크다 |
+| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [Project Schedule](./Project%20Schedule.md), [Day 18](./Development%20Log/Day%2018.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
+| 다음 로그 대상 | Day 19 `k6` baseline 측정 기록 |
 
 ## 로그 파일 목록
 
@@ -81,4 +81,4 @@
 - React auth는 access token을 메모리에만 저장하고 앱 초기 `refresh -> /api/me`로 세션을 복구하도록 전환했다.
 - React auth 회귀 테스트로 `AuthContext`, `apiClient` refresh queue, 보호/guest-only route 핵심 분기를 고정했다.
 - 로그인 직후 새로고침 세션 복구, 복구 실패 세션 정리, 비로그인 보호 route 접근, 권한 부족 `403`까지 수동 검증으로 확인했다.
-- Day 17, Day 18 안정화 슬라이스는 자동 회귀와 문서 동기화까지 끝났고, 다음 단계는 Day 19 랭킹 V2 리팩토링과 배포 준비다.
+- Day 17, Day 18 안정화 슬라이스는 자동 회귀와 문서 동기화까지 끝났고, 다음 단계는 `2026-04-20` V1 기준 `k6` baseline 측정, `2026-04-21` Redis 리팩토링/재측정/배포/큐빙허브 문서 마감이다.

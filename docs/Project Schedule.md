@@ -18,8 +18,8 @@ gantt
     Core Feature Completion           :done, 2026-04-15, 1d
     V1 Close Check & Stabilization    :done, 2026-04-16, 1d
     Tests + Docs + Bug Fix            :done, 2026-04-17, 1d
-    Ranking V2 Refactor               :2026-04-18, 1d
-    Deploy + Project Closeout         :2026-04-19, 1d
+    k6 Baseline Before Redis Refactor :2026-04-20, 1d
+    Redis Refactor + Verify + Deploy  :2026-04-21, 1d
 ```
 
 ## Week 1: 인프라 기반 구축
@@ -120,10 +120,13 @@ gantt
 - [X] CSS 구조 정리와 피드백/커뮤니티 화면 잔버그 수정
 - [X] `frontend` lint/build/test 재실행
 
-**Day 19 (토, 2026-04-18): 랭킹 V2 리팩토링 + 배포 준비**
-- [ ] Redis ZSET 랭킹 V2 리팩토링
-- [ ] V1 대비 검증과 배포 준비
+**Day 19 (월, 2026-04-20): Redis 리팩토링 전 `k6` baseline 측정**
+- [ ] 브라우저 핵심 흐름 수동 재점검
+- [ ] Redis 리팩토링 전 V1 기준 `k6` baseline 측정
+- [ ] 측정 조건과 결과 기록 정리
 
-**Day 20 (일, 2026-04-19): 최종 배포 + 프로젝트 마감**
+**Day 20 (화, 2026-04-21): Redis 리팩토링 + 최종 배포 + 프로젝트 마감**
+- [ ] Redis ZSET 랭킹 V2 리팩토링
+- [ ] 동일 `k6` 시나리오 재실행과 전/후 비교 정리
 - [ ] 최종 배포와 스모크 테스트
-- [ ] 최종 문서와 남은 리스크 정리
+- [ ] 큐빙허브 최종 문서와 남은 리스크 정리
