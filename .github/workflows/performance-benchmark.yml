@@ -1,0 +1,200 @@
+name: Performance Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: Benchmark run label
+        required: true
+        default: manual-benchmark
+        type: string
+      storage_label:
+        description: Storage label for tags and report
+        required: true
+        default: mysql
+        type: choice
+        options:
+          - mysql
+          - redis
+      baseline_summary_path:
+        description: Optional baseline summary path in repo for Markdown comparison
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Manual rankings benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: benchmark-pass
+          MYSQL_DATABASE: cubing_hub
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pbenchmark-pass --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+      redis:
+        image: redis:7.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle', '**/settings.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install MySQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mysql-client
+
+      - name: Prepare artifact directory
+        run: mkdir -p performance-artifacts
+
+      - name: Recreate schema
+        working-directory: ./backend
+        env:
+          SPRING_PROFILES_ACTIVE: local
+          SPRING_DOCKER_COMPOSE_ENABLED: "false"
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create
+          LOCAL_DB_PASSWORD: benchmark-pass
+          LOCAL_JWT_SECRET: benchmarkSecretKeyForPerformanceWorkflow123456789
+        run: |
+          ./gradlew bootRun --no-daemon > ../performance-artifacts/schema-reset.log 2>&1 &
+          APP_PID=$!
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:8080/actuator/health > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/actuator/health
+          kill ${APP_PID}
+          wait ${APP_PID} || true
+
+      - name: Seed benchmark dataset
+        run: |
+          mysql -h 127.0.0.1 -uroot -pbenchmark-pass cubing_hub < k6/sql/seed-rankings-v1-baseline.sql
+
+      - name: Start backend for benchmark
+        working-directory: ./backend
+        env:
+          SPRING_PROFILES_ACTIVE: local
+          SPRING_DOCKER_COMPOSE_ENABLED: "false"
+          SPRING_JPA_HIBERNATE_DDL_AUTO: update
+          LOCAL_DB_PASSWORD: benchmark-pass
+          LOCAL_JWT_SECRET: benchmarkSecretKeyForPerformanceWorkflow123456789
+        run: |
+          ./gradlew bootRun --no-daemon > ../performance-artifacts/backend.log 2>&1 &
+          echo $! > ../performance-artifacts/backend.pid
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:8080/actuator/health > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/actuator/health
+
+      - name: Run k6 benchmark
+        run: |
+          set +e
+          docker run --rm --network host \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            -e BASE_URL=http://127.0.0.1:8080 \
+            -e RUN_LABEL=${{ inputs.run_label }} \
+            -e STORAGE_LABEL=${{ inputs.storage_label }} \
+            grafana/k6 run \
+            --summary-export /workspace/performance-artifacts/${{ inputs.run_label }}-summary.json \
+            /workspace/k6/rankings-v1-baseline.js
+          K6_EXIT_CODE=$?
+          echo "${K6_EXIT_CODE}" > performance-artifacts/k6-exit-code.txt
+          exit 0
+
+      - name: Generate Markdown report
+        run: |
+          if [[ -n "${{ inputs.baseline_summary_path }}" && -f "${{ inputs.baseline_summary_path }}" ]]; then
+            node k6/generate-performance-report.mjs \
+              --previous "${{ inputs.baseline_summary_path }}" \
+              --previous-label "baseline" \
+              --current "performance-artifacts/${{ inputs.run_label }}-summary.json" \
+              --current-label "${{ inputs.run_label }}" \
+              --output-md "performance-artifacts/${{ inputs.run_label }}-comparison.md" \
+              --title "Rankings Benchmark Comparison"
+          else
+            node k6/generate-performance-report.mjs \
+              --current "performance-artifacts/${{ inputs.run_label }}-summary.json" \
+              --current-label "${{ inputs.run_label }}" \
+              --output-md "performance-artifacts/${{ inputs.run_label }}-comparison.md" \
+              --title "Rankings Benchmark Report"
+          fi
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [[ -f performance-artifacts/backend.pid ]]; then
+            kill "$(cat performance-artifacts/backend.pid)" || true
+          fi
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-benchmark-${{ inputs.run_label }}
+          path: |
+            performance-artifacts/${{ inputs.run_label }}-summary.json
+            performance-artifacts/${{ inputs.run_label }}-comparison.md
+            performance-artifacts/backend.log
+            performance-artifacts/k6-exit-code.txt
+            performance-artifacts/schema-reset.log
+          if-no-files-found: error
+
+      - name: Fail when benchmark exit code is non-zero
+        if: always()
+        run: |
+          if [[ ! -f performance-artifacts/k6-exit-code.txt ]]; then
+            echo "Missing k6 exit code artifact"
+            exit 1
+          fi
+
+          K6_EXIT_CODE=$(cat performance-artifacts/k6-exit-code.txt)
+          if [[ "${K6_EXIT_CODE}" -ne 0 ]]; then
+            echo "k6 exited with code ${K6_EXIT_CODE}"
+            exit "${K6_EXIT_CODE}"
+          fi
