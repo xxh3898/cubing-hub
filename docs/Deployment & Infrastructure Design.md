@@ -25,10 +25,13 @@
   - `prometheus`
   - `grafana`
 - Spring Boot와 Vite는 로컬 프로세스로 실행한다.
+- `k6`는 로컬 Spring Boot를 대상으로 실행하고, `experimental-prometheus-rw` 출력으로 Prometheus에 메트릭을 적재한다.
+- Grafana는 provisioning된 `Rankings Baseline` 대시보드로 `k6`와 Spring Boot 메트릭을 같은 축에서 시각화한다.
 - 목적
   - 기능 개발
   - API 연동 확인
   - 모니터링 환경 로컬 재현
+  - Redis 리팩토링 전/후 성능 기준선 재현
 
 ### Test
 
@@ -46,10 +49,16 @@
   - `npm test -- --run`
   - `npm run build`
   - 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
+- Performance Benchmark
+  - `workflow_dispatch` 기반 수동 실행
+  - MySQL / Redis service container 준비
+  - schema reset 후 baseline seed SQL 적재
+  - `k6` summary JSON과 Markdown 비교 리포트 artifact 업로드
 - 목적
   - 실제 DB/Redis와 가까운 통합 테스트
   - 문서화 자동화 검증
   - 프런트 정적 검증과 실패 분석 산출물 회수
+  - 성능 기준선 재현과 전/후 비교용 artifact 보관
 
 ### Production (목표)
 
@@ -123,6 +132,9 @@
 6. Backend 실패 시 `test-report`, 항상 `jacoco-report` 업로드
 7. Frontend 변경 시 `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build` 수행
 8. Frontend 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
+9. 필요 시 `Performance Benchmark`를 수동 실행
+10. benchmark workflow에서 schema reset, seed 적재, `k6` baseline 실행
+11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
 
 ### 목표 흐름
 
@@ -149,7 +161,7 @@
 - Spring Boot Actuator 메트릭 노출
 - Prometheus 수집
 - Grafana 시각화
-- `k6` 부하 테스트 결과와 함께 병목 구간 분석
+- `k6` remote write 메트릭과 함께 병목 구간 분석
 - AWS Billing Alarm 설정으로 과도한 비용 사용 방지
 
 ## 8. 장애 대응 초안

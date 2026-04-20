@@ -121,9 +121,9 @@ gantt
 - [X] `frontend` lint/build/test 재실행
 
 **Day 19 (월, 2026-04-20): Redis 리팩토링 전 `k6` baseline 측정**
-- [ ] 브라우저 핵심 흐름 수동 재점검
-- [ ] Redis 리팩토링 전 V1 기준 `k6` baseline 측정
-- [ ] 측정 조건과 결과 기록 정리
+- [X] 브라우저 핵심 흐름 수동 재점검
+- [X] Redis 리팩토링 전 V1 기준 `k6` baseline 측정
+- [X] 측정 조건과 결과 기록 정리
 
 **Day 20 (화, 2026-04-21): Redis 리팩토링 + 최종 배포 + 프로젝트 마감**
 - [ ] Redis ZSET 랭킹 V2 리팩토링

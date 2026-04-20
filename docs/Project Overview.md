@@ -179,8 +179,9 @@ flowchart TD
   - 홈 대시보드는 `GET /api/home` 기준으로 연동되어 있다.
   - 피드백은 `POST /api/feedbacks` 기준으로 로그인 사용자 제출 흐름과 회신 이메일 입력이 연동되어 있다.
 - 운영
-  - 로컬 Docker Compose, CI, REST Docs는 준비되어 있다.
-  - 프로덕션 배포 스크립트, 도메인, HTTPS, 부하 테스트 결과는 미구현 상태다.
+  - 로컬 Docker Compose, 분리 CI, REST Docs, 수동 benchmark workflow는 준비되어 있다.
+  - MySQL V1 baseline 산출물은 확보했다.
+  - 프로덕션 배포 스크립트, 도메인, HTTPS, Redis V2 비교 결과는 미구현 상태다.
 
 ## 10. 성공 기준
 
@@ -195,5 +196,5 @@ flowchart TD
 ## 11. 미확정 사항
 
 - 프로덕션 도메인, Route 53, HTTPS 최종 구성
-- `k6` 부하 테스트의 실제 기준 시나리오와 결과 수치
+- Redis V2 결과와 최종 전/후 비교 수치
 - 랭킹 V2의 Redis 동기화 및 장애 대응 세부 전략

@@ -130,11 +130,12 @@ Client ↔ AWS Nginx
 
 ### 외부 연동 / 운영 데이터
 
-- Prometheus는 Spring Boot Actuator 메트릭을 수집한다.
-- Grafana는 Prometheus 데이터를 시각화한다.
+- Prometheus는 Spring Boot Actuator 메트릭과 `k6` remote write 메트릭을 수집한다.
+- Grafana는 Prometheus 데이터를 시각화하고, `Rankings Baseline` 대시보드로 성능 기준선을 재사용한다.
 - GitHub Actions는 변경 경로 기준으로 `Backend CI`, `Frontend CI`를 분리 실행한다.
 - `Backend CI`는 Testcontainers 통합 테스트, JaCoCo 리포트, REST Docs 빌드와 artifact 회수를 담당한다.
 - `Frontend CI`는 `npm ci`, lint, vitest, build 검증과 실패 산출물 회수를 담당한다.
+- `Performance Benchmark` workflow는 `workflow_dispatch`로 수동 실행하며, baseline seed와 `k6` 결과 artifact를 재현한다.
 
 ## 6. 성능 / 확장 고려
 
@@ -148,8 +149,9 @@ Client ↔ AWS Nginx
   - 영속 기준 데이터는 RDS
   - 토큰/캐시/랭킹 보조 구조는 Redis
 - 정량 수치
-  - `k6` 실측 결과는 아직 없으므로 구조적 병목 설명까지만 문서화한다.
-  - 개발 완료 후 전/후 비교 문서를 추가로 연결한다.
+  - 현재는 `GET /api/rankings?eventType=WCA_333&page=1&size=25` 기준 MySQL `user_pbs` V1 baseline을 확보했다.
+  - baseline 산출물은 `docs/performance/rankings-v1-summary.json`, `docs/performance/rankings-v1-report.md`, `docs/performance/rankings-v1-report.html`에 남긴다.
+  - 다음 단계는 같은 seed와 같은 시나리오로 Redis ZSET V2 전/후 비교 문서를 추가하는 것이다.
 
 ## 7. 외부 연동
 
@@ -158,7 +160,7 @@ Client ↔ AWS Nginx
 | AWS S3 | React 정적 파일 저장 |
 | AWS CloudFront | CDN 배포 |
 | AWS RDS | MySQL 관리형 DB |
-| GitHub Actions | CI 실행 |
+| GitHub Actions | CI 실행 및 수동 benchmark workflow |
 | Docker Hub | 컨테이너 이미지 배포 저장소 |
 | Prometheus / Grafana | 운영 메트릭 관찰 |
 
@@ -168,10 +170,11 @@ Client ↔ AWS Nginx
 - GitHub Actions에는 backend/frontend 분리 CI가 반영되어 있다.
 - Backend CI에는 Testcontainers 기반 테스트와 REST Docs 빌드 검증이 반영되어 있다.
 - Frontend CI에는 lint, vitest, build 검증과 실패 산출물 회수가 반영되어 있다.
+- `Performance Benchmark` workflow에는 baseline seed, `k6`, Markdown artifact 회수 흐름이 반영되어 있다.
 - 프로덕션 배포 스크립트, 도메인 연결, HTTPS 적용은 미구현 상태다.
 
 ## 9. 미확정 사항
 
 - Nginx 리버스 프록시 설정과 HTTPS 리다이렉트 세부 정책
 - Redis 장애 복구/영속화 전략의 최종 수준
-- `k6` 부하 테스트 시나리오와 결과 수치
+- Day 20 Redis ZSET V2 결과와 최종 전/후 비교 수치
