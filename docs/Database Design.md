@@ -6,7 +6,7 @@
 - 기록 도메인은 원본 solve 로그(`records`)와 사용자 대표 기록(`user_pbs`)을 분리해 관리한다.
 - 홈/마이페이지 통계는 원본 로그 기준 조회를 사용하며 별도 집계 테이블이나 집계 컬럼은 두지 않는다.
 - 게시판은 `posts`, `comments` 중심 구조로 설계하고, 피드백은 선택 저장 모델로 둔다.
-- 최종 랭킹 최적화는 Redis ZSET을 목표로 하지만, 영속 기준은 여전히 MySQL의 `records` / `user_pbs` 조합이다.
+- 랭킹 최적화는 Redis ZSET read model을 사용하지만, source of truth는 여전히 MySQL의 `records` / `user_pbs` 조합이다.
 - 인덱스는 조회 패턴 기준의 최소 구성을 유지한다.
 
 ## 2. 엔티티 / 테이블 목록
@@ -120,6 +120,27 @@ Records 1:1 (또는 1:0) User_PBs
 - 사용자당 종목별 PB는 1건만 허용한다.
 - 반드시 원본 `records` 한 건을 참조한다.
 - `best_time_ms`는 `records.time_ms` 원값이 아니라 penalty를 반영한 유효 시간이다.
+
+### Redis ranking read model
+
+- 목적:
+  - 기본 랭킹 조회의 읽기 hot path를 MySQL에서 Redis로 분리한다.
+- 설명:
+  - 비영속 read model이며, MySQL `user_pbs`를 기준으로 재구축하거나 PB 변경 시 증분 동기화한다.
+
+| Key | 타입 | 설명 |
+| --- | --- | --- |
+| `ranking:v2:{eventType}:zset` | ZSET | score=`best_time_ms`, member=`createdAtMillis:recordId:userId` |
+| `ranking:v2:{eventType}:nicknames` | HASH | `userId -> nickname` 조회용 |
+| `ranking:v2:{eventType}:members` | HASH | `userId -> member` update/delete 동기화용 |
+| `ranking:v2:{eventType}:ready` | String | 재구축 완료 후 Redis 조회 가능 여부 표시 |
+
+#### 비즈니스 규칙
+
+- score는 `best_time_ms`를 사용한다.
+- 동률 tie-break는 member 문자열의 사전순 정렬로 `created_at asc -> record.id asc`를 유지한다.
+- `nickname` 부분 검색은 현재 Redis에 secondary index가 없어서 MySQL fallback을 사용한다.
+- Redis가 비어 있거나 ready marker가 없으면 기본 조회도 MySQL fallback을 사용한다.
 
 ### `posts`
 
@@ -237,10 +258,16 @@ Records 1:1 (또는 1:0) User_PBs
   - 랭킹: `user_pbs.best_time_ms asc`, 동률 시 `records.created_at asc -> records.id asc`
   - 마이페이지 전체 기록: `records.created_at desc`
   - 게시글: 생성일/ID 내림차순
-- 구조 한계
-  - V1 랭킹은 `user_pbs` 기반 PB 조회로 사용자 중복은 제거했지만, 읽기 hot path는 여전히 MySQL에 남아 있다.
+- 구조 현황
+  - 기본 랭킹 조회는 Redis ZSET read model을 사용한다.
+  - `nickname` 부분 검색은 `containsIgnoreCase` 계약을 유지하기 위해 MySQL fallback을 사용한다.
+  - MySQL `user_pbs`는 source of truth이고 Redis는 보조 읽기 모델이다.
+- 운영 리스크
+  - local `300,000` PB 기준 startup 재구축에 약 9분이 걸렸다.
+  - 운영에서 startup 재구축을 항상 켜면 부팅 시간 증가와 Redis 메모리 사용량을 고려해야 한다.
 - 후속 최적화 방향
-  - Redis ZSET 기반 랭킹 V2
+  - `nickname` 검색용 Redis secondary index
+  - 운영 재구축 트리거/수동 명령 정리
   - 필요 시 통계성 조회를 위한 별도 집계/캐시 구조
 
 ## 8. ERD
@@ -318,4 +345,5 @@ erDiagram
 
 - 댓글 API 구현 시 수정/삭제 정책과 soft delete 도입 여부
 - 피드백 메일 전달을 추가할 경우 전송 실패 처리와 보관 정책
-- 랭킹 V2 전환 시 `user_pbs`와 Redis ZSET 동기화 방식
+- 운영 환경에서 Redis 재구축을 언제 어떤 방식으로 실행할지
+- 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부

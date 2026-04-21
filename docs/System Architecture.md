@@ -64,7 +64,7 @@ Client ↔ AWS Nginx
 | S3 | React 정적 파일 호스팅 |
 | Nginx | Reverse Proxy 및 외부 진입점 |
 | Spring Boot API | 인증, 기록, 랭킹, 게시판 등 비즈니스 로직 처리 |
-| Redis | Refresh Token, Blacklist, 랭킹 캐시 대상 |
+| Redis | Refresh Token, Blacklist, 랭킹 read model |
 | RDS MySQL | 영속 데이터 저장 |
 | Prometheus | Actuator 메트릭 수집 |
 | Grafana | 대시보드 시각화 |
@@ -110,10 +110,10 @@ Client ↔ AWS Nginx
 - 홈 대시보드/마이페이지
   - 홈 대시보드는 `GET /api/home` 기준으로 구현되어 있고, guest/auth 상태에 따라 조합 데이터를 반환한다.
   - 마이페이지는 RDS 기반 프로필/요약 조회와 전체 기록 페이지 조회가 구현되어 있다.
-- 랭킹 V1
-  - `user_pbs`와 원본 `records`를 기준으로 사용자별 PB 1건을 조회한다.
-- 랭킹 V2 목표
-  - 사용자 대표 기록을 Redis ZSET에 반영해 읽기 비용을 줄인다.
+- 랭킹 V2 hybrid
+  - `nickname` 미입력 기본 조회는 Redis ZSET read model을 사용한다.
+  - `nickname` 검색 요청 또는 Redis ready marker가 없는 경우는 MySQL `user_pbs` fallback을 사용한다.
+  - MySQL `records` / `user_pbs`는 source of truth이고 Redis는 읽기 최적화를 위한 보조 모델이다.
 - 게시판
   - RDS의 `posts`, `users`를 조합해 목록/상세를 조회한다.
 
@@ -122,9 +122,9 @@ Client ↔ AWS Nginx
 - 회원가입
   - `users`에 새 계정을 저장한다.
 - 기록 저장
-  - `records`에 solve를 저장하고 `user_pbs`를 갱신한다.
+  - `records`에 solve를 저장하고 `user_pbs`를 갱신하며, PB가 바뀌면 Redis 랭킹 read model도 함께 동기화한다.
 - 기록 수정/삭제
-  - `records`의 penalty 수정과 삭제를 허용하고, 변경 후 `user_pbs`를 다시 계산한다.
+  - `records`의 penalty 수정과 삭제를 허용하고, 변경 후 `user_pbs`를 다시 계산하며 Redis 랭킹 read model을 갱신하거나 제거한다.
 - 게시글 CRUD
   - `posts`를 생성/수정/삭제하고, 상세 조회 시 `view_count`를 증가시킨다.
 
@@ -139,19 +139,19 @@ Client ↔ AWS Nginx
 
 ## 6. 성능 / 확장 고려
 
-- 랭킹 V1 상태는 `user_pbs` 기반 PB 조회다.
-  - 같은 사용자가 종목별로 한 번만 노출되도록 중복을 줄였지만, 읽기 hot path는 여전히 MySQL에 남아 있다.
-- 최종 랭킹 V2는 Redis ZSET을 목표로 한다.
-  - 사용자 대표 기록 기준으로 정렬된 구조를 별도로 유지해 읽기 성능을 개선하려는 목적이다.
+- 랭킹 V2 hybrid 상태는 MySQL source of truth + Redis read model 구조다.
+  - 기본 조회는 Redis ZSET, `nickname` 검색은 MySQL fallback으로 분리해 읽기 hot path를 줄인다.
+  - local 프로필은 startup 재구축을 사용하고, 운영 재구축 정책은 별도로 남아 있다.
 - 정적 리소스는 S3 + CloudFront로 분리한다.
   - EC2가 정적 파일 트래픽까지 직접 처리하지 않도록 해 API 서버 부하를 줄인다.
 - 영속성과 휘발성 저장소를 분리한다.
   - 영속 기준 데이터는 RDS
   - 토큰/캐시/랭킹 보조 구조는 Redis
 - 정량 수치
-  - 현재는 `GET /api/rankings?eventType=WCA_333&page=1&size=25` 기준 MySQL `user_pbs` V1 baseline을 확보했다.
-  - baseline 산출물은 `docs/performance/rankings-v1-summary.json`, `docs/performance/rankings-v1-report.md`, `docs/performance/rankings-v1-report.html`에 남긴다.
-  - 다음 단계는 같은 seed와 같은 시나리오로 Redis ZSET V2 전/후 비교 문서를 추가하는 것이다.
+  - 최종 `MySQL-v1` 재측정 (`300,000` PB, `GET /api/rankings?eventType=WCA_333&page=1&size=25`)은 `avg 7,245.23 ms`, `p95 12,429.58 ms`, `4.21 req/s`다.
+  - 최종 `redis-v2` 재측정은 같은 조건에서 `avg 21.10 ms`, `p95 36.94 ms`, `1,502.77 req/s`를 기록했다.
+  - 산출물은 `docs/performance/rankings-v1-summary.json`, `docs/performance/rankings-v2-summary.json`, `docs/performance/rankings-v1-v2-comparison.md`와 대응 HTML 리포트에 남긴다.
+  - local `300,000` PB 기준 startup 재구축 시간은 약 9분이었다.
 
 ## 7. 외부 연동
 
@@ -171,10 +171,10 @@ Client ↔ AWS Nginx
 - Backend CI에는 Testcontainers 기반 테스트와 REST Docs 빌드 검증이 반영되어 있다.
 - Frontend CI에는 lint, vitest, build 검증과 실패 산출물 회수가 반영되어 있다.
 - `Performance Benchmark` workflow에는 baseline seed, `k6`, Markdown artifact 회수 흐름이 반영되어 있다.
-- 프로덕션 배포 스크립트, 도메인 연결, HTTPS 적용은 미구현 상태다.
+- Redis V2 비교 산출물은 확보했지만, 프로덕션 배포 스크립트, 도메인 연결, HTTPS 적용은 미정 상태다.
 
 ## 9. 미확정 사항
 
 - Nginx 리버스 프록시 설정과 HTTPS 리다이렉트 세부 정책
-- Redis 장애 복구/영속화 전략의 최종 수준
-- Day 20 Redis ZSET V2 결과와 최종 전/후 비교 수치
+- 운영 환경에서의 Redis 재구축 시점과 장애 복구 수준
+- 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부

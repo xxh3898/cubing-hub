@@ -68,7 +68,7 @@
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
 | `PATCH` | `/api/records/{recordId}` | Auth | 기록 penalty 수정 | 구현됨 |
 | `DELETE` | `/api/records/{recordId}` | Auth | 기록 삭제 | 구현됨 |
-| `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V1 기준) |
+| `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V2 hybrid) |
 | `GET` | `/api/scramble` | Public | 스크램블 조회 | 구현됨 |
 | `POST` | `/api/posts` | Auth | 게시글 생성 | 구현됨 |
 | `GET` | `/api/posts` | Public | 게시글 목록 조회 | 구현됨 |
@@ -268,7 +268,7 @@
 
 ### `POST /api/records`
 
-- 설명: 사용자의 solve 기록을 저장하고, `DNF`가 아니면 `user_pbs`를 갱신한다.
+- 설명: 사용자의 solve 기록을 저장하고, PB가 바뀌면 `user_pbs`와 Redis 랭킹 read model을 함께 갱신한다.
 - 인증: Access Token 필요
 - 멱등성: 비멱등
 
@@ -291,7 +291,7 @@
 
 ### `PATCH /api/records/{recordId}`
 
-- 설명: 본인 기록의 penalty를 수정하고, 변경 후 `user_pbs`를 다시 계산한다.
+- 설명: 본인 기록의 penalty를 수정하고, 변경 후 `user_pbs`를 다시 계산하며 PB 변경 시 Redis 랭킹 read model을 동기화한다.
 - 인증: Access Token 필요
 - 인가: 기록 소유자 본인
 - 멱등성: 약한 멱등
@@ -320,7 +320,7 @@
 
 ### `DELETE /api/records/{recordId}`
 
-- 설명: 본인 기록을 삭제하고, 삭제 대상이 PB면 `user_pbs`를 다시 계산한다.
+- 설명: 본인 기록을 삭제하고, 삭제 대상이 PB면 `user_pbs`를 다시 계산하며 Redis 랭킹 read model을 갱신하거나 제거한다.
 - 인증: Access Token 필요
 - 인가: 기록 소유자 본인
 - 멱등성: 멱등
@@ -370,11 +370,12 @@
 
 #### 상태 메모
 
-- 상태: V1
-- `user_pbs`와 원본 `records`를 사용해 사용자당 종목별 PB 1건만 조회한다.
-- 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`다.
-- 닉네임 검색과 서버 페이지네이션을 지원한다.
-- 최종 목표는 Redis ZSET 기반 실시간 랭킹 구조다.
+- 상태: V2 hybrid
+- `nickname`이 비어 있고 Redis ready marker가 있으면 Redis ZSET read model을 사용한다.
+- `nickname` 검색 요청 또는 Redis 미준비 상태는 MySQL `user_pbs` QueryDSL 경로로 fallback 한다.
+- 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`를 유지한다.
+- 응답 형식, 검색 계약, 서버 페이지네이션은 V1과 동일하게 유지한다.
+- MySQL `records` / `user_pbs`는 source of truth이고 Redis는 읽기 최적화를 위한 보조 read model이다.
 
 ## 10. 스크램블 API
 
@@ -686,4 +687,5 @@
 ## 16. 미확정 사항
 
 - 피드백 메일 전달이 필요한 경우의 전송 실패 처리와 운영 정책
-- 랭킹 V2 전환 시 `GET /api/rankings` 응답 형식 유지 여부
+- 운영 환경에서의 Redis 재구축 시점과 트리거 정책
+- 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부

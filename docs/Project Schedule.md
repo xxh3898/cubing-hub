@@ -19,7 +19,7 @@ gantt
     V1 Close Check & Stabilization    :done, 2026-04-16, 1d
     Tests + Docs + Bug Fix            :done, 2026-04-17, 1d
     k6 Baseline Before Redis Refactor :2026-04-20, 1d
-    Redis Refactor + Verify + Deploy  :2026-04-21, 1d
+    Redis Refactor + Verify           :done, 2026-04-21, 1d
 ```
 
 ## Week 1: 인프라 기반 구축
@@ -125,8 +125,10 @@ gantt
 - [X] Redis 리팩토링 전 V1 기준 `k6` baseline 측정
 - [X] 측정 조건과 결과 기록 정리
 
-**Day 20 (화, 2026-04-21): Redis 리팩토링 + 최종 배포 + 프로젝트 마감**
-- [ ] Redis ZSET 랭킹 V2 리팩토링
-- [ ] 동일 `k6` 시나리오 재실행과 전/후 비교 정리
-- [ ] 최종 배포와 스모크 테스트
-- [ ] 큐빙허브 최종 문서와 남은 리스크 정리
+**Day 20 (화, 2026-04-21): Redis 리팩토링 + 재측정 + 문서 마감**
+- [X] Redis ZSET 랭킹 V2 리팩토링
+- [X] 동일 `k6` 시나리오 재실행과 전/후 비교 정리
+- [ ] 실제 배포와 대상 환경 스모크 테스트
+- [X] 큐빙허브 최종 문서와 남은 리스크 정리
+
+> 배포는 저장소만으로 바로 닫을 수 없는 범위라 Day 20 구현/재측정 이후 별도 세션으로 분리한다.

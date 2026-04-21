@@ -15,7 +15,7 @@
 
 - 기록, 학습, 랭킹, 커뮤니티를 한 서비스 흐름으로 연결한다.
 - 단순 CRUD에 그치지 않고 인증, 문서화, 테스트, 모니터링, 배포까지 하나의 서비스 기준으로 정리한다.
-- 랭킹 구조를 `user_pbs` 기반 PB 기준선(V1)과 Redis ZSET 기반 목표 구조(V2)로 분리해 성능 개선 과정을 설명 가능하게 만든다.
+- 랭킹 구조를 MySQL source of truth(`records`, `user_pbs`)와 Redis ZSET read model로 분리해 성능 개선 과정을 설명 가능하게 만든다.
 
 ## 4. 주요 사용자 그룹
 
@@ -66,7 +66,7 @@
   - Prometheus / Grafana 기반 메트릭 수집과 시각화
 - 성능 비교 실험
   - V1: `user_pbs` 기반 PB 랭킹 조회
-  - V2: Redis ZSET 기반 실시간 랭킹 목표 구조
+  - V2: Redis ZSET 기반 기본 랭킹 조회 + `nickname` 검색 MySQL fallback hybrid 구조
 
 ## 6. 범위
 
@@ -78,8 +78,8 @@
 - 타이머 측정 및 기록 저장
 - 개인 기록 대시보드 및 마이페이지
 - 사용자 대표 기록(PB) 기준 랭킹 구조
-  - V1 상태는 MySQL `user_pbs` 기반 PB 조회
-  - 최종 목표는 Redis ZSET 기반 실시간 랭킹
+  - 구현 상태는 `nickname` 미입력 기본 조회 Redis ZSET, `nickname` 검색 MySQL `user_pbs` fallback이다.
+  - MySQL `records` / `user_pbs`는 source of truth이고 Redis는 read model이다.
 - QueryDSL 기반 게시판 CRUD 및 검색
 - 댓글 상호작용
 - 사용자 피드백 전달
@@ -99,7 +99,7 @@
 
 ### 후속 확장 아이디어
 
-- Redis ZSET 기반 랭킹 V2 완성
+- `nickname` 검색용 Redis secondary index 검토
 - 홈 대시보드 API 고도화
 - 마이페이지 기록 정렬/표시 고도화
 - 댓글 및 피드백 처리 백오피스성 관리 기능
@@ -107,7 +107,7 @@
 
 ## 7. 핵심 사용자 흐름
 
-### 현재 흐름 (V1)
+### 기준선 흐름 (V1)
 
 ```mermaid
 flowchart TD
@@ -128,9 +128,9 @@ flowchart TD
     PB --> End([End])
 ```
 
-- 랭킹 V1 조회는 `user_pbs`를 기준으로 사용자당 종목별 PB 1건만 반환한다.
+- Day 19 baseline은 `user_pbs`를 기준으로 사용자당 종목별 PB 1건만 반환하는 MySQL 읽기 경로였다.
 
-### 목표 흐름 (V2)
+### 현재 흐름 (V2 Hybrid)
 
 ```mermaid
 flowchart TD
@@ -152,6 +152,12 @@ flowchart TD
     ZSET --> End([End])
 ```
 
+- `records`와 `user_pbs`가 source of truth다.
+- `POST`, `PATCH`, `DELETE /api/records`에서 PB가 바뀌면 Redis ZSET read model을 증분 동기화한다.
+- `GET /api/rankings`는 `nickname`이 비어 있고 Redis ready marker가 있으면 Redis를 사용하고, 그 외에는 MySQL fallback을 사용한다.
+- Redis가 비어 있거나 초기화된 경우 `user_pbs -> Redis` 전체 재구축으로 read model을 다시 채운다.
+- local 프로필은 `ranking.redis.rebuild-on-startup=true`로 startup 재구축을 사용한다.
+
 ## 8. 기술 스택
 
 | 구분 | 스택 | 사용 이유 |
@@ -169,8 +175,9 @@ flowchart TD
   - React 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
   - React access token 저장은 메모리 기반이고, 앱 초기 `refresh -> /api/me`로 사용자 컨텍스트를 복구한다.
 - 랭킹
-  - V1 상태는 `user_pbs`와 원본 `records`를 기준으로 PB 랭킹을 조회한다.
-  - 최종 목표는 Redis ZSET 기반 실시간 랭킹이다.
+  - `GET /api/rankings` 기본 조회는 Redis ZSET read model을 사용한다.
+  - `nickname` 검색 또는 Redis 미준비 상태는 MySQL `user_pbs` fallback을 사용한다.
+  - Day 19 V1 baseline과 Day 20 Redis V2 비교 산출물을 확보했다.
 - 커뮤니티
   - 게시글 CRUD API는 구현되어 있다.
   - 댓글 API와 프런트 댓글 연동이 구현되어 있다.
@@ -180,8 +187,9 @@ flowchart TD
   - 피드백은 `POST /api/feedbacks` 기준으로 로그인 사용자 제출 흐름과 회신 이메일 입력이 연동되어 있다.
 - 운영
   - 로컬 Docker Compose, 분리 CI, REST Docs, 수동 benchmark workflow는 준비되어 있다.
-  - MySQL V1 baseline 산출물은 확보했다.
-  - 프로덕션 배포 스크립트, 도메인, HTTPS, Redis V2 비교 결과는 미구현 상태다.
+  - MySQL V1 baseline과 Redis V2 비교 산출물은 확보했다.
+  - local `300,000` PB 기준 startup 재구축 시간은 약 9분으로 확인했다.
+  - 프로덕션 배포 스크립트, 도메인, HTTPS, 운영 재구축 정책은 미정 상태다.
 
 ## 10. 성공 기준
 
@@ -196,5 +204,5 @@ flowchart TD
 ## 11. 미확정 사항
 
 - 프로덕션 도메인, Route 53, HTTPS 최종 구성
-- Redis V2 결과와 최종 전/후 비교 수치
-- 랭킹 V2의 Redis 동기화 및 장애 대응 세부 전략
+- 운영 환경에서의 Redis 재구축 시점과 트리거 정책
+- `nickname` 검색을 Redis secondary index로 확장할지 여부
