@@ -106,6 +106,15 @@ class SecurityAccessControlIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("Actuator prometheus 경로는 인증 없이 접근하면 401을 반환한다")
+    void should_return_unauthorized_when_accessing_actuator_prometheus_without_authentication() throws Exception {
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+    }
+
+    @Test
     @DisplayName("공개 게시글 상세 경로는 인증 없이도 접근할 수 있다")
     void should_allow_access_to_public_post_detail_when_authentication_is_missing() throws Exception {
         mockMvc.perform(get("/api/posts/{postId}", 99999L))

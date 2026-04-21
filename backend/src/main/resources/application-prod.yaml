@@ -12,18 +12,30 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
     show-sql: false
+
+server:
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 1800000 # 30 mins
+  expiration: ${JWT_EXPIRATION:1800000} # 30 mins
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 cors:
-  # TODO: 실제 배포 프론트엔드 도메인 주소로 변경
-  allowed-origins: https://your-prod-domain.com
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://www.cubing-hub.com}
 
 auth:
   refresh-cookie:
-    secure: true
+    secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+
+ranking:
+  redis:
+    rebuild-on-startup: ${RANKING_REDIS_REBUILD_ON_STARTUP:false}
