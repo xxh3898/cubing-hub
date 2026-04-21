@@ -191,7 +191,7 @@ flowchart TD
   - local `300,000` PB 기준 startup 재구축 시간은 약 9분으로 확인했다.
   - `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료했다.
   - 현재 운영 구조는 `S3 + CloudFront` 프런트와 `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드다.
-  - GitHub Actions 기반 자동 배포와 운영 재구축 정책은 후속 작업으로 남아 있다.
+  - `deploy-backend.yml`, `deploy-frontend.yml` 자동 배포 workflow를 추가했고, 현재는 GitHub `Secrets` / `Variables` 연결과 첫 실행 검증이 남아 있다.
 
 ## 10. 성공 기준
 
@@ -205,6 +205,6 @@ flowchart TD
 
 ## 11. 미확정 사항
 
-- GitHub Actions 기반 frontend/backend 자동 배포 방식
+- GitHub Actions 기반 frontend/backend 자동 배포 workflow의 실제 운영 검증 결과
 - 운영 환경에서의 Redis 재구축 시점과 트리거 정책
 - `nickname` 검색을 Redis secondary index로 확장할지 여부

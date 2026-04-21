@@ -20,6 +20,7 @@ gantt
     Tests + Docs + Bug Fix            :done, 2026-04-17, 1d
     k6 Baseline Before Redis Refactor :2026-04-20, 1d
     Redis Refactor + Verify           :done, 2026-04-21, 1d
+    AWS First Deploy + CD Setup       :done, 2026-04-22, 1d
 ```
 
 ## Week 1: 인프라 기반 구축
@@ -128,7 +129,11 @@ gantt
 **Day 20 (화, 2026-04-21): Redis 리팩토링 + 재측정 + 문서 마감**
 - [X] Redis ZSET 랭킹 V2 리팩토링
 - [X] 동일 `k6` 시나리오 재실행과 전/후 비교 정리
-- [ ] 실제 배포와 대상 환경 스모크 테스트
+- [X] 실제 배포와 대상 환경 스모크 테스트
 - [X] 큐빙허브 최종 문서와 남은 리스크 정리
 
-> 배포는 저장소만으로 바로 닫을 수 없는 범위라 Day 20 구현/재측정 이후 별도 세션으로 분리한다.
+**Day 21 (수, 2026-04-22): AWS 1차 배포 완료와 CD 준비**
+- [X] `www.cubing-hub.com`, `api.cubing-hub.com` 기준 1차 수동 배포 완료
+- [X] HTTPS health check와 브라우저 스모크 테스트 확인
+- [X] 운영 체크리스트와 공식 문서 최신화
+- [X] backend/frontend 자동 배포 workflow 추가

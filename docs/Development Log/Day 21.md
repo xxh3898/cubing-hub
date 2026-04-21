@@ -13,6 +13,7 @@
 - EC2 Nginx가 `options-ssl-nginx.conf`, `ssl-dhparams.pem` 누락으로 재시작하는 문제를 해결
 - first deploy 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
 - 배포 후 공식 문서와 운영 체크리스트 정리 범위를 확정
+- `Backend CI`, `Frontend CI` 성공 뒤에 이어지는 분리 deploy workflow를 추가
 
 ---
 
@@ -80,11 +81,47 @@
 
 ### 5. 배포 완료 후 남은 후속 작업
 
-- backend/frontend 자동 배포 workflow가 아직 없다.
+- 배포 완료 직후 기준 남은 핵심 작업은 backend/frontend 자동 배포 workflow 추가였다.
 
 #### 정리 방향
 
 - 자동 배포 workflow 구현
+
+### 6. 자동 배포 workflow 추가
+
+#### 결정
+- backend와 frontend deploy를 한 workflow에 묶지 않고 분리했다.
+- 자동 배포는 `workflow_run`으로 기존 `Backend CI`, `Frontend CI` 성공 뒤 이어지도록 하고, 필요할 때 수동 재실행할 수 있도록 `workflow_dispatch`도 같이 뒀다.
+
+#### 구현
+- `deploy-backend.yml`
+  - backend build
+  - Docker Hub 로그인
+  - `linux/amd64` image build/push
+  - EC2에 `docker-compose.prod.yml`, `nginx.conf` 동기화
+  - EC2에서 `docker compose pull && up -d`
+  - local health check
+- `deploy-frontend.yml`
+  - frontend build
+  - S3 sync
+  - CloudFront invalidation
+
+#### 남은 조건
+- GitHub `Secrets`
+  - `DOCKERHUB_TOKEN`
+  - `EC2_SSH_PRIVATE_KEY`
+  - `AWS_ACCESS_KEY_ID`
+  - `AWS_SECRET_ACCESS_KEY`
+- GitHub `Variables`
+  - `DOCKERHUB_USERNAME`
+  - `BACKEND_IMAGE`
+  - `EC2_HOST`
+  - `EC2_USER`
+  - `AWS_REGION`
+  - `S3_BUCKET`
+  - `CLOUDFRONT_DISTRIBUTION_ID`
+  - `VITE_API_BASE_URL`
+- 실제 자동 배포 성공 여부는 이 값들을 연결한 뒤 확인해야 한다.
 
 ---
 

@@ -172,6 +172,8 @@
 12. 실제 운영 배포는 현재 수동으로 수행한다.
 13. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
 14. backend는 Docker Hub image push 후 EC2에서 `docker compose pull && up -d`로 반영한다.
+15. `deploy-backend.yml`은 `Backend CI` 성공 후 Docker Hub push와 EC2 deploy를 자동화한다.
+16. `deploy-frontend.yml`은 `Frontend CI` 성공 후 S3 sync와 CloudFront invalidation을 자동화한다.
 
 ### 목표 흐름
 
@@ -181,6 +183,26 @@
 4. EC2에서 최신 이미지 Pull
 5. 컨테이너 재시작으로 CD 수행
 6. Nginx + Let's Encrypt(Certbot) 인증서를 마운트해 HTTPS 적용
+
+### GitHub Actions 배포용 값
+
+#### Secrets
+
+- `DOCKERHUB_TOKEN`
+- `EC2_SSH_PRIVATE_KEY`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+
+#### Variables
+
+- `DOCKERHUB_USERNAME`
+- `BACKEND_IMAGE`
+- `EC2_HOST`
+- `EC2_USER`
+- `AWS_REGION`
+- `S3_BUCKET`
+- `CLOUDFRONT_DISTRIBUTION_ID`
+- `VITE_API_BASE_URL`
 
 ## 6. 도메인 / 네트워크
 

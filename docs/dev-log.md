@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Day 21 AWS 1차 배포 완료와 후속 정리 준비 |
-| 상태 | `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 마쳤다. 현재 문서 최신화, 운영 체크리스트 정리, GitHub Actions 자동 배포 workflow 설계가 다음 범위다 |
-| 범위 | AWS 1차 배포 결과 반영, 운영 후처리 runbook 작성, frontend/backend deploy workflow 준비 |
-| 핵심 리스크 | 수동 배포 과정에서 확인한 frontend env 주입, Docker image platform, Nginx SSL 보조 파일, first deploy 플래그 원복 절차를 문서화하지 않으면 재발 가능성이 높다 |
+| 작업명 | Day 21 AWS 배포 완료 정리와 CD workflow 구현 |
+| 상태 | `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 마쳤고, 공식 문서와 운영 체크리스트를 최신화했다. backend/frontend 자동 deploy workflow 파일도 추가했으며, 현재는 GitHub `Secrets` / `Variables` 연결이 남아 있다 |
+| 범위 | AWS 1차 배포 결과 반영, 운영 후처리 runbook 작성, frontend/backend deploy workflow 구현 |
+| 핵심 리스크 | workflow에 필요한 Docker Hub, EC2, AWS 값이 비어 있으면 자동 배포는 아직 실행되지 않는다. 운영 비밀값 노출분과 인증서 갱신 자동화도 후속 정리가 필요하다 |
 | 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [System Architecture](./System%20Architecture.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md), [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
-| 다음 로그 대상 | 자동 배포 workflow 구현과 운영 비밀값 관리 기준 |
+| 다음 로그 대상 | GitHub Actions 변수 연결과 자동 배포 첫 실행 결과 |
 
 ## 로그 파일 목록
 
@@ -86,4 +86,5 @@
 - 최종 재측정 기준 `redis-v2`는 같은 시나리오에서 `avg 21.10 ms`, `p95 36.94 ms`, `1,502.77 req/s`를 기록했고 비교 산출물은 `docs/performance/rankings-v1-v2-comparison.*`에 저장했다.
 - 현재 랭킹 구조는 `nickname` 미입력 기본 조회 Redis, `nickname` 검색 MySQL fallback hybrid다.
 - local 프로필은 startup 재구축을 사용하고, production first deploy는 `update` / `true` 1회 적용 후 `validate` / `false`로 원복했다.
-- 실제 AWS 1차 배포에서 frontend env 누락, Docker image amd64 manifest, Nginx SSL 보조 파일 누락을 확인했고 재발 방지 체크리스트를 별도 문서로 정리한다.
+- 실제 AWS 1차 배포에서 frontend env 누락, Docker image amd64 manifest, Nginx SSL 보조 파일 누락을 확인했고 재발 방지 체크리스트를 별도 문서로 정리했다.
+- backend/frontend 자동 deploy workflow 파일은 추가됐고, GitHub `Secrets` / `Variables` 연결 후 실제 실행 결과를 확인해야 한다.

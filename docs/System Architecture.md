@@ -164,7 +164,8 @@ Client ↔ AWS Nginx
 - `Performance Benchmark` workflow에는 baseline seed, `k6`, Markdown artifact 회수 흐름이 반영되어 있다.
 - Redis V2 비교 산출물은 확보했고, 1차 운영 배포는 `www.cubing-hub.com`과 `api.cubing-hub.com` 분리 도메인으로 반영됐다.
 - `api.cubing-hub.com`은 EC2의 Nginx와 Let's Encrypt 인증서로 HTTPS 응답을 제공한다.
-- 자동 deploy workflow와 운영 runbook 고도화는 아직 남아 있다.
+- `deploy-backend.yml`, `deploy-frontend.yml`로 분리된 자동 deploy workflow를 추가했고, GitHub `Secrets` / `Variables` 연결만 남아 있다.
+- 운영 runbook 고도화와 인증서 갱신 자동화는 아직 남아 있다.
 
 ## 9. 미확정 사항
 
