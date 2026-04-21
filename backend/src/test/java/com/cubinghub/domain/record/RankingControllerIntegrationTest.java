@@ -11,6 +11,7 @@ import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.entity.UserPB;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.UserPBRepository;
+import com.cubinghub.domain.record.service.RankingRedisBackfillService;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -38,6 +39,9 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
 
     @Autowired
     private UserPBRepository userPBRepository;
+
+    @Autowired
+    private RankingRedisBackfillService rankingRedisBackfillService;
 
     @Test
     @DisplayName("랭킹 조회는 PB 기준으로 서버 페이지네이션 메타데이터를 반환한다")
@@ -101,6 +105,34 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("page는 1 이상이어야 합니다.")));
+    }
+
+    @Test
+    @DisplayName("Redis 랭킹이 준비되면 기본 랭킹 조회는 Redis 경로로 같은 계약을 반환한다")
+    void should_return_rankings_from_redis_when_ready_marker_exists() throws Exception {
+        for (int i = 0; i < 30; i++) {
+            User user = saveUser("redis-ranker" + i + "@cubinghub.com", "RedisRanker" + i);
+            Record record = saveRecord(user, EventType.WCA_333, 10000 + i, Penalty.NONE, "redis-scramble-" + i);
+            saveUserPb(user, EventType.WCA_333, 10000 + i, record);
+        }
+        rankingRedisBackfillService.rebuild(EventType.WCA_333);
+
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_333.name())
+                        .param("page", "2")
+                        .param("size", "10")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(10))
+                .andExpect(jsonPath("$.data.items[0].rank").value(11))
+                .andExpect(jsonPath("$.data.items[0].nickname").value("RedisRanker10"))
+                .andExpect(jsonPath("$.data.items[9].rank").value(20))
+                .andExpect(jsonPath("$.data.page").value(2))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.totalElements").value(30))
+                .andExpect(jsonPath("$.data.totalPages").value(3))
+                .andExpect(jsonPath("$.data.hasNext").value(true))
+                .andExpect(jsonPath("$.data.hasPrevious").value(true));
     }
 
     private User saveUser(String email, String nickname) {

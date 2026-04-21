@@ -23,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -32,10 +33,19 @@ public class RecordService {
     private final RecordRepository recordRepository;
     private final UserPBRepository userPBRepository;
     private final UserRepository userRepository;
+    private final RankingRedisService rankingRedisService;
 
     public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size) {
         validateRankingPageRequest(page, size);
 
+        if (!StringUtils.hasText(nickname) && rankingRedisService.isReady(eventType)) {
+            return rankingRedisService.getRankings(eventType, page, size);
+        }
+
+        return getRankingsFromMySql(eventType, nickname, page, size);
+    }
+
+    private RankingPageResponse getRankingsFromMySql(EventType eventType, String nickname, Integer page, Integer size) {
         Page<RankingQueryResult> rankings = userPBRepository.searchRankings(
                 eventType,
                 nickname,
@@ -80,7 +90,8 @@ public class RecordService {
         Record savedRecord = recordRepository.save(record);
 
         if (request.getPenalty().isRankable()) {
-            recalculateUserPb(user, request.getEventType());
+            PbRecalculationResult recalculationResult = recalculateUserPb(user, request.getEventType());
+            syncRankingIfChanged(request.getEventType(), user.getId(), recalculationResult);
         }
 
         return savedRecord.getId();
@@ -93,7 +104,8 @@ public class RecordService {
 
         validateOwnership(record, currentUser, "기록 수정 권한이 없습니다.");
         record.updatePenalty(request.getPenalty());
-        recalculateUserPb(currentUser, record.getEventType());
+        PbRecalculationResult recalculationResult = recalculateUserPb(currentUser, record.getEventType());
+        syncRankingIfChanged(record.getEventType(), currentUser.getId(), recalculationResult);
 
         return RecordPenaltyUpdateResponse.from(record);
     }
@@ -118,7 +130,12 @@ public class RecordService {
         recordRepository.flush();
 
         if (record.getPenalty().isRankable()) {
-            recalculateUserPb(currentUser, record.getEventType());
+            PbRecalculationResult recalculationResult = recalculateUserPb(currentUser, record.getEventType());
+            if (deletingCurrentPb && recalculationResult.userPb() == null && !recalculationResult.changed()) {
+                rankingRedisService.remove(record.getEventType(), currentUser.getId());
+                return;
+            }
+            syncRankingIfChanged(record.getEventType(), currentUser.getId(), recalculationResult);
         }
     }
 
@@ -138,7 +155,7 @@ public class RecordService {
         }
     }
 
-    private void recalculateUserPb(User user, EventType eventType) {
+    private PbRecalculationResult recalculateUserPb(User user, EventType eventType) {
         Record bestRecord = recordRepository.findBestRecordByUserIdAndEventType(user.getId(), eventType)
                 .orElse(null);
         UserPB existingPb = userPBRepository.findByUserAndEventType(user, eventType)
@@ -147,8 +164,9 @@ public class RecordService {
         if (bestRecord == null) {
             if (existingPb != null) {
                 userPBRepository.delete(existingPb);
+                return PbRecalculationResult.changed(null);
             }
-            return;
+            return PbRecalculationResult.unchanged(null);
         }
 
         Integer bestTimeMs = bestRecord.getEffectiveTimeMs();
@@ -161,14 +179,15 @@ public class RecordService {
                     .record(bestRecord)
                     .build();
             userPBRepository.save(newPB);
-            return;
+            return PbRecalculationResult.changed(newPB);
         }
 
         if (isSamePb(existingPb, bestRecord, bestTimeMs)) {
-            return;
+            return PbRecalculationResult.unchanged(existingPb);
         }
 
         existingPb.updateBestTime(bestTimeMs, bestRecord);
+        return PbRecalculationResult.changed(existingPb);
     }
 
     private boolean isSamePb(UserPB existingPb, Record bestRecord, Integer bestTimeMs) {
@@ -182,6 +201,30 @@ public class RecordService {
         }
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("size는 1 이상 100 이하여야 합니다.");
+        }
+    }
+
+    private void syncRankingIfChanged(EventType eventType, Long userId, PbRecalculationResult recalculationResult) {
+        if (!recalculationResult.changed()) {
+            return;
+        }
+
+        if (recalculationResult.userPb() == null) {
+            rankingRedisService.remove(eventType, userId);
+            return;
+        }
+
+        rankingRedisService.sync(recalculationResult.userPb());
+    }
+
+    private record PbRecalculationResult(UserPB userPb, boolean changed) {
+
+        private static PbRecalculationResult changed(UserPB userPb) {
+            return new PbRecalculationResult(userPb, true);
+        }
+
+        private static PbRecalculationResult unchanged(UserPB userPb) {
+            return new PbRecalculationResult(userPb, false);
         }
     }
 }

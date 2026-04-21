@@ -52,11 +52,14 @@ class RecordServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private RankingRedisService rankingRedisService;
+
     private RecordService recordService;
 
     @BeforeEach
     void setUp() {
-        recordService = new RecordService(recordRepository, userPBRepository, userRepository);
+        recordService = new RecordService(recordRepository, userPBRepository, userRepository, rankingRedisService);
     }
 
     @Test
@@ -103,6 +106,7 @@ class RecordServiceTest {
         ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
         assertThat(recordId).isEqualTo(savedRecord.getId());
         verify(userPBRepository).save(pbCaptor.capture());
+        verify(rankingRedisService).sync(any(UserPB.class));
         assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(11800);
         assertThat(pbCaptor.getValue().getRecord()).isEqualTo(savedRecord);
     }
@@ -129,6 +133,7 @@ class RecordServiceTest {
         ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
         assertThat(recordId).isEqualTo(savedRecord.getId());
         verify(userPBRepository).save(pbCaptor.capture());
+        verify(rankingRedisService).sync(any(UserPB.class));
         assertThat(pbCaptor.getValue().getUser()).isEqualTo(user);
         assertThat(pbCaptor.getValue().getEventType()).isEqualTo(EventType.WCA_333);
         assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(9800);
@@ -164,6 +169,7 @@ class RecordServiceTest {
 
         assertThat(recordId).isEqualTo(fasterRecord.getId());
         verify(existingPb).updateBestTime(9500, fasterRecord);
+        verify(rankingRedisService).sync(existingPb);
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
 
@@ -196,6 +202,7 @@ class RecordServiceTest {
 
         assertThat(recordId).isEqualTo(slowerRecord.getId());
         verify(existingPb, never()).updateBestTime(any(), any());
+        verify(rankingRedisService, never()).sync(any());
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
 
@@ -227,6 +234,7 @@ class RecordServiceTest {
         recordService.saveRecord(user.getEmail(), request);
 
         verify(existingPb, never()).updateBestTime(any(), any());
+        verify(rankingRedisService, never()).sync(any());
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
 
@@ -260,6 +268,7 @@ class RecordServiceTest {
 
         assertThat(recordId).isEqualTo(sameTimeNewBestRecord.getId());
         verify(existingPb).updateBestTime(10000, sameTimeNewBestRecord);
+        verify(rankingRedisService).sync(existingPb);
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
 
@@ -309,6 +318,7 @@ class RecordServiceTest {
         assertThat(response.getPenalty()).isEqualTo(Penalty.PLUS_TWO);
         assertThat(currentBestRecord.getPenalty()).isEqualTo(Penalty.PLUS_TWO);
         verify(existingPb).updateBestTime(10500, fallbackRecord);
+        verify(rankingRedisService).sync(existingPb);
     }
 
     @Test
@@ -337,6 +347,7 @@ class RecordServiceTest {
         assertThat(response.getPenalty()).isEqualTo(Penalty.DNF);
         assertThat(response.getEffectiveTimeMs()).isNull();
         verify(userPBRepository).delete(existingPb);
+        verify(rankingRedisService).remove(EventType.WCA_333, user.getId());
     }
 
     @Test
@@ -406,6 +417,7 @@ class RecordServiceTest {
         verify(recordRepository).delete(currentBestRecord);
         verify(recordRepository).flush();
         verify(userPBRepository).save(pbCaptor.capture());
+        verify(rankingRedisService).sync(any(UserPB.class));
         assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(10500);
         assertThat(pbCaptor.getValue().getRecord()).isEqualTo(fallbackRecord);
     }
@@ -434,6 +446,7 @@ class RecordServiceTest {
         verify(userPBRepository).delete(existingPb);
         verify(recordRepository).delete(currentBestRecord);
         verify(recordRepository).flush();
+        verify(rankingRedisService).remove(EventType.WCA_333, user.getId());
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
 
@@ -452,6 +465,7 @@ class RecordServiceTest {
         verify(userPBRepository, never()).delete(any(UserPB.class));
         verify(recordRepository).delete(deletedRecord);
         verify(recordRepository).flush();
+        verify(rankingRedisService, never()).remove(any(), any());
         verify(recordRepository, never()).findBestRecordByUserIdAndEventType(any(), any());
     }
 
@@ -515,6 +529,47 @@ class RecordServiceTest {
         assertThat(response.getTotalPages()).isEqualTo(3);
         assertThat(response.isHasNext()).isTrue();
         assertThat(response.isHasPrevious()).isTrue();
+    }
+
+    @Test
+    @DisplayName("기본 랭킹 조회는 Redis가 준비되면 Redis 경로를 사용한다")
+    void should_return_rankings_from_redis_when_nickname_is_blank_and_redis_is_ready() {
+        RankingPageResponse redisResponse = new RankingPageResponse(
+                List.of(),
+                1,
+                25,
+                0L,
+                0,
+                false,
+                false
+        );
+
+        when(rankingRedisService.isReady(EventType.WCA_333)).thenReturn(true);
+        when(rankingRedisService.getRankings(EventType.WCA_333, 1, 25)).thenReturn(redisResponse);
+
+        RankingPageResponse response = recordService.getRankings(EventType.WCA_333, null, 1, 25);
+
+        assertThat(response).isSameAs(redisResponse);
+        verify(rankingRedisService).getRankings(EventType.WCA_333, 1, 25);
+        verify(userPBRepository, never()).searchRankings(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("기본 랭킹 조회는 Redis가 준비되지 않으면 MySQL 경로로 fallback한다")
+    void should_fallback_to_mysql_when_redis_is_not_ready() {
+        when(rankingRedisService.isReady(EventType.WCA_333)).thenReturn(false);
+        when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq(null), eq(PageRequest.of(0, 25))))
+                .thenReturn(new PageImpl<>(
+                        List.of(new RankingQueryResult("Alpha", EventType.WCA_333, 9800)),
+                        PageRequest.of(0, 25),
+                        1
+                ));
+
+        RankingPageResponse response = recordService.getRankings(EventType.WCA_333, null, 1, 25);
+
+        assertThat(response.getItems()).extracting("nickname").containsExactly("Alpha");
+        verify(rankingRedisService, never()).getRankings(any(), any(), any());
+        verify(userPBRepository).searchRankings(EventType.WCA_333, null, PageRequest.of(0, 25));
     }
 
     @Test
