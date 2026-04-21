@@ -105,13 +105,11 @@ jobs:
       - name: Health check
         shell: bash
         run: |
-          ssh "$EC2_USER@$EC2_HOST" <<'EOF'
-            set -euo pipefail
-            for attempt in 1 2 3 4 5 6 7 8 9 10; do
-              if curl --fail --silent --show-error --insecure https://localhost/actuator/health; then
-                exit 0
-              fi
-              sleep 5
-            done
-            exit 1
-          EOF
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if ssh "$EC2_USER@$EC2_HOST" \
+              'curl --fail --silent --show-error --insecure https://localhost/actuator/health >/dev/null'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
