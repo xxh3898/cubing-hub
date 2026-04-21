@@ -11,7 +11,7 @@
 | 영역 | 구성 | 목적 |
 | --- | --- | --- |
 | Frontend | AWS S3, AWS CloudFront | 정적 자산 호스팅 및 CDN 배포 |
-| Backend | AWS EC2, Docker Compose, Spring Boot, Redis, Prometheus, Grafana | API 실행, 토큰/캐시 처리, 운영 메트릭 관찰 |
+| Backend | AWS EC2, Docker Compose, Nginx, Spring Boot, Redis | API 실행, HTTPS reverse proxy, 토큰/캐시 처리 |
 | Data | AWS RDS (MySQL) | 영속 데이터 저장 |
 | Delivery | GitHub Actions, Docker Hub | CI/CD 자동화 |
 
@@ -67,12 +67,32 @@
   - CloudFront CDN
 - Backend
   - EC2 내부 Docker Compose
+  - Nginx reverse proxy
   - Spring Boot API
   - Redis
-  - Prometheus
-  - Grafana
 - Data
   - RDS MySQL
+
+### Production (현재 운영 기준)
+
+- 저장소 기준 파일
+  - `backend/Dockerfile`
+  - `infra/docker/docker-compose.prod.yml`
+  - `infra/nginx/nginx.conf`
+- 실행 기준
+  - `infra/docker/.env`에 운영 값을 두고 `cd infra/docker && docker compose -f docker-compose.prod.yml ...` 기준으로 실행한다.
+- 배포 범위
+  - `api.cubing-hub.com` Nginx + Spring Boot + Redis
+  - `www.cubing-hub.com` CloudFront + S3
+- 실제 반영 상태
+  - `api.cubing-hub.com` HTTPS 응답과 `/actuator/health` 확인을 완료했다.
+  - 프런트는 `VITE_API_BASE_URL=https://api.cubing-hub.com`로 다시 빌드해 배포했다.
+- 제외 범위
+  - Prometheus / Grafana 운영 배포
+- 초기 운영 정책
+  - `GET /actuator/health`만 공개
+  - `Spring Boot`는 `prod` profile로 동작
+  - Redis 랭킹 초기화는 env로 제어한다.
 
 ## 4. 환경 변수 / 비밀값 관리
 
@@ -101,12 +121,26 @@
 - `REDIS_HOST`
 - `REDIS_PORT`
 - `JWT_SECRET`
-- `cors.allowed-origins`
-  - 실제 프런트엔드 도메인 주소로 변경 필요
-- `jwt.expiration`
-  - 프로덕션 Access Token 만료 시간
-- `jwt.refresh-expiration`
-  - 프로덕션 Refresh Token 만료 시간 (`JWT_REFRESH_EXPIRATION`, 기본 7일)
+- `CORS_ALLOWED_ORIGINS`
+  - 기본값 `https://www.cubing-hub.com`
+- `JWT_EXPIRATION`
+  - 프로덕션 Access Token 만료 시간, 기본 30분
+- `JWT_REFRESH_EXPIRATION`
+  - 프로덕션 Refresh Token 만료 시간, 기본 7일
+- `SPRING_JPA_HIBERNATE_DDL_AUTO`
+  - 기본값 `validate`, first deploy 1회만 `update` 권장
+- `AUTH_REFRESH_COOKIE_SECURE`
+  - 기본값 `true`
+- `RANKING_REDIS_REBUILD_ON_STARTUP`
+  - 기본값 `false`, first deploy 1회만 `true` 사용 가능
+- `BACKEND_IMAGE`
+  - Docker Hub backend image 경로
+- `BACKEND_IMAGE_TAG`
+  - Docker Hub image tag
+- `LETSENCRYPT_DIR`
+  - host 인증서 디렉터리, 기본 `/etc/letsencrypt`
+- `CERTBOT_WEBROOT`
+  - ACME challenge webroot, 기본 `/var/www/certbot`
 
 ### Frontend
 
@@ -135,6 +169,9 @@
 9. 필요 시 `Performance Benchmark`를 수동 실행
 10. benchmark workflow에서 schema reset, seed 적재, `k6` baseline 실행
 11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
+12. 실제 운영 배포는 현재 수동으로 수행한다.
+13. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
+14. backend는 Docker Hub image push 후 EC2에서 `docker compose pull && up -d`로 반영한다.
 
 ### 목표 흐름
 
@@ -143,7 +180,7 @@
 3. Docker 이미지 빌드 및 Docker Hub 푸시
 4. EC2에서 최신 이미지 Pull
 5. 컨테이너 재시작으로 CD 수행
-6. Nginx + Let's Encrypt(Certbot)로 HTTPS 적용
+6. Nginx + Let's Encrypt(Certbot) 인증서를 마운트해 HTTPS 적용
 
 ## 6. 도메인 / 네트워크
 
@@ -151,18 +188,20 @@
   - CloudFront가 공개 진입점을 담당한다.
   - OAC를 사용해 S3 직접 접근을 차단하는 구성을 목표로 한다.
 - Backend
-  - Nginx가 외부 진입을 처리한다.
+  - `api.cubing-hub.com`이 외부 진입점이다.
+  - Nginx가 `80 -> 443` 리다이렉트와 `/api`, `/actuator/health` reverse proxy를 담당한다.
   - EC2와 RDS는 보안 그룹으로 접근 범위를 제한한다.
 - 데이터 저장소
   - RDS는 외부 직접 접근을 허용하지 않고 애플리케이션 계층에서만 접근한다.
 
 ## 7. 운영 고려사항
 
-- Spring Boot Actuator 메트릭 노출
-- Prometheus 수집
-- Grafana 시각화
-- `k6` remote write 메트릭과 함께 병목 구간 분석
-- AWS Billing Alarm 설정으로 과도한 비용 사용 방지
+- 1차 배포는 `GET /actuator/health`만 공개한다.
+- `prometheus`, `grafana`는 local 관찰 기준선으로 유지하고 production 범위에서는 제외한다.
+- RDS는 first deploy 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
+- Redis ready marker가 필요하므로 first deploy 시점에만 `RANKING_REDIS_REBUILD_ON_STARTUP=true`를 사용할 수 있다.
+- AWS Billing Alarm 설정으로 과도한 비용 사용을 방지한다.
+- 실제 first deploy / redeploy 절차와 운영 후처리 체크리스트는 [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md)에 정리한다.
 
 ## 8. 장애 대응 초안
 
@@ -172,6 +211,7 @@
 | Redis 장애 | 토큰/캐시 영향 범위 확인 | Redis 배치 전략 또는 영속화 옵션 재검토 |
 | RDS 연결 실패 | DB 접속 정보와 네트워크 설정 점검 | 보안 그룹 / 애플리케이션 설정 재검토 |
 | CloudFront / S3 정적 배포 문제 | 캐시 무효화 및 배포 산출물 재확인 | 배포 파이프라인 검토 |
+| HTTPS 인증서 문제 | `certbot` 발급/만료 상태 확인 | 인증서 갱신 방식 재검토 |
 | CI 실패 | backend는 `test-report`, `jacoco-report`, frontend는 `frontend-failure-reports` 확인 | backend는 테스트/문서 단계, frontend는 lint/test/build 단계로 원인 분리 |
 
 ## 9. 배포 다이어그램
@@ -187,8 +227,6 @@ flowchart LR
     DH --> EC2[EC2 Docker Compose]
     EC2 --> RDS[RDS MySQL]
     EC2 --> Redis[Redis]
-    EC2 --> Prom[Prometheus]
-    Prom --> Graf[Grafana]
     S3 --> CF[CloudFront]
     CF --> User[Client]
     EC2 --> User
@@ -196,6 +234,7 @@ flowchart LR
 
 ## 10. 미확정 사항
 
-- Nginx 리버스 프록시 설정과 HTTPS 적용 순서
+- HTTPS 인증서 발급/갱신 자동화 방식
 - Docker Hub 기반 CD 스크립트의 최종 자동화 방식
-- Route 53, HTTPS, OAC 실제 반영 시점
+- Route 53, OAC 세부 운영 절차
+- GitHub Actions deploy workflow의 최종 trigger 정책과 secret/variable 구조

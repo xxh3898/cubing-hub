@@ -15,10 +15,6 @@ graph TD
         Nginx[Nginx Reverse Proxy]
         SB[Spring Boot API]
         Redis[Redis - Token / Cache / Ranking]
-        subgraph Monitoring
-            Prom[Prometheus]
-            Graf[Grafana]
-        end
     end
 
     RDS[(AWS RDS - MySQL)]
@@ -29,8 +25,6 @@ graph TD
     Nginx <--> SB
     SB <--> Redis
     SB <--> RDS
-    SB -.-> Prom
-    Prom <--> Graf
 ```
 
 ### 목표 아키텍처
@@ -49,8 +43,7 @@ Client ↔ AWS Nginx
       AWS EC2 (Docker Compose)
            ├─ Spring Boot API
            ├─ Redis
-           ├─ Prometheus
-           └─ Grafana
+           └─ Nginx Reverse Proxy
            ↓
       AWS RDS (MySQL)
 ```
@@ -66,8 +59,6 @@ Client ↔ AWS Nginx
 | Spring Boot API | 인증, 기록, 랭킹, 게시판 등 비즈니스 로직 처리 |
 | Redis | Refresh Token, Blacklist, 랭킹 read model |
 | RDS MySQL | 영속 데이터 저장 |
-| Prometheus | Actuator 메트릭 수집 |
-| Grafana | 대시보드 시각화 |
 
 ## 3. 요청 흐름
 
@@ -79,8 +70,8 @@ Client ↔ AWS Nginx
 
 ### API 요청
 
-1. 프런트는 `VITE_API_BASE_URL` 기준으로 백엔드 API를 호출한다.
-2. 외부 요청은 Nginx를 통해 EC2 내부 Spring Boot 컨테이너로 전달된다.
+1. 프런트는 `VITE_API_BASE_URL=https://api.cubing-hub.com` 기준으로 백엔드 API를 호출한다.
+2. 외부 요청은 `api.cubing-hub.com`의 Nginx를 통해 EC2 내부 Spring Boot 컨테이너로 전달된다.
 3. Spring Boot는 필요 시 Redis와 RDS를 함께 사용해 응답을 구성한다.
 
 ## 4. 인증 흐름
@@ -130,8 +121,8 @@ Client ↔ AWS Nginx
 
 ### 외부 연동 / 운영 데이터
 
-- Prometheus는 Spring Boot Actuator 메트릭과 `k6` remote write 메트릭을 수집한다.
-- Grafana는 Prometheus 데이터를 시각화하고, `Rankings Baseline` 대시보드로 성능 기준선을 재사용한다.
+- local 기준선은 Prometheus와 Grafana로 유지한다.
+- 1차 production 배포 범위는 `Nginx + Spring Boot + Redis + RDS`이며, 운영 메트릭 스택은 배포 범위에서 제외한다.
 - GitHub Actions는 변경 경로 기준으로 `Backend CI`, `Frontend CI`를 분리 실행한다.
 - `Backend CI`는 Testcontainers 통합 테스트, JaCoCo 리포트, REST Docs 빌드와 artifact 회수를 담당한다.
 - `Frontend CI`는 `npm ci`, lint, vitest, build 검증과 실패 산출물 회수를 담당한다.
@@ -162,19 +153,22 @@ Client ↔ AWS Nginx
 | AWS RDS | MySQL 관리형 DB |
 | GitHub Actions | CI 실행 및 수동 benchmark workflow |
 | Docker Hub | 컨테이너 이미지 배포 저장소 |
-| Prometheus / Grafana | 운영 메트릭 관찰 |
 
 ## 8. 준비 상태
 
 - 로컬 저장소에는 `docker-compose.yml` 기반 MySQL, Redis, Prometheus, Grafana 구성이 존재한다.
+- 프로덕션 배포용 기준 파일로 `backend/Dockerfile`, `infra/docker/docker-compose.prod.yml`, `infra/nginx/nginx.conf`를 사용한다.
 - GitHub Actions에는 backend/frontend 분리 CI가 반영되어 있다.
 - Backend CI에는 Testcontainers 기반 테스트와 REST Docs 빌드 검증이 반영되어 있다.
 - Frontend CI에는 lint, vitest, build 검증과 실패 산출물 회수가 반영되어 있다.
 - `Performance Benchmark` workflow에는 baseline seed, `k6`, Markdown artifact 회수 흐름이 반영되어 있다.
-- Redis V2 비교 산출물은 확보했지만, 프로덕션 배포 스크립트, 도메인 연결, HTTPS 적용은 미정 상태다.
+- Redis V2 비교 산출물은 확보했고, 1차 운영 배포는 `www.cubing-hub.com`과 `api.cubing-hub.com` 분리 도메인으로 반영됐다.
+- `api.cubing-hub.com`은 EC2의 Nginx와 Let's Encrypt 인증서로 HTTPS 응답을 제공한다.
+- 자동 deploy workflow와 운영 runbook 고도화는 아직 남아 있다.
 
 ## 9. 미확정 사항
 
-- Nginx 리버스 프록시 설정과 HTTPS 리다이렉트 세부 정책
+- Nginx 인증서 발급/갱신 자동화 방식
 - 운영 환경에서의 Redis 재구축 시점과 장애 복구 수준
 - 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부
+- frontend/backend 자동 배포 workflow의 최종 트리거 정책

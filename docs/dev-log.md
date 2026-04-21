@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Day 20 Redis 랭킹 V2 구현 + 재측정 완료 |
-| 상태 | Day 20 기준 `GET /api/rankings` 기본 조회는 Redis ZSET read model, `nickname` 검색은 MySQL fallback으로 정리됐다. 동일 `k6` 시나리오 재측정과 공식 문서 동기화까지 끝났고, 실제 배포는 다음 세션으로 분리됐다 |
-| 범위 | Redis 랭킹 V2 hybrid 구현, PB 변경 시 Redis 증분 동기화, startup 재구축 경로 추가, Day 19 대비 `k6` 재측정, 공식 문서/개발 로그 동기화 |
-| 핵심 리스크 | local `300,000` PB 기준 startup 재구축이 약 9분 걸린다. `nickname` 검색은 여전히 MySQL fallback이고, 실제 배포와 대상 환경 스모크 테스트는 아직 남아 있다 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [System Architecture](./System%20Architecture.md), [Project Schedule](./Project%20Schedule.md), [Day 19](./Development%20Log/Day%2019.md), [Day 20](./Development%20Log/Day%2020.md), [Performance Runbook](./performance/runbook.md), [V1-V2 Comparison](./performance/rankings-v1-v2-comparison.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
-| 다음 로그 대상 | 실제 배포 준비와 대상 환경 스모크 테스트 기록 |
+| 작업명 | Day 21 AWS 1차 배포 완료와 후속 정리 준비 |
+| 상태 | `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 마쳤다. 현재 문서 최신화, 운영 체크리스트 정리, GitHub Actions 자동 배포 workflow 설계가 다음 범위다 |
+| 범위 | AWS 1차 배포 결과 반영, 운영 후처리 runbook 작성, frontend/backend deploy workflow 준비 |
+| 핵심 리스크 | 수동 배포 과정에서 확인한 frontend env 주입, Docker image platform, Nginx SSL 보조 파일, first deploy 플래그 원복 절차를 문서화하지 않으면 재발 가능성이 높다 |
+| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [System Architecture](./System%20Architecture.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md), [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
+| 다음 로그 대상 | 자동 배포 workflow 구현과 운영 비밀값 관리 기준 |
 
 ## 로그 파일 목록
 
@@ -30,7 +30,7 @@
 | Core API | [Day 8](./Development%20Log/Day%2008.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 18](./Development%20Log/Day%2018.md), [Day 19](./Development%20Log/Day%2019.md), [Day 20](./Development%20Log/Day%2020.md) | 테스트/문서/CSS/잔버그 정리, V1 baseline 확보, Redis 랭킹 V2와 재측정 |
+| 최신 로그 | [Day 19](./Development%20Log/Day%2019.md), [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md) | V1 baseline 확보, Redis 랭킹 V2와 재측정, AWS 1차 배포와 운영 이슈 정리 |
 
 ## 주요 설계 결정 추적
 
@@ -41,8 +41,8 @@
 
 ## 최근 정리 문서
 
-- 최근 일자 로그: [Day 20](./Development%20Log/Day%2020.md)
-- 현재 작업 요약: [Day 19](./Development%20Log/Day%2019.md), [Day 20](./Development%20Log/Day%2020.md)
+- 최근 일자 로그: [Day 21](./Development%20Log/Day%2021.md)
+- 현재 작업 요약: [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md)
 - 현재 단계 리뷰: [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md)
 - 인증 설계 기준: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md)
 - API 계약 기준: [API Specification](./API%20Specification.md)
@@ -85,4 +85,5 @@
 - 최종 재측정 기준 `MySQL-v1`은 `GET /api/rankings?eventType=WCA_333&page=1&size=25`에서 `avg 7,245.23 ms`, `p95 12,429.58 ms`였다.
 - 최종 재측정 기준 `redis-v2`는 같은 시나리오에서 `avg 21.10 ms`, `p95 36.94 ms`, `1,502.77 req/s`를 기록했고 비교 산출물은 `docs/performance/rankings-v1-v2-comparison.*`에 저장했다.
 - 현재 랭킹 구조는 `nickname` 미입력 기본 조회 Redis, `nickname` 검색 MySQL fallback hybrid다.
-- local 프로필은 startup 재구축을 사용하지만, 운영 재구축 시점과 실제 배포는 다음 세션에서 정리한다.
+- local 프로필은 startup 재구축을 사용하고, production first deploy는 `update` / `true` 1회 적용 후 `validate` / `false`로 원복했다.
+- 실제 AWS 1차 배포에서 frontend env 누락, Docker image amd64 manifest, Nginx SSL 보조 파일 누락을 확인했고 재발 방지 체크리스트를 별도 문서로 정리한다.

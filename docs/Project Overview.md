@@ -189,7 +189,9 @@ flowchart TD
   - 로컬 Docker Compose, 분리 CI, REST Docs, 수동 benchmark workflow는 준비되어 있다.
   - MySQL V1 baseline과 Redis V2 비교 산출물은 확보했다.
   - local `300,000` PB 기준 startup 재구축 시간은 약 9분으로 확인했다.
-  - 프로덕션 배포 스크립트, 도메인, HTTPS, 운영 재구축 정책은 미정 상태다.
+  - `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료했다.
+  - 현재 운영 구조는 `S3 + CloudFront` 프런트와 `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드다.
+  - GitHub Actions 기반 자동 배포와 운영 재구축 정책은 후속 작업으로 남아 있다.
 
 ## 10. 성공 기준
 
@@ -203,6 +205,6 @@ flowchart TD
 
 ## 11. 미확정 사항
 
-- 프로덕션 도메인, Route 53, HTTPS 최종 구성
+- GitHub Actions 기반 frontend/backend 자동 배포 방식
 - 운영 환경에서의 Redis 재구축 시점과 트리거 정책
 - `nickname` 검색을 Redis secondary index로 확장할지 여부
