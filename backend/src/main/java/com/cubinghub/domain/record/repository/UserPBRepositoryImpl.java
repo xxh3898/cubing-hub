@@ -4,6 +4,7 @@ import static com.cubinghub.domain.record.entity.QRecord.record;
 import static com.cubinghub.domain.record.entity.QUserPB.userPB;
 import static com.cubinghub.domain.user.entity.QUser.user;
 
+import com.cubinghub.domain.record.dto.internal.RankingRedisEntry;
 import com.cubinghub.domain.record.entity.EventType;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -55,6 +56,40 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                         userPB.eventType.eq(eventType),
                         nicknameContains(nickname)
                 )
+                .fetchOne();
+
+        return new PageImpl<>(items, pageable, total);
+    }
+
+    @Override
+    public Page<RankingRedisEntry> findRankingRedisEntries(EventType eventType, Pageable pageable) {
+        List<RankingRedisEntry> items = queryFactory
+                .select(Projections.constructor(
+                        RankingRedisEntry.class,
+                        user.id,
+                        user.nickname,
+                        userPB.eventType,
+                        userPB.bestTimeMs,
+                        record.id,
+                        record.createdAt
+                ))
+                .from(userPB)
+                .join(userPB.user, user)
+                .join(userPB.record, record)
+                .where(userPB.eventType.eq(eventType))
+                .orderBy(
+                        userPB.bestTimeMs.asc(),
+                        record.createdAt.asc(),
+                        record.id.asc()
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        long total = queryFactory
+                .select(userPB.count())
+                .from(userPB)
+                .where(userPB.eventType.eq(eventType))
                 .fetchOne();
 
         return new PageImpl<>(items, pageable, total);

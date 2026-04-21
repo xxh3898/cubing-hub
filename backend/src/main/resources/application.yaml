@@ -3,3 +3,8 @@ spring:
     name: cubing-hub
   profiles:
     active: local
+
+ranking:
+  redis:
+    rebuild-on-startup: false
+    batch-size: 1000

@@ -51,3 +51,7 @@ cors:
 auth:
   refresh-cookie:
     secure: false
+
+ranking:
+  redis:
+    rebuild-on-startup: true
