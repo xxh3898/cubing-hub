@@ -1,21 +1,21 @@
-# Rankings V1 Baseline
+# Rankings MySQL V1 Report
 
-- Generated at: 2026-04-20T13:32:05.818Z
+- Generated at: 2026-04-21T09:37:10.094Z
 - Current summary: `docs/performance/rankings-v1-summary.json`
 
 ## Metrics
 
-| Metric | V1 MySQL |
+| Metric | MySQL-v1 |
 | --- | --- |
-| HTTP request duration avg | 7,810.60 ms |
-| HTTP request duration p95 | 13,023.45 ms |
-| HTTP request duration max | 14,105.83 ms |
-| HTTP requests count | 532 |
-| HTTP requests rate | 3.81/s |
+| HTTP request duration avg | 7,245.23 ms |
+| HTTP request duration p95 | 12,429.58 ms |
+| HTTP request duration max | 13,288.98 ms |
+| HTTP requests count | 586 |
+| HTTP requests rate | 4.21/s |
 | HTTP request failed rate | 0.00% |
 | Checks success rate | 100.00% |
 
 ## Notes
 
 - Baseline summary was not provided, so this report contains the current run only.
-- Current label: `V1 MySQL`
+- Current label: `MySQL-v1`

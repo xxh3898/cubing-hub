@@ -44,7 +44,7 @@ k6 run \
   -o experimental-prometheus-rw=http://localhost:9090/api/v1/write \
   --summary-export docs/performance/rankings-v1-summary.json \
   -e BASE_URL=http://localhost:8080 \
-  -e RUN_LABEL=v1 \
+  -e RUN_LABEL=MySQL-v1 \
   -e STORAGE_LABEL=mysql \
   k6/rankings-v1-baseline.js
 ```
@@ -54,10 +54,10 @@ k6 run \
 ```bash
 node k6/generate-performance-report.mjs \
   --current docs/performance/rankings-v1-summary.json \
-  --current-label "V1 MySQL" \
+  --current-label "MySQL-v1" \
   --output-md docs/performance/rankings-v1-report.md \
   --output-html docs/performance/rankings-v1-report.html \
-  --title "Rankings V1 Baseline"
+  --title "Rankings MySQL V1 Report"
 ```
 
 - `report.md`, `report.html`은 `summary.json` 기반 요약 리포트다.
@@ -85,7 +85,7 @@ k6 run \
   -o experimental-prometheus-rw=http://localhost:9090/api/v1/write \
   --summary-export docs/performance/rankings-v2-summary.json \
   -e BASE_URL=http://localhost:8080 \
-  -e RUN_LABEL=v2 \
+  -e RUN_LABEL=redis-v2 \
   -e STORAGE_LABEL=redis \
   k6/rankings-v1-baseline.js
 ```
@@ -95,12 +95,12 @@ k6 run \
 ```bash
 node k6/generate-performance-report.mjs \
   --previous docs/performance/rankings-v1-summary.json \
-  --previous-label "V1 MySQL" \
+  --previous-label "MySQL-v1" \
   --current docs/performance/rankings-v2-summary.json \
-  --current-label "V2 Redis" \
+  --current-label "redis-v2" \
   --output-md docs/performance/rankings-v1-v2-comparison.md \
   --output-html docs/performance/rankings-v1-v2-comparison.html \
-  --title "Rankings V1 vs V2 Comparison"
+  --title "Rankings Benchmark Comparison"
 ```
 
 - 비교 `md`, `html`도 요약표 중심 산출물이다.
@@ -118,6 +118,6 @@ V1, V2 결과는 같은 대시보드, 같은 시간 범위, 같은 패널 레이
 
 권장 로컬 캡처 파일:
 
-- `docs/performance/grafana/rankings-v1.png`
-- `docs/performance/grafana/rankings-v2.png`
-- `docs/performance/grafana/rankings-v1-v2-comparison.png`
+- `docs/performance/grafana/rankings-mysql-v1.png`
+- `docs/performance/grafana/rankings-redis-v2.png`
+- 필요 시 비교 캡처를 추가한다.
