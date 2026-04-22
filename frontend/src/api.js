@@ -115,7 +115,16 @@ export async function createFeedback(payload) {
     const response = await apiClient.post('/api/feedbacks', payload)
     return unwrapResponse(response)
   } catch (error) {
-    throw new Error(toErrorMessage(error))
+    throw toRequestError(error)
+  }
+}
+
+export async function retryFeedbackNotification(feedbackId) {
+  try {
+    const response = await apiClient.post(`/api/feedbacks/${feedbackId}/notification-retry`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
   }
 }
 

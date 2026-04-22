@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createFeedback } from '../api.js'
+import { createFeedback, retryFeedbackNotification } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -11,8 +11,10 @@ export default function FeedbackPage() {
   const [replyEmail, setReplyEmail] = useState(currentUser?.email ?? '')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [feedbackMessage, setFeedbackMessage] = useState(null)
+  const [formMessage, setFormMessage] = useState(null)
+  const [notificationState, setNotificationState] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isRetryingNotification, setIsRetryingNotification] = useState(false)
   const navigate = useNavigate()
   const defaultReplyEmail = currentUser?.email ?? ''
 
@@ -23,8 +25,8 @@ export default function FeedbackPage() {
   const updateFeedbackField = (setter) => (value) => {
     setter(value)
 
-    if (feedbackMessage) {
-      setFeedbackMessage(null)
+    if (formMessage) {
+      setFormMessage(null)
     }
   }
 
@@ -52,17 +54,17 @@ export default function FeedbackPage() {
     const trimmedContent = content.trim()
 
     if (!trimmedReplyEmail || !trimmedTitle || !trimmedContent) {
-      setFeedbackMessage({ type: 'error', text: '회신 이메일, 제목, 내용을 모두 입력해주세요.' })
+      setFormMessage('회신 이메일, 제목, 내용을 모두 입력해주세요.')
       return
     }
 
     if (!EMAIL_PATTERN.test(trimmedReplyEmail)) {
-      setFeedbackMessage({ type: 'error', text: '올바른 이메일 주소를 입력해주세요.' })
+      setFormMessage('올바른 이메일 주소를 입력해주세요.')
       return
     }
 
     setIsSubmitting(true)
-    setFeedbackMessage(null)
+    setFormMessage(null)
 
     try {
       const response = await createFeedback({
@@ -76,11 +78,42 @@ export default function FeedbackPage() {
       setReplyEmail(defaultReplyEmail)
       setTitle('')
       setContent('')
-      setFeedbackMessage({ type: 'success', text: response.message })
+      setNotificationState(toNotificationState(response))
     } catch (error) {
-      setFeedbackMessage({ type: 'error', text: error.message })
+      setFormMessage(error.message)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleNotificationRetry = async () => {
+    if (!notificationState?.notificationRetryAvailable) {
+      return
+    }
+
+    setIsRetryingNotification(true)
+
+    try {
+      const response = await retryFeedbackNotification(notificationState.feedbackId)
+      setNotificationState(toNotificationState(response))
+    } catch (error) {
+      setNotificationState((previousState) => {
+        if (!previousState) {
+          return null
+        }
+
+        return {
+          ...previousState,
+          type: 'error',
+          text: error.message,
+          notificationRetryAvailable:
+            [403, 404, 409].includes(error.status)
+              ? false
+              : previousState.notificationRetryAvailable,
+        }
+      })
+    } finally {
+      setIsRetryingNotification(false)
     }
   }
 
@@ -99,7 +132,26 @@ export default function FeedbackPage() {
 
       <div className="panel feedback-form-panel">
         <form onSubmit={handleSubmit} className="form-grid" noValidate>
-          {feedbackMessage ? <p className={`message ${feedbackMessage.type}`}>{feedbackMessage.text}</p> : null}
+          {formMessage ? <p className="message error">{formMessage}</p> : null}
+          {notificationState ? (
+            <div className="feedback-notification-status">
+              <p className={`message ${notificationState.type}`}>{notificationState.text}</p>
+              <div className="feedback-notification-meta">
+                <span>{`피드백 ID #${notificationState.feedbackId}`}</span>
+                <span>{`알림 시도 ${notificationState.notificationAttemptCount}회`}</span>
+              </div>
+              {notificationState.notificationRetryAvailable ? (
+                <button
+                  type="button"
+                  className="ghost-button feedback-retry-button"
+                  onClick={handleNotificationRetry}
+                  disabled={isSubmitting || isRetryingNotification}
+                >
+                  {isRetryingNotification ? '재시도 중...' : 'Discord 알림 재시도'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="field">
             <label htmlFor="feedback-type">피드백 종류</label>
@@ -107,7 +159,7 @@ export default function FeedbackPage() {
               id="feedback-type"
               value={type}
               onChange={handleTypeChange}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRetryingNotification}
             >
               <option value="BUG">버그 및 오류 제보</option>
               <option value="FEATURE">새로운 기능 제안</option>
@@ -126,7 +178,7 @@ export default function FeedbackPage() {
               placeholder="회신 받을 이메일 주소를 입력해주세요"
               maxLength={255}
               autoComplete="email"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRetryingNotification}
             />
             <p className="helper-text">필요하면 이 주소로 답변을 보냅니다.</p>
           </div>
@@ -140,7 +192,7 @@ export default function FeedbackPage() {
               onChange={handleTitleChange}
               placeholder="간략한 제목을 적어주세요"
               maxLength={100}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRetryingNotification}
             />
           </div>
 
@@ -152,7 +204,7 @@ export default function FeedbackPage() {
               onChange={handleContentChange}
               placeholder="어떤 상황에서 어떤 문제가 발생했는지, 혹은 어떤 기능이 있으면 좋을지 자유롭게 적어주세요!"
               rows={8}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRetryingNotification}
             />
           </div>
 
@@ -161,11 +213,11 @@ export default function FeedbackPage() {
               type="button"
               className="ghost-button"
               onClick={() => navigate(-1)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRetryingNotification}
             >
               이전으로
             </button>
-            <button type="submit" className="primary-button" disabled={isSubmitting}>
+            <button type="submit" className="primary-button" disabled={isSubmitting || isRetryingNotification}>
               {isSubmitting ? '제출 중...' : '제출하기'}
             </button>
           </div>
@@ -173,4 +225,16 @@ export default function FeedbackPage() {
       </div>
     </section>
   )
+}
+
+function toNotificationState(response) {
+  const notificationStatus = response.data.notificationStatus
+
+  return {
+    feedbackId: response.data.id,
+    notificationAttemptCount: response.data.notificationAttemptCount,
+    notificationRetryAvailable: response.data.notificationRetryAvailable,
+    text: response.message,
+    type: notificationStatus === 'SUCCESS' ? 'success' : 'error',
+  }
 }

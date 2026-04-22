@@ -27,3 +27,20 @@
 .feedback-form-panel .field textarea {
   min-height: 240px;
 }
+
+.feedback-notification-status {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-notification-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--muted-text);
+  font-size: 0.95rem;
+}
+
+.feedback-retry-button {
+  justify-self: start;
+}
