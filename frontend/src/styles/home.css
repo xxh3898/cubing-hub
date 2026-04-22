@@ -17,6 +17,8 @@
   font-size: clamp(1.15rem, 2.6vw, 1.6rem);
   line-height: 1.75;
   letter-spacing: -0.02em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .home-scramble-actions {
@@ -72,10 +74,13 @@
   background: rgba(255, 255, 255, 0.68);
   color: inherit;
   text-decoration: none;
+  min-width: 0;
 }
 
 .home-post-card strong {
   font-size: 1.05rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .home-post-category {
@@ -95,4 +100,6 @@
   margin: 0;
   color: #53626d;
   font-size: 0.92rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }

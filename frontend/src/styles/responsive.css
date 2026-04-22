@@ -50,3 +50,208 @@
     align-items: flex-start;
   }
 }
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .app-topbar,
+  .panel,
+  .app-footer {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .topbar {
+    gap: 18px;
+    margin-bottom: 16px;
+  }
+
+  .brand-block {
+    max-width: none;
+  }
+
+  .topbar h1 {
+    font-size: clamp(2rem, 10vw, 2.8rem);
+  }
+
+  .topbar-meta {
+    width: 100%;
+    display: grid;
+    gap: 12px;
+    align-items: stretch;
+    justify-content: initial;
+    justify-items: stretch;
+  }
+
+  .topnav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    justify-content: initial;
+    justify-items: stretch;
+  }
+
+  .topnav a {
+    display: flex;
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .status-chip {
+    justify-self: start;
+  }
+
+  .footer-feedback-link,
+  .home-action-link,
+  .home-record-link,
+  .community-write-button {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .app-footer {
+    gap: 14px;
+  }
+
+  .rankings-toolbar,
+  .community-board-toolbar,
+  .mypage-profile-header,
+  .mypage-records-header,
+  .community-detail-actions,
+  .community-write-actions,
+  .community-comment-header,
+  .community-comment-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rankings-search-field,
+  .rankings-event-field,
+  .timer-event-field {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .community-search-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .community-category-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .community-category-button {
+    width: 100%;
+  }
+
+  .community-write-actions > *,
+  .community-detail-actions > *,
+  .community-comment-form-actions > * {
+    width: 100%;
+  }
+
+  .community-comment-meta {
+    flex-wrap: wrap;
+  }
+
+  .timer-toolbar {
+    gap: 14px;
+  }
+
+  .timer-toolbar-actions {
+    width: 100%;
+  }
+
+  .timer-toolbar-actions > button {
+    flex: 1 1 100%;
+  }
+
+  .timer-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-recent-actions > button,
+  .mypage-record-actions > button {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .mypage-info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .mypage-info-label {
+    min-width: 0;
+  }
+
+  .mypage-trend-chart {
+    padding: 12px 8px 4px;
+  }
+
+  .record-table-wrap {
+    overflow-x: visible;
+  }
+
+  .responsive-card-table,
+  .responsive-card-table tbody,
+  .responsive-card-table tr,
+  .responsive-card-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-card-table {
+    border-collapse: separate;
+  }
+
+  .responsive-card-table colgroup,
+  .responsive-card-table thead {
+    display: none;
+  }
+
+  .responsive-card-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+
+  .responsive-card-table tr {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(18, 32, 43, 0.04);
+    border: 1px solid rgba(18, 32, 43, 0.08);
+  }
+
+  .responsive-card-table td {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .responsive-card-table td::before {
+    content: attr(data-label);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5b6f62;
+  }
+
+  .record-table-scramble {
+    min-width: 0;
+    word-break: break-word;
+  }
+}

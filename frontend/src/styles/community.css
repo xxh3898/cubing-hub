@@ -80,8 +80,12 @@
 }
 
 .community-title-cell a {
+  display: block;
+  min-width: 0;
   text-decoration: none;
   color: inherit;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .community-title-cell a:hover {
@@ -119,6 +123,8 @@
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.3;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .community-detail-info {
@@ -145,6 +151,8 @@
 .community-detail-content {
   flex-grow: 1;
   line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .community-detail-actions {

@@ -181,7 +181,7 @@ export default function CommunityPage() {
           <p className="helper-text">조건에 맞는 게시글이 없습니다.</p>
         ) : (
           <div className="record-table-wrap">
-            <table className="record-table community-table">
+            <table className="record-table responsive-card-table community-table">
               <colgroup>
                 <col className="community-col-category" />
                 <col className="community-col-title" />
@@ -201,13 +201,13 @@ export default function CommunityPage() {
               <tbody>
                 {pagePosts.map((post) => (
                   <tr key={post.id}>
-                    <td>{post.category === 'NOTICE' ? '공지' : '자유'}</td>
-                    <td className="community-title-cell">
+                    <td data-label="분류">{post.category === 'NOTICE' ? '공지' : '자유'}</td>
+                    <td data-label="제목" className="community-title-cell record-table-cell-primary">
                       <Link to={`/community/${post.id}`}>{post.title}</Link>
                     </td>
-                    <td>{post.authorNickname}</td>
-                    <td>{post.viewCount}</td>
-                    <td>{formatCommunityDate(post.createdAt)}</td>
+                    <td data-label="작성자">{post.authorNickname}</td>
+                    <td data-label="조회">{post.viewCount}</td>
+                    <td data-label="작성일">{formatCommunityDate(post.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

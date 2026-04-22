@@ -303,7 +303,7 @@ export default function HomePage() {
             <p className="helper-text home-empty-state">아직 저장된 기록이 없습니다. 첫 기록을 만들어보세요.</p>
           ) : (
             <div className="record-table-wrap">
-              <table className="record-table">
+              <table className="record-table responsive-card-table home-record-table">
                 <thead>
                   <tr>
                     <th>날짜</th>
@@ -315,10 +315,10 @@ export default function HomePage() {
                 <tbody>
                   {recentRecords.map((record) => (
                     <tr key={record.id}>
-                      <td>{formatDateTime(record.createdAt)}</td>
-                      <td>{formatRecordTime(record)}</td>
-                      <td className="record-table-scramble">{record.scramble}</td>
-                      <td>{formatEventLabel(record.eventType)}</td>
+                      <td data-label="날짜">{formatDateTime(record.createdAt)}</td>
+                      <td data-label="기록" className="record-table-cell-primary">{formatRecordTime(record)}</td>
+                      <td data-label="스크램블" className="record-table-scramble">{record.scramble}</td>
+                      <td data-label="종목">{formatEventLabel(record.eventType)}</td>
                     </tr>
                   ))}
                 </tbody>

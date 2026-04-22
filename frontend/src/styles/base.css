@@ -64,6 +64,7 @@ button {
 
 .brand-block {
   max-width: 420px;
+  min-width: 0;
 }
 
 .topbar {
@@ -73,6 +74,7 @@ button {
   align-items: flex-start;
   margin: 0 auto 24px;
   max-width: 1200px;
+  min-width: 0;
 }
 
 .topbar h1 {
@@ -97,6 +99,7 @@ button {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .topnav {
@@ -104,6 +107,7 @@ button {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .topnav a {
@@ -111,6 +115,7 @@ button {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(18, 32, 43, 0.08);
+  min-width: 0;
 }
 
 .topnav a.active {
@@ -162,6 +167,10 @@ button {
   background: #12202b;
   color: #f8f5ef;
   font-weight: 700;
+}
+
+.app-footer > div {
+  min-width: 0;
 }
 
 .page-grid {
@@ -247,6 +256,10 @@ button {
   border-bottom: 1px solid rgba(18, 32, 43, 0.08);
   text-align: left;
   vertical-align: top;
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .record-table th {
@@ -260,6 +273,17 @@ button {
   min-width: 420px;
   color: #31424f;
   line-height: 1.6;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.record-table-cell-primary {
+  font-weight: 700;
+  color: #12202b;
+}
+
+.record-table-cell-actions {
+  width: 100%;
 }
 
 .two-up {
@@ -356,6 +380,10 @@ button {
   margin: 0;
   color: #53626d;
   font-size: 0.95rem;
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .app-toast-container {

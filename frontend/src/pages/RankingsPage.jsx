@@ -141,7 +141,7 @@ export default function RankingsPage() {
         ) : (
           <>
             <div className="record-table-wrap">
-              <table className="record-table rankings-table">
+              <table className="record-table responsive-card-table rankings-table">
                 <colgroup>
                   <col className="rankings-col-rank" />
                   <col className="rankings-col-nickname" />
@@ -159,10 +159,10 @@ export default function RankingsPage() {
                 <tbody>
                   {pageItems.map((item) => (
                     <tr key={`${item.eventType}-${item.rank}-${item.nickname}`}>
-                      <td>{item.rank}위</td>
-                      <td>{item.nickname}</td>
-                      <td>{findEventOption(item.eventType)?.label ?? item.eventType}</td>
-                      <td>{formatTimeMs(item.timeMs)}</td>
+                      <td data-label="순위">{item.rank}위</td>
+                      <td data-label="닉네임" className="record-table-cell-primary">{item.nickname}</td>
+                      <td data-label="종목">{findEventOption(item.eventType)?.label ?? item.eventType}</td>
+                      <td data-label="기록" className="record-table-cell-primary">{formatTimeMs(item.timeMs)}</td>
                     </tr>
                   ))}
                 </tbody>

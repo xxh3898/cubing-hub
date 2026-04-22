@@ -400,7 +400,7 @@ export default function MyPage() {
         ) : (
           <>
             <div className="record-table-wrap">
-              <table className="record-table">
+              <table className="record-table responsive-card-table mypage-records-table">
                 <thead>
                   <tr>
                     <th>종목</th>
@@ -418,11 +418,11 @@ export default function MyPage() {
 
                     return (
                       <tr key={record.id}>
-                        <td>{record.eventType.replace('WCA_', '')}</td>
-                        <td>{getDisplayRecordTime(record)}</td>
-                        <td>{getPenaltyLabel(record.penalty)}</td>
-                        <td>{formatDateTime(record.createdAt)}</td>
-                        <td>
+                        <td data-label="종목">{record.eventType.replace('WCA_', '')}</td>
+                        <td data-label="기록" className="record-table-cell-primary">{getDisplayRecordTime(record)}</td>
+                        <td data-label="페널티">{getPenaltyLabel(record.penalty)}</td>
+                        <td data-label="기록 일시">{formatDateTime(record.createdAt)}</td>
+                        <td data-label="관리" className="record-table-cell-actions">
                           <div className="mypage-record-actions">
                             {['NONE', 'PLUS_TWO', 'DNF'].map((penalty) => (
                               <button
