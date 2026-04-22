@@ -3,6 +3,7 @@ package com.cubinghub.domain.user.service;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.repository.RecordRepository;
+import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileRecordResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileResponse;
@@ -11,7 +12,6 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.repository.UserRepository;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,13 +30,13 @@ public class UserProfileService {
     public MyProfileResponse getMyProfile(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
-        List<Record> records = recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        RecordSummaryQueryResult summary = recordRepository.findSummaryByUserId(user.getId());
 
         return new MyProfileResponse(
                 user.getId(),
                 user.getNickname(),
                 user.getMainEvent(),
-                buildSummary(records)
+                buildSummary(summary)
         );
     }
 
@@ -66,23 +66,16 @@ public class UserProfileService {
         );
     }
 
-    private MyProfileSummaryResponse buildSummary(List<Record> records) {
-        List<Integer> effectiveTimes = records.stream()
-                .map(Record::getEffectiveTimeMs)
-                .filter(Objects::nonNull)
-                .toList();
-
-        Integer personalBestTimeMs = effectiveTimes.stream()
-                .min(Integer::compareTo)
-                .orElse(null);
-        Integer averageTimeMs = effectiveTimes.isEmpty()
+    private MyProfileSummaryResponse buildSummary(RecordSummaryQueryResult summary) {
+        Integer averageTimeMs = summary.averageTimeMs() == null
                 ? null
-                : (int) Math.round(effectiveTimes.stream()
-                .mapToInt(Integer::intValue)
-                .average()
-                .orElse(0));
+                : (int) Math.round(summary.averageTimeMs());
 
-        return new MyProfileSummaryResponse(records.size(), personalBestTimeMs, averageTimeMs);
+        return new MyProfileSummaryResponse(
+                Math.toIntExact(summary.totalSolveCount()),
+                summary.personalBestTimeMs(),
+                averageTimeMs
+        );
     }
 
     private void validatePageRequest(Integer page, Integer size) {

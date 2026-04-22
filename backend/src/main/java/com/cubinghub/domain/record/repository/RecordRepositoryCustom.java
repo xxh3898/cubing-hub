@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface RecordRepositoryCustom {
 
     Optional<Record> findBestRecordByUserIdAndEventType(Long userId, EventType eventType);
+
+    RecordSummaryQueryResult findSummaryByUserId(Long userId);
 }

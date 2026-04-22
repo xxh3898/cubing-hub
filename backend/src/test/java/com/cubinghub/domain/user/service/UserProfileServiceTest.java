@@ -8,6 +8,7 @@ import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.repository.RecordRepository;
+import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileResponse;
 import com.cubinghub.domain.user.entity.User;
@@ -47,13 +48,10 @@ class UserProfileServiceTest {
     @DisplayName("마이페이지 프로필 조회는 유효 시간 기준 요약을 반환한다")
     void should_return_profile_summary_when_user_exists() {
         User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
-        var bestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
-        var plusTwoRecord = TestFixtures.createRecord(11L, user, EventType.WCA_333, 9000, Penalty.PLUS_TWO, "plus-two");
-        var dnfRecord = TestFixtures.createRecord(12L, user, EventType.WCA_333, 9500, Penalty.DNF, "dnf");
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId()))
-                .thenReturn(List.of(dnfRecord, plusTwoRecord, bestRecord));
+        when(recordRepository.findSummaryByUserId(user.getId()))
+                .thenReturn(new RecordSummaryQueryResult(3L, 10000, 10500.4));
 
         MyProfileResponse response = userProfileService.getMyProfile(user.getEmail());
 
@@ -94,16 +92,30 @@ class UserProfileServiceTest {
     @DisplayName("마이페이지 프로필 조회는 유효 시간이 없으면 PB와 평균을 null로 반환한다")
     void should_return_null_summary_values_when_profile_records_have_no_effective_times() {
         User user = TestFixtures.createUser(1L, "dnf@cubinghub.com", "DNFUser", UserRole.ROLE_USER, UserStatus.ACTIVE);
-        var dnfRecord = TestFixtures.createRecord(12L, user, EventType.WCA_333, 9500, Penalty.DNF, "dnf");
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId())).thenReturn(List.of(dnfRecord));
+        when(recordRepository.findSummaryByUserId(user.getId()))
+                .thenReturn(new RecordSummaryQueryResult(1L, null, null));
 
         MyProfileResponse response = userProfileService.getMyProfile(user.getEmail());
 
         assertThat(response.getSummary().getTotalSolveCount()).isEqualTo(1);
         assertThat(response.getSummary().getPersonalBestTimeMs()).isNull();
         assertThat(response.getSummary().getAverageTimeMs()).isNull();
+    }
+
+    @Test
+    @DisplayName("마이페이지 프로필 조회는 평균을 현재 기준대로 반올림한다")
+    void should_round_average_time_when_profile_summary_is_built() {
+        User user = TestFixtures.createUser(1L, "round@cubinghub.com", "RoundUser", UserRole.ROLE_USER, UserStatus.ACTIVE);
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findSummaryByUserId(user.getId()))
+                .thenReturn(new RecordSummaryQueryResult(2L, 10000, 10500.5));
+
+        MyProfileResponse response = userProfileService.getMyProfile(user.getEmail());
+
+        assertThat(response.getSummary().getAverageTimeMs()).isEqualTo(10501);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.cubinghub.domain.record.repository;
 
+import com.querydsl.core.Tuple;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
@@ -37,6 +38,38 @@ public class RecordRepositoryImpl implements RecordRepositoryCustom {
                         )
                         .limit(1)
                         .fetchOne()
+        );
+    }
+
+    @Override
+    public RecordSummaryQueryResult findSummaryByUserId(Long userId) {
+        NumberExpression<Long> totalSolveCountExpression = record.count();
+        Long totalSolveCount = queryFactory
+                .select(totalSolveCountExpression)
+                .from(record)
+                .where(record.user.id.eq(userId))
+                .fetchOne();
+
+        NumberExpression<Integer> effectiveTimeExpression = effectiveTimeExpression();
+        NumberExpression<Integer> personalBestTimeExpression = effectiveTimeExpression.min();
+        NumberExpression<Double> averageTimeExpression = effectiveTimeExpression.avg();
+
+        Tuple result = queryFactory
+                .select(
+                        personalBestTimeExpression,
+                        averageTimeExpression
+                )
+                .from(record)
+                .where(
+                        record.user.id.eq(userId),
+                        record.penalty.ne(Penalty.DNF)
+                )
+                .fetchOne();
+
+        return new RecordSummaryQueryResult(
+                totalSolveCount == null ? 0L : totalSolveCount,
+                result == null ? null : result.get(personalBestTimeExpression),
+                result == null ? null : result.get(averageTimeExpression)
         );
     }
 
