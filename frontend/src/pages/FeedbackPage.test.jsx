@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import { createFeedback, retryFeedbackNotification } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import FeedbackPage from './FeedbackPage.jsx'
@@ -10,6 +11,14 @@ const mockNavigate = vi.fn()
 vi.mock('../api.js', () => ({
   createFeedback: vi.fn(),
   retryFeedbackNotification: vi.fn(),
+}))
+
+vi.mock('react-toastify', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }))
 
 vi.mock('../context/useAuth.js', () => ({
@@ -71,7 +80,11 @@ describe('FeedbackPage', () => {
       })
     })
 
-    expect(await screen.findByText('피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다.')
+    })
+
+    expect(screen.getByText('Discord 알림 전송 완료')).toBeInTheDocument()
     expect(screen.getByText('피드백 ID #1')).toBeInTheDocument()
     expect(screen.getByText('알림 시도 1회')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Discord 알림 재시도' })).not.toBeInTheDocument()
@@ -98,7 +111,11 @@ describe('FeedbackPage', () => {
     fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
     fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
 
-    expect(await screen.findByText('피드백이 저장되었지만 Discord 운영 알림 전송에 실패했습니다. 다시 시도해주세요.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('피드백이 저장되었지만 Discord 운영 알림 전송에 실패했습니다. 다시 시도해주세요.')
+    })
+
+    expect(screen.getByText('Discord 알림 전송 실패')).toBeInTheDocument()
     expect(screen.getByText('피드백 ID #7')).toBeInTheDocument()
     expect(screen.getByText('알림 시도 1회')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Discord 알림 재시도' })).toBeInTheDocument()
@@ -138,7 +155,11 @@ describe('FeedbackPage', () => {
       expect(retryFeedbackNotification).toHaveBeenCalledWith(9)
     })
 
-    expect(await screen.findByText('Discord 운영 알림 재전송을 완료했습니다.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Discord 운영 알림 재전송을 완료했습니다.')
+    })
+
+    expect(screen.getByText('Discord 알림 전송 완료')).toBeInTheDocument()
     expect(screen.getByText('알림 시도 2회')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Discord 알림 재시도' })).not.toBeInTheDocument()
   })
@@ -176,7 +197,11 @@ describe('FeedbackPage', () => {
     fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
     fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
 
-    expect(await screen.findByText('피드백 저장 실패')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('피드백 저장 실패')
+    })
+
+    expect(screen.queryByText('피드백 저장 실패')).not.toBeInTheDocument()
   })
 
   it('should_disable_feedback_form_while_feedback_request_is_submitting', async () => {
@@ -210,22 +235,21 @@ describe('FeedbackPage', () => {
       },
     })
 
-    expect(await screen.findByText('피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다.')
+    })
   })
 
-  it('should_clear_feedback_message_when_feedback_field_changes_after_error', async () => {
-    vi.mocked(createFeedback).mockRejectedValue(new Error('피드백 저장 실패'))
-
+  it('should_clear_feedback_message_when_feedback_field_changes_after_validation_error', async () => {
     renderFeedbackPage()
 
-    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '버그 제보' } })
-    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
+    fireEvent.change(screen.getByLabelText('회신 이메일'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
 
-    expect(await screen.findByText('피드백 저장 실패')).toBeInTheDocument()
+    expect(await screen.findByText('회신 이메일, 제목, 내용을 모두 입력해주세요.')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('내용'), { target: { value: '내용 수정' } })
 
-    expect(screen.queryByText('피드백 저장 실패')).not.toBeInTheDocument()
+    expect(screen.queryByText('회신 이메일, 제목, 내용을 모두 입력해주세요.')).not.toBeInTheDocument()
   })
 })

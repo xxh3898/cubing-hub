@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { toast } from 'react-toastify'
 import { deleteRecord, getMyProfile, getMyRecords, logout, updateRecordPenalty } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { eventOptions } from '../constants/eventOptions.js'
@@ -44,7 +45,6 @@ export default function MyPage() {
   const [profileData, setProfileData] = useState(null)
   const [recordsPage, setRecordsPage] = useState(null)
   const [trendRecords, setTrendRecords] = useState([])
-  const [feedbackMessage, setFeedbackMessage] = useState(null)
   const [profileError, setProfileError] = useState(null)
   const [recordsError, setRecordsError] = useState(null)
   const [trendError, setTrendError] = useState(null)
@@ -242,14 +242,13 @@ export default function MyPage() {
 
   const handleUpdateRecordPenalty = async (recordId, penalty) => {
     setUpdatingRecordId(recordId)
-    setFeedbackMessage(null)
 
     try {
       const response = await updateRecordPenalty(recordId, { penalty })
       await syncProfileAndRecords(currentPage)
-      setFeedbackMessage({ type: 'success', text: response.message })
+      toast.success(response.message)
     } catch (error) {
-      setFeedbackMessage({ type: 'error', text: error.message })
+      toast.error(error.message)
     } finally {
       setUpdatingRecordId(null)
     }
@@ -261,14 +260,13 @@ export default function MyPage() {
     }
 
     setDeletingRecordId(recordId)
-    setFeedbackMessage(null)
 
     try {
       const response = await deleteRecord(recordId)
       await syncProfileAndRecords(currentPage)
-      setFeedbackMessage({ type: 'success', text: response.message })
+      toast.success(response.message)
     } catch (error) {
-      setFeedbackMessage({ type: 'error', text: error.message })
+      toast.error(error.message)
     } finally {
       setDeletingRecordId(null)
     }
@@ -312,7 +310,6 @@ export default function MyPage() {
 
       <div className="panel mypage-dashboard-panel">
         <h2>기록 요약</h2>
-        {feedbackMessage ? <p className={`message ${feedbackMessage.type}`}>{feedbackMessage.text}</p> : null}
         {profileError ? (
           <>
             <p className="message error">{profileError}</p>

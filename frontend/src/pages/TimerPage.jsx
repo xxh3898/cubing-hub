@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
@@ -84,7 +85,7 @@ export default function TimerPage() {
   const [scrambleMessage, setScrambleMessage] = useState(null)
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
   const [hasScrambleVisualError, setHasScrambleVisualError] = useState(false)
-  const [saveMessage, setSaveMessage] = useState(null)
+  const [saveNotice, setSaveNotice] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
   const [recentStatsRecords, setRecentStatsRecords] = useState([])
   const [recentStatsError, setRecentStatsError] = useState(null)
@@ -139,7 +140,7 @@ export default function TimerPage() {
   const loadScramble = async (eventType) => {
     setIsLoadingScramble(true)
     setScrambleMessage(null)
-    setSaveMessage(null)
+    setSaveNotice(null)
 
     try {
       const response = await getScramble(eventType)
@@ -154,7 +155,7 @@ export default function TimerPage() {
 
   useEffect(() => {
     resetTimer()
-    setSaveMessage(null)
+    setSaveNotice(null)
 
     if (!isSupported) {
       setScrambleData(null)
@@ -196,15 +197,15 @@ export default function TimerPage() {
     }
 
     setDeletingRecordId(recordId)
-    setSaveMessage(null)
+    setSaveNotice(null)
 
     try {
       const response = await deleteRecord(recordId)
       setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
       await loadRecentStatistics(selectedEvent)
-      setSaveMessage({ type: 'success', text: response.message })
+      toast.success(response.message)
     } catch (error) {
-      setSaveMessage({ type: 'error', text: error.message })
+      toast.error(error.message)
     } finally {
       setDeletingRecordId(null)
     }
@@ -212,7 +213,7 @@ export default function TimerPage() {
 
   const handleUpdateRecentRecordPenalty = async (recordId, penalty) => {
     setUpdatingRecordId(recordId)
-    setSaveMessage(null)
+    setSaveNotice(null)
 
     try {
       const response = await updateRecordPenalty(recordId, { penalty })
@@ -229,9 +230,9 @@ export default function TimerPage() {
         ),
       )
       await loadRecentStatistics(selectedEvent)
-      setSaveMessage({ type: 'success', text: response.message })
+      toast.success(response.message)
     } catch (error) {
-      setSaveMessage({ type: 'error', text: error.message })
+      toast.error(error.message)
     } finally {
       setUpdatingRecordId(null)
     }
@@ -243,7 +244,7 @@ export default function TimerPage() {
     }
 
     if (!isAuthenticated) {
-      setSaveMessage({ type: 'info', text: '로그인 후 기록이 자동 저장됩니다.' })
+      setSaveNotice('로그인 후 기록이 자동 저장됩니다.')
       return
     }
 
@@ -254,7 +255,7 @@ export default function TimerPage() {
     }
 
     const persistRecord = async () => {
-      setSaveMessage(null)
+      setSaveNotice(null)
 
       try {
         const roundedTime = Math.max(1, Math.round(finalTime))
@@ -277,15 +278,21 @@ export default function TimerPage() {
           ...current,
         ].slice(0, 5))
         await loadRecentStatistics(selectedEvent)
-        setSaveMessage({ type: 'success', text: `${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.` })
+        toast.success(`${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.`)
         lastAutoSavedRecordRef.current = `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`
       } catch (error) {
-        setSaveMessage({ type: 'error', text: error.message })
+        toast.error(error.message)
       }
     }
 
     persistRecord()
   }, [finalTime, isAuthenticated, isSupported, loadRecentStatistics, scrambleData, selectedEvent, status])
+
+  useEffect(() => {
+    if (status !== 'stopped') {
+      setSaveNotice(null)
+    }
+  }, [status])
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
   const statusLabel = getStatusLabel(status)
@@ -339,16 +346,13 @@ export default function TimerPage() {
                 타이머 초기화
               </button>
             </div>
-
-            <div className="timer-toolbar-status">
-              {saveMessage ? <p className={`message ${saveMessage.type}`}>{saveMessage.text}</p> : null}
-            </div>
           </div>
 
           <div className={`timer-display timer-focus-display is-${status}`}>
             <p className="timer-caption">{statusLabel}</p>
             <h2 className="timer-value">{formattedTime}</h2>
             <p className="helper-text timer-helper">{timerMessage}</p>
+            {saveNotice ? <p className="helper-text timer-save-notice">{saveNotice}</p> : null}
           </div>
 
           <section className="timer-recent-panel">

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
@@ -11,6 +12,14 @@ vi.mock('../api.js', () => ({
   getScramble: vi.fn(),
   saveRecord: vi.fn(),
   updateRecordPenalty: vi.fn(),
+}))
+
+vi.mock('react-toastify', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }))
 
 vi.mock('../context/useAuth.js', () => ({
@@ -140,7 +149,7 @@ describe('TimerPage', () => {
     })
 
     expect(await screen.findByText('10.123')).toBeInTheDocument()
-    expect(screen.getByText('기록 페널티가 수정되었습니다.')).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('기록 페널티가 수정되었습니다.')
   })
 
   it('should_show_error_message_when_penalty_update_fails', async () => {
@@ -154,7 +163,9 @@ describe('TimerPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'DNF' }))
 
-    expect(await screen.findByText('기록 수정 실패')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('기록 수정 실패')
+    })
   })
 
   it('should_delete_recent_record_when_delete_succeeds', async () => {
@@ -175,7 +186,7 @@ describe('TimerPage', () => {
       expect(deleteRecord).toHaveBeenCalledWith(101)
     })
 
-    expect(await screen.findByText('기록이 삭제되었습니다.')).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('기록이 삭제되었습니다.')
     expect(screen.getByText('현재 세션에서 저장된 기록이 아직 없습니다.')).toBeInTheDocument()
   })
 
@@ -190,6 +201,8 @@ describe('TimerPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '삭제' }))
 
-    expect(await screen.findByText('기록 삭제 실패')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('기록 삭제 실패')
+    })
   })
 })

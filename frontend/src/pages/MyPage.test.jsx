@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'react-toastify'
 import { deleteRecord, getMyProfile, getMyRecords, logout, updateRecordPenalty } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import MyPage from './MyPage.jsx'
@@ -12,6 +13,14 @@ vi.mock('../api.js', () => ({
   getMyRecords: vi.fn(),
   logout: vi.fn(),
   updateRecordPenalty: vi.fn(),
+}))
+
+vi.mock('react-toastify', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }))
 
 vi.mock('../context/useAuth.js', () => ({
@@ -119,8 +128,8 @@ describe('MyPage', () => {
       expect(updateRecordPenalty).toHaveBeenCalledWith(1, { penalty: 'PLUS_TWO' })
     })
 
-    expect(await screen.findByText('기록 페널티가 수정되었습니다.')).toBeInTheDocument()
     expect((await screen.findAllByText('11.344')).length).toBeGreaterThan(0)
+    expect(toast.success).toHaveBeenCalledWith('기록 페널티가 수정되었습니다.')
     expect(getMyProfile).toHaveBeenCalledTimes(2)
     expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
   })
@@ -205,7 +214,7 @@ describe('MyPage', () => {
       expect(deleteRecord).toHaveBeenCalledWith(1)
     })
 
-    expect(await screen.findByText('기록이 삭제되었습니다.')).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('기록이 삭제되었습니다.')
     expect(screen.getByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
   })
 
@@ -309,7 +318,9 @@ describe('MyPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'DNF' }))
 
-    expect(await screen.findByText('패널티 수정 실패')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('패널티 수정 실패')
+    })
   })
 
   it('should_show_error_message_when_record_delete_fails', async () => {
@@ -346,7 +357,9 @@ describe('MyPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
-    expect(await screen.findByText('기록 삭제 실패')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('기록 삭제 실패')
+    })
   })
 
   it('should_show_empty_graph_message_when_main_event_records_do_not_exist', async () => {

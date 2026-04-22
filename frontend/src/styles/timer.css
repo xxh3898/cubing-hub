@@ -169,13 +169,9 @@
   align-items: center;
 }
 
-.timer-toolbar-status {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  justify-content: flex-end;
-  max-width: 420px;
+.timer-save-notice {
+  font-weight: 700;
+  color: #31424f;
 }
 
 .timer-recent-panel {

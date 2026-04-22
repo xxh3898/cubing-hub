@@ -1,4 +1,5 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { ToastContainer } from 'react-toastify'
 import { useAuth } from './context/useAuth.js'
 import CommunityPage from './pages/CommunityPage.jsx'
 import HomePage from './pages/HomePage.jsx'
@@ -152,6 +153,20 @@ function AppLayout() {
           개발자 피드백
         </NavLink>
       </footer>
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3600}
+        hideProgressBar
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        draggable={false}
+        limit={3}
+        ariaLabel="서비스 알림"
+        className="app-toast-container"
+        toastClassName={(context) => `app-toast app-toast-${context?.type ?? 'default'}`}
+      />
     </div>
   )
 }

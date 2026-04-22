@@ -1,5 +1,11 @@
 :root {
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  --toastify-font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  --toastify-toast-width: min(420px, calc(100vw - 32px));
+  --toastify-toast-min-height: 0;
+  --toastify-toast-padding: 0;
+  --toastify-toast-bd-radius: 18px;
+  --toastify-toast-shadow: 0 18px 48px rgba(18, 32, 43, 0.12);
   line-height: 1.5;
   font-weight: 400;
   color: #12202b;
@@ -350,6 +356,44 @@ button {
   margin: 0;
   color: #53626d;
   font-size: 0.95rem;
+}
+
+.app-toast-container {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.app-toast {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  backdrop-filter: blur(14px);
+  color: #12202b;
+}
+
+.app-toast-default {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.app-toast-success {
+  background: rgba(216, 243, 220, 0.96);
+}
+
+.app-toast-error {
+  background: rgba(253, 226, 228, 0.98);
+}
+
+.app-toast-info {
+  background: rgba(238, 247, 255, 0.98);
+}
+
+.app-toast .Toastify__close-button {
+  align-self: start;
+  color: inherit;
+  opacity: 0.72;
+}
+
+.app-toast .Toastify__close-button:hover {
+  opacity: 1;
 }
 
 .timer-recent-actions,

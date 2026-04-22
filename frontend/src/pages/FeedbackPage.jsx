@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import { createFeedback, retryFeedbackNotification } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 
@@ -78,9 +79,11 @@ export default function FeedbackPage() {
       setReplyEmail(defaultReplyEmail)
       setTitle('')
       setContent('')
-      setNotificationState(toNotificationState(response))
+      const nextNotificationState = toNotificationState(response)
+      setNotificationState(nextNotificationState)
+      showToastMessage(nextNotificationState.type, response.message)
     } catch (error) {
-      setFormMessage(error.message)
+      toast.error(error.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -95,17 +98,23 @@ export default function FeedbackPage() {
 
     try {
       const response = await retryFeedbackNotification(notificationState.feedbackId)
-      setNotificationState(toNotificationState(response))
+      const nextNotificationState = toNotificationState(response)
+      setNotificationState(nextNotificationState)
+      showToastMessage(nextNotificationState.type, response.message)
     } catch (error) {
+      showToastMessage(error.status === 409 ? 'success' : 'error', error.message)
       setNotificationState((previousState) => {
         if (!previousState) {
           return null
         }
 
+        const nextNotificationStatus = error.status === 409 ? 'SUCCESS' : previousState.notificationStatus
+
         return {
           ...previousState,
-          type: 'error',
-          text: error.message,
+          notificationStatus: nextNotificationStatus,
+          statusLabel: getNotificationStatusLabel(nextNotificationStatus),
+          type: nextNotificationStatus === 'SUCCESS' ? 'success' : 'error',
           notificationRetryAvailable:
             [403, 404, 409].includes(error.status)
               ? false
@@ -135,7 +144,11 @@ export default function FeedbackPage() {
           {formMessage ? <p className="message error">{formMessage}</p> : null}
           {notificationState ? (
             <div className="feedback-notification-status">
-              <p className={`message ${notificationState.type}`}>{notificationState.text}</p>
+              <div className="feedback-notification-summary">
+                <span className={`feedback-notification-badge is-${notificationState.type}`}>
+                  {notificationState.statusLabel}
+                </span>
+              </div>
               <div className="feedback-notification-meta">
                 <span>{`피드백 ID #${notificationState.feedbackId}`}</span>
                 <span>{`알림 시도 ${notificationState.notificationAttemptCount}회`}</span>
@@ -234,7 +247,28 @@ function toNotificationState(response) {
     feedbackId: response.data.id,
     notificationAttemptCount: response.data.notificationAttemptCount,
     notificationRetryAvailable: response.data.notificationRetryAvailable,
-    text: response.message,
+    notificationStatus,
+    statusLabel: getNotificationStatusLabel(notificationStatus),
     type: notificationStatus === 'SUCCESS' ? 'success' : 'error',
   }
+}
+
+function getNotificationStatusLabel(notificationStatus) {
+  return notificationStatus === 'SUCCESS'
+    ? 'Discord 알림 전송 완료'
+    : 'Discord 알림 전송 실패'
+}
+
+function showToastMessage(type, message) {
+  if (type === 'success') {
+    toast.success(message)
+    return
+  }
+
+  if (type === 'info') {
+    toast.info(message)
+    return
+  }
+
+  toast.error(message)
 }
