@@ -65,12 +65,14 @@ export function AuthProvider({ children }) {
           throw new Error('토큰 재발급 응답에 access token이 없습니다.')
         }
 
-        if (isCancelled || getStoredAccessToken()) {
+        if (isCancelled) {
           return
         }
 
         didStoreBootstrapToken = true
-        setStoredAccessToken(nextAccessToken)
+        if (!getStoredAccessToken()) {
+          setStoredAccessToken(nextAccessToken)
+        }
 
         const currentUserResponse = await getMe()
 

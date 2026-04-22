@@ -13,8 +13,7 @@ const apiClient = axios.create({
   },
 })
 
-let isRefreshing = false
-let waitingQueue = []
+let refreshPromise = null
 
 function shouldSkipRefresh(config) {
   const requestUrl = config?.url ?? ''
@@ -28,31 +27,31 @@ function shouldSkipRefresh(config) {
   )
 }
 
-function flushWaitingQueue(error, accessToken = null) {
-  waitingQueue.forEach(({ resolve, reject }) => {
-    if (error) {
-      reject(error)
-      return
-    }
+export async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = apiClient.post('/api/auth/refresh', null, {
+      _skipAuthRefresh: true,
+    })
+      .then((response) => {
+        const nextAccessToken = response.data?.data?.accessToken
 
-    resolve(accessToken)
-  })
+        if (!nextAccessToken) {
+          throw new Error('토큰 재발급 응답에 access token이 없습니다.')
+        }
 
-  waitingQueue = []
-}
-
-async function refreshAccessToken() {
-  const response = await apiClient.post('/api/auth/refresh', null, {
-    _skipAuthRefresh: true,
-  })
-  const nextAccessToken = response.data?.data?.accessToken
-
-  if (!nextAccessToken) {
-    throw new Error('토큰 재발급 응답에 access token이 없습니다.')
+        setStoredAccessToken(nextAccessToken)
+        return nextAccessToken
+      })
+      .catch((error) => {
+        clearStoredAccessToken()
+        throw error
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
   }
 
-  setStoredAccessToken(nextAccessToken)
-  return nextAccessToken
+  return refreshPromise
 }
 
 apiClient.interceptors.request.use((config) => {
@@ -83,33 +82,13 @@ apiClient.interceptors.response.use(
 
     originalRequest._retry = true
 
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        waitingQueue.push({
-          resolve: (nextAccessToken) => {
-            originalRequest.headers = originalRequest.headers ?? {}
-            originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
-            resolve(apiClient(originalRequest))
-          },
-          reject,
-        })
-      })
-    }
-
-    isRefreshing = true
-
     try {
       const nextAccessToken = await refreshAccessToken()
-      flushWaitingQueue(null, nextAccessToken)
       originalRequest.headers = originalRequest.headers ?? {}
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
       return apiClient(originalRequest)
     } catch (refreshError) {
-      clearStoredAccessToken()
-      flushWaitingQueue(refreshError)
       return Promise.reject(refreshError)
-    } finally {
-      isRefreshing = false
     }
   },
 )

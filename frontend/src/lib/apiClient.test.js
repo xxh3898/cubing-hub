@@ -5,7 +5,7 @@ async function setupApiClientHarness() {
   vi.resetModules()
 
   const authStorage = await import('../authStorage.js')
-  const { default: apiClient } = await import('./apiClient.js')
+  const { default: apiClient, refreshAccessToken } = await import('./apiClient.js')
   const mock = new MockAdapter(apiClient)
 
   authStorage.clearStoredAccessToken()
@@ -13,6 +13,7 @@ async function setupApiClientHarness() {
   return {
     apiClient,
     mock,
+    refreshAccessToken,
     ...authStorage,
   }
 }
@@ -22,6 +23,36 @@ afterEach(() => {
 })
 
 describe('apiClient auth refresh flow', () => {
+  it('should_share_single_refresh_request_when_refresh_is_requested_concurrently', async () => {
+    const { mock, getStoredAccessToken, refreshAccessToken } = await setupApiClientHarness()
+    let refreshRequestCount = 0
+
+    mock.onPost('/api/auth/refresh').reply(() => {
+      refreshRequestCount += 1
+
+      return [
+        200,
+        {
+          data: {
+            accessToken: 'fresh-token',
+          },
+        },
+      ]
+    })
+
+    const [firstToken, secondToken] = await Promise.all([
+      refreshAccessToken(),
+      refreshAccessToken(),
+    ])
+
+    expect(refreshRequestCount).toBe(1)
+    expect(firstToken).toBe('fresh-token')
+    expect(secondToken).toBe('fresh-token')
+    expect(getStoredAccessToken()).toBe('fresh-token')
+
+    mock.restore()
+  })
+
   it('should_refresh_once_and_retry_waiting_requests_when_multiple_requests_receive_401', async () => {
     const { apiClient, mock, getStoredAccessToken, setStoredAccessToken } = await setupApiClientHarness()
     let protectedRequestCount = 0

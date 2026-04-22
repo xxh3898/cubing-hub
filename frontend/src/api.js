@@ -1,4 +1,4 @@
-import apiClient from './lib/apiClient.js'
+import apiClient, { refreshAccessToken } from './lib/apiClient.js'
 
 function unwrapResponse(response) {
   return response.data
@@ -50,10 +50,12 @@ export async function logout() {
 
 export async function refreshSession() {
   try {
-    const response = await apiClient.post('/api/auth/refresh', null, {
-      _skipAuthRefresh: true,
-    })
-    return unwrapResponse(response)
+    const accessToken = await refreshAccessToken()
+    return {
+      data: {
+        accessToken,
+      },
+    }
   } catch (error) {
     throw toRequestError(error)
   }

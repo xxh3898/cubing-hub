@@ -39,3 +39,7 @@ auth:
 ranking:
   redis:
     rebuild-on-startup: ${RANKING_REDIS_REBUILD_ON_STARTUP:false}
+
+monitoring:
+  prometheus:
+    permit-all: ${MONITORING_PROMETHEUS_PERMIT_ALL:false}

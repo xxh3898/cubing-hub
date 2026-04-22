@@ -41,17 +41,26 @@ public class SecurityConfig {
     @Value("${cors.allowed-origins}")
     private List<String> allowedOrigins;
 
+    @Value("${monitoring.prometheus.permit-all:false}")
+    private boolean permitPrometheusEndpoint;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/session/clear-refresh-cookie", "/api/rankings", "/api/scramble", "/api/home", "/actuator/health", "/docs/**", "/error").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    auth
+                            .requestMatchers("/api/auth/**", "/api/session/clear-refresh-cookie", "/api/rankings", "/api/scramble", "/api/home", "/actuator/health", "/docs/**", "/error").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments").permitAll();
+
+                    if (permitPrometheusEndpoint) {
+                        auth.requestMatchers("/actuator/prometheus").permitAll();
+                    }
+
+                    auth.anyRequest().authenticated();
+                })
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) -> {
                             log.warn("인증 실패 응답 - status: {}, request: {}, reason: {}",

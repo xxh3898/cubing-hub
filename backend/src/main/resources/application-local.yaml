@@ -55,3 +55,7 @@ auth:
 ranking:
   redis:
     rebuild-on-startup: true
+
+monitoring:
+  prometheus:
+    permit-all: true

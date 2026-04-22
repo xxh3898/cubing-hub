@@ -23,7 +23,8 @@
 - `/api/home`
 - `/api/rankings`
 - `/api/scramble`
-- `/actuator/**`
+- `/actuator/health`
+- local profile에서 `monitoring.prometheus.permit-all=true`일 때만 `/actuator/prometheus`
 - `/docs/**`
 - `/error`
 - `GET /api/posts`
