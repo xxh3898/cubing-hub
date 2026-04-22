@@ -142,6 +142,26 @@ Records 1:1 (또는 1:0) User_PBs
 - `nickname` 부분 검색은 현재 Redis에 secondary index가 없어서 MySQL fallback을 사용한다.
 - Redis가 비어 있거나 ready marker가 없으면 기본 조회도 MySQL fallback을 사용한다.
 
+### Redis auth email verification state
+
+- 목적:
+  - 회원가입 전 이메일 인증 상태를 임시 저장한다.
+- 설명:
+  - 영속 source of truth는 아니고, 이메일 인증번호·재요청 cooldown·회원가입 가능 marker를 TTL로 관리하는 임시 모델이다.
+
+| Key | 타입 | 설명 |
+| --- | --- | --- |
+| `auth:email-verification:code:{email}` | String | 6자리 인증번호 |
+| `auth:email-verification:cooldown:{email}` | String | 재요청 제한 marker |
+| `auth:email-verification:verified:{email}` | String | signup 가능 여부 marker |
+
+#### 비즈니스 규칙
+
+- 인증번호 TTL은 `10분`이다.
+- resend cooldown TTL은 `1분`이다.
+- verified marker TTL은 `30분`이다.
+- 회원가입 성공 시 verified marker는 즉시 삭제한다.
+
 ### `posts`
 
 - 목적:

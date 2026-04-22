@@ -59,6 +59,7 @@ Client ↔ AWS Nginx
 | Spring Boot API | 인증, 기록, 랭킹, 게시판 등 비즈니스 로직 처리 |
 | Redis | Refresh Token, Blacklist, 랭킹 read model |
 | RDS MySQL | 영속 데이터 저장 |
+| SMTP Server | 회원가입 인증번호 발송 |
 
 ## 3. 요청 흐름
 
@@ -111,7 +112,7 @@ Client ↔ AWS Nginx
 ### 생성 / 수정 / 삭제
 
 - 회원가입
-  - `users`에 새 계정을 저장한다.
+  - SMTP로 인증번호를 발송하고 Redis에 인증 상태를 임시 저장한 뒤, 확인 완료 후 `users`에 새 계정을 저장한다.
 - 기록 저장
   - `records`에 solve를 저장하고 `user_pbs`를 갱신하며, PB가 바뀌면 Redis 랭킹 read model도 함께 동기화한다.
 - 기록 수정/삭제
@@ -151,6 +152,7 @@ Client ↔ AWS Nginx
 | AWS S3 | React 정적 파일 저장 |
 | AWS CloudFront | CDN 배포 |
 | AWS RDS | MySQL 관리형 DB |
+| SMTP Server | 회원가입 인증번호 발송 |
 | GitHub Actions | CI 실행 및 수동 benchmark workflow |
 | Docker Hub | 컨테이너 이미지 배포 저장소 |
 

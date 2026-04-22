@@ -23,7 +23,7 @@
 | 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route + `POST /api/posts` 연동 완료 |
 | 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | 게시글 상세/댓글/삭제 연동 완료 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
-| 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
+| 회원가입 | `/signup` | 이메일 인증번호 확인 후 비밀번호/닉네임/주 종목 입력 | 이메일 인증 request/confirm + `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
 | 마이페이지 | `/mypage` | 프로필, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 route + `POST /api/feedbacks` 연동 완료 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
@@ -50,9 +50,10 @@
 
 ### 시나리오 4. 회원가입 후 개인화
 
-1. 사용자는 회원가입에서 이메일, 닉네임, 주 종목을 입력한다.
-2. 가입 완료 후 로그인 화면으로 이동하고, 로그인 성공 시 원래 보호 경로 또는 홈으로 복귀한다.
-3. 로그인 후 마이페이지에서 프로필, 기록 요약, 전체 기록 페이지를 조회하고 penalty 수정/삭제를 수행한다.
+1. 사용자는 회원가입에서 이메일을 입력하고 인증번호를 요청한다.
+2. 인증번호 확인이 끝나면 닉네임, 주 종목, 비밀번호를 입력해 가입을 완료한다.
+3. 가입 완료 후 로그인 화면으로 이동하고, 로그인 성공 시 원래 보호 경로 또는 홈으로 복귀한다.
+4. 로그인 후 마이페이지에서 프로필, 기록 요약, 전체 기록 페이지를 조회하고 penalty 수정/삭제를 수행한다.
 
 ## 4. 공통 상태 및 예외 정책
 
@@ -312,23 +313,37 @@
 ### 회원가입
 
 - 레이아웃 구조
-  - 이메일 / 닉네임 / 주 종목 / 비밀번호 / 비밀번호 확인 폼
+  - 이메일 인증 요청 행
+  - 인증번호 확인 행
+  - 닉네임 / 주 종목 / 비밀번호 / 비밀번호 확인 폼
 - 주요 UI 요소
-  - 입력 필드 5종
+  - 이메일 input
+  - 인증번호 요청 버튼
+  - 인증번호 input
+  - 인증번호 확인 버튼
+  - 입력 필드 4종
   - 가입 완료 버튼
 - 화면 데이터 요구사항
+  - `POST /api/auth/email-verification/request`
+  - `POST /api/auth/email-verification/confirm`
   - `POST /api/auth/signup`
-  - 중복 및 validation 에러 처리
+  - 인증번호 요청/확인, 중복, validation 에러 처리
 - 상태 및 예외
   - validation error
+  - 인증번호 재요청 cooldown
+  - 인증번호 불일치 / 만료
   - 이메일/닉네임 중복 처리
   - 가입 후 로그인 화면 이동 및 안내 메시지 처리
 - 사용자 액션
-  - 입력
+  - 이메일 입력
+  - 인증번호 요청
+  - 인증번호 확인
   - 비밀번호 확인
   - 회원가입 제출
 - 구현 상태
-  - `POST /api/auth/signup` 연동이 구현되어 있다.
+  - `POST /api/auth/email-verification/request`, `POST /api/auth/email-verification/confirm`, `POST /api/auth/signup` 연동이 구현되어 있다.
+  - 이메일 변경 시 인증 완료 상태를 즉시 초기화한다.
+  - 이메일 인증이 끝나기 전까지 가입 완료 버튼은 비활성화된다.
   - 가입 성공 시 로그인 화면으로 이동하고 이메일을 미리 채운다.
 
 ### 마이페이지
@@ -440,6 +455,8 @@
 | 커뮤니티 상세 | `POST /api/posts/{postId}/comments` | 댓글 생성 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}/comments/{commentId}` | 댓글 삭제 | 백엔드 구현 / 프런트 연동 |
 | 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 연동 |
+| 회원가입 | `POST /api/auth/email-verification/request` | 인증번호 요청 | 백엔드 구현 / 프런트 연동 |
+| 회원가입 | `POST /api/auth/email-verification/confirm` | 인증번호 확인 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `GET /api/users/me/profile` | 프로필/요약 조회 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `GET /api/users/me/records` | 전체 기록 페이지 조회 | 백엔드 구현 / 프런트 연동 |
@@ -460,7 +477,7 @@
 
 ### Backend / 연동 참고
 
-- 인증: `POST /api/auth/signup`, `POST /api/auth/login`
+- 인증: `POST /api/auth/email-verification/request`, `POST /api/auth/email-verification/confirm`, `POST /api/auth/signup`, `POST /api/auth/login`
 - 기록: `GET /api/scramble`, `POST /api/records`
 - 랭킹: `GET /api/rankings`
 - 게시판: `POST /api/posts`, `GET /api/posts`, `GET /api/posts/{postId}`, `PUT /api/posts/{postId}`, `DELETE /api/posts/{postId}`

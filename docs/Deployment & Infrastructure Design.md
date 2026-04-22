@@ -106,6 +106,13 @@
   - `LOCAL_JWT_SECRET`
   - `LOCAL_GRAFANA_ADMIN_PASSWORD`
   - `LOCAL_FEEDBACK_DISCORD_WEBHOOK_URL`
+  - `SMTP_HOST`
+  - `SMTP_PORT`
+  - `SMTP_USERNAME`
+  - `SMTP_PASSWORD`
+  - `SMTP_AUTH`
+  - `SMTP_STARTTLS_ENABLE`
+  - `SMTP_FROM_ADDRESS`
 - `docker compose up -d`
   - `LOCAL_DB_PASSWORD`, `LOCAL_GRAFANA_ADMIN_PASSWORD`를 사용한다.
 - `cd backend && ./gradlew bootRun`
@@ -134,6 +141,24 @@
   - 기본값 `validate`, first deploy 1회만 `update` 권장
 - `AUTH_REFRESH_COOKIE_SECURE`
   - 기본값 `true`
+- `AUTH_EMAIL_VERIFICATION_CODE_EXPIRATION_MS`
+  - 회원가입 인증번호 만료 시간, 기본 `600000`
+- `AUTH_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS`
+  - 회원가입 인증번호 재요청 cooldown, 기본 `60000`
+- `AUTH_EMAIL_VERIFICATION_VERIFIED_EXPIRATION_MS`
+  - 이메일 인증 완료 marker 유지 시간, 기본 `1800000`
+- `AUTH_EMAIL_VERIFICATION_SUBJECT`
+  - 회원가입 인증 메일 제목
+- `SMTP_HOST`
+- `SMTP_PORT`
+  - 기본값 `587`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `SMTP_AUTH`
+  - 기본값 `true`
+- `SMTP_STARTTLS_ENABLE`
+  - 기본값 `true`
+- `SMTP_FROM_ADDRESS`
 - `FEEDBACK_DISCORD_WEBHOOK_URL`
   - Discord incoming webhook URL
 - `MONITORING_PROMETHEUS_PERMIT_ALL`

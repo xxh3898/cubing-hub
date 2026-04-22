@@ -30,7 +30,7 @@
 ### 사용자 기능
 
 - 회원가입 / 로그인
-  - 이메일, 비밀번호, 닉네임, 주 종목 입력
+  - 이메일 인증번호 확인 후 이메일, 비밀번호, 닉네임, 주 종목 입력
 - 홈 대시보드
   - 오늘의 스크램블, 프로필, PB, 평균, 최근 기록 요약
 - 타이머
@@ -174,8 +174,8 @@ flowchart TD
 ## 9. 구현 상태
 
 - 인증
-  - 백엔드 인증 API와 `GET /api/me`가 구현되어 있다.
-  - React 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
+  - 백엔드 인증 API, 이메일 인증번호 요청/확인 API, `GET /api/me`가 구현되어 있다.
+  - React 로그인/회원가입/로그아웃, 회원가입 이메일 인증 2단계 UI, 보호 라우트, guest-only 라우트, `401 -> refresh -> retry`가 구현되어 있다.
   - React access token 저장은 메모리 기반이고, 앱 초기 `refresh -> /api/me`로 사용자 컨텍스트를 복구한다.
 - 랭킹
   - `GET /api/rankings` 기본 조회는 Redis ZSET read model을 사용한다.

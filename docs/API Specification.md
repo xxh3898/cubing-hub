@@ -57,6 +57,8 @@
 
 | Method | Path | 인증 | 설명 | 상태 |
 | --- | --- | --- | --- | --- |
+| `POST` | `/api/auth/email-verification/request` | Public | 회원가입용 이메일 인증번호 요청 | 구현됨 |
+| `POST` | `/api/auth/email-verification/confirm` | Public | 회원가입용 이메일 인증번호 확인 | 구현됨 |
 | `POST` | `/api/auth/signup` | Public | 회원가입 | 구현됨 |
 | `POST` | `/api/auth/login` | Public | 로그인 | 구현됨 |
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
@@ -84,9 +86,57 @@
 
 ## 6. 인증 API
 
+### `POST /api/auth/email-verification/request`
+
+- 설명: 회원가입 전에 이메일 인증번호를 발송한다.
+- 인증: Public
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `email` | String | 예 | 인증번호를 받을 이메일 |
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 이미 가입된 이메일이면 응답 메시지는 `이미 사용중인 이메일입니다.`
+  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 1분 뒤에 가능합니다.`
+  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+### `POST /api/auth/email-verification/confirm`
+
+- 설명: 이메일로 받은 6자리 인증번호를 확인하고 회원가입 가능 상태를 만든다.
+- 인증: Public
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `email` | String | 예 | 인증을 완료할 이메일 |
+| `code` | String | 예 | 6자리 인증번호 |
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 인증번호가 없거나 만료됐으면 응답 메시지는 `인증번호가 만료되었거나 요청되지 않았습니다.`
+  - 인증번호가 일치하지 않으면 응답 메시지는 `인증번호가 일치하지 않습니다.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
 ### `POST /api/auth/signup`
 
-- 설명: 새 사용자를 생성한다.
+- 설명: 이메일 인증이 완료된 상태에서 새 사용자를 생성한다.
 - 인증: Public
 - 멱등성: 비멱등
 
@@ -98,6 +148,15 @@
 | `password` | String | 예 | 8자 이상 비밀번호 |
 | `nickname` | String | 예 | 2자 이상 50자 이하 닉네임 |
 | `mainEvent` | String | 아니오 | 주 종목 |
+
+#### 사전 조건
+
+- 같은 이메일에 대해 `POST /api/auth/email-verification/request`, `POST /api/auth/email-verification/confirm`이 먼저 성공해야 한다.
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 이메일 인증이 완료되지 않았으면 응답 메시지는 `이메일 인증이 필요합니다.`
 
 #### Response
 
