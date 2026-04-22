@@ -28,14 +28,14 @@ function getTimerMessage(status, isSupported, hasScramble) {
   }
 
   if (status === 'running') {
-    return '기록을 멈추려면 스페이스바를 다시 누르세요.'
+    return '기록을 멈추려면 스페이스바를 누르거나 타이머 영역을 다시 누르세요.'
   }
 
   if (status === 'stopped') {
     return ''
   }
 
-  return '스페이스바를 길게 눌러 준비 상태를 만든 뒤 손을 떼면 시작됩니다.'
+  return '스페이스바 또는 타이머 영역을 길게 누른 뒤 손을 떼면 시작됩니다.'
 }
 
 function getStatusLabel(status) {
@@ -111,7 +111,15 @@ export default function TimerPage() {
     return visualUrl.toString()
   }, [scrambleData?.scramble, selectedEvent])
 
-  const { status, finalTime, formattedTime, resetTimer } = useCubeTimer({
+  const {
+    status,
+    finalTime,
+    formattedTime,
+    handlePointerDown,
+    handlePointerUp,
+    handlePointerCancel,
+    resetTimer,
+  } = useCubeTimer({
     enabled: timerEnabled,
   })
 
@@ -348,7 +356,13 @@ export default function TimerPage() {
             </div>
           </div>
 
-          <div className={`timer-display timer-focus-display is-${status}`}>
+          <div
+            className={`timer-display timer-focus-display timer-touch-surface is-${status}`}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onContextMenu={(event) => event.preventDefault()}
+          >
             <p className="timer-caption">{statusLabel}</p>
             <h2 className="timer-value">{formattedTime}</h2>
             <p className="helper-text timer-helper">{timerMessage}</p>

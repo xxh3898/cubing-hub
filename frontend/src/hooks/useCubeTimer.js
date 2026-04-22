@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const HOLD_DELAY_MS = 300
+
+function isTouchLikePointer(pointerType) {
+  return pointerType === 'touch' || pointerType === 'pen'
+}
 
 function isInteractiveTarget(target) {
   if (!(target instanceof HTMLElement)) {
@@ -31,31 +35,37 @@ export function useCubeTimer({ enabled }) {
   const holdTimeoutRef = useRef(null)
   const frameRef = useRef(null)
   const startTimeRef = useRef(null)
+  const activePointerIdRef = useRef(null)
 
-  const clearHoldTimeout = () => {
+  const clearHoldTimeout = useCallback(() => {
     if (holdTimeoutRef.current) {
       window.clearTimeout(holdTimeoutRef.current)
       holdTimeoutRef.current = null
     }
-  }
+  }, [])
 
-  const stopAnimation = () => {
+  const stopAnimation = useCallback(() => {
     if (frameRef.current) {
       window.cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
-  }
+  }, [])
+
+  const clearActivePointer = useCallback(() => {
+    activePointerIdRef.current = null
+  }, [])
 
   const resetTimer = useCallback(() => {
     clearHoldTimeout()
     stopAnimation()
+    clearActivePointer()
     startTimeRef.current = null
     setStatus('idle')
     setDisplayTime(0)
     setFinalTime(null)
-  }, [])
+  }, [clearActivePointer, clearHoldTimeout, stopAnimation])
 
-  const startAnimation = useEffectEvent(() => {
+  const startAnimation = useCallback(() => {
     const tick = () => {
       if (startTimeRef.current == null) {
         return
@@ -66,9 +76,43 @@ export function useCubeTimer({ enabled }) {
     }
 
     frameRef.current = window.requestAnimationFrame(tick)
-  })
+  }, [])
 
-  const handleKeyDown = useEffectEvent((event) => {
+  const transitionToHolding = useCallback(() => {
+    setStatus('holding')
+    clearHoldTimeout()
+    holdTimeoutRef.current = window.setTimeout(() => {
+      setStatus('ready')
+    }, HOLD_DELAY_MS)
+  }, [clearHoldTimeout])
+
+  const transitionToIdle = useCallback(() => {
+    clearHoldTimeout()
+    setStatus('idle')
+  }, [clearHoldTimeout])
+
+  const transitionToRunning = useCallback(() => {
+    clearHoldTimeout()
+    startTimeRef.current = performance.now()
+    setDisplayTime(0)
+    setFinalTime(null)
+    setStatus('running')
+    startAnimation()
+  }, [clearHoldTimeout, startAnimation])
+
+  const transitionToStopped = useCallback(() => {
+    if (startTimeRef.current == null) {
+      return
+    }
+
+    stopAnimation()
+    const nextFinalTime = performance.now() - startTimeRef.current
+    setDisplayTime(nextFinalTime)
+    setFinalTime(nextFinalTime)
+    setStatus('stopped')
+  }, [stopAnimation])
+
+  const handleKeyDown = useCallback((event) => {
     if (event.code !== 'Space' || event.repeat || isInteractiveTarget(event.target)) {
       return
     }
@@ -80,24 +124,16 @@ export function useCubeTimer({ enabled }) {
     }
 
     if (status === 'idle') {
-      setStatus('holding')
-      clearHoldTimeout()
-      holdTimeoutRef.current = window.setTimeout(() => {
-        setStatus('ready')
-      }, HOLD_DELAY_MS)
+      transitionToHolding()
       return
     }
 
     if (status === 'running') {
-      stopAnimation()
-      const nextFinalTime = performance.now() - startTimeRef.current
-      setDisplayTime(nextFinalTime)
-      setFinalTime(nextFinalTime)
-      setStatus('stopped')
+      transitionToStopped()
     }
-  })
+  }, [enabled, status, transitionToHolding, transitionToStopped])
 
-  const handleKeyUp = useEffectEvent((event) => {
+  const handleKeyUp = useCallback((event) => {
     if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
       return
     }
@@ -109,32 +145,88 @@ export function useCubeTimer({ enabled }) {
     }
 
     if (status === 'holding') {
-      clearHoldTimeout()
-      setStatus('idle')
+      transitionToIdle()
       return
     }
 
     if (status === 'ready') {
-      clearHoldTimeout()
-      startTimeRef.current = performance.now()
-      setDisplayTime(0)
-      setFinalTime(null)
-      setStatus('running')
-      startAnimation()
+      transitionToRunning()
     }
-  })
+  }, [enabled, status, transitionToIdle, transitionToRunning])
 
-  const handleKeyPress = useEffectEvent((event) => {
+  const handleKeyPress = useCallback((event) => {
     if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
       return
     }
 
     event.preventDefault()
-  })
+  }, [])
 
-  const handleWindowBlur = useEffectEvent(() => {
+  const handleWindowBlur = useCallback(() => {
     resetTimer()
-  })
+  }, [resetTimer])
+
+  const handlePointerDown = useCallback((event) => {
+    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current != null || !enabled) {
+      return
+    }
+
+    event.preventDefault()
+    activePointerIdRef.current = event.pointerId
+    event.currentTarget?.setPointerCapture?.(event.pointerId)
+
+    if (status === 'idle') {
+      transitionToHolding()
+      return
+    }
+
+    if (status === 'running') {
+      transitionToStopped()
+    }
+  }, [enabled, status, transitionToHolding, transitionToStopped])
+
+  const handlePointerUp = useCallback((event) => {
+    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current !== event.pointerId) {
+      return
+    }
+
+    event.preventDefault()
+    clearActivePointer()
+
+    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+
+    if (!enabled) {
+      return
+    }
+
+    if (status === 'holding') {
+      transitionToIdle()
+      return
+    }
+
+    if (status === 'ready') {
+      transitionToRunning()
+    }
+  }, [clearActivePointer, enabled, status, transitionToIdle, transitionToRunning])
+
+  const handlePointerCancel = useCallback((event) => {
+    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current !== event.pointerId) {
+      return
+    }
+
+    clearActivePointer()
+    clearHoldTimeout()
+
+    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+
+    if (status === 'holding' || status === 'ready') {
+      setStatus('idle')
+    }
+  }, [clearActivePointer, clearHoldTimeout, status])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true })
@@ -147,16 +239,22 @@ export function useCubeTimer({ enabled }) {
       window.removeEventListener('keyup', handleKeyUp, { capture: true })
       window.removeEventListener('keypress', handleKeyPress, { capture: true })
       window.removeEventListener('blur', handleWindowBlur)
-      clearHoldTimeout()
-      stopAnimation()
     }
-  }, [])
+  }, [handleKeyDown, handleKeyPress, handleKeyUp, handleWindowBlur])
+
+  useEffect(() => () => {
+    clearHoldTimeout()
+    stopAnimation()
+  }, [clearHoldTimeout, stopAnimation])
 
   return {
     status,
     displayTime,
     finalTime,
     formattedTime: formatTime(displayTime),
+    handlePointerDown,
+    handlePointerUp,
+    handlePointerCancel,
     resetTimer,
   }
 }

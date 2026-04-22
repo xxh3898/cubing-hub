@@ -40,6 +40,7 @@
 
 .timer-scramble-copy {
   width: 100%;
+  min-width: 0;
 }
 
 .timer-scramble-content {
@@ -96,6 +97,12 @@
   align-content: center;
 }
 
+.timer-touch-surface {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .timer-display.is-holding {
   background: linear-gradient(180deg, rgba(255, 244, 214, 0.72), rgba(255, 236, 179, 0.7));
 }
@@ -142,13 +149,16 @@
   margin-top: 8px !important;
   font-size: clamp(1rem, 2.5vw, 1.35rem);
   line-height: 1.6;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .timer-scramble-text {
   margin-top: 12px !important;
   font-size: clamp(1.15rem, 2.8vw, 1.5rem);
   line-height: 1.85;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .timer-visual-fallback {
