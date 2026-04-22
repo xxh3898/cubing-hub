@@ -237,6 +237,17 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(cookie().maxAge("refresh_token", 0));
     }
 
+    @Test
+    @DisplayName("세션 복구 쿠키 정리 요청은 refresh_token 쿠키를 만료시킨다")
+    void should_expire_refresh_token_cookie_when_clear_refresh_cookie_is_requested() throws Exception {
+        mockMvc.perform(post("/api/session/clear-refresh-cookie"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("refresh_token 쿠키를 정리했습니다."))
+                .andExpect(cookie().maxAge("refresh_token", 0))
+                .andExpect(cookie().path("refresh_token", "/api/auth"));
+    }
+
     private User saveActiveUser(String email, String nickname) {
         return userRepository.save(User.builder()
                 .email(email)

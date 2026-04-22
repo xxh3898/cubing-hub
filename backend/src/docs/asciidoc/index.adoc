@@ -108,6 +108,15 @@ include::{snippets}/auth/logout/request-cookies.adoc[]
 include::{snippets}/auth/logout/http-response.adoc[]
 include::{snippets}/auth/logout/response-cookies.adoc[]
 
+=== 세션 복구 쿠키 정리
+==== 요청
+include::{snippets}/auth/clear-refresh-cookie/http-request.adoc[]
+
+==== 응답
+include::{snippets}/auth/clear-refresh-cookie/http-response.adoc[]
+include::{snippets}/auth/clear-refresh-cookie/response-fields.adoc[]
+include::{snippets}/auth/clear-refresh-cookie/response-cookies.adoc[]
+
 === 현재 로그인 사용자 조회
 ==== 요청
 include::{snippets}/auth/me/http-request.adoc[]

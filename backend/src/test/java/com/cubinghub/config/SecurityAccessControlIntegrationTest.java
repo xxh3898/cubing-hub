@@ -142,6 +142,15 @@ class SecurityAccessControlIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("세션 복구 쿠키 정리 경로는 인증 없이 접근할 수 있다")
+    void should_allow_access_to_refresh_cookie_clear_when_authentication_is_missing() throws Exception {
+        mockMvc.perform(post("/api/session/clear-refresh-cookie"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("refresh_token 쿠키를 정리했습니다."));
+    }
+
+    @Test
     @DisplayName("피드백 생성 경로는 인증 없이 접근하면 401을 반환한다")
     void should_return_unauthorized_when_accessing_feedback_create_without_authentication() throws Exception {
         mockMvc.perform(post("/api/feedbacks")

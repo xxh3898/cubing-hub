@@ -61,6 +61,7 @@
 | `POST` | `/api/auth/login` | Public | 로그인 | 구현됨 |
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
 | `POST` | `/api/auth/logout` | 인증 토큰/쿠키 전달 | 로그아웃 | 구현됨 |
+| `POST` | `/api/session/clear-refresh-cookie` | Public | 세션 복구용 refresh cookie 정리 | 구현됨 |
 | `GET` | `/api/me` | Auth | 로그인 사용자 컨텍스트 조회 | 구현됨 |
 | `GET` | `/api/home` | Public + Optional Auth | 홈 대시보드 조회 | 구현됨 |
 | `GET` | `/api/users/me/profile` | Auth | 마이페이지 프로필/요약 조회 | 구현됨 |
@@ -184,6 +185,23 @@
 #### 로그아웃 처리 비고
 
 - 서버 로그아웃 호출이 실패하더라도 프런트는 클라이언트 인증 상태를 정리해 사용자 세션을 종료해야 한다.
+
+### `POST /api/session/clear-refresh-cookie`
+
+- 설명: `/api/auth` 경로에 남아 있는 `refresh_token` cookie를 강제로 만료시켜 세션 복구를 돕는다.
+- 인증: Public
+- 멱등성: 약한 멱등
+
+#### 사용 목적
+
+- `refresh_token`이 malformed 상태이거나 브라우저 레벨에서 비정상 요청을 만들면 `/api/auth/login`, `/api/auth/refresh`가 애플리케이션 전에 차단될 수 있다.
+- 이 endpoint는 `/api/auth` 밖에 두어, 문제가 된 cookie를 보내지 않고도 기존 `refresh_token`을 만료시킬 수 있게 한다.
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+- `refresh_token` cookie는 `Path=/api/auth`, `maxAge=0`으로 만료 처리된다.
 
 ### `GET /api/me`
 

@@ -279,6 +279,28 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                 ));
     }
 
+    @Test
+    @DisplayName("세션 복구 쿠키 정리 요청은 refresh_token 쿠키를 만료시킨다")
+    void should_expire_refresh_token_cookie_when_clear_refresh_cookie_is_requested() throws Exception {
+        ResultActions result = mockMvc.perform(post("/api/session/clear-refresh-cookie"));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("refresh_token 쿠키를 정리했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(cookie().maxAge("refresh_token", 0))
+                .andDo(document("auth/clear-refresh-cookie",
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        ),
+                        responseCookies(
+                                cookieWithName("refresh_token").description("만료 처리된 Refresh Token 쿠키")
+                        )
+                ));
+    }
+
     private void saveActiveUser(String email, String nickname) {
         userRepository.save(User.builder()
                 .email(email)
