@@ -15,6 +15,8 @@ import com.cubinghub.domain.user.dto.response.MyProfileResponse;
 import com.cubinghub.domain.user.service.UserProfileService;
 import java.util.Collections;
 import java.util.List;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +31,7 @@ public class HomeService {
 
     private static final int RECENT_RECORD_LIMIT = 5;
     private static final int RECENT_POST_LIMIT = 3;
+    private static final ZoneId HOME_SCRAMBLE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ScrambleService scrambleService;
     private final UserProfileService userProfileService;
@@ -36,7 +39,7 @@ public class HomeService {
     private final PostRepository postRepository;
 
     public HomeResponse getHome(String email) {
-        ScrambleResponse todayScramble = scrambleService.generate(EventType.WCA_333);
+        ScrambleResponse todayScramble = scrambleService.generateDaily(EventType.WCA_333, LocalDate.now(HOME_SCRAMBLE_ZONE));
         List<PostListItemResponse> recentPosts = postRepository.findRecent(RECENT_POST_LIMIT);
 
         if (!StringUtils.hasText(email)) {

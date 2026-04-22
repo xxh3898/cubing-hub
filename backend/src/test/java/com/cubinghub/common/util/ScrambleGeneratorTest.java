@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.cubinghub.domain.record.entity.EventType;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -52,6 +53,34 @@ class ScrambleGeneratorTest {
         assertThatThrownBy(() -> ScrambleGenerator.generate(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("EventType cannot be null");
+    }
+
+    @Test
+    @DisplayName("같은 날짜의 daily scramble은 같은 결과를 반환한다")
+    void should_return_same_daily_scramble_when_same_event_type_and_date_are_provided() {
+        LocalDate date = LocalDate.of(2026, 4, 22);
+
+        String first = ScrambleGenerator.generateDaily(EventType.WCA_333, date);
+        String second = ScrambleGenerator.generateDaily(EventType.WCA_333, date);
+
+        assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    @DisplayName("different 날짜의 daily scramble은 다른 결과를 반환한다")
+    void should_return_different_daily_scramble_when_date_changes() {
+        String first = ScrambleGenerator.generateDaily(EventType.WCA_333, LocalDate.of(2026, 4, 22));
+        String second = ScrambleGenerator.generateDaily(EventType.WCA_333, LocalDate.of(2026, 4, 23));
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    @DisplayName("daily scramble 날짜가 null이면 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_daily_scramble_date_is_null() {
+        assertThatThrownBy(() -> ScrambleGenerator.generateDaily(EventType.WCA_333, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Date cannot be null");
     }
 
     @Test

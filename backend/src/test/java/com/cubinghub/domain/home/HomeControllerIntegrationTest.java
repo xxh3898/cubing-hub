@@ -1,5 +1,6 @@
 package com.cubinghub.domain.home;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,6 +17,7 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cubinghub.integration.JpaIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
@@ -44,6 +46,9 @@ class HomeControllerIntegrationTest extends JpaIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Test
     @DisplayName("비로그인 홈 조회는 스크램블과 최신 게시글을 반환하고 개인 요약은 비운다")
     void should_return_guest_home_when_authentication_is_missing() throws Exception {
@@ -61,6 +66,35 @@ class HomeControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data.summary").value(nullValue()))
                 .andExpect(jsonPath("$.data.recentRecords.length()").value(0))
                 .andExpect(jsonPath("$.data.recentPosts.length()").value(3));
+    }
+
+    @Test
+    @DisplayName("같은 날짜의 홈 조회는 같은 오늘의 스크램블을 반환한다")
+    void should_return_same_daily_scramble_when_home_is_requested_multiple_times_on_same_day() throws Exception {
+        String firstBody = mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String secondBody = mockMvc.perform(get("/api/home"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String firstScramble = objectMapper.readTree(firstBody)
+                .path("data")
+                .path("todayScramble")
+                .path("scramble")
+                .asText();
+        String secondScramble = objectMapper.readTree(secondBody)
+                .path("data")
+                .path("todayScramble")
+                .path("scramble")
+                .asText();
+
+        assertThat(firstScramble).isNotBlank();
+        assertThat(secondScramble).isEqualTo(firstScramble);
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.cubinghub.domain.home.service;
 
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -19,6 +21,7 @@ import com.cubinghub.domain.user.dto.response.MyProfileResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileSummaryResponse;
 import com.cubinghub.domain.user.service.UserProfileService;
 import com.cubinghub.support.TestFixtures;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +65,7 @@ class HomeServiceTest {
                 new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, LocalDateTime.now())
         );
 
-        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
         when(postRepository.findRecent(3)).thenReturn(recentPosts);
 
         HomeResponse response = homeService.getHome(null);
@@ -84,7 +87,7 @@ class HomeServiceTest {
         ReflectionTestUtils.setField(firstRecord, "createdAt", LocalDateTime.of(2026, 4, 15, 10, 0));
         ReflectionTestUtils.setField(secondRecord, "createdAt", LocalDateTime.of(2026, 4, 15, 9, 30));
 
-        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
         when(postRepository.findRecent(3)).thenReturn(List.of(
                 new PostListItemResponse(3L, com.cubinghub.domain.post.entity.PostCategory.FREE, "최신 글", "Writer", 7,
                         LocalDateTime.of(2026, 4, 15, 11, 0))
@@ -116,7 +119,7 @@ class HomeServiceTest {
                 new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, LocalDateTime.now())
         );
 
-        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
         when(postRepository.findRecent(3)).thenReturn(recentPosts);
         when(userProfileService.getMyProfile("missing@cubinghub.com"))
                 .thenThrow(new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
@@ -132,7 +135,7 @@ class HomeServiceTest {
     @Test
     @DisplayName("인증 이메일이 있지만 비인가 외 예외면 그대로 전파한다")
     void should_rethrow_exception_when_authenticated_home_fails_with_non_unauthorized_error() {
-        when(scrambleService.generate(EventType.WCA_333)).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
         when(postRepository.findRecent(3)).thenReturn(List.of());
         when(userProfileService.getMyProfile("home@cubinghub.com"))
                 .thenThrow(new CustomApiException("프로필 조회 실패", HttpStatus.INTERNAL_SERVER_ERROR));
@@ -143,5 +146,16 @@ class HomeServiceTest {
         CustomApiException exception = (CustomApiException) thrown;
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(exception.getMessage()).isEqualTo("프로필 조회 실패");
+    }
+
+    @Test
+    @DisplayName("홈 조회는 서울 날짜 기준 daily scramble을 사용한다")
+    void should_request_daily_scramble_when_home_is_requested() {
+        when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
+        when(postRepository.findRecent(3)).thenReturn(List.of());
+
+        homeService.getHome(null);
+
+        verify(scrambleService).generateDaily(eq(EventType.WCA_333), any(LocalDate.class));
     }
 }
