@@ -12,6 +12,7 @@
 - backend image의 `linux/amd64` manifest mismatch를 확인하고 Docker Hub 이미지를 재빌드/재푸시
 - EC2 Nginx가 `options-ssl-nginx.conf`, `ssl-dhparams.pem` 누락으로 재시작하는 문제를 해결
 - first deploy 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
+- apex(`https://cubing-hub.com`) origin의 CORS preflight가 `403`으로 차단되는 운영 설정 누락을 확인하고 `CORS_ALLOWED_ORIGINS` 기본값을 apex + www 동시 허용으로 보정
 - 배포 후 공식 문서와 운영 체크리스트 정리 범위를 확정
 - `Backend CI`, `Frontend CI` 성공 뒤에 이어지는 분리 deploy workflow를 추가
 
@@ -86,6 +87,23 @@
 #### 정리 방향
 
 - 자동 배포 workflow 구현
+
+### 5-1. apex origin CORS 차단 보정
+
+#### 문제 상황
+- `https://www.cubing-hub.com`에서는 API가 동작했지만 `https://cubing-hub.com`에서는 홈과 refresh 요청 preflight가 `403`으로 차단됐다.
+- 브라우저 콘솔에는 `No 'Access-Control-Allow-Origin' header`와 `blocked by CORS policy`가 표시됐다.
+- 운영 기본값 `CORS_ALLOWED_ORIGINS`가 `https://www.cubing-hub.com` 하나만 허용하고 있었다.
+
+#### 해결 방법
+- backend prod 기본값과 `docker-compose.prod.yml`의 `CORS_ALLOWED_ORIGINS` 기본값을 아래 두 origin으로 보정했다.
+  - `https://cubing-hub.com`
+  - `https://www.cubing-hub.com`
+- CORS 통합 테스트도 두 origin이 모두 허용되도록 보강했다.
+
+#### 결과
+- 저장소 기준 운영 기본값이 apex + www 동시 허용과 일치하게 됐다.
+- 실제 운영 반영에는 EC2의 `infra/docker/.env` 값도 같은 목록으로 맞추고 app 컨테이너를 재기동해야 한다.
 
 ### 6. 자동 배포 workflow 추가
 

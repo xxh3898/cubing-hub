@@ -124,7 +124,7 @@
 - `REDIS_PORT`
 - `JWT_SECRET`
 - `CORS_ALLOWED_ORIGINS`
-  - 기본값 `https://www.cubing-hub.com`
+  - 기본값 `https://cubing-hub.com,https://www.cubing-hub.com`
 - `JWT_EXPIRATION`
   - 프로덕션 Access Token 만료 시간, 기본 30분
 - `JWT_REFRESH_EXPIRATION`
