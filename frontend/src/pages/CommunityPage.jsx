@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { communityCategories, communityPageSize } from '../constants/mockCommunity.js'
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
 
 function formatCommunityDate(value) {
   const date = new Date(value)
@@ -19,9 +20,30 @@ export default function CommunityPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const debouncedSearchFilters = useDebouncedValue({
+    keyword,
+    authorQuery,
+  })
+  const previousSearchFiltersRef = useRef({
+    keyword: debouncedSearchFilters.keyword,
+    authorQuery: debouncedSearchFilters.authorQuery,
+  })
 
   useEffect(() => {
     let isCancelled = false
+    const searchFiltersChanged =
+      previousSearchFiltersRef.current.keyword !== debouncedSearchFilters.keyword ||
+      previousSearchFiltersRef.current.authorQuery !== debouncedSearchFilters.authorQuery
+
+    previousSearchFiltersRef.current = {
+      keyword: debouncedSearchFilters.keyword,
+      authorQuery: debouncedSearchFilters.authorQuery,
+    }
+
+    if (searchFiltersChanged && currentPage !== 1) {
+      setCurrentPage(1)
+      return undefined
+    }
 
     const loadPosts = async () => {
       setIsLoading(true)
@@ -30,8 +52,8 @@ export default function CommunityPage() {
       try {
         const response = await getPosts({
           category: selectedCategory === 'ALL' ? undefined : selectedCategory,
-          keyword: keyword.trim() || undefined,
-          author: authorQuery.trim() || undefined,
+          keyword: debouncedSearchFilters.keyword.trim() || undefined,
+          author: debouncedSearchFilters.authorQuery.trim() || undefined,
           page: currentPage,
           size: communityPageSize,
         })
@@ -67,7 +89,7 @@ export default function CommunityPage() {
     return () => {
       isCancelled = true
     }
-  }, [authorQuery, currentPage, keyword, reloadKey, selectedCategory])
+  }, [currentPage, debouncedSearchFilters, reloadKey, selectedCategory])
 
   const handleCategoryChange = (categoryKey) => {
     setSelectedCategory(categoryKey)
@@ -76,12 +98,10 @@ export default function CommunityPage() {
 
   const handleKeywordChange = (event) => {
     setKeyword(event.target.value)
-    setCurrentPage(1)
   }
 
   const handleAuthorQueryChange = (event) => {
     setAuthorQuery(event.target.value)
-    setCurrentPage(1)
   }
 
   const handleRetry = () => {

@@ -66,7 +66,7 @@ describe('CommunityPage', () => {
     })
   })
 
-  it('should_refetch_posts_when_category_and_search_filters_change', async () => {
+  it('should_refetch_posts_after_debounce_when_category_and_search_filters_change', async () => {
     vi.mocked(getPosts)
       .mockResolvedValueOnce(
         createPostPageResponse({
@@ -107,6 +107,18 @@ describe('CommunityPage', () => {
     fireEvent.change(screen.getByLabelText('제목/본문 검색'), { target: { value: '공지' } })
     fireEvent.change(screen.getByLabelText('작성자 검색'), { target: { value: 'Admin' } })
 
+    expect(getPosts).toHaveBeenCalledTimes(2)
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 250)
+    })
+
+    expect(getPosts).toHaveBeenCalledTimes(2)
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100)
+    })
+
     await waitFor(() => {
       expect(getPosts).toHaveBeenLastCalledWith({
         category: 'NOTICE',
@@ -116,6 +128,46 @@ describe('CommunityPage', () => {
         size: 8,
       })
     })
+  })
+
+  it('should_only_request_last_filters_once_when_search_inputs_change_quickly', async () => {
+    vi.mocked(getPosts)
+      .mockResolvedValueOnce(
+        createPostPageResponse({
+          items: [{ id: 1, category: 'FREE', title: '큐브 연습법', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        createPostPageResponse({
+          items: [{ id: 2, category: 'FREE', title: '큐브 대회 후기', authorNickname: 'AlphaAdmin', viewCount: 20, createdAt: '2026-04-15T11:00:00' }],
+        }),
+      )
+
+    renderCommunityPage()
+
+    expect(await screen.findByText('큐브 연습법')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('제목/본문 검색'), { target: { value: '큐' } })
+    fireEvent.change(screen.getByLabelText('제목/본문 검색'), { target: { value: '큐브' } })
+    fireEvent.change(screen.getByLabelText('작성자 검색'), { target: { value: 'Alpha' } })
+    fireEvent.change(screen.getByLabelText('작성자 검색'), { target: { value: 'AlphaAdmin' } })
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350)
+    })
+
+    await waitFor(() => {
+      expect(getPosts).toHaveBeenCalledTimes(2)
+      expect(getPosts).toHaveBeenLastCalledWith({
+        category: undefined,
+        keyword: '큐브',
+        author: 'AlphaAdmin',
+        page: 1,
+        size: 8,
+      })
+    })
+
+    expect(await screen.findByText('큐브 대회 후기')).toBeInTheDocument()
   })
 
   it('should_reset_page_to_first_when_filter_changes', async () => {
@@ -155,6 +207,10 @@ describe('CommunityPage', () => {
     expect(await screen.findByText('자유글 9')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('제목/본문 검색'), { target: { value: '없는 검색어' } })
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350)
+    })
 
     await waitFor(() => {
       expect(getPosts).toHaveBeenLastCalledWith({
