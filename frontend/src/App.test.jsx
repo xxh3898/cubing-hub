@@ -75,4 +75,12 @@ describe('App auth routes', () => {
     expect(screen.queryByRole('heading', { name: '로그인' })).not.toBeInTheDocument()
     expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
   })
+
+  it('should_render_refined_product_copy_in_topbar', () => {
+    vi.mocked(useAuth).mockReturnValue(buildAuthState())
+
+    renderApp('/login')
+
+    expect(screen.getByText('기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.')).toBeInTheDocument()
+  })
 })

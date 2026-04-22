@@ -70,9 +70,8 @@
   flex-wrap: wrap;
 }
 
-.mypage-pagination-label {
-  min-width: 88px;
-  text-align: center;
+.mypage-page-button {
+  min-width: 64px;
 }
 
 .dashboard-summary-grid {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { createComment, deleteComment, deletePost, getComments, getPost } from '../api.js'
+import GroupedPagination from '../components/GroupedPagination.jsx'
 import { useAuth } from '../context/useAuth.js'
 
 const COMMENT_PAGE_SIZE = 5
@@ -13,10 +14,6 @@ function formatCommunityDate(value) {
 
 function formatCategoryLabel(category) {
   return category === 'NOTICE' ? '공지' : '자유'
-}
-
-function buildPageNumbers(totalPages) {
-  return Array.from({ length: totalPages }, (_, index) => index + 1)
 }
 
 export default function CommunityDetailPage() {
@@ -241,7 +238,7 @@ export default function CommunityDetailPage() {
   }
 
   const commentItems = commentsPage?.items ?? []
-  const commentPageNumbers = buildPageNumbers(commentsPage?.totalPages ?? 0)
+  const totalCommentPages = commentsPage?.totalPages ?? 0
 
   return (
     <section className="page-grid community-detail-page">
@@ -325,39 +322,15 @@ export default function CommunityDetailPage() {
               ))}
             </div>
 
-            {commentPageNumbers.length > 0 ? (
-              <div className="community-pagination">
-                <button
-                  className="ghost-button community-page-button"
-                  type="button"
-                  onClick={() => setCurrentCommentPage((page) => Math.max(1, page - 1))}
-                  disabled={currentCommentPage <= 1}
-                >
-                  이전
-                </button>
-
-                {commentPageNumbers.map((pageNumber) => (
-                  <button
-                    key={pageNumber}
-                    className={pageNumber === currentCommentPage ? 'primary-button community-page-button' : 'ghost-button community-page-button'}
-                    type="button"
-                    onClick={() => setCurrentCommentPage(pageNumber)}
-                    disabled={pageNumber === currentCommentPage}
-                  >
-                    {pageNumber}
-                  </button>
-                ))}
-
-                <button
-                  className="ghost-button community-page-button"
-                  type="button"
-                  onClick={() => setCurrentCommentPage((page) => page + 1)}
-                  disabled={!commentsPage?.hasNext}
-                >
-                  다음
-                </button>
-              </div>
-            ) : null}
+            <GroupedPagination
+              className="community-pagination"
+              buttonClassName="community-page-button"
+              currentPage={currentCommentPage}
+              totalPages={totalCommentPages}
+              hasPrevious={commentsPage?.hasPrevious ?? currentCommentPage > 1}
+              hasNext={commentsPage?.hasNext ?? false}
+              onPageChange={setCurrentCommentPage}
+            />
           </>
         )}
 

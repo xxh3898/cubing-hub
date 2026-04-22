@@ -197,7 +197,7 @@ describe('MyPage', () => {
 
     expect(await screen.findByText('2026-04-04 18:22')).toBeInTheDocument()
     expect(getMyRecords).toHaveBeenLastCalledWith({ page: 2, size: 10 })
-    expect(screen.getByText('2 / 2 페이지')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2' })).toBeDisabled()
   })
 
   it('should_refresh_profile_and_records_when_record_delete_succeeds', async () => {

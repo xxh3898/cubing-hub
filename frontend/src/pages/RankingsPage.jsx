@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react'
 import { getRankings } from '../api.js'
+import GroupedPagination from '../components/GroupedPagination.jsx'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { formatTimeMs } from '../utils/formatTime.js'
 
 const PAGE_SIZE = 25
-
-function buildPageNumbers(totalPages) {
-  return Array.from({ length: totalPages }, (_, index) => index + 1)
-}
 
 export default function RankingsPage() {
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
@@ -82,7 +79,6 @@ export default function RankingsPage() {
 
   const pageItems = rankingPage?.items ?? []
   const totalPages = rankingPage?.totalPages ?? 0
-  const pageNumbers = buildPageNumbers(totalPages)
 
   return (
     <section className="page-grid rankings-page">
@@ -163,39 +159,15 @@ export default function RankingsPage() {
               </table>
             </div>
 
-            {pageNumbers.length > 0 ? (
-              <div className="rankings-pagination">
-                <button
-                  className="ghost-button rankings-page-button"
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  disabled={currentPage <= 1}
-                >
-                  이전
-                </button>
-
-                {pageNumbers.map((pageNumber) => (
-                  <button
-                    key={pageNumber}
-                    className={pageNumber === currentPage ? 'primary-button rankings-page-button' : 'ghost-button rankings-page-button'}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNumber)}
-                    disabled={pageNumber === currentPage}
-                  >
-                    {pageNumber}
-                  </button>
-                ))}
-
-                <button
-                  className="ghost-button rankings-page-button"
-                  type="button"
-                  onClick={() => setCurrentPage((page) => page + 1)}
-                  disabled={!rankingPage?.hasNext}
-                >
-                  다음
-                </button>
-              </div>
-            ) : null}
+            <GroupedPagination
+              className="rankings-pagination"
+              buttonClassName="rankings-page-button"
+              currentPage={currentPage}
+              totalPages={totalPages}
+              hasPrevious={rankingPage?.hasPrevious ?? currentPage > 1}
+              hasNext={rankingPage?.hasNext ?? false}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
       </div>

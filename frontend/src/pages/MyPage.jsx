@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deleteRecord, getMyProfile, getMyRecords, logout, updateRecordPenalty } from '../api.js'
+import GroupedPagination from '../components/GroupedPagination.jsx'
 import { useAuth } from '../context/useAuth.js'
 
 const RECORDS_PAGE_SIZE = 10
@@ -236,7 +237,6 @@ export default function MyPage() {
   const nickname = profileData?.nickname ?? currentUser?.nickname ?? '-'
   const mainEvent = profileData?.mainEvent ?? '-'
   const totalPages = recordsPage?.totalPages ?? 0
-  const pageLabel = totalPages > 0 ? `${currentPage} / ${totalPages}` : '1 / 1'
 
   return (
     <section className="page-grid mypage">
@@ -362,25 +362,15 @@ export default function MyPage() {
               </table>
             </div>
 
-            <div className="mypage-pagination">
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={currentPage <= 1}
-              >
-                이전
-              </button>
-              <span className="helper-text mypage-pagination-label">{pageLabel} 페이지</span>
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={() => setCurrentPage((page) => page + 1)}
-                disabled={!recordsPage?.hasNext}
-              >
-                다음
-              </button>
-            </div>
+            <GroupedPagination
+              className="mypage-pagination"
+              buttonClassName="mypage-page-button"
+              currentPage={currentPage}
+              totalPages={totalPages}
+              hasPrevious={recordsPage?.hasPrevious ?? currentPage > 1}
+              hasNext={recordsPage?.hasNext ?? false}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
       </div>

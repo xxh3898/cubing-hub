@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPosts } from '../api.js'
+import GroupedPagination from '../components/GroupedPagination.jsx'
 import { communityCategories, communityPageSize } from '../constants/mockCommunity.js'
 
 function formatCommunityDate(value) {
   const date = new Date(value)
 
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
-}
-
-function buildPageNumbers(totalPages) {
-  return Array.from({ length: totalPages }, (_, index) => index + 1)
 }
 
 export default function CommunityPage() {
@@ -92,7 +89,7 @@ export default function CommunityPage() {
   }
 
   const pagePosts = postPage?.items ?? []
-  const pageNumbers = buildPageNumbers(postPage?.totalPages ?? 0)
+  const totalPages = postPage?.totalPages ?? 0
 
   return (
     <section className="page-grid community-page">
@@ -197,21 +194,15 @@ export default function CommunityPage() {
           </div>
         )}
 
-        {pageNumbers.length > 0 ? (
-          <div className="community-pagination">
-            {pageNumbers.map((pageNumber) => (
-              <button
-                key={pageNumber}
-                className={pageNumber === currentPage ? 'primary-button community-page-button' : 'ghost-button community-page-button'}
-                type="button"
-                onClick={() => setCurrentPage(pageNumber)}
-                disabled={pageNumber === currentPage}
-              >
-                {pageNumber}
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <GroupedPagination
+          className="community-pagination"
+          buttonClassName="community-page-button"
+          currentPage={currentPage}
+          totalPages={totalPages}
+          hasPrevious={postPage?.hasPrevious ?? currentPage > 1}
+          hasNext={postPage?.hasNext ?? false}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </section>
   )

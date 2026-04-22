@@ -75,7 +75,7 @@ function AppLayout() {
         <div className="brand-block">
           <p className="eyebrow">Cubing Hub</p>
           <h1>Cubing Hub</h1>
-          <p className="helper-text">기록, 학습, 랭킹, 커뮤니티를 한 흐름으로 연결한 서비스 화면입니다.</p>
+          <p className="helper-text">기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.</p>
         </div>
         <div className="topbar-meta">
           <nav className="topnav" aria-label="Primary">
