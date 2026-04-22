@@ -27,6 +27,33 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+function createRecord(overrides = {}) {
+  return {
+    id: 1,
+    eventType: 'WCA_333',
+    timeMs: 9344,
+    effectiveTimeMs: 9344,
+    penalty: 'NONE',
+    createdAt: '2026-04-04T18:11:00',
+    ...overrides,
+  }
+}
+
+function createRecordsResponse(items, overrides = {}) {
+  return {
+    data: {
+      items,
+      page: 1,
+      size: 10,
+      totalElements: items.length,
+      totalPages: items.length === 0 ? 0 : 1,
+      hasNext: false,
+      hasPrevious: false,
+      ...overrides,
+    },
+  }
+}
+
 describe('MyPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -68,46 +95,10 @@ describe('MyPage', () => {
         },
       })
     vi.mocked(getMyRecords)
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              id: 1,
-              eventType: 'WCA_333',
-              timeMs: 9344,
-              effectiveTimeMs: 9344,
-              penalty: 'NONE',
-              createdAt: '2026-04-04T18:11:00',
-            },
-          ],
-          page: 1,
-          size: 10,
-          totalElements: 1,
-          totalPages: 1,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              id: 1,
-              eventType: 'WCA_333',
-              timeMs: 9344,
-              effectiveTimeMs: 11344,
-              penalty: 'PLUS_TWO',
-              createdAt: '2026-04-04T18:11:00',
-            },
-          ],
-          page: 1,
-          size: 10,
-          totalElements: 1,
-          totalPages: 1,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      })
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord({ effectiveTimeMs: 11344, penalty: 'PLUS_TWO' })]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord({ effectiveTimeMs: 11344, penalty: 'PLUS_TWO' })], { size: 100 }))
     vi.mocked(updateRecordPenalty).mockResolvedValue({
       message: '기록 페널티가 수정되었습니다.',
       data: {
@@ -131,7 +122,7 @@ describe('MyPage', () => {
     expect(await screen.findByText('기록 페널티가 수정되었습니다.')).toBeInTheDocument()
     expect((await screen.findAllByText('11.344')).length).toBeGreaterThan(0)
     expect(getMyProfile).toHaveBeenCalledTimes(2)
-    expect(getMyRecords).toHaveBeenLastCalledWith({ page: 1, size: 10 })
+    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
   })
 
   it('should_request_next_page_when_next_button_is_clicked', async () => {
@@ -148,46 +139,14 @@ describe('MyPage', () => {
       },
     })
     vi.mocked(getMyRecords)
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              id: 1,
-              eventType: 'WCA_333',
-              timeMs: 9344,
-              effectiveTimeMs: 9344,
-              penalty: 'NONE',
-              createdAt: '2026-04-04T18:11:00',
-            },
-          ],
-          page: 1,
-          size: 10,
-          totalElements: 11,
-          totalPages: 2,
-          hasNext: true,
-          hasPrevious: false,
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              id: 11,
-              eventType: 'WCA_333',
-              timeMs: 11111,
-              effectiveTimeMs: 11111,
-              penalty: 'NONE',
-              createdAt: '2026-04-04T18:22:00',
-            },
-          ],
-          page: 2,
-          size: 10,
-          totalElements: 11,
-          totalPages: 2,
-          hasNext: false,
-          hasPrevious: true,
-        },
-      })
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { totalElements: 11, totalPages: 2, hasNext: true }))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord({
+        id: 11,
+        timeMs: 11111,
+        effectiveTimeMs: 11111,
+        createdAt: '2026-04-04T18:22:00',
+      })], { page: 2, totalElements: 11, totalPages: 2, hasPrevious: true }))
 
     render(<MyPage />)
 
@@ -227,37 +186,10 @@ describe('MyPage', () => {
         },
       })
     vi.mocked(getMyRecords)
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              id: 1,
-              eventType: 'WCA_333',
-              timeMs: 9344,
-              effectiveTimeMs: 9344,
-              penalty: 'NONE',
-              createdAt: '2026-04-04T18:11:00',
-            },
-          ],
-          page: 1,
-          size: 10,
-          totalElements: 1,
-          totalPages: 1,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          items: [],
-          page: 1,
-          size: 10,
-          totalElements: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      })
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+      .mockResolvedValueOnce(createRecordsResponse([]))
+      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
     vi.mocked(deleteRecord).mockResolvedValue({
       message: '기록이 삭제되었습니다.',
       data: null,
@@ -329,17 +261,9 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockRejectedValueOnce(new Error('기록 조회 실패'))
-      .mockResolvedValueOnce({
-        data: {
-          items: [],
-          page: 1,
-          size: 10,
-          totalElements: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      })
+      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
+      .mockResolvedValueOnce(createRecordsResponse([]))
+      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
 
     render(<MyPage />)
 
@@ -348,7 +272,7 @@ describe('MyPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
     expect(await screen.findByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
-    expect(getMyRecords).toHaveBeenCalledTimes(2)
+    expect(getMyRecords).toHaveBeenCalledTimes(4)
   })
 
   it('should_show_error_message_when_record_penalty_update_fails', async () => {
@@ -367,14 +291,7 @@ describe('MyPage', () => {
     vi.mocked(getMyRecords).mockResolvedValue({
       data: {
         items: [
-          {
-            id: 1,
-            eventType: 'WCA_333',
-            timeMs: 9344,
-            effectiveTimeMs: 9344,
-            penalty: 'NONE',
-            createdAt: '2026-04-04T18:11:00',
-          },
+          createRecord(),
         ],
         page: 1,
         size: 10,
@@ -411,14 +328,7 @@ describe('MyPage', () => {
     vi.mocked(getMyRecords).mockResolvedValue({
       data: {
         items: [
-          {
-            id: 1,
-            eventType: 'WCA_333',
-            timeMs: 9344,
-            effectiveTimeMs: 9344,
-            penalty: 'NONE',
-            createdAt: '2026-04-04T18:11:00',
-          },
+          createRecord(),
         ],
         page: 1,
         size: 10,
@@ -437,5 +347,27 @@ describe('MyPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
     expect(await screen.findByText('기록 삭제 실패')).toBeInTheDocument()
+  })
+
+  it('should_show_empty_graph_message_when_main_event_records_do_not_exist', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      data: {
+        userId: 1,
+        nickname: 'Tester',
+        mainEvent: '3x3x3',
+        summary: {
+          totalSolveCount: 1,
+          personalBestTimeMs: 9344,
+          averageTimeMs: 9344,
+        },
+      },
+    })
+    vi.mocked(getMyRecords)
+      .mockResolvedValueOnce(createRecordsResponse([createRecord({ eventType: 'WCA_222', timeMs: 2444, effectiveTimeMs: 2444 })]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord({ eventType: 'WCA_222', timeMs: 2444, effectiveTimeMs: 2444 })], { size: 100 }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('아직 그래프로 표시할 주 종목 기록이 없습니다.')).toBeInTheDocument()
   })
 })

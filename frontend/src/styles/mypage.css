@@ -102,6 +102,47 @@
   line-height: 1;
 }
 
+.mypage-trend-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.mypage-trend-header h3 {
+  margin: 0;
+}
+
+.mypage-trend-chart {
+  min-height: 260px;
+  padding: 16px 12px 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.mypage-trend-tooltip {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(18, 32, 43, 0.92);
+  color: #f8f5ef;
+  box-shadow: 0 10px 20px rgba(18, 32, 43, 0.18);
+}
+
+.mypage-trend-tooltip-time,
+.mypage-trend-tooltip-date {
+  margin: 0;
+}
+
+.mypage-trend-tooltip-time {
+  font-weight: 700;
+}
+
+.mypage-trend-tooltip-date {
+  font-size: 0.82rem;
+  color: rgba(248, 245, 239, 0.76);
+}
+
 .pb-value {
   color: #ff3e00;
 }

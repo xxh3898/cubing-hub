@@ -1,22 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { deleteRecord, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
+import { calculateAverageOf, filterLatestRecordsByEvent, formatAverageResult, formatRecordTime } from '../utils/recordStats.js'
 import { buildVisualCubeUrl } from '../utils/visualCube.js'
 
-function formatRecordedTime(milliseconds) {
-  const totalMilliseconds = Math.max(0, Math.floor(milliseconds))
-  const minutes = Math.floor(totalMilliseconds / 60000)
-  const seconds = Math.floor((totalMilliseconds % 60000) / 1000)
-  const remainingMilliseconds = totalMilliseconds % 1000
-
-  if (minutes > 0) {
-    return `${minutes}:${String(seconds).padStart(2, '0')}.${String(remainingMilliseconds).padStart(3, '0')}`
-  }
-
-  return `${String(seconds).padStart(2, '0')}.${String(remainingMilliseconds).padStart(3, '0')}`
-}
+const RECENT_STATS_FETCH_SIZE = 100
+const RECENT_STATS_LIMIT = 12
 
 function getTimerMessage(status, isSupported, hasScramble) {
   if (!isSupported) {
@@ -83,7 +74,7 @@ function getDisplayTime(record) {
     return 'DNF'
   }
 
-  return formatRecordedTime(record.effectiveTimeMs ?? record.timeMs)
+  return formatRecordTime(record.effectiveTimeMs ?? record.timeMs, { padSeconds: true })
 }
 
 export default function TimerPage() {
@@ -95,6 +86,9 @@ export default function TimerPage() {
   const [hasScrambleVisualError, setHasScrambleVisualError] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
+  const [recentStatsRecords, setRecentStatsRecords] = useState([])
+  const [recentStatsError, setRecentStatsError] = useState(null)
+  const [isLoadingRecentStats, setIsLoadingRecentStats] = useState(false)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
   const lastAutoSavedRecordRef = useRef(null)
@@ -103,6 +97,8 @@ export default function TimerPage() {
   const isSupported = Boolean(currentEvent?.supported)
   const hasScramble = Boolean(scrambleData?.scramble)
   const timerEnabled = isSupported && hasScramble && !isLoadingScramble
+  const ao5 = useMemo(() => calculateAverageOf(recentStatsRecords, 5), [recentStatsRecords])
+  const ao12 = useMemo(() => calculateAverageOf(recentStatsRecords, 12), [recentStatsRecords])
   const scrambleVisualUrl = useMemo(() => {
     if (selectedEvent !== 'WCA_333' || !scrambleData?.scramble) {
       return null
@@ -117,6 +113,28 @@ export default function TimerPage() {
   const { status, finalTime, formattedTime, resetTimer } = useCubeTimer({
     enabled: timerEnabled,
   })
+
+  const loadRecentStatistics = useCallback(async (eventType) => {
+    if (!isAuthenticated || !eventType) {
+      setRecentStatsRecords([])
+      setRecentStatsError(null)
+      return
+    }
+
+    setIsLoadingRecentStats(true)
+    setRecentStatsError(null)
+
+    try {
+      const response = await getMyRecords({ page: 1, size: RECENT_STATS_FETCH_SIZE })
+      setRecentStatsRecords(filterLatestRecordsByEvent(response.data.items, eventType, RECENT_STATS_LIMIT))
+      setRecentStatsError(null)
+    } catch (error) {
+      setRecentStatsRecords([])
+      setRecentStatsError(error.message)
+    } finally {
+      setIsLoadingRecentStats(false)
+    }
+  }, [isAuthenticated])
 
   const loadScramble = async (eventType) => {
     setIsLoadingScramble(true)
@@ -151,6 +169,17 @@ export default function TimerPage() {
     setHasScrambleVisualError(false)
   }, [scrambleVisualUrl])
 
+  useEffect(() => {
+    if (!isAuthenticated || !isSupported) {
+      setRecentStatsRecords([])
+      setRecentStatsError(null)
+      setIsLoadingRecentStats(false)
+      return
+    }
+
+    loadRecentStatistics(selectedEvent)
+  }, [isAuthenticated, isSupported, loadRecentStatistics, selectedEvent])
+
   const handleEventChange = (event) => {
     setSelectedEvent(event.target.value)
   }
@@ -172,6 +201,7 @@ export default function TimerPage() {
     try {
       const response = await deleteRecord(recordId)
       setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
+      await loadRecentStatistics(selectedEvent)
       setSaveMessage({ type: 'success', text: response.message })
     } catch (error) {
       setSaveMessage({ type: 'error', text: error.message })
@@ -198,6 +228,7 @@ export default function TimerPage() {
             : record,
         ),
       )
+      await loadRecentStatistics(selectedEvent)
       setSaveMessage({ type: 'success', text: response.message })
     } catch (error) {
       setSaveMessage({ type: 'error', text: error.message })
@@ -245,6 +276,7 @@ export default function TimerPage() {
           },
           ...current,
         ].slice(0, 5))
+        await loadRecentStatistics(selectedEvent)
         setSaveMessage({ type: 'success', text: `${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.` })
         lastAutoSavedRecordRef.current = `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`
       } catch (error) {
@@ -253,7 +285,7 @@ export default function TimerPage() {
     }
 
     persistRecord()
-  }, [finalTime, isAuthenticated, isSupported, scrambleData, selectedEvent, status])
+  }, [finalTime, isAuthenticated, isSupported, loadRecentStatistics, scrambleData, selectedEvent, status])
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
   const statusLabel = getStatusLabel(status)
@@ -323,8 +355,32 @@ export default function TimerPage() {
             <div className="section-heading timer-recent-heading">
               <div>
                 <h3>최근 기록</h3>
+                <p className="helper-text">선택 종목 기준 최신 12개 기록으로 Ao5, Ao12를 계산합니다.</p>
               </div>
             </div>
+            <div className="timer-stats-grid">
+              <article className="timer-stat-card">
+                <span className="timer-stat-label">Ao5</span>
+                <strong className="timer-stat-value">{formatAverageResult(ao5, { padSeconds: true })}</strong>
+              </article>
+              <article className="timer-stat-card">
+                <span className="timer-stat-label">Ao12</span>
+                <strong className="timer-stat-value">{formatAverageResult(ao12, { padSeconds: true })}</strong>
+              </article>
+            </div>
+            {recentStatsError ? <p className="message error">{recentStatsError}</p> : null}
+            {!recentStatsError && !isAuthenticated ? (
+              <p className="helper-text">로그인 후 Ao5, Ao12가 계산됩니다.</p>
+            ) : null}
+            {!recentStatsError && isAuthenticated && !isSupported ? (
+              <p className="helper-text">이 종목은 아직 Ao 통계를 지원하지 않습니다.</p>
+            ) : null}
+            {!recentStatsError && isAuthenticated && isSupported && isLoadingRecentStats ? (
+              <p className="helper-text">최근 기록 통계를 계산하는 중입니다.</p>
+            ) : null}
+            {!recentStatsError && isAuthenticated && isSupported && !isLoadingRecentStats && recentStatsRecords.length === 0 ? (
+              <p className="helper-text">아직 Ao를 계산할 저장 기록이 없습니다.</p>
+            ) : null}
             {recentSavedRecords.length === 0 ? (
               <p className="helper-text">현재 세션에서 저장된 기록이 아직 없습니다.</p>
             ) : (

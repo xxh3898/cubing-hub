@@ -189,6 +189,34 @@
   margin-bottom: 12px;
 }
 
+.timer-stats-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 14px;
+}
+
+.timer-stat-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(18, 32, 43, 0.08);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.timer-stat-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #53626d;
+}
+
+.timer-stat-value {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
 .timer-recent-list {
   display: flex;
   flex-wrap: wrap;
