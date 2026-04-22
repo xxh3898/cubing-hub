@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Backlog implement: 타이머 스크램블 이미지 렌더링 |
-| 상태 | `TimerPage` 상단 스크램블 패널에 VisualCube 기반 이미지 미리보기를 추가했고, 이미지 로드 실패 시 텍스트 스크램블만 유지하도록 fallback을 넣었다. 프런트 `lint`, `test`, `build`는 통과했다 |
-| 범위 | `TimerPage` 스크램블 시각화 UI 추가, 타이머 스타일 보강, 타이머 회귀 테스트 추가, `Feature Backlog` / `Screen Specification` 동기화 |
-| 핵심 리스크 | VisualCube 외부 응답이 느리거나 실패하는 운영 브라우저 상황의 체감 UX와 모바일 레이아웃은 아직 수동 검증이 남아 있다 |
-| 참조 문서 | [Feature Backlog](./Feature%20Backlog.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [Day 21](./Development%20Log/Day%2021.md) |
-| 다음 로그 대상 | 피드백 메일 실제 전송 또는 모바일 UX 관련 다음 backlog 항목 선택 결과 |
+| 작업명 | Backlog implement: 피드백 Discord 운영 알림과 재시도 |
+| 상태 | `POST /api/feedbacks` 저장 직후 Discord webhook 전송 상태를 응답에 포함하고, 실패 시 `POST /api/feedbacks/{feedbackId}/notification-retry`로 재시도할 수 있게 구현했다. 백엔드 `test`, `build`와 프런트 `lint`, `test`, `build`는 통과했다 |
+| 범위 | `feedbacks` 알림 상태 컬럼 추가, Discord notifier / retry 서비스 구현, 피드백 화면 상태 표시와 재시도 버튼 추가, 배포/env 문서와 backlog 동기화 |
+| 핵심 리스크 | production은 `ddl-auto=validate` 기준이라 `feedbacks` 신규 컬럼 수동 반영과 `FEEDBACK_DISCORD_WEBHOOK_URL` 주입 절차가 먼저 필요하다. Discord timeout 이후 실제 전송 성공 여부를 즉시 확정할 수 없어 중복 알림 가능성은 남아 있다 |
+| 참조 문서 | [Feature Backlog](./Feature%20Backlog.md), [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md), [Day 21](./Development%20Log/Day%2021.md) |
+| 다음 로그 대상 | 기록 그래프 시각화, 타이머 Ao5/Ao12, 모바일 UX 중 다음 backlog 슬라이스 선택 결과 |
 
 ## 로그 파일 목록
 

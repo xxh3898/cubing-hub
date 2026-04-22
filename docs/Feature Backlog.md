@@ -18,7 +18,7 @@
 | ---------------------- | ----- | ------------------------ |
 | Timer & Records        | 5     | 기록 분석, 타이머 UX, 데이터 활용 확장 |
 | UI / UX Polish         | 2     | 공통 문구와 페이지네이션 사용성 개선 |
-| Feedback & Integration | 1     | 피드백 전달 흐름 실사용화           |
+| Feedback & Integration | 1     | 피드백 운영 알림과 확인 흐름 실사용화     |
 | Mobile UX              | 2     | 모바일 접근성과 입력 방식 보강        |
 | Reference Notes        | 1     | 비교 서비스 기반 기능 후보 탐색       |
 
@@ -41,9 +41,9 @@
 
 ## Feedback & Integration
 
-| Feature             | Status    | Priority | User Value                          | Related Docs                                                                                                                                                                    | Notes                                         |
-| ------------------- | --------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 피드백을 지정한 이메일로 실제 전송 | candidate | 미정       | 서비스 안에서 보낸 피드백을 실제 운영 채널로 연결할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md) | 수신 주소와 메일 전송 설정은 코드 하드코딩이 아니라 환경설정으로 관리해야 한다. |
+| Feature | Status | Priority | User Value | Related Docs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 피드백 Discord 운영 알림과 재시도 | done | 완료 | 서비스 안에서 보낸 피드백을 운영 채널로 즉시 연결하고 실패 시 사용자 기준으로 재시도할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md), [Screen Specification](./Screen%20Specification.md) | `POST /api/feedbacks` 응답에 Discord 알림 상태를 포함하고, 실패 시 `/api/feedbacks/{feedbackId}/notification-retry`로 재시도할 수 있도록 반영했다. |
 
 ## Mobile UX
 

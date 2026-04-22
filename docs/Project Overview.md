@@ -49,6 +49,7 @@
   - 제목·닉네임 검색, 카테고리 필터링
 - 피드백
   - 버그 제보, 기능 제안 등 관리자에게 전달
+  - Discord 운영 알림 전송 상태 확인 및 실패 시 재시도
 
 ### 시스템 기능
 
@@ -184,7 +185,7 @@ flowchart TD
 - 마이페이지 / 피드백
   - 마이페이지는 프로필/요약, 전체 기록 페이지 조회, 기록 penalty 수정/삭제가 연동되어 있다.
   - 홈 대시보드는 `GET /api/home` 기준으로 연동되어 있다.
-  - 피드백은 `POST /api/feedbacks` 기준으로 로그인 사용자 제출 흐름과 회신 이메일 입력이 연동되어 있다.
+  - 피드백은 `POST /api/feedbacks` 기준으로 로그인 사용자 제출, Discord 운영 알림 상태 확인, 실패 시 재시도 흐름까지 연동한다.
 - 운영
   - 로컬 Docker Compose, 분리 CI, REST Docs, 수동 benchmark workflow는 준비되어 있다.
   - MySQL V1 baseline과 Redis V2 비교 산출물은 확보했다.

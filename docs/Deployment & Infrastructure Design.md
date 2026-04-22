@@ -105,6 +105,7 @@
   - `LOCAL_DB_PASSWORD`
   - `LOCAL_JWT_SECRET`
   - `LOCAL_GRAFANA_ADMIN_PASSWORD`
+  - `LOCAL_FEEDBACK_DISCORD_WEBHOOK_URL`
 - `docker compose up -d`
   - `LOCAL_DB_PASSWORD`, `LOCAL_GRAFANA_ADMIN_PASSWORD`를 사용한다.
 - `cd backend && ./gradlew bootRun`
@@ -133,6 +134,8 @@
   - 기본값 `validate`, first deploy 1회만 `update` 권장
 - `AUTH_REFRESH_COOKIE_SECURE`
   - 기본값 `true`
+- `FEEDBACK_DISCORD_WEBHOOK_URL`
+  - Discord incoming webhook URL
 - `MONITORING_PROMETHEUS_PERMIT_ALL`
   - 기본값 `false`, local scraping 재현이 필요할 때만 제한적으로 사용
 - `RANKING_REDIS_REBUILD_ON_STARTUP`
@@ -157,6 +160,15 @@
 - 프로덕션용 민감 정보는 환경 변수나 승인된 배포 설정에서 주입한다.
 - local 개발용 값도 추적 파일에 직접 넣지 않고 `.env` 같은 비추적 파일로 분리한다.
 - 로컬 개발 편의 설정은 프로덕션 보안 정책으로 그대로 승격하지 않는다.
+- Discord webhook URL도 비밀값으로 취급하고 로그나 문서 본문에 직접 노출하지 않는다.
+
+### 피드백 Discord 알림 반영 절차
+
+- production은 `infra/docker/.env`에 `FEEDBACK_DISCORD_WEBHOOK_URL`을 추가한 뒤 backend container를 재기동한다.
+- 이번 기능처럼 `feedbacks` 테이블에 새 컬럼이 추가되는 변경은 production에서 schema 반영 절차가 먼저 필요하다.
+- 현재 production 기본값이 `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`이므로, 새 컬럼 반영 시에는 아래 둘 중 하나를 선택한다.
+  - 운영 DB에 `ALTER TABLE feedbacks ...`를 수동 적용
+  - 또는 1회 배포 동안만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 올린 뒤 반영 확인 후 다시 `validate`로 원복
 
 ## 5. CI/CD 파이프라인
 

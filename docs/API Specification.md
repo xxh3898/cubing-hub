@@ -80,6 +80,7 @@
 | `POST` | `/api/posts/{postId}/comments` | Auth | 댓글 생성 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}/comments/{commentId}` | Auth | 댓글 삭제 | 구현됨 |
 | `POST` | `/api/feedbacks` | Auth | 피드백 접수 | 구현됨 |
+| `POST` | `/api/feedbacks/{feedbackId}/notification-retry` | Auth | Discord 운영 알림 재시도 | 구현됨 |
 
 ## 6. 인증 API
 
@@ -680,7 +681,7 @@
 
 ### `POST /api/feedbacks`
 
-- 설명: 버그 제보, 기능 제안 등 사용자 피드백을 저장한다.
+- 설명: 버그 제보, 기능 제안 등 사용자 피드백을 저장하고 Discord 운영 알림 전송을 시도한다.
 - 인증: Access Token 필요
 - 멱등성: 비멱등
 
@@ -697,12 +698,48 @@
 
 - 상태 코드: `201 Created`
 - `data.id`: 생성된 피드백 ID
+- `data.notificationStatus`: Discord 알림 상태 (`PENDING`, `SUCCESS`, `FAILED`)
+- `data.notificationAttemptCount`: Discord 알림 시도 횟수
+- `data.notificationRetryAvailable`: 재시도 가능 여부
 - `replyEmail`은 제출 시점의 회신용 이메일 주소를 snapshot으로 저장한다.
+- 응답 메시지는 Discord 운영 알림 성공/실패 결과를 함께 반영할 수 있다.
 
 #### 실패 응답
 
 - `401 Unauthorized`
   - `Authorization` 헤더가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
+
+### `POST /api/feedbacks/{feedbackId}/notification-retry`
+
+- 설명: Discord 운영 알림이 실패한 피드백에 대해 다시 전송을 시도한다.
+- 인증: Access Token 필요
+- 인가: 작성자 본인 또는 `ROLE_ADMIN`
+- 멱등성: 비멱등
+
+#### Path Parameter
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `feedbackId` | Number | 예 | 재시도할 피드백 ID |
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data.id`: 피드백 ID
+- `data.notificationStatus`: Discord 알림 상태 (`SUCCESS`, `FAILED`)
+- `data.notificationAttemptCount`: 누적 알림 시도 횟수
+- `data.notificationRetryAvailable`: 재시도 가능 여부
+
+#### 실패 응답
+
+- `401 Unauthorized`
+  - 인증 정보가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
+- `403 Forbidden`
+  - 작성자 본인 또는 `ROLE_ADMIN`이 아니면 응답 메시지는 `피드백 알림 재시도 권한이 없습니다.`
+- `404 Not Found`
+  - 해당 피드백이 없으면 응답 메시지는 `피드백을 찾을 수 없습니다.`
+- `409 Conflict`
+  - 이미 Discord 알림 전송을 완료한 피드백이면 응답 메시지는 `이미 Discord 알림 전송을 완료했습니다.`
 
 ## 15. 문서화 메모
 
@@ -711,6 +748,6 @@
 
 ## 16. 미확정 사항
 
-- 피드백 메일 전달이 필요한 경우의 전송 실패 처리와 운영 정책
+- Discord 운영 알림 자동 재시도 큐 또는 백오피스 조회 화면을 추가할지 여부
 - 운영 환경에서의 Redis 재구축 시점과 트리거 정책
 - 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부

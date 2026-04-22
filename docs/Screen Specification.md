@@ -377,22 +377,27 @@
   - 본문 textarea
 - 화면 데이터 요구사항
   - `POST /api/feedbacks`
+  - `POST /api/feedbacks/{feedbackId}/notification-retry`
   - 현재 로그인 사용자 컨텍스트
 - 상태 및 예외
   - validation error
   - 제출 성공/실패 메시지
+  - Discord 운영 알림 성공/실패 상태
+  - Discord 운영 알림 실패 시 재시도 상태
   - auth failure 시 로그인 이동
 - 사용자 액션
   - 피드백 종류 선택
   - 회신 이메일 확인 또는 수정
   - 제목/본문 입력
   - 제출
+  - Discord 운영 알림 재시도
 - 구현 상태
-  - `POST /api/feedbacks` 실연동이 구현되어 있다.
+  - `POST /api/feedbacks`와 `POST /api/feedbacks/{feedbackId}/notification-retry` 실연동이 구현되어 있다.
   - 보호 route로 로그인 사용자만 접근할 수 있다.
   - 회신 이메일 input은 현재 로그인 사용자 이메일을 기본값으로 채우고 수정 가능하다.
   - 서버는 제출자를 현재 로그인 사용자와 연결하고 `reply_email` snapshot을 함께 저장한다.
-  - 제출 성공 시 같은 화면에서 성공 메시지를 노출하고 폼을 초기화한다.
+  - 제출 후 Discord 운영 알림 상태를 같은 화면에서 바로 확인할 수 있다.
+  - Discord 운영 알림 실패 시 같은 화면에서 재시도 버튼을 제공한다.
 
 ### 인증 리다이렉트
 

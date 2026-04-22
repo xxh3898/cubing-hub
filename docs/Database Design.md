@@ -204,7 +204,7 @@ Records 1:1 (또는 1:0) User_PBs
 - 목적:
   - 피드백을 저장하거나 아카이브하는 선택 저장 모델이다.
 - 설명:
-  - Day 16 MVP는 로그인 사용자 기준 DB 저장을 기본 경로로 사용하고, 필요 시 관리자 메일 전달을 확장한다.
+  - 로그인 사용자 기준 DB 저장을 source of truth로 사용하고, Discord 운영 알림 상태와 재시도 이력을 함께 관리한다.
   - 제출 시점의 회신용 이메일 주소를 `reply_email`에 함께 보관한다.
 
 | Field | Type | Description |
@@ -215,13 +215,18 @@ Records 1:1 (또는 1:0) User_PBs
 | `title` | `varchar(100)` | 피드백 제목 |
 | `reply_email` | `varchar(255)` | 제출 시점 회신용 이메일 snapshot |
 | `content` | `text` | 피드백 상세 내용 |
+| `notification_status` | `varchar(20)` | Discord 운영 알림 상태 (`PENDING`, `SUCCESS`, `FAILED`) |
+| `notification_attempt_count` | `int` | Discord 운영 알림 누적 시도 횟수 |
+| `notification_last_attempt_at` | `timestamp` | 마지막 Discord 운영 알림 시도 시각 |
+| `notification_last_error` | `varchar(500)` | 마지막 Discord 운영 알림 실패 요약 |
 | `created_at` | `timestamp` | 제출일 |
 
 #### 비고
 
 - 피드백은 로그인 사용자만 제출할 수 있다.
 - `user_id`와 `reply_email`을 함께 저장해 작성자 계정과 회신 주소를 분리 보관한다.
-- 발송 상태, 처리 이력까지 관리하려면 추가 스키마 보강이 필요하다.
+- Discord 운영 알림 실패 시 사용자가 재시도할 수 있도록 상태 컬럼을 유지한다.
+- 긴 본문은 Discord 채널에는 일부만 표시하고, `feedbackId`를 기준으로 전체 내용은 DB에서 확인할 수 있게 한다.
 
 ## 5. 제약조건 정책
 
