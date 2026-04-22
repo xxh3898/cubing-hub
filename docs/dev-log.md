@@ -15,11 +15,11 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Backlog polish: 홈 일일 스크램블 + 공통 페이지네이션 + 상단 카피 정리 |
-| 상태 | 홈 `todayScramble`을 `Asia/Seoul` 날짜 기준으로 고정했고, 랭킹/커뮤니티/댓글/마이페이지에 grouped 페이지네이션을 반영했다. 상단 helper text와 관련 설계 문서도 함께 동기화했고, 자동 검증은 통과했다 |
-| 범위 | home scramble generation policy 분리, frontend 공통 페이지네이션 컴포넌트 적용, 상단 소개 문구 정리, `Feature Backlog` / `Screen Specification` / `API Specification` 동기화 |
-| 핵심 리스크 | 자정 경계 전후 `todayScramble` 교체 타이밍과 grouped 페이지네이션의 모바일 터치 사용성은 아직 수동 검증이 남아 있다 |
-| 참조 문서 | [Feature Backlog](./Feature%20Backlog.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md), [Day 21](./Development%20Log/Day%2021.md) |
+| 작업명 | Backlog implement: 타이머 스크램블 이미지 렌더링 |
+| 상태 | `TimerPage` 상단 스크램블 패널에 VisualCube 기반 이미지 미리보기를 추가했고, 이미지 로드 실패 시 텍스트 스크램블만 유지하도록 fallback을 넣었다. 프런트 `lint`, `test`, `build`는 통과했다 |
+| 범위 | `TimerPage` 스크램블 시각화 UI 추가, 타이머 스타일 보강, 타이머 회귀 테스트 추가, `Feature Backlog` / `Screen Specification` 동기화 |
+| 핵심 리스크 | VisualCube 외부 응답이 느리거나 실패하는 운영 브라우저 상황의 체감 UX와 모바일 레이아웃은 아직 수동 검증이 남아 있다 |
+| 참조 문서 | [Feature Backlog](./Feature%20Backlog.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [Day 21](./Development%20Log/Day%2021.md) |
 | 다음 로그 대상 | 피드백 메일 실제 전송 또는 모바일 UX 관련 다음 backlog 항목 선택 결과 |
 
 ## 로그 파일 목록

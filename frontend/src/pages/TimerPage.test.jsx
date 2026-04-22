@@ -48,6 +48,29 @@ describe('TimerPage', () => {
     })
   })
 
+  it('should_render_scramble_visual_when_supported_scramble_is_loaded', async () => {
+    render(<TimerPage />)
+
+    const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
+
+    expect(scrambleVisual).toBeInTheDocument()
+    expect(scrambleVisual).toHaveAttribute('src', expect.stringContaining('alg=R+U+R%27+U%27'))
+    expect(scrambleVisual).toHaveAttribute('src', expect.stringContaining('sch=wrgyob'))
+  })
+
+  it('should_fallback_to_text_only_when_scramble_visual_fails_to_load', async () => {
+    render(<TimerPage />)
+
+    const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
+    fireEvent.error(scrambleVisual)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('img', { name: '현재 스크램블 시각화' })).not.toBeInTheDocument()
+    })
+
+    expect(screen.getByText('스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.')).toBeInTheDocument()
+  })
+
   it('should_update_recent_record_penalty_when_penalty_update_succeeds', async () => {
     vi.mocked(updateRecordPenalty).mockResolvedValue({
       message: '기록 페널티가 수정되었습니다.',

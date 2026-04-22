@@ -3,6 +3,7 @@ import { deleteRecord, getScramble, saveRecord, updateRecordPenalty } from '../a
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
+import { buildVisualCubeUrl } from '../utils/visualCube.js'
 
 function formatRecordedTime(milliseconds) {
   const totalMilliseconds = Math.max(0, Math.floor(milliseconds))
@@ -91,6 +92,7 @@ export default function TimerPage() {
   const [scrambleData, setScrambleData] = useState(null)
   const [scrambleMessage, setScrambleMessage] = useState(null)
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
+  const [hasScrambleVisualError, setHasScrambleVisualError] = useState(false)
   const [saveMessage, setSaveMessage] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
@@ -101,6 +103,16 @@ export default function TimerPage() {
   const isSupported = Boolean(currentEvent?.supported)
   const hasScramble = Boolean(scrambleData?.scramble)
   const timerEnabled = isSupported && hasScramble && !isLoadingScramble
+  const scrambleVisualUrl = useMemo(() => {
+    if (selectedEvent !== 'WCA_333' || !scrambleData?.scramble) {
+      return null
+    }
+
+    const visualUrl = new URL(buildVisualCubeUrl({ puzzle: '3x3' }))
+    visualUrl.searchParams.set('alg', scrambleData.scramble)
+    visualUrl.searchParams.set('sch', 'wrgyob')
+    return visualUrl.toString()
+  }, [scrambleData?.scramble, selectedEvent])
 
   const { status, finalTime, formattedTime, resetTimer } = useCubeTimer({
     enabled: timerEnabled,
@@ -134,6 +146,10 @@ export default function TimerPage() {
 
     loadScramble(selectedEvent)
   }, [isSupported, resetTimer, selectedEvent])
+
+  useEffect(() => {
+    setHasScrambleVisualError(false)
+  }, [scrambleVisualUrl])
 
   const handleEventChange = (event) => {
     setSelectedEvent(event.target.value)
@@ -246,13 +262,27 @@ export default function TimerPage() {
     <section className="page-grid timer-page">
       <div className="panel timer-layout">
         <div className="timer-scramble-panel timer-scramble-full">
-          <div className="timer-scramble-copy">
-            <p className="eyebrow">현재 스크램블</p>
-            <p className="scramble-text timer-scramble-text">
-              {isLoadingScramble
-                ? '스크램블을 불러오는 중입니다...'
-                : scrambleData?.scramble ?? '지원 종목을 선택하거나 스크램블을 다시 불러와 주세요.'}
-            </p>
+          <div className="timer-scramble-content">
+            <div className="timer-scramble-copy">
+              <p className="eyebrow">현재 스크램블</p>
+              <p className="scramble-text timer-scramble-text">
+                {isLoadingScramble
+                  ? '스크램블을 불러오는 중입니다...'
+                  : scrambleData?.scramble ?? '지원 종목을 선택하거나 스크램블을 다시 불러와 주세요.'}
+              </p>
+              {scrambleVisualUrl && hasScrambleVisualError ? (
+                <p className="helper-text timer-visual-fallback">스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.</p>
+              ) : null}
+            </div>
+            {scrambleVisualUrl && !hasScrambleVisualError ? (
+              <div className="timer-scramble-visual">
+                <img
+                  src={scrambleVisualUrl}
+                  alt="현재 스크램블 시각화"
+                  onError={() => setHasScrambleVisualError(true)}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 

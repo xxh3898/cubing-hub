@@ -16,7 +16,7 @@
 | 화면 | 경로 | 핵심 기능 | 상태 |
 | --- | --- | --- | --- |
 | 홈 | `/` | 오늘의 스크램블, 프로필/통계 요약, 최근 기록 | `GET /api/home` 연동 완료 |
-| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
+| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스크램블 이미지 미리보기, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
@@ -129,6 +129,8 @@
 - 구현 상태
   - `GET /api/scramble`, `POST /api/records`, `PATCH /api/records/{recordId}`, `DELETE /api/records/{recordId}` 연동이 구현되어 있다.
   - 지원 범위: `WCA_333`
+  - 현재 스크램블 텍스트와 함께 VisualCube 기반 이미지 미리보기를 노출한다.
+  - 이미지 로드 실패 시에는 텍스트 스크램블만 유지한다.
   - 지원하지 않는 종목은 안내 메시지와 함께 차단된다.
 
 ### 랭킹

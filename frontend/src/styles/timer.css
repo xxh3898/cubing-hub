@@ -42,6 +42,30 @@
   width: 100%;
 }
 
+.timer-scramble-content {
+  display: grid;
+  gap: 20px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+}
+
+.timer-scramble-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 220px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(248, 245, 239, 0.08);
+  border: 1px solid rgba(248, 245, 239, 0.12);
+}
+
+.timer-scramble-visual img {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+}
+
 .timer-scramble-panel .eyebrow,
 .timer-scramble-panel .helper-text,
 .timer-scramble-panel label {
@@ -125,6 +149,10 @@
   margin-top: 12px !important;
   font-size: clamp(1.15rem, 2.8vw, 1.5rem);
   line-height: 1.85;
+}
+
+.timer-visual-fallback {
+  margin-top: 12px !important;
 }
 
 .timer-actions {
@@ -213,4 +241,10 @@
 .timer-helper {
   max-width: 480px;
   text-align: center;
+}
+
+@media (max-width: 900px) {
+  .timer-scramble-content {
+    grid-template-columns: 1fr;
+  }
 }
