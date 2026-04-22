@@ -1,26 +1,47 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCubeTimer } from './useCubeTimer.js'
 
-function CubeTimerHarness({ enabled = true }) {
-  const {
-    status,
-    handlePointerCancel,
-    handlePointerDown,
-    handlePointerUp,
-  } = useCubeTimer({ enabled })
+function dispatchSpaceKeyEvent(type, options = {}) {
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      code: 'Space',
+      ...options,
+    }))
+  })
+}
 
-  return (
-    <button
-      type="button"
-      data-testid="timer-touch-surface"
-      onPointerCancel={handlePointerCancel}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-    >
-      {status}
-    </button>
-  )
+function dispatchWindowBlur() {
+  act(() => {
+    window.dispatchEvent(new Event('blur'))
+  })
+}
+
+function createPointerTarget() {
+  let capturedPointerId = null
+
+  return {
+    setPointerCapture: vi.fn((pointerId) => {
+      capturedPointerId = pointerId
+    }),
+    hasPointerCapture: vi.fn((pointerId) => capturedPointerId === pointerId),
+    releasePointerCapture: vi.fn((pointerId) => {
+      if (capturedPointerId === pointerId) {
+        capturedPointerId = null
+      }
+    }),
+  }
+}
+
+function createPointerEvent({ pointerId = 1, pointerType = 'touch', currentTarget = createPointerTarget() } = {}) {
+  return {
+    currentTarget,
+    pointerId,
+    pointerType,
+    preventDefault: vi.fn(),
+  }
 }
 
 describe('useCubeTimer', () => {
@@ -36,107 +57,144 @@ describe('useCubeTimer', () => {
     vi.restoreAllMocks()
   })
 
-  it('should_transition_to_running_when_spacebar_is_held_and_released', async () => {
+  it('should_transition_to_running_when_spacebar_is_held_and_released', () => {
     vi.spyOn(performance, 'now').mockReturnValue(1000)
-    render(<CubeTimerHarness />)
 
-    fireEvent.keyDown(window, { code: 'Space' })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('holding')
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300)
+    dispatchSpaceKeyEvent('keydown')
+    expect(result.current.status).toBe('holding')
+
+    act(() => {
+      vi.advanceTimersByTime(300)
     })
 
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('ready')
+    expect(result.current.status).toBe('ready')
 
-    fireEvent.keyUp(window, { code: 'Space' })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('running')
+    dispatchSpaceKeyEvent('keyup')
+    expect(result.current.status).toBe('running')
   })
 
-  it('should_transition_to_running_when_touch_hold_completes_and_pointer_is_released', async () => {
+  it('should_transition_to_running_when_touch_hold_completes_and_pointer_is_released', () => {
     vi.spyOn(performance, 'now').mockReturnValue(1000)
-    render(<CubeTimerHarness />)
 
-    fireEvent.pointerDown(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
+    const pointerTarget = createPointerTarget()
+
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent({ currentTarget: pointerTarget }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('holding')
+    expect(result.current.status).toBe('holding')
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300)
+    act(() => {
+      vi.advanceTimersByTime(300)
     })
 
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('ready')
+    expect(result.current.status).toBe('ready')
 
-    fireEvent.pointerUp(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerUp(createPointerEvent({ currentTarget: pointerTarget }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('running')
+    expect(result.current.status).toBe('running')
   })
 
-  it('should_return_to_idle_when_touch_is_released_before_hold_delay', async () => {
-    render(<CubeTimerHarness />)
+  it('should_return_to_idle_when_touch_is_released_before_hold_delay', () => {
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
+    const pointerTarget = createPointerTarget()
 
-    fireEvent.pointerDown(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent({ currentTarget: pointerTarget }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('holding')
+    expect(result.current.status).toBe('holding')
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(150)
+    act(() => {
+      vi.advanceTimersByTime(150)
     })
 
-    fireEvent.pointerUp(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerUp(createPointerEvent({ currentTarget: pointerTarget }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('idle')
+    expect(result.current.status).toBe('idle')
   })
 
-  it('should_stop_timer_when_touch_starts_while_running', async () => {
+  it('should_stop_timer_when_touch_starts_while_running', () => {
     vi.spyOn(performance, 'now')
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(2450)
 
-    render(<CubeTimerHarness />)
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
+    const firstPointerTarget = createPointerTarget()
 
-    fireEvent.pointerDown(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent({ currentTarget: firstPointerTarget, pointerId: 1 }))
     })
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300)
+    act(() => {
+      vi.advanceTimersByTime(300)
     })
 
-    fireEvent.pointerUp(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerUp(createPointerEvent({ currentTarget: firstPointerTarget, pointerId: 1 }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('running')
+    expect(result.current.status).toBe('running')
 
-    fireEvent.pointerDown(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 2,
-      pointerType: 'touch',
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent({ pointerId: 2 }))
     })
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('stopped')
+    expect(result.current.status).toBe('stopped')
+    expect(result.current.finalTime).toBe(1450)
   })
 
   it('should_ignore_mouse_pointer_events_when_touch_handlers_receive_mouse_input', () => {
-    render(<CubeTimerHarness />)
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
 
-    fireEvent.pointerDown(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'mouse',
-    })
-    fireEvent.pointerUp(screen.getByTestId('timer-touch-surface'), {
-      pointerId: 1,
-      pointerType: 'mouse',
+    act(() => {
+      result.current.handlePointerDown(createPointerEvent({ pointerId: 1, pointerType: 'mouse' }))
+      result.current.handlePointerUp(createPointerEvent({ pointerId: 1, pointerType: 'mouse' }))
     })
 
-    expect(screen.getByTestId('timer-touch-surface')).toHaveTextContent('idle')
+    expect(result.current.status).toBe('idle')
+  })
+
+  it('should_preserve_running_timer_when_window_blurs_during_active_solve', () => {
+    vi.spyOn(performance, 'now')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(2450)
+
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
+
+    dispatchSpaceKeyEvent('keydown')
+
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+
+    dispatchSpaceKeyEvent('keyup')
+    expect(result.current.status).toBe('running')
+
+    dispatchWindowBlur()
+    expect(result.current.status).toBe('running')
+
+    dispatchSpaceKeyEvent('keydown')
+    expect(result.current.status).toBe('stopped')
+    expect(result.current.finalTime).toBe(1450)
+  })
+
+  it('should_cancel_pending_start_when_window_blurs_in_ready_state', () => {
+    const { result } = renderHook(() => useCubeTimer({ enabled: true }))
+
+    dispatchSpaceKeyEvent('keydown')
+
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(result.current.status).toBe('ready')
+
+    dispatchWindowBlur()
+
+    expect(result.current.status).toBe('idle')
+    expect(result.current.displayTime).toBe(0)
+    expect(result.current.finalTime).toBeNull()
   })
 })

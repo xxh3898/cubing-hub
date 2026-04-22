@@ -163,8 +163,15 @@ export function useCubeTimer({ enabled }) {
   }, [])
 
   const handleWindowBlur = useCallback(() => {
-    resetTimer()
-  }, [resetTimer])
+    clearActivePointer()
+
+    if (status === 'holding' || status === 'ready') {
+      resetTimer()
+      return
+    }
+
+    clearHoldTimeout()
+  }, [clearActivePointer, clearHoldTimeout, resetTimer, status])
 
   const handlePointerDown = useCallback((event) => {
     if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current != null || !enabled) {
