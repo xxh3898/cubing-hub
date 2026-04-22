@@ -34,7 +34,7 @@
 - 홈 대시보드
   - 오늘의 스크램블, 프로필, PB, 평균, 최근 기록 요약
 - 타이머
-  - 홀드 300ms → 준비 → 시작의 3단계 상태 머신
+  - keyboard `Space` 또는 모바일 터치 홀드 300ms → 준비 → 시작의 3단계 상태 머신
   - 스크램블 조회 및 기록 자동 저장
   - 최근 12개 기록 기준 `Ao5`, `Ao12`
   - 최근 기록 `PLUS_TWO`, `DNF`, 삭제 액션
@@ -114,17 +114,17 @@
 
 ```mermaid
 flowchart TD
-    Idle([Idle]) --> KeyDown{Spacebar\nKeyDown}
-    KeyDown --> Holding[Holding...]
+    Idle([Idle]) --> InputStart{Spacebar Down\nor Touch Hold Start}
+    InputStart --> Holding[Holding...]
     Holding --> HoldCheck{300ms\n경과?}
-    HoldCheck -- No --> Cancel{KeyUp 발생?}
+    HoldCheck -- No --> Cancel{Input End\n발생?}
     Cancel -- Yes --> Idle
     Cancel -- No --> HoldCheck
     HoldCheck -- Yes --> Ready([Ready])
-    Ready --> KeyUp{Spacebar\nKeyUp}
-    KeyUp --> Running[Timer Running...]
-    Running --> StopKey{Spacebar\nKeyDown}
-    StopKey --> Stopped[Stopped]
+    Ready --> InputRelease{Spacebar Up\nor Touch Release}
+    InputRelease --> Running[Timer Running...]
+    Running --> StopInput{Spacebar Down\nor Touch Press}
+    StopInput --> Stopped[Stopped]
     Stopped --> Req[POST /api/records]
     Req --> DB[(Save Record to RDS)]
     DB --> PB[Upsert User PB]
@@ -137,17 +137,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Idle([Idle]) --> KeyDown{Spacebar\nKeyDown}
-    KeyDown --> Holding[Holding...]
+    Idle([Idle]) --> InputStart{Spacebar Down\nor Touch Hold Start}
+    InputStart --> Holding[Holding...]
     Holding --> HoldCheck{300ms\n경과?}
-    HoldCheck -- No --> Cancel{KeyUp 발생?}
+    HoldCheck -- No --> Cancel{Input End\n발생?}
     Cancel -- Yes --> Idle
     Cancel -- No --> HoldCheck
     HoldCheck -- Yes --> Ready([Ready])
-    Ready --> KeyUp{Spacebar\nKeyUp}
-    KeyUp --> Running[Timer Running...]
-    Running --> StopKey{Spacebar\nKeyDown}
-    StopKey --> Stopped[Stopped]
+    Ready --> InputRelease{Spacebar Up\nor Touch Release}
+    InputRelease --> Running[Timer Running...]
+    Running --> StopInput{Spacebar Down\nor Touch Press}
+    StopInput --> Stopped[Stopped]
     Stopped --> Req[POST /api/records]
     Req --> DB[(Save Record to RDS)]
     DB --> PB[Upsert User PB]
@@ -184,6 +184,10 @@ flowchart TD
 - 커뮤니티
   - 게시글 CRUD API는 구현되어 있다.
   - 댓글 API와 프런트 댓글 연동이 구현되어 있다.
+- 프런트 모바일 대응
+  - 상단 nav는 모바일 폭에서 grid형으로 재배치된다.
+  - 홈, 랭킹, 커뮤니티, 마이페이지의 테이블형 데이터는 모바일에서 stacked card row로 전환된다.
+  - 타이머는 keyboard `Space`와 모바일 `touch`/`pen` pointer 입력을 같은 상태 머신으로 처리한다.
 - 마이페이지 / 피드백
   - 마이페이지는 프로필/요약, 주 종목 기준 최근 기록 추세 그래프, 전체 기록 페이지 조회, 기록 penalty 수정/삭제가 연동되어 있다.
   - 홈 대시보드는 `GET /api/home` 기준으로 연동되어 있다.

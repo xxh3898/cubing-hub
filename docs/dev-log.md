@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Auth hardening: 회원가입 이메일 인증 |
-| 상태 | 회원가입 전에 이메일 인증번호 request/confirm 단계와 Redis TTL 검증 상태, SMTP sender, signup gating, 프런트 2단계 UX를 추가했다. backend `test`, `build`, frontend `lint`, `test`, `build`는 통과했다 |
-| 범위 | auth API 2종 추가, signup 서버 검증 강화, SMTP 환경 변수/설정 추가, signup 화면 이메일 인증 단계 추가, auth 테스트/REST Docs/설계 문서 동기화 |
-| 핵심 리스크 | 실제 SMTP 자격 증명 연결과 실메일 발송은 아직 수동 검증이 필요하다. abuse 방어는 현재 이메일 단위 resend cooldown만 있고, CAPTCHA/IP rate limit은 범위 밖이다. frontend bundle은 여전히 500kB 초과 경고를 출력한다 |
-| 참조 문서 | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [Day 22](./Development%20Log/Day%2022.md) |
-| 다음 로그 대상 | 실제 SMTP 운영 값 연결과 수동 가입 검증, 또는 abuse 방어 추가 범위 결정 |
+| 작업명 | Frontend mobile compatibility: 카드형 테이블 + 타이머 터치 입력 |
+| 상태 | 모바일 상단 nav, 툴바, 테이블형 데이터 표현을 재배치했고 타이머에 `touch`/`pen` 입력을 추가했다. frontend `lint`, `test`, `build`는 통과했고 390px 기준 headless Chrome 캡처로 주요 공개 화면을 다시 확인했다 |
+| 범위 | `responsive.css` 중심 모바일 레이아웃 보강, 홈/랭킹/커뮤니티/마이페이지의 stacked card row 전환, `useCubeTimer` 터치 상태 머신 추가, 타이머 프런트 테스트 보강, 화면/개요/개발 로그 문서 동기화 |
+| 핵심 리스크 | 로그인 사용자 홈/마이페이지의 실제 데이터 채워진 상태와 물리 모바일 기기 터치 UX는 아직 end-to-end 수동 검증하지 않았다. frontend bundle은 여전히 500kB 초과 경고를 출력한다 |
+| 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) |
+| 다음 로그 대상 | 로그인 사용자 모바일 화면 수동 점검, 또는 추가 responsive polish가 필요할 때 후속 로그를 남긴다 |
 
 ## 로그 파일 목록
 
@@ -30,7 +30,7 @@
 | Core API | [Day 8](./Development%20Log/Day%2008.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md) | Redis 랭킹 V2 재측정, AWS 1차 배포와 운영 이슈 정리, 회원가입 이메일 인증 추가 |
+| 최신 로그 | [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) | AWS 1차 배포와 운영 이슈 정리, 회원가입 이메일 인증 추가, 모바일 UI 호환성과 타이머 터치 입력 정리 |
 
 ## 주요 설계 결정 추적
 
@@ -41,8 +41,8 @@
 
 ## 최근 정리 문서
 
-- 최근 일자 로그: [Day 22](./Development%20Log/Day%2022.md)
-- 현재 작업 요약: [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md)
+- 최근 일자 로그: [Day 23](./Development%20Log/Day%2023.md)
+- 현재 작업 요약: [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md)
 - 현재 단계 리뷰: [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md)
 - 인증 설계 기준: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md)
 - API 계약 기준: [API Specification](./API%20Specification.md)
