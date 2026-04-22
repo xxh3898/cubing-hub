@@ -16,7 +16,7 @@
 | 화면 | 경로 | 핵심 기능 | 상태 |
 | --- | --- | --- | --- |
 | 홈 | `/` | 오늘의 스크램블, 프로필/통계 요약, 최근 기록 | `GET /api/home` 연동 완료 |
-| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스크램블 이미지 미리보기, 스페이스바 상태 머신, 기록 저장 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
+| 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스크램블 이미지 미리보기, 스페이스바 상태 머신, 기록 저장, Ao5/Ao12 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
@@ -24,7 +24,7 @@
 | 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | 게시글 상세/댓글/삭제 연동 완료 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
 | 회원가입 | `/signup` | 이메일/비밀번호/닉네임/주 종목 입력 | `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
-| 마이페이지 | `/mypage` | 프로필, 기록 요약, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
+| 마이페이지 | `/mypage` | 프로필, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 route + `POST /api/feedbacks` 연동 완료 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
@@ -110,10 +110,12 @@
   - `타이머 초기화`
 - 화면 데이터 요구사항
   - `GET /api/scramble`
+  - `GET /api/users/me/records`
   - `POST /api/records`
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
   - 세션 최근 저장 기록
+  - 선택 종목 기준 최근 12개 기록 통계
   - 인증 상태(`accessToken`, `isAuthenticated`)
 - 상태 및 예외
   - `loading`: 스크램블 불러오는 중
@@ -130,6 +132,7 @@
   - `GET /api/scramble`, `POST /api/records`, `PATCH /api/records/{recordId}`, `DELETE /api/records/{recordId}` 연동이 구현되어 있다.
   - 지원 범위: `WCA_333`
   - 현재 스크램블 텍스트와 함께 VisualCube 기반 이미지 미리보기를 노출한다.
+  - 로그인 사용자는 선택 종목 기준 최근 12개 기록으로 `Ao5`, `Ao12`를 확인할 수 있다.
   - 이미지 로드 실패 시에는 텍스트 스크램블만 유지한다.
   - 지원하지 않는 종목은 안내 메시지와 함께 차단된다.
 
@@ -333,10 +336,12 @@
 - 레이아웃 구조
   - 프로필 카드
   - 요약 통계
+  - 주 종목 기록 추세 그래프
   - 전체 기록 테이블
   - 로그아웃
 - 주요 UI 요소
   - 로그아웃 버튼
+  - 기록 추세 그래프
   - 기록 테이블
 - 화면 데이터 요구사항
   - `GET /api/users/me/profile`
@@ -345,6 +350,7 @@
   - `DELETE /api/records/{recordId}`
   - 프로필
   - 통계
+  - 주 종목 기준 최근 기록 그래프
   - 전체 기록 목록
   - 로그아웃 처리
 - 상태 및 예외
@@ -360,6 +366,7 @@
   - 헤더 닉네임은 `/api/me` 기준으로 표시된다.
   - `/api/users/me/profile`로 프로필/요약을 조회한다.
   - `/api/users/me/records?page&size`로 전체 기록을 서버 페이지네이션으로 조회한다.
+  - 같은 records API를 재사용해 주 종목 기준 최근 기록 추세 그래프를 렌더링한다.
   - 전체 기록 페이지네이션은 `1~10` 단위 그룹과 `이전`, `다음`, `<<`, `>>` 이동으로 동작한다.
   - 기록 penalty 수정과 삭제 후 프로필/기록을 다시 조회해 화면을 갱신한다.
 

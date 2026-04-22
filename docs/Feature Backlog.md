@@ -26,9 +26,9 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 기록 그래프 시각화 | candidate | 미정 | 기록 추세와 개선 흐름을 한눈에 파악할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 마이페이지 또는 기록 대시보드 확장 후보 |
+| 기록 그래프 시각화 | done | 완료 | 기록 추세와 개선 흐름을 한눈에 파악할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 마이페이지에 주 종목 기준 최근 기록 추세 그래프를 반영했다. |
 | 타이머 페이지 스크램블에 맞게 이미지 렌더링 | done | 완료 | 현재 스크램블 텍스트를 더 직관적으로 이해할 수 있다. | [Screen Specification](./Screen%20Specification.md) | 타이머 상단 스크램블 패널에 VisualCube 기반 미리보기를 반영했다. |
-| 타이머 Ao5, Ao12 구현 | candidate | 미정 | 단일 기록 외 평균 지표까지 바로 확인할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 기록 통계 규칙과 UI 노출 방식 정리 필요 |
+| 타이머 Ao5, Ao12 구현 | done | 완료 | 단일 기록 외 평균 지표까지 바로 확인할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 타이머에서 선택 종목 기준 최근 12개 기록으로 Ao5, Ao12를 계산해 표시한다. |
 | 기록 내보내기 | candidate | 미정 | 개인 기록을 백업하거나 외부 도구와 연동할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | export format과 다운로드 방식 결정 필요 |
 | 오늘의 스크램블 날짜 기준 고정 | done | 완료 | 새로고침마다 바뀌지 않고 하루 동안 같은 스크램블을 기준으로 홈 경험을 유지할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | `GET /api/home`는 `Asia/Seoul` 날짜 기준으로 같은 날 같은 스크램블을 반환하도록 반영했다. |
 
