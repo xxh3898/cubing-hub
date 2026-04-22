@@ -24,3 +24,7 @@ cors:
 auth:
   refresh-cookie:
     secure: true
+
+feedback:
+  discord:
+    webhook-url:

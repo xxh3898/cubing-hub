@@ -43,3 +43,7 @@ ranking:
 monitoring:
   prometheus:
     permit-all: ${MONITORING_PROMETHEUS_PERMIT_ALL:false}
+
+feedback:
+  discord:
+    webhook-url: ${FEEDBACK_DISCORD_WEBHOOK_URL:}

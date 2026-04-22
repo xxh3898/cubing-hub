@@ -269,6 +269,15 @@ include::{snippets}/feedback/create/unauthorized/request-fields.adoc[]
 include::{snippets}/feedback/create/unauthorized/http-response.adoc[]
 include::{snippets}/feedback/create/unauthorized/response-fields.adoc[]
 
+=== Discord 운영 알림 재시도
+==== 요청
+include::{snippets}/feedback/retry/http-request.adoc[]
+include::{snippets}/feedback/retry/request-headers.adoc[]
+
+==== 응답
+include::{snippets}/feedback/retry/http-response.adoc[]
+include::{snippets}/feedback/retry/response-fields.adoc[]
+
 == 게시판 (Post)
 
 === 게시글 생성
