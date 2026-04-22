@@ -51,6 +51,23 @@ cors:
 auth:
   refresh-cookie:
     secure: false
+  email-verification:
+    code-expiration-ms: 600000
+    resend-cooldown-ms: 60000
+    verified-expiration-ms: 1800000
+    subject: Cubing Hub 이메일 인증
+
+smtp:
+  host: ${SMTP_HOST:}
+  port: ${SMTP_PORT:587}
+  username: ${SMTP_USERNAME:}
+  password: ${SMTP_PASSWORD:}
+  auth: ${SMTP_AUTH:true}
+  starttls-enable: ${SMTP_STARTTLS_ENABLE:true}
+  from-address: ${SMTP_FROM_ADDRESS:}
+  connection-timeout-ms: 5000
+  timeout-ms: 3000
+  write-timeout-ms: 5000
 
 ranking:
   redis:

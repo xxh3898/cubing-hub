@@ -1,7 +1,11 @@
 package com.cubinghub.domain.auth;
 
+import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
+import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
+import com.cubinghub.domain.auth.repository.EmailVerificationStore;
+import com.cubinghub.domain.auth.service.VerificationEmailSender;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -14,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -42,12 +47,20 @@ class AuthDocsTest extends RestDocsIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private EmailVerificationStore emailVerificationStore;
+
+    @MockBean
+    private VerificationEmailSender verificationEmailSender;
+
     private static final String TEST_PASSWORD = "password123!";
 
     @Test
     @DisplayName("회원가입에 성공한다")
     void should_create_user_when_signup_request_is_valid() throws Exception {
-        SignUpRequest request = new SignUpRequest(newEmail("signup"), TEST_PASSWORD, newNickname("CubeMaster"), "3x3x3");
+        String email = newEmail("signup");
+        markEmailVerified(email);
+        SignUpRequest request = new SignUpRequest(email, TEST_PASSWORD, newNickname("CubeMaster"), "WCA_333");
 
         ResultActions result = mockMvc.perform(post("/api/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -68,6 +81,90 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("이메일 인증번호 요청에 성공한다")
+    void should_request_email_verification_code_when_request_is_valid() throws Exception {
+        EmailVerificationRequest request = new EmailVerificationRequest(newEmail("verify-request"));
+
+        ResultActions result = mockMvc.perform(post("/api/auth/email-verification/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("인증번호를 이메일로 전송했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/email-verification/request",
+                        requestFields(
+                                fieldWithPath("email").description("인증번호를 받을 이메일")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("이메일 인증번호 확인에 성공한다")
+    void should_confirm_email_verification_when_code_matches() throws Exception {
+        String email = newEmail("verify-confirm");
+        requestVerificationCode(email);
+        String code = emailVerificationStore.getCode(email);
+        if (code == null) {
+            throw new IllegalStateException("verification code missing");
+        }
+
+        ResultActions result = mockMvc.perform(post("/api/auth/email-verification/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new EmailVerificationConfirmRequest(email, code))));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("이메일 인증이 완료되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/email-verification/confirm",
+                        requestFields(
+                                fieldWithPath("email").description("인증을 완료할 이메일"),
+                                fieldWithPath("code").description("이메일로 수신한 6자리 인증번호")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("이메일 인증 없이 회원가입을 요청하면 400을 반환한다")
+    void should_return_bad_request_when_signup_is_requested_without_email_verification() throws Exception {
+        SignUpRequest request = new SignUpRequest(newEmail("signup-unverified"), TEST_PASSWORD, newNickname("CubeMaster"), "WCA_333");
+
+        ResultActions result = mockMvc.perform(post("/api/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("이메일 인증이 필요합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/signup/bad-request-email-not-verified",
+                        requestFields(
+                                fieldWithPath("email").description("이메일"),
+                                fieldWithPath("password").description("비밀번호 (8자 이상)"),
+                                fieldWithPath("nickname").description("닉네임 (2자 이상 50자 이하)"),
+                                fieldWithPath("mainEvent").description("주 종목 (선택사항)")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("실패 시 추가 데이터 없음")
                         )
                 ));
     }
@@ -309,6 +406,17 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                 .role(UserRole.ROLE_USER)
                 .status(UserStatus.ACTIVE)
                 .build());
+    }
+
+    private void requestVerificationCode(String email) throws Exception {
+        mockMvc.perform(post("/api/auth/email-verification/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isOk());
+    }
+
+    private void markEmailVerified(String email) {
+        emailVerificationStore.markVerified(email, 1800000L);
     }
 
     private AuthSession login(String email, String password) throws Exception {

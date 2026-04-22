@@ -2,6 +2,8 @@ package com.cubinghub.domain.auth.controller;
 
 import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.domain.auth.cookie.RefreshTokenCookieManager;
+import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
+import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.response.AuthResponse;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
@@ -21,6 +23,22 @@ public class AuthController {
 
     private final AuthService authService;
     private final RefreshTokenCookieManager refreshTokenCookieManager;
+
+    @PostMapping("/email-verification/request")
+    public ResponseEntity<ApiResponse<Void>> requestEmailVerification(
+            @Valid @RequestBody EmailVerificationRequest request
+    ) {
+        authService.requestEmailVerification(request);
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "인증번호를 이메일로 전송했습니다."));
+    }
+
+    @PostMapping("/email-verification/confirm")
+    public ResponseEntity<ApiResponse<Void>> confirmEmailVerification(
+            @Valid @RequestBody EmailVerificationConfirmRequest request
+    ) {
+        authService.confirmEmailVerification(request);
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "이메일 인증이 완료되었습니다."));
+    }
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<Void>> signUp(@Valid @RequestBody SignUpRequest request) {

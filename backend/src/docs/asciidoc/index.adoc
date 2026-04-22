@@ -46,6 +46,24 @@ include::{snippets}/health-check/response-fields.adoc[]
 
 == 인증 (Auth)
 
+=== 이메일 인증번호 요청
+==== 요청
+include::{snippets}/auth/email-verification/request/http-request.adoc[]
+include::{snippets}/auth/email-verification/request/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/email-verification/request/http-response.adoc[]
+include::{snippets}/auth/email-verification/request/response-fields.adoc[]
+
+=== 이메일 인증번호 확인
+==== 요청
+include::{snippets}/auth/email-verification/confirm/http-request.adoc[]
+include::{snippets}/auth/email-verification/confirm/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/email-verification/confirm/http-response.adoc[]
+include::{snippets}/auth/email-verification/confirm/response-fields.adoc[]
+
 === 회원가입
 ==== 요청
 include::{snippets}/auth/signup/http-request.adoc[]
@@ -53,6 +71,14 @@ include::{snippets}/auth/signup/request-fields.adoc[]
 
 ==== 응답
 include::{snippets}/auth/signup/http-response.adoc[]
+include::{snippets}/auth/signup/response-fields.adoc[]
+
+==== 실패 응답
+===== 이메일 인증 미완료
+include::{snippets}/auth/signup/bad-request-email-not-verified/http-request.adoc[]
+include::{snippets}/auth/signup/bad-request-email-not-verified/request-fields.adoc[]
+include::{snippets}/auth/signup/bad-request-email-not-verified/http-response.adoc[]
+include::{snippets}/auth/signup/bad-request-email-not-verified/response-fields.adoc[]
 
 === 로그인
 ==== 요청

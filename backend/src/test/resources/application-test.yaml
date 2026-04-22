@@ -24,6 +24,23 @@ cors:
 auth:
   refresh-cookie:
     secure: true
+  email-verification:
+    code-expiration-ms: 600000
+    resend-cooldown-ms: 60000
+    verified-expiration-ms: 1800000
+    subject: Cubing Hub 이메일 인증
+
+smtp:
+  host:
+  port: 587
+  username:
+  password:
+  auth: true
+  starttls-enable: true
+  from-address:
+  connection-timeout-ms: 5000
+  timeout-ms: 3000
+  write-timeout-ms: 5000
 
 feedback:
   discord:
