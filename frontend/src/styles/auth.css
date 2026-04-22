@@ -29,6 +29,17 @@
   margin-bottom: 16px;
 }
 
+.auth-inline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.auth-inline-button {
+  white-space: nowrap;
+}
+
 .auth-status-panel {
   text-align: center;
 }
@@ -50,4 +61,14 @@
 .auth-footer .ghost-button {
   width: 100%;
   text-align: center;
+}
+
+@media (max-width: 540px) {
+  .auth-inline-row {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-inline-button {
+    width: 100%;
+  }
 }

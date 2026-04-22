@@ -26,6 +26,28 @@ export async function signUp(payload) {
   }
 }
 
+export async function requestEmailVerification(payload) {
+  try {
+    const response = await apiClient.post('/api/auth/email-verification/request', payload, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function confirmEmailVerification(payload) {
+  try {
+    const response = await apiClient.post('/api/auth/email-verification/confirm', payload, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function login(payload) {
   try {
     const response = await apiClient.post('/api/auth/login', payload, {
