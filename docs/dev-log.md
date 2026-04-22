@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Day 21 AWS 배포 완료 정리와 CD workflow 구현 |
-| 상태 | `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 마쳤고, 공식 문서와 운영 체크리스트를 최신화했다. backend/frontend 자동 deploy workflow 파일도 추가했으며, 현재는 GitHub `Secrets` / `Variables` 연결이 남아 있다 |
-| 범위 | AWS 1차 배포 결과 반영, 운영 후처리 runbook 작성, frontend/backend deploy workflow 구현 |
-| 핵심 리스크 | workflow에 필요한 Docker Hub, EC2, AWS 값이 비어 있으면 자동 배포는 아직 실행되지 않는다. 운영 비밀값 노출분과 인증서 갱신 자동화도 후속 정리가 필요하다 |
-| 참조 문서 | [Internal Schedule](./Internal%20Schedule.internal.md), [Project Overview](./Project%20Overview.md), [System Architecture](./System%20Architecture.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [Day 20](./Development%20Log/Day%2020.md), [Day 21](./Development%20Log/Day%2021.md), [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md), [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md) |
-| 다음 로그 대상 | GitHub Actions 변수 연결과 자동 배포 첫 실행 결과 |
+| 작업명 | Backlog polish: 홈 일일 스크램블 + 공통 페이지네이션 + 상단 카피 정리 |
+| 상태 | 홈 `todayScramble`을 `Asia/Seoul` 날짜 기준으로 고정했고, 랭킹/커뮤니티/댓글/마이페이지에 grouped 페이지네이션을 반영했다. 상단 helper text와 관련 설계 문서도 함께 동기화했고, 자동 검증은 통과했다 |
+| 범위 | home scramble generation policy 분리, frontend 공통 페이지네이션 컴포넌트 적용, 상단 소개 문구 정리, `Feature Backlog` / `Screen Specification` / `API Specification` 동기화 |
+| 핵심 리스크 | 자정 경계 전후 `todayScramble` 교체 타이밍과 grouped 페이지네이션의 모바일 터치 사용성은 아직 수동 검증이 남아 있다 |
+| 참조 문서 | [Feature Backlog](./Feature%20Backlog.md), [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md), [Day 21](./Development%20Log/Day%2021.md) |
+| 다음 로그 대상 | 피드백 메일 실제 전송 또는 모바일 UX 관련 다음 backlog 항목 선택 결과 |
 
 ## 로그 파일 목록
 

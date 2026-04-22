@@ -16,7 +16,8 @@
 
 | Category               | Count | Note                     |
 | ---------------------- | ----- | ------------------------ |
-| Timer & Records        | 4     | 기록 분석, 타이머 UX, 데이터 활용 확장 |
+| Timer & Records        | 5     | 기록 분석, 타이머 UX, 데이터 활용 확장 |
+| UI / UX Polish         | 2     | 공통 문구와 페이지네이션 사용성 개선 |
 | Feedback & Integration | 1     | 피드백 전달 흐름 실사용화           |
 | Mobile UX              | 2     | 모바일 접근성과 입력 방식 보강        |
 | Reference Notes        | 1     | 비교 서비스 기반 기능 후보 탐색       |
@@ -29,6 +30,14 @@
 | 타이머 페이지 스크램블에 맞게 이미지 렌더링 | candidate | 미정 | 현재 스크램블 텍스트를 더 직관적으로 이해할 수 있다. | [Screen Specification](./Screen%20Specification.md) | 타이머 화면 시각 보조 요소 |
 | 타이머 Ao5, Ao12 구현 | candidate | 미정 | 단일 기록 외 평균 지표까지 바로 확인할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 기록 통계 규칙과 UI 노출 방식 정리 필요 |
 | 기록 내보내기 | candidate | 미정 | 개인 기록을 백업하거나 외부 도구와 연동할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | export format과 다운로드 방식 결정 필요 |
+| 오늘의 스크램블 날짜 기준 고정 | done | 완료 | 새로고침마다 바뀌지 않고 하루 동안 같은 스크램블을 기준으로 홈 경험을 유지할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | `GET /api/home`는 `Asia/Seoul` 날짜 기준으로 같은 날 같은 스크램블을 반환하도록 반영했다. |
+
+## UI / UX Polish
+
+| Feature | Status | Priority | User Value | Related Docs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 홈/공통 소개 문구 정리 | done | 완료 | 홈 상단 소개 문구를 더 자연스럽고 제품 중심으로 정리해 첫 인상을 개선할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 상단 helper text를 제품 소개형 문구로 교체했다. |
+| 공통 페이지네이션 UX 개선 | done | 완료 | 긴 페이지 번호 나열 대신 `1~10` 단위 그룹과 `<<`, `>>` 이동을 적용해 탐색 가독성을 높일 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 랭킹, 커뮤니티 목록, 댓글, 마이페이지에 grouped 페이지네이션을 반영했다. |
 
 ## Feedback & Integration
 

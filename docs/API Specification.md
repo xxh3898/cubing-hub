@@ -401,6 +401,8 @@
 #### 상태 메모
 
 - 지원 범위: `WCA_333`
+- 이 API는 타이머용 요청마다 새 랜덤 스크램블을 생성한다.
+- 홈의 `todayScramble` 일일 고정 정책과는 분리된 경로다.
 - 미지원 종목 요청 시 `400 Bad Request`를 반환한다.
 
 ## 11. 게시판 API
@@ -628,7 +630,7 @@
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | `data.todayScramble.eventType` | String | 오늘의 스크램블 종목 코드 |
-| `data.todayScramble.scramble` | String | 생성된 스크램블 문자열 |
+| `data.todayScramble.scramble` | String | `Asia/Seoul` 날짜 기준으로 고정된 스크램블 문자열 |
 | `data.summary` | Object / Null | 로그인 사용자는 요약 객체, guest는 `null` |
 | `data.summary.nickname` | String | 로그인 사용자 닉네임 |
 | `data.summary.mainEvent` | String | 로그인 사용자 주 종목 |
@@ -650,6 +652,11 @@
 | `data.recentPosts[].authorNickname` | String | 작성자 닉네임 |
 | `data.recentPosts[].viewCount` | Number | 게시글 조회수 |
 | `data.recentPosts[].createdAt` | String | 게시글 생성 시각 |
+
+#### 상태 메모
+
+- `todayScramble`은 `Asia/Seoul` 날짜 기준으로 같은 날에는 같은 값을 반환한다.
+- 다음 날짜로 넘어가면 새 스크램블로 바뀔 수 있다.
 
 ## 14. 피드백 API
 
