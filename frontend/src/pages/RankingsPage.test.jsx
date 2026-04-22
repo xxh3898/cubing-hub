@@ -59,7 +59,7 @@ describe('RankingsPage', () => {
     })
   })
 
-  it('should_refetch_rankings_when_search_query_changes', async () => {
+  it('should_refetch_rankings_after_debounce_when_search_query_changes', async () => {
     vi.mocked(getRankings)
       .mockResolvedValueOnce(
         createRankingPageResponse({
@@ -77,6 +77,18 @@ describe('RankingsPage', () => {
     expect(await screen.findByText('Alpha')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('닉네임 검색'), { target: { value: 'cube' } })
+
+    expect(getRankings).toHaveBeenCalledTimes(1)
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 250)
+    })
+
+    expect(getRankings).toHaveBeenCalledTimes(1)
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100)
+    })
 
     await waitFor(() => {
       expect(getRankings).toHaveBeenLastCalledWith({
@@ -139,6 +151,44 @@ describe('RankingsPage', () => {
     })
 
     expect(await screen.findByText('표시할 랭킹 데이터가 없습니다.')).toBeInTheDocument()
+  })
+
+  it('should_only_request_last_query_once_when_search_input_changes_quickly', async () => {
+    vi.mocked(getRankings)
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alphabet', eventType: 'WCA_333', timeMs: 9700 }],
+        }),
+      )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('닉네임 검색'), { target: { value: 'a' } })
+    fireEvent.change(screen.getByLabelText('닉네임 검색'), { target: { value: 'al' } })
+    fireEvent.change(screen.getByLabelText('닉네임 검색'), { target: { value: 'alphabet' } })
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350)
+    })
+
+    await waitFor(() => {
+      expect(getRankings).toHaveBeenCalledTimes(2)
+      expect(getRankings).toHaveBeenLastCalledWith({
+        eventType: 'WCA_333',
+        nickname: 'alphabet',
+        page: 1,
+        size: 25,
+      })
+    })
+
+    expect(await screen.findByText('Alphabet')).toBeInTheDocument()
   })
 
   it('should_show_empty_state_when_ranking_result_is_empty', async () => {

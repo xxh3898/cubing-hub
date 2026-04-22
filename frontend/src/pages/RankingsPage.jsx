@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getRankings } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
 import { formatTimeMs } from '../utils/formatTime.js'
 
 const PAGE_SIZE = 25
@@ -14,9 +15,19 @@ export default function RankingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const debouncedNicknameQuery = useDebouncedValue(nicknameQuery)
+  const previousDebouncedNicknameQueryRef = useRef(debouncedNicknameQuery)
 
   useEffect(() => {
     let isCancelled = false
+    const searchQueryChanged = previousDebouncedNicknameQueryRef.current !== debouncedNicknameQuery
+
+    previousDebouncedNicknameQueryRef.current = debouncedNicknameQuery
+
+    if (searchQueryChanged && currentPage !== 1) {
+      setCurrentPage(1)
+      return undefined
+    }
 
     const loadRankings = async () => {
       setIsLoading(true)
@@ -25,7 +36,7 @@ export default function RankingsPage() {
       try {
         const response = await getRankings({
           eventType: selectedEvent,
-          nickname: nicknameQuery.trim() || undefined,
+          nickname: debouncedNicknameQuery.trim() || undefined,
           page: currentPage,
           size: PAGE_SIZE,
         })
@@ -61,7 +72,7 @@ export default function RankingsPage() {
     return () => {
       isCancelled = true
     }
-  }, [currentPage, nicknameQuery, reloadKey, selectedEvent])
+  }, [currentPage, debouncedNicknameQuery, reloadKey, selectedEvent])
 
   const handleEventChange = (event) => {
     setSelectedEvent(event.target.value)
@@ -70,7 +81,6 @@ export default function RankingsPage() {
 
   const handleNicknameQueryChange = (event) => {
     setNicknameQuery(event.target.value)
-    setCurrentPage(1)
   }
 
   const handleRetry = () => {
