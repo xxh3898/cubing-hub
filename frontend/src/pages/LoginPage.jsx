@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { login } from '../api.js'
+import { clearRefreshCookie, login } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 
 export default function LoginPage() {
@@ -43,6 +43,16 @@ export default function LoginPage() {
       await setAccessToken(nextAccessToken)
       navigate(returnTo, { replace: true })
     } catch (error) {
+      if (error?.isNetworkError) {
+        try {
+          await clearRefreshCookie()
+          setErrorMessage('세션 쿠키를 정리했습니다. 다시 로그인해주세요.')
+          return
+        } catch {
+          // fallback to the original network error message below
+        }
+      }
+
       setErrorMessage(error.message)
     } finally {
       setIsSubmitting(false)

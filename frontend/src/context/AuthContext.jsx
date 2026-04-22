@@ -1,5 +1,5 @@
 import { createContext, useEffect, useState } from 'react'
-import { getMe, refreshSession } from '../api.js'
+import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
 import {
   clearStoredAccessToken,
   getStoredAccessToken,
@@ -8,6 +8,18 @@ import {
 } from '../authStorage.js'
 
 const AuthContext = createContext(null)
+
+function shouldCleanupRefreshCookie(error) {
+  if (error?.isNetworkError) {
+    return true
+  }
+
+  if (error?.status === 401) {
+    return true
+  }
+
+  return error?.status === 400 && error.message !== 'refresh_token 쿠키가 필요합니다.'
+}
 
 export function AuthProvider({ children }) {
   const [accessToken, setAccessTokenState] = useState(() => getStoredAccessToken())
@@ -32,7 +44,21 @@ export function AuthProvider({ children }) {
 
     const bootstrapSession = async () => {
       try {
-        const response = await refreshSession()
+        let response
+        try {
+          response = await refreshSession()
+        } catch (error) {
+          if (!isCancelled && shouldCleanupRefreshCookie(error)) {
+            try {
+              await clearRefreshCookie()
+            } catch {
+              // 쿠키 정리 실패는 세션 정리보다 우선하지 않는다.
+            }
+          }
+
+          throw error
+        }
+
         const nextAccessToken = response.data?.accessToken
 
         if (!nextAccessToken) {

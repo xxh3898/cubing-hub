@@ -19,6 +19,7 @@
 ### 공개 경로
 
 - `/api/auth/**`
+- `/api/session/clear-refresh-cookie`
 - `/api/home`
 - `/api/rankings`
 - `/api/scramble`
@@ -120,6 +121,7 @@
   - `POST /api/auth/login`
   - `POST /api/auth/refresh`
   - `POST /api/auth/logout`
+  - `POST /api/session/clear-refresh-cookie`
 - 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
 - `GET /api/home`는 공개 경로지만, Access Token이 있으면 개인화 데이터를 함께 반환한다.
   - 응답 최소 필드: `userId`, `email`, `nickname`, `role`
@@ -135,12 +137,14 @@
 - React는 앱 초기 `refresh -> /api/me` 순서로 사용자 컨텍스트를 동기화한다.
 - `apiClient`는 `withCredentials: true`와 `401 -> refresh -> retry`를 사용한다.
 - React 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
+- React는 malformed refresh token, token reuse, 브라우저 레벨 request rejection처럼 `refresh_token`이 비정상 상태로 판단되면 세션 복구용 cookie clear endpoint를 best-effort로 호출한다.
 
 ### React 구조
 
 - `Access Token = 메모리`, `Refresh Token = HttpOnly cookie`를 단일 기준으로 맞춘다.
 - 앱 초기 진입/새로고침 시 `refresh -> /api/me` 순서로 세션을 복구한다.
 - refresh 또는 `/api/me`가 실패하면 access token과 사용자 컨텍스트를 함께 정리한다.
+- refresh 실패 원인이 `refresh_token` 자체 문제로 판단되면 React는 `POST /api/session/clear-refresh-cookie`를 추가 호출해 `/api/auth` 경로 cookie를 정리한다.
 - React `apiClient`는 `withCredentials: true`로 설정되어 있다.
 
 ### 토큰 세부 정책

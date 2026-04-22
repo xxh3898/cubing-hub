@@ -8,6 +8,13 @@ function toErrorMessage(error) {
   return error.response?.data?.message ?? error.message ?? '요청 처리 중 오류가 발생했습니다.'
 }
 
+function toRequestError(error) {
+  const requestError = new Error(toErrorMessage(error))
+  requestError.status = error.response?.status ?? null
+  requestError.isNetworkError = !error.response
+  return requestError
+}
+
 export async function signUp(payload) {
   try {
     const response = await apiClient.post('/api/auth/signup', payload, {
@@ -26,7 +33,7 @@ export async function login(payload) {
     })
     return unwrapResponse(response)
   } catch (error) {
-    throw new Error(toErrorMessage(error))
+    throw toRequestError(error)
   }
 }
 
@@ -48,7 +55,18 @@ export async function refreshSession() {
     })
     return unwrapResponse(response)
   } catch (error) {
-    throw new Error(toErrorMessage(error))
+    throw toRequestError(error)
+  }
+}
+
+export async function clearRefreshCookie() {
+  try {
+    const response = await apiClient.post('/api/session/clear-refresh-cookie', null, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
   }
 }
 

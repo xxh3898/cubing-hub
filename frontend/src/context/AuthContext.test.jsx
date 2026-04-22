@@ -1,11 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearStoredAccessToken } from '../authStorage.js'
-import { getMe, refreshSession } from '../api.js'
+import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
 import { AuthProvider } from './AuthContext.jsx'
 import { useAuth } from './useAuth.js'
 
 vi.mock('../api.js', () => ({
+  clearRefreshCookie: vi.fn(),
   getMe: vi.fn(),
   refreshSession: vi.fn(),
 }))
@@ -64,7 +65,14 @@ describe('AuthProvider', () => {
   })
 
   it('should_clear_auth_state_when_refresh_request_fails_on_bootstrap', async () => {
-    vi.mocked(refreshSession).mockRejectedValue(new Error('refresh expired'))
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('유효하지 않거나 만료된 리프레시 토큰입니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+    vi.mocked(clearRefreshCookie).mockResolvedValue({
+      message: 'refresh_token 쿠키를 정리했습니다.',
+      data: null,
+    })
 
     render(
       <AuthProvider>
@@ -81,5 +89,49 @@ describe('AuthProvider', () => {
     })
 
     expect(getMe).not.toHaveBeenCalled()
+    expect(clearRefreshCookie).toHaveBeenCalledTimes(1)
+  })
+
+  it('should_skip_refresh_cookie_cleanup_when_refresh_cookie_is_missing_on_bootstrap', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('has-auth-token')).toHaveTextContent('false')
+      expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false')
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    expect(clearRefreshCookie).not.toHaveBeenCalled()
+  })
+
+  it('should_clear_auth_state_when_refresh_cookie_cleanup_fails_on_bootstrap', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('Network Error'), {
+      status: null,
+      isNetworkError: true,
+    }))
+    vi.mocked(clearRefreshCookie).mockRejectedValue(new Error('cleanup failed'))
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('has-auth-token')).toHaveTextContent('false')
+      expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false')
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    expect(clearRefreshCookie).toHaveBeenCalledTimes(1)
   })
 })
