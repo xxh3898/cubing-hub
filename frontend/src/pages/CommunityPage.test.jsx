@@ -66,6 +66,26 @@ describe('CommunityPage', () => {
     })
   })
 
+  it('should_not_refetch_posts_repeatedly_when_search_filters_do_not_change', async () => {
+    vi.mocked(getPosts).mockResolvedValue(
+      createPostPageResponse({
+        items: [
+          { id: 1, category: 'FREE', title: '큐브 연습법', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' },
+        ],
+      }),
+    )
+
+    renderCommunityPage()
+
+    expect(await screen.findByText('큐브 연습법')).toBeInTheDocument()
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 700)
+    })
+
+    expect(getPosts).toHaveBeenCalledTimes(1)
+  })
+
   it('should_refetch_posts_after_debounce_when_category_and_search_filters_change', async () => {
     vi.mocked(getPosts)
       .mockResolvedValueOnce(

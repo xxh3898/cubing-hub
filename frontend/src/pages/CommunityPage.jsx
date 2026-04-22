@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
@@ -20,10 +20,11 @@ export default function CommunityPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const debouncedSearchFilters = useDebouncedValue({
+  const searchFilters = useMemo(() => ({
     keyword,
     authorQuery,
-  })
+  }), [authorQuery, keyword])
+  const debouncedSearchFilters = useDebouncedValue(searchFilters)
   const previousSearchFiltersRef = useRef({
     keyword: debouncedSearchFilters.keyword,
     authorQuery: debouncedSearchFilters.authorQuery,
