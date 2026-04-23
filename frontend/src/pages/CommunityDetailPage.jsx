@@ -39,6 +39,7 @@ export default function CommunityDetailPage() {
   const postId = Number.parseInt(id, 10)
   const isAdmin = currentUser?.role === 'ROLE_ADMIN'
   const isAuthor = Boolean(post && currentUser?.nickname === post.authorNickname)
+  const canEditPost = Boolean(post && (isAdmin || isAuthor))
   const canDeletePost = Boolean(post && (isAdmin || isAuthor))
   const returnTo = `${location.pathname}${location.search}${location.hash}`
 
@@ -265,6 +266,11 @@ export default function CommunityDetailPage() {
           ))}
         </div>
         <div className="community-detail-actions">
+          {canEditPost ? (
+            <Link to={`/community/${post.id}/edit`} className="ghost-button">
+              수정
+            </Link>
+          ) : null}
           {canDeletePost ? (
             <button
               className="ghost-button community-post-delete"

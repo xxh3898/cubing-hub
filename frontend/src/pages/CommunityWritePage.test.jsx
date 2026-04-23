@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
-import { createPost } from '../api.js'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { createPost, getPost, updatePost } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import CommunityWritePage from './CommunityWritePage.jsx'
 
@@ -9,6 +9,8 @@ const mockNavigate = vi.fn()
 
 vi.mock('../api.js', () => ({
   createPost: vi.fn(),
+  getPost: vi.fn(),
+  updatePost: vi.fn(),
 }))
 
 vi.mock('../context/useAuth.js', () => ({
@@ -24,10 +26,13 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-function renderCommunityWritePage() {
+function renderCommunityWritePage(path = '/community/write') {
   render(
-    <MemoryRouter>
-      <CommunityWritePage />
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/community/write" element={<CommunityWritePage />} />
+        <Route path="/community/:id/edit" element={<CommunityWritePage />} />
+      </Routes>
     </MemoryRouter>,
   )
 }
@@ -79,6 +84,83 @@ describe('CommunityWritePage', () => {
     renderCommunityWritePage()
 
     expect(screen.queryByRole('option', { name: '공지사항' })).not.toBeInTheDocument()
+  })
+
+  it('should_preload_post_and_submit_update_when_author_edits_post', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+    vi.mocked(getPost).mockResolvedValue({
+      data: {
+        id: 33,
+        category: 'FREE',
+        title: '기존 제목',
+        content: '기존 본문',
+        authorNickname: 'Tester',
+      },
+    })
+    vi.mocked(updatePost).mockResolvedValue({
+      data: null,
+    })
+
+    renderCommunityWritePage('/community/33/edit')
+
+    expect(await screen.findByDisplayValue('기존 제목')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('기존 본문')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '수정 제목' } })
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '수정 본문' } })
+    fireEvent.click(screen.getByRole('button', { name: '수정' }))
+
+    await waitFor(() => {
+      expect(updatePost).toHaveBeenCalledWith(33, {
+        category: 'FREE',
+        title: '수정 제목',
+        content: '수정 본문',
+      })
+    })
+    expect(mockNavigate).toHaveBeenCalledWith('/community/33', { replace: true })
+  })
+
+  it('should_show_permission_error_when_current_user_cannot_edit_post', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+    vi.mocked(getPost).mockResolvedValue({
+      data: {
+        id: 33,
+        category: 'FREE',
+        title: '기존 제목',
+        content: '기존 본문',
+        authorNickname: 'AnotherUser',
+      },
+    })
+
+    renderCommunityWritePage('/community/33/edit')
+
+    expect(await screen.findByText('게시글 수정/삭제 권한이 없습니다.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('제목')).not.toBeInTheDocument()
+    expect(updatePost).not.toHaveBeenCalled()
+  })
+
+  it('should_show_not_found_error_when_edit_post_id_is_invalid', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+
+    renderCommunityWritePage('/community/not-a-number/edit')
+
+    expect(await screen.findByText('게시글을 찾을 수 없습니다.')).toBeInTheDocument()
+    expect(getPost).not.toHaveBeenCalled()
   })
 
   it('should_show_validation_error_when_title_or_content_is_blank', async () => {

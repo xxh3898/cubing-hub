@@ -105,9 +105,32 @@ describe('CommunityDetailPage', () => {
     expect(await screen.findByRole('heading', { name: '상세 제목' })).toBeInTheDocument()
     expect(await screen.findByText('둘째 댓글')).toBeInTheDocument()
     expect(screen.getByText('댓글 2')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '수정' })).toHaveAttribute('href', '/community/5/edit')
 
     expect(getComments).toHaveBeenCalledWith(5, { page: 1, size: 5 })
     expect(screen.getAllByRole('button', { name: '댓글 삭제' })).toHaveLength(1)
+  })
+
+  it('should_hide_edit_button_when_current_user_cannot_edit_post', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'OtherUser',
+        role: 'ROLE_USER',
+      },
+    })
+    vi.mocked(getPost).mockResolvedValue(createPostDetailResponse())
+    vi.mocked(getComments).mockResolvedValue(
+      createCommentsPageResponse({
+        items: [],
+        totalElements: 0,
+        totalPages: 0,
+      }),
+    )
+
+    renderCommunityDetailPage()
+
+    expect(await screen.findByRole('heading', { name: '상세 제목' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '수정' })).not.toBeInTheDocument()
   })
 
   it('should_submit_comment_and_reload_first_page_when_authenticated_user_creates_comment', async () => {
