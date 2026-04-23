@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'react-toastify'
-import { deleteRecord, getMyProfile, getMyRecords, logout, updateRecordPenalty } from '../api.js'
+import {
+  changeMyPassword,
+  deleteRecord,
+  getMyProfile,
+  getMyRecords,
+  logout,
+  updateMyProfile,
+  updateRecordPenalty,
+} from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
+import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { eventOptions } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { buildTrendChartData, filterLatestRecordsByEvent, formatRecordTime } from '../utils/recordStats.js'
@@ -11,6 +20,11 @@ import { buildTrendChartData, filterLatestRecordsByEvent, formatRecordTime } fro
 const RECORDS_PAGE_SIZE = 10
 const TREND_FETCH_SIZE = 100
 const TREND_RECORD_LIMIT = 30
+const DEFAULT_MAIN_EVENT = eventOptions[0]?.value ?? ''
+const ACCOUNT_TABS = [
+  { key: 'profile', label: '프로필 수정' },
+  { key: 'password', label: '비밀번호 변경' },
+]
 
 function getPenaltyLabel(penalty) {
   if (penalty === 'PLUS_TWO') {
@@ -42,21 +56,36 @@ function formatDateTime(value) {
 
 export default function MyPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
+  const [activeAccountTab, setActiveAccountTab] = useState(ACCOUNT_TABS[0].key)
   const [profileData, setProfileData] = useState(null)
+  const [profileForm, setProfileForm] = useState({
+    nickname: '',
+    mainEvent: DEFAULT_MAIN_EVENT,
+  })
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    passwordConfirm: '',
+  })
   const [recordsPage, setRecordsPage] = useState(null)
   const [trendRecords, setTrendRecords] = useState([])
   const [profileError, setProfileError] = useState(null)
+  const [profileFormError, setProfileFormError] = useState(null)
   const [recordsError, setRecordsError] = useState(null)
   const [trendError, setTrendError] = useState(null)
+  const [passwordFormError, setPasswordFormError] = useState(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
   const [isLoadingTrend, setIsLoadingTrend] = useState(true)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
   const [profileReloadKey, setProfileReloadKey] = useState(0)
   const [recordsReloadKey, setRecordsReloadKey] = useState(0)
-  const { clearAccessToken, currentUser } = useAuth()
+  const { accessToken, clearAccessToken, currentUser, setAccessToken } = useAuth()
   const navigate = useNavigate()
   const mainEventRecordType = useMemo(
     () => resolveEventType(profileData?.mainEvent),
@@ -64,6 +93,17 @@ export default function MyPage() {
   )
   const trendChartData = useMemo(() => buildTrendChartData(trendRecords), [trendRecords])
   const hasTrendChartData = trendChartData.some((point) => typeof point.value === 'number')
+
+  useEffect(() => {
+    if (!profileData) {
+      return
+    }
+
+    setProfileForm({
+      nickname: profileData.nickname ?? '',
+      mainEvent: resolveEventType(profileData.mainEvent) ?? DEFAULT_MAIN_EVENT,
+    })
+  }, [profileData])
 
   useEffect(() => {
     let isCancelled = false
@@ -280,10 +320,113 @@ export default function MyPage() {
     setRecordsReloadKey((current) => current + 1)
   }
 
+  const handleOpenAccountModal = (tabKey = ACCOUNT_TABS[0].key) => {
+    setActiveAccountTab(tabKey)
+    setProfileFormError(null)
+    setPasswordFormError(null)
+    setIsAccountModalOpen(true)
+  }
+
+  const handleCloseAccountModal = () => {
+    setIsAccountModalOpen(false)
+    setProfileFormError(null)
+    setPasswordFormError(null)
+  }
+
+  const handleProfileFieldChange = (field) => (event) => {
+    setProfileForm((current) => ({
+      ...current,
+      [field]: event.target.value,
+    }))
+    setProfileFormError(null)
+  }
+
+  const handlePasswordFieldChange = (field) => (event) => {
+    setPasswordForm((current) => ({
+      ...current,
+      [field]: event.target.value,
+    }))
+    setPasswordFormError(null)
+  }
+
+  const handleUpdateProfile = async (event) => {
+    event.preventDefault()
+
+    const nickname = profileForm.nickname.trim()
+
+    if (!nickname || !profileForm.mainEvent) {
+      setProfileFormError('닉네임과 주 종목을 모두 입력해주세요.')
+      return
+    }
+
+    setIsSavingProfile(true)
+    setProfileFormError(null)
+
+    try {
+      const response = await updateMyProfile({
+        nickname,
+        mainEvent: profileForm.mainEvent,
+      })
+      await syncProfileAndRecords(currentPage)
+
+      if (accessToken) {
+        await setAccessToken(accessToken)
+      }
+
+      handleCloseAccountModal()
+      toast.success(response.message)
+    } catch (error) {
+      setProfileFormError(error.message)
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault()
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.passwordConfirm) {
+      setPasswordFormError('모든 입력란을 채워주세요.')
+      return
+    }
+
+    if (passwordForm.newPassword !== passwordForm.passwordConfirm) {
+      setPasswordFormError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+
+    setIsChangingPassword(true)
+    setPasswordFormError(null)
+
+    try {
+      const response = await changeMyPassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      })
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        passwordConfirm: '',
+      })
+      clearAccessToken()
+      navigate('/login', {
+        replace: true,
+        state: {
+          notice: response.message,
+          email: currentUser?.email ?? '',
+        },
+      })
+    } catch (error) {
+      setPasswordFormError(error.message)
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
   const records = recordsPage?.items ?? []
   const summary = profileData?.summary
   const nickname = profileData?.nickname ?? currentUser?.nickname ?? '-'
-  const mainEvent = profileData?.mainEvent ?? '-'
+  const mainEvent = getEventLabel(profileData?.mainEvent)
   const totalPages = recordsPage?.totalPages ?? 0
 
   return (
@@ -291,9 +434,19 @@ export default function MyPage() {
       <div className="panel mypage-profile-panel">
         <div className="mypage-profile-header">
           <h2>내 정보</h2>
-          <button className="ghost-button mypage-logout" onClick={handleLogout} disabled={isLoggingOut}>
-            {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
-          </button>
+          <div className="mypage-profile-actions">
+            <button
+              className="secondary-button mypage-account-trigger"
+              type="button"
+              onClick={() => handleOpenAccountModal()}
+              disabled={isLoadingProfile || isSavingProfile || isChangingPassword}
+            >
+              계정 관리
+            </button>
+            <button className="ghost-button mypage-logout" onClick={handleLogout} disabled={isLoggingOut}>
+              {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
+            </button>
+          </div>
         </div>
 
         <div className="mypage-info">
@@ -464,6 +617,169 @@ export default function MyPage() {
           </>
         )}
       </div>
+
+      {isAccountModalOpen ? (
+        <div
+          className="mypage-modal-backdrop"
+          role="presentation"
+          onClick={handleCloseAccountModal}
+        >
+          <div
+            className="mypage-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mypage-account-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mypage-modal-header">
+              <div>
+                <p className="eyebrow">Account</p>
+                <h2 id="mypage-account-modal-title">계정 관리</h2>
+                <p className="helper-text">프로필 수정과 비밀번호 변경은 기록 화면을 가리지 않도록 모달 안에서만 처리합니다.</p>
+              </div>
+              <button className="ghost-button" type="button" onClick={handleCloseAccountModal}>
+                닫기
+              </button>
+            </div>
+
+            <div className="mypage-modal-tabs" role="tablist" aria-label="계정 관리 탭">
+              {ACCOUNT_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  id={`mypage-account-tab-${tab.key}`}
+                  className={tab.key === activeAccountTab ? 'primary-button mypage-modal-tab' : 'ghost-button mypage-modal-tab'}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab.key === activeAccountTab}
+                  aria-controls={`mypage-account-panel-${tab.key}`}
+                  onClick={() => setActiveAccountTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {activeAccountTab === 'profile' ? (
+              <div
+                id="mypage-account-panel-profile"
+                className="mypage-modal-panel"
+                role="tabpanel"
+                aria-labelledby="mypage-account-tab-profile"
+              >
+                <div className="mypage-modal-section">
+                  <h3>프로필 수정</h3>
+                  <p className="helper-text">닉네임과 주 종목을 변경하면 헤더와 마이페이지에 바로 반영됩니다.</p>
+                </div>
+                {profileFormError ? <p className="message error">{profileFormError}</p> : null}
+                <form className="form-grid mypage-account-form" onSubmit={handleUpdateProfile}>
+                  <div className="field">
+                    <label htmlFor="mypage-nickname">닉네임</label>
+                    <input
+                      type="text"
+                      id="mypage-nickname"
+                      value={profileForm.nickname}
+                      onChange={handleProfileFieldChange('nickname')}
+                      placeholder="사용할 닉네임을 입력하세요"
+                      maxLength={INPUT_LIMITS.nickname}
+                      required
+                      disabled={isLoadingProfile || isSavingProfile || isChangingPassword}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="mypage-main-event">주 종목</label>
+                    <select
+                      id="mypage-main-event"
+                      value={profileForm.mainEvent}
+                      onChange={handleProfileFieldChange('mainEvent')}
+                      disabled={isLoadingProfile || isSavingProfile || isChangingPassword}
+                    >
+                      {eventOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mypage-account-actions">
+                    <button
+                      className="primary-button"
+                      type="submit"
+                      disabled={isLoadingProfile || isSavingProfile || isChangingPassword}
+                    >
+                      {isSavingProfile ? '저장 중...' : '프로필 저장'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div
+                id="mypage-account-panel-password"
+                className="mypage-modal-panel"
+                role="tabpanel"
+                aria-labelledby="mypage-account-tab-password"
+              >
+                <div className="mypage-modal-section">
+                  <h3>비밀번호 변경</h3>
+                  <p className="helper-text">변경이 완료되면 현재 세션을 종료하고 다시 로그인하도록 안내합니다.</p>
+                </div>
+                {passwordFormError ? <p className="message error">{passwordFormError}</p> : null}
+                <form className="form-grid mypage-account-form" onSubmit={handleChangePassword}>
+                  <div className="field">
+                    <label htmlFor="mypage-current-password">현재 비밀번호</label>
+                    <input
+                      type="password"
+                      id="mypage-current-password"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordFieldChange('currentPassword')}
+                      placeholder="현재 비밀번호를 입력하세요"
+                      maxLength={INPUT_LIMITS.password}
+                      required
+                      disabled={isChangingPassword || isSavingProfile}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="mypage-new-password">새 비밀번호</label>
+                    <input
+                      type="password"
+                      id="mypage-new-password"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordFieldChange('newPassword')}
+                      placeholder="새 비밀번호를 입력하세요"
+                      minLength={PASSWORD_MIN_LENGTH}
+                      maxLength={INPUT_LIMITS.password}
+                      required
+                      disabled={isChangingPassword || isSavingProfile}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="mypage-password-confirm">새 비밀번호 확인</label>
+                    <input
+                      type="password"
+                      id="mypage-password-confirm"
+                      value={passwordForm.passwordConfirm}
+                      onChange={handlePasswordFieldChange('passwordConfirm')}
+                      placeholder="새 비밀번호를 다시 입력하세요"
+                      minLength={PASSWORD_MIN_LENGTH}
+                      maxLength={INPUT_LIMITS.password}
+                      required
+                      disabled={isChangingPassword || isSavingProfile}
+                    />
+                  </div>
+                  <div className="mypage-account-actions">
+                    <button
+                      className="primary-button"
+                      type="submit"
+                      disabled={isChangingPassword || isSavingProfile}
+                    >
+                      {isChangingPassword ? '변경 중...' : '비밀번호 변경'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -478,6 +794,18 @@ function resolveEventType(mainEvent) {
   )
 
   return matchedOption?.value ?? mainEvent
+}
+
+function getEventLabel(mainEvent) {
+  if (!mainEvent) {
+    return '-'
+  }
+
+  const matchedOption = eventOptions.find(
+    (option) => option.value === mainEvent || option.label === mainEvent,
+  )
+
+  return matchedOption?.label ?? mainEvent
 }
 
 function RecordTrendTooltip({ active, payload }) {

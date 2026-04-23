@@ -1,17 +1,29 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'react-toastify'
-import { deleteRecord, getMyProfile, getMyRecords, logout, updateRecordPenalty } from '../api.js'
+import {
+  changeMyPassword,
+  deleteRecord,
+  getMyProfile,
+  getMyRecords,
+  logout,
+  updateMyProfile,
+  updateRecordPenalty,
+} from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import MyPage from './MyPage.jsx'
 
 const mockNavigate = vi.fn()
+const mockClearAccessToken = vi.fn()
+const mockSetAccessToken = vi.fn()
 
 vi.mock('../api.js', () => ({
+  changeMyPassword: vi.fn(),
   deleteRecord: vi.fn(),
   getMyProfile: vi.fn(),
   getMyRecords: vi.fn(),
   logout: vi.fn(),
+  updateMyProfile: vi.fn(),
   updateRecordPenalty: vi.fn(),
 }))
 
@@ -69,12 +81,129 @@ describe('MyPage', () => {
     vi.stubGlobal('confirm', vi.fn(() => true))
 
     vi.mocked(useAuth).mockReturnValue({
-      clearAccessToken: vi.fn(),
+      accessToken: 'fresh-token',
+      clearAccessToken: mockClearAccessToken,
       currentUser: {
+        email: 'member@cubinghub.com',
         nickname: 'Tester',
       },
+      setAccessToken: mockSetAccessToken,
     })
     vi.mocked(logout).mockResolvedValue({ message: '로그아웃되었습니다.' })
+  })
+
+  it('should_update_profile_and_refresh_current_user_when_profile_save_succeeds', async () => {
+    vi.mocked(getMyProfile)
+      .mockResolvedValueOnce({
+        data: {
+          userId: 1,
+          nickname: 'Tester',
+          mainEvent: '3x3x3',
+          summary: {
+            totalSolveCount: 1,
+            personalBestTimeMs: 9344,
+            averageTimeMs: 9344,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          userId: 1,
+          nickname: 'SpeedMaster',
+          mainEvent: 'WCA_222',
+          summary: {
+            totalSolveCount: 1,
+            personalBestTimeMs: 9344,
+            averageTimeMs: 9344,
+          },
+        },
+      })
+    vi.mocked(getMyRecords)
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+    vi.mocked(updateMyProfile).mockResolvedValue({
+      message: '내 정보를 수정했습니다.',
+      data: null,
+    })
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
+
+    const profilePanel = screen.getByRole('tabpanel')
+    expect(within(profilePanel).getByDisplayValue('Tester')).toBeInTheDocument()
+
+    fireEvent.change(within(profilePanel).getByLabelText('닉네임'), { target: { value: 'SpeedMaster' } })
+    fireEvent.change(within(profilePanel).getByLabelText('주 종목'), { target: { value: 'WCA_222' } })
+    fireEvent.click(within(profilePanel).getByRole('button', { name: '프로필 저장' }))
+
+    await waitFor(() => {
+      expect(updateMyProfile).toHaveBeenCalledWith({
+        nickname: 'SpeedMaster',
+        mainEvent: 'WCA_222',
+      })
+    })
+
+    expect(mockSetAccessToken).toHaveBeenCalledWith('fresh-token')
+    expect(toast.success).toHaveBeenCalledWith('내 정보를 수정했습니다.')
+    expect(screen.queryByRole('dialog', { name: '계정 관리' })).not.toBeInTheDocument()
+    expect(await screen.findAllByText('2x2x2')).not.toHaveLength(0)
+  })
+
+  it('should_clear_session_and_redirect_to_login_when_password_change_succeeds', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      data: {
+        userId: 1,
+        nickname: 'Tester',
+        mainEvent: '3x3x3',
+        summary: {
+          totalSolveCount: 1,
+          personalBestTimeMs: 9344,
+          averageTimeMs: 9344,
+        },
+      },
+    })
+    vi.mocked(getMyRecords)
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
+    vi.mocked(changeMyPassword).mockResolvedValue({
+      message: '비밀번호를 변경했습니다. 다시 로그인해주세요.',
+      data: null,
+    })
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
+    fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
+
+    const passwordPanel = screen.getByRole('tabpanel')
+    fireEvent.change(within(passwordPanel).getByLabelText('현재 비밀번호'), { target: { value: 'password123!' } })
+    fireEvent.change(within(passwordPanel).getByLabelText('새 비밀번호'), { target: { value: 'newPassword123!' } })
+    fireEvent.change(within(passwordPanel).getByLabelText('새 비밀번호 확인'), { target: { value: 'newPassword123!' } })
+    fireEvent.click(within(passwordPanel).getByRole('button', { name: '비밀번호 변경' }))
+
+    await waitFor(() => {
+      expect(changeMyPassword).toHaveBeenCalledWith({
+        currentPassword: 'password123!',
+        newPassword: 'newPassword123!',
+      })
+    })
+
+    expect(mockClearAccessToken).toHaveBeenCalledTimes(1)
+    expect(mockNavigate).toHaveBeenCalledWith('/login', {
+      replace: true,
+      state: {
+        notice: '비밀번호를 변경했습니다. 다시 로그인해주세요.',
+        email: 'member@cubinghub.com',
+      },
+    })
   })
 
   it('should_refresh_profile_and_records_when_record_penalty_update_succeeds', async () => {
