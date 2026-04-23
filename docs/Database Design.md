@@ -5,7 +5,7 @@
 - 영속 데이터 저장소는 MySQL을 기준으로 한다.
 - 기록 도메인은 원본 solve 로그(`records`)와 사용자 대표 기록(`user_pbs`)을 분리해 관리한다.
 - 홈/마이페이지 통계는 원본 로그 기준 조회를 사용하며 별도 집계 테이블이나 집계 컬럼은 두지 않는다.
-- 게시판은 `posts`, `comments` 중심 구조로 설계하고, 피드백은 선택 저장 모델로 둔다.
+- 게시판은 `posts`, `comments`, `post_attachments`, `post_views` 중심 구조로 설계하고, 피드백과 관리자 메모를 운영 데이터로 함께 둔다.
 - 랭킹 최적화는 Redis ZSET read model을 사용하지만, source of truth는 여전히 MySQL의 `records` / `user_pbs` 조합이다.
 - 인덱스는 조회 패턴 기준의 최소 구성을 유지한다.
 
@@ -18,7 +18,10 @@
 | `user_pbs` | 사용자별 대표 PB 저장 | JPA 엔티티 구현됨 |
 | `posts` | 게시글 저장 | JPA 엔티티 구현됨 |
 | `comments` | 댓글 저장 | JPA 엔티티 구현됨 / API 구현됨 |
+| `post_attachments` | 게시글 첨부 이미지 metadata 저장 | JPA 엔티티 구현됨 / API 구현됨 |
+| `post_views` | 로그인 사용자 기준 고유 조회 이력 저장 | JPA 엔티티 구현됨 / API 구현됨 |
 | `feedbacks` | 피드백 저장 또는 아카이브 | JPA 엔티티 구현됨 / API 구현됨 |
+| `admin_memos` | 관리자 내부 질문/답변 메모 저장 | JPA 엔티티 구현됨 / API 구현됨 |
 
 ## 3. 관계 요약
 
@@ -28,7 +31,10 @@ Users 1:N User_PBs
 Users 1:N Posts
 Users 1:N Comments
 Users 1:N Feedbacks
+Users 1:N Post_Views
 Posts 1:N Comments
+Posts 1:N Post_Attachments
+Posts 1:N Post_Views
 Records 1:1 (또는 1:0) User_PBs
 ```
 
@@ -208,7 +214,58 @@ Records 1:1 (또는 1:0) User_PBs
 #### 제약 / 비즈니스 규칙
 
 - 게시글 수정/삭제는 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
-- 상세 조회는 `view_count`를 증가시킨다.
+- 첨부 이미지는 S3 object storage를 source로 두고 DB에는 metadata만 저장한다.
+- 상세 조회는 로그인 사용자 기준 `post_views(post_id, user_id)` 고유 행이 처음 생성될 때만 `view_count`를 증가시킨다.
+- 비로그인 사용자는 조회수에 반영하지 않는다.
+
+### `post_attachments`
+
+- 목적:
+  - 게시글에 연결된 다중 이미지 metadata를 저장한다.
+- 설명:
+  - 실제 바이너리는 S3에 저장하고, DB에는 URL/파일명/순서 정보만 둔다.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `bigint` | 첨부 이미지 ID (PK, Auto Increment) |
+| `post_id` | `bigint` | 게시글 ID (FK -> `posts.id`) |
+| `object_key` | `varchar(512)` | S3 object key |
+| `image_url` | `varchar(1000)` | 공개 이미지 URL |
+| `original_file_name` | `varchar(255)` | 원본 파일명 |
+| `content_type` | `varchar(100)` | MIME type |
+| `file_size_bytes` | `bigint` | 파일 크기 |
+| `display_order` | `int` | 화면 표시 순서 |
+| `created_at` | `timestamp` | 생성 시각 |
+| `updated_at` | `timestamp` | 수정 시각 |
+
+#### 인덱스
+
+| 인덱스명 | 컬럼 | 목적 |
+| --- | --- | --- |
+| `idx_post_attachment_post_id` | `post_id` | 게시글 기준 첨부 조회 |
+
+#### 제약 / 비즈니스 규칙
+
+- 게시글당 최대 5장까지 첨부할 수 있다.
+- 허용 형식은 `jpg`, `jpeg`, `png`, `webp`다.
+
+### `post_views`
+
+- 목적:
+  - 로그인 사용자 기준 게시글 고유 조회 이력을 저장한다.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `bigint` | 조회 이력 ID (PK, Auto Increment) |
+| `post_id` | `bigint` | 게시글 ID (FK -> `posts.id`) |
+| `user_id` | `bigint` | 조회 사용자 ID (FK -> `users.id`) |
+| `created_at` | `timestamp` | 첫 조회 시각 |
+| `updated_at` | `timestamp` | 갱신 시각 |
+
+#### 제약 / 비즈니스 규칙
+
+- `post_id + user_id`는 unique다.
+- 같은 사용자가 같은 게시글을 다시 조회해도 `view_count`는 추가 증가하지 않는다.
 
 ### `comments`
 
@@ -253,10 +310,15 @@ Records 1:1 (또는 1:0) User_PBs
 | `title` | `varchar(100)` | 피드백 제목 |
 | `reply_email` | `varchar(255)` | 제출 시점 회신용 이메일 snapshot |
 | `content` | `text` | 피드백 상세 내용 |
+| `answer` | `text` | 관리자 답변 |
+| `answered_by_user_id` | `bigint` | 답변 관리자 ID (FK -> `users.id`) |
+| `answered_at` | `timestamp` | 답변 시각 |
 | `notification_status` | `varchar(20)` | Discord 운영 알림 상태 (`PENDING`, `SUCCESS`, `FAILED`) |
 | `notification_attempt_count` | `int` | Discord 운영 알림 누적 시도 횟수 |
 | `notification_last_attempt_at` | `timestamp` | 마지막 Discord 운영 알림 시도 시각 |
 | `notification_last_error` | `varchar(500)` | 마지막 Discord 운영 알림 실패 요약 |
+| `visibility` | `varchar(20)` | 공개 여부 (`PRIVATE`, `PUBLIC`) |
+| `published_at` | `timestamp` | 공개 시각 |
 | `created_at` | `timestamp` | 제출일 |
 
 #### 비고
@@ -265,6 +327,23 @@ Records 1:1 (또는 1:0) User_PBs
 - `user_id`와 `reply_email`을 함께 저장해 작성자 계정과 회신 주소를 분리 보관한다.
 - Discord 운영 알림 실패 시 사용자가 재시도할 수 있도록 상태 컬럼을 유지한다.
 - 긴 본문은 Discord 채널에는 일부만 표시하고, `feedbackId`를 기준으로 전체 내용은 DB에서 확인할 수 있게 한다.
+- 답변은 현재 질문당 1개만 저장한다.
+- 질문과 답변은 기본 `PRIVATE` 상태이고, 답변이 있는 경우에만 `PUBLIC` 전환할 수 있다.
+
+### `admin_memos`
+
+- 목적:
+  - 관리자 내부 질문/답변 메모를 list/detail 형태로 저장한다.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `bigint` | 메모 ID (PK, Auto Increment) |
+| `question` | `text` | 내부 질문 |
+| `answer` | `text` | 내부 답변 |
+| `answer_status` | `varchar(20)` | 답변 상태 (`UNANSWERED`, `ANSWERED`) |
+| `answered_at` | `timestamp` | 답변 시각 |
+| `created_at` | `timestamp` | 생성 시각 |
+| `updated_at` | `timestamp` | 수정 시각 |
 
 ## 5. 제약조건 정책
 
@@ -296,6 +375,8 @@ Records 1:1 (또는 1:0) User_PBs
   - `records.user_id`
   - `user_pbs.event_type`, `user_pbs.best_time_ms`
   - `posts.category`, `posts.user_id`
+  - `post_attachments.post_id`
+  - `post_views(post_id, user_id)`
   - `comments.post_id`
 - 페이징/정렬 기준
   - 랭킹: `user_pbs.best_time_ms asc`, 동률 시 `records.created_at asc -> records.id asc`

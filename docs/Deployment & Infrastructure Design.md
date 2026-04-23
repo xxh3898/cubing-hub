@@ -198,6 +198,12 @@
 - 현재 production 기본값이 `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`이므로, 새 컬럼 반영 시에는 아래 둘 중 하나를 선택한다.
   - 운영 DB에 `ALTER TABLE feedbacks ...`를 수동 적용
   - 또는 1회 배포 동안만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 올린 뒤 반영 확인 후 다시 `validate`로 원복
+- 게시글 이미지 업로드를 사용하려면 backend runtime에 아래 환경 변수가 추가되어야 한다.
+  - `POST_IMAGES_BUCKET`
+  - `POST_IMAGES_REGION`
+  - `POST_IMAGES_KEY_PREFIX`
+  - `POST_IMAGES_PUBLIC_BASE_URL`
+- 이번 범위처럼 `post_attachments`, `post_views`, `admin_memos` 테이블이 추가되는 변경도 production에서 schema 반영 절차가 먼저 필요하다.
 
 ## 5. CI/CD 파이프라인
 
@@ -246,6 +252,10 @@
 - `EC2_USER`
 - `AWS_REGION`
 - `S3_BUCKET`
+- `POST_IMAGES_BUCKET`
+- `POST_IMAGES_REGION`
+- `POST_IMAGES_KEY_PREFIX`
+- `POST_IMAGES_PUBLIC_BASE_URL`
 - `CLOUDFRONT_DISTRIBUTION_ID`
 - `VITE_API_BASE_URL`
 

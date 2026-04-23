@@ -87,6 +87,17 @@
 | `DELETE` | `/api/posts/{postId}/comments/{commentId}` | Auth | 댓글 삭제 | 구현됨 |
 | `POST` | `/api/feedbacks` | Auth | 피드백 접수 | 구현됨 |
 | `POST` | `/api/feedbacks/{feedbackId}/notification-retry` | Auth | Discord 운영 알림 재시도 | 구현됨 |
+| `GET` | `/api/qna` | Public | 공개 질문/답변 목록 조회 | 구현됨 |
+| `GET` | `/api/qna/{feedbackId}` | Public | 공개 질문/답변 상세 조회 | 구현됨 |
+| `GET` | `/api/admin/feedbacks` | Admin | 관리자 피드백 목록 조회 | 구현됨 |
+| `GET` | `/api/admin/feedbacks/{feedbackId}` | Admin | 관리자 피드백 상세 조회 | 구현됨 |
+| `PATCH` | `/api/admin/feedbacks/{feedbackId}/answer` | Admin | 관리자 피드백 답변 저장 | 구현됨 |
+| `PATCH` | `/api/admin/feedbacks/{feedbackId}/visibility` | Admin | 관리자 피드백 공개 상태 변경 | 구현됨 |
+| `GET` | `/api/admin/memos` | Admin | 관리자 메모 목록 조회 | 구현됨 |
+| `POST` | `/api/admin/memos` | Admin | 관리자 메모 생성 | 구현됨 |
+| `GET` | `/api/admin/memos/{memoId}` | Admin | 관리자 메모 상세 조회 | 구현됨 |
+| `PATCH` | `/api/admin/memos/{memoId}` | Admin | 관리자 메모 수정 | 구현됨 |
+| `DELETE` | `/api/admin/memos/{memoId}` | Admin | 관리자 메모 삭제 | 구현됨 |
 
 ## 6. 인증 API
 
@@ -596,6 +607,7 @@
 - 설명: 게시글을 생성한다.
 - 인증: Access Token 필요
 - 추가 인가: `category=NOTICE`는 `ROLE_ADMIN`만 작성 가능
+- 요청 형식: `application/json` 또는 `multipart/form-data`
 - 멱등성: 비멱등
 
 #### Request Body
@@ -605,6 +617,13 @@
 | `category` | String | 예 | `NOTICE`, `FREE` (`NOTICE`는 `ROLE_ADMIN`만 작성 가능) |
 | `title` | String | 예 | 게시글 제목, 최대 100자 |
 | `content` | String | 예 | 게시글 본문, 최대 2000자 |
+
+#### Multipart Part
+
+| 파트 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `request` | JSON | 예 | 게시글 생성 payload |
+| `images` | File Array | 아니오 | 첨부 이미지 배열 (`jpg`, `jpeg`, `png`, `webp`, 최대 5장) |
 
 #### Response
 
@@ -652,7 +671,7 @@
 
 - 설명: 게시글 상세를 조회한다.
 - 인증: Public
-- 추가 동작: 상세 조회 시 `viewCount`가 증가한다.
+- 추가 동작: 로그인 사용자의 첫 조회일 때만 `viewCount`가 증가하고, 비로그인 사용자는 조회수에 반영되지 않는다.
 - 멱등성: 비엄격 멱등
 
 #### Path Parameter
@@ -671,6 +690,11 @@
 | `data.content` | String | 본문 |
 | `data.authorNickname` | String | 작성자 닉네임 |
 | `data.viewCount` | Number | 조회수 |
+| `data.attachments[]` | Array | 첨부 이미지 목록 |
+| `data.attachments[].id` | Number | 첨부 이미지 ID |
+| `data.attachments[].imageUrl` | String | 첨부 이미지 URL |
+| `data.attachments[].originalFileName` | String | 원본 파일명 |
+| `data.attachments[].displayOrder` | Number | 표시 순서 |
 | `data.createdAt` | String | 작성 시각 |
 | `data.updatedAt` | String | 수정 시각 |
 
@@ -680,6 +704,7 @@
 - 인증: Access Token 필요
 - 인가: 작성자 본인 또는 `ROLE_ADMIN`
 - 추가 인가: `category=NOTICE`는 `ROLE_ADMIN`만 설정 가능
+- 요청 형식: `application/json` 또는 `multipart/form-data`
 - 멱등성: 멱등
 
 #### Path Parameter
@@ -695,6 +720,7 @@
 | `category` | String | 예 | 수정할 카테고리 (`NOTICE`는 `ROLE_ADMIN`만 설정 가능) |
 | `title` | String | 예 | 수정할 제목, 최대 100자 |
 | `content` | String | 예 | 수정할 본문, 최대 2000자 |
+| `retainedAttachmentIds[]` | Number | 아니오 | 수정 후 유지할 기존 첨부 이미지 ID 목록 |
 
 #### Response
 
@@ -906,10 +932,137 @@
 - `409 Conflict`
   - 이미 Discord 알림 전송을 완료한 피드백이면 응답 메시지는 `이미 Discord 알림 전송을 완료했습니다.`
 
+### `GET /api/qna`
+
+- 설명: 공개된 질문/답변 목록을 조회한다.
+- 인증: Public
+- 노출 조건: `visibility=PUBLIC` 이고 답변이 있는 피드백만 포함한다.
+
+#### Query Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지당 항목 수, 기본값 `8` |
+
+#### Response
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.items[]` | Array | 공개 질문/답변 목록 |
+| `data.items[].id` | Number | 피드백 ID |
+| `data.items[].type` | String | 피드백 종류 |
+| `data.items[].title` | String | 질문 제목 |
+| `data.items[].content` | String | 질문 본문 |
+| `data.items[].answer` | String | 관리자 답변 |
+| `data.items[].questionerLabel` | String | 질문자 표시 라벨 (`사용자`) |
+| `data.items[].answererLabel` | String | 답변자 표시 라벨 (`관리자`) |
+| `data.items[].createdAt` | String | 질문 작성 시각 |
+| `data.items[].answeredAt` | String | 답변 시각 |
+| `data.items[].publishedAt` | String | 공개 시각 |
+
+### `GET /api/qna/{feedbackId}`
+
+- 설명: 공개된 질문/답변 상세를 조회한다.
+- 인증: Public
+
+#### Path Parameter
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `feedbackId` | Number | 예 | 조회할 공개 질문 ID |
+
+#### Response
+
+- `GET /api/qna`의 단건 상세 구조와 동일하다.
+
+### `GET /api/admin/feedbacks`
+
+- 설명: 관리자 피드백 목록을 조회한다.
+- 인증: `ROLE_ADMIN`
+
+#### Query Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `answered` | Boolean | 아니오 | 답변 여부 필터 |
+| `visibility` | String | 아니오 | 공개 여부 필터 (`PRIVATE`, `PUBLIC`) |
+| `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지당 항목 수, 기본값 `8` |
+
+### `GET /api/admin/feedbacks/{feedbackId}`
+
+- 설명: 관리자 피드백 상세를 조회한다.
+- 인증: `ROLE_ADMIN`
+- 추가 데이터: `replyEmail`, Discord 운영 알림 상태, 답변/공개 시각을 함께 반환한다.
+
+### `PATCH /api/admin/feedbacks/{feedbackId}/answer`
+
+- 설명: 관리자 답변을 저장한다.
+- 인증: `ROLE_ADMIN`
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `answer` | String | 예 | 관리자 답변 내용, 최대 2000자 |
+
+### `PATCH /api/admin/feedbacks/{feedbackId}/visibility`
+
+- 설명: 피드백 질문/답변 묶음의 공개 상태를 변경한다.
+- 인증: `ROLE_ADMIN`
+- 제약: 답변이 있는 피드백만 `PUBLIC` 전환할 수 있다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `visibility` | String | 예 | 변경할 공개 상태 (`PRIVATE`, `PUBLIC`) |
+
+### `GET /api/admin/memos`
+
+- 설명: 관리자 내부 메모 목록을 최신 수정순으로 조회한다.
+- 인증: `ROLE_ADMIN`
+
+#### Query Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
+| `size` | Number | 아니오 | 페이지당 항목 수, 기본값 `8` |
+
+### `POST /api/admin/memos`
+
+- 설명: 관리자 내부 메모를 생성한다.
+- 인증: `ROLE_ADMIN`
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `question` | String | 예 | 내부 질문, 최대 500자 |
+| `answer` | String | 아니오 | 내부 답변, 최대 2000자 |
+
+### `GET /api/admin/memos/{memoId}`
+
+- 설명: 관리자 메모 상세를 조회한다.
+- 인증: `ROLE_ADMIN`
+
+### `PATCH /api/admin/memos/{memoId}`
+
+- 설명: 관리자 메모를 수정한다.
+- 인증: `ROLE_ADMIN`
+- Request Body: `POST /api/admin/memos`와 동일하다.
+
+### `DELETE /api/admin/memos/{memoId}`
+
+- 설명: 관리자 메모를 삭제한다.
+- 인증: `ROLE_ADMIN`
+
 ## 15. 문서화 메모
 
 - API 문서 생성 기준은 `backend/src/docs/asciidoc/index.adoc`와 REST Docs 통합 테스트다.
-- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `HomeDocsTest`, `FeedbackDocsTest`, `PostDocsTest`, `CommentDocsTest`에서 생성된다.
+- 상세 스니펫은 `AuthDocsTest`, `UserContextDocsTest`, `UserProfileDocsTest`, `RecordDocsTest`, `RankingDocsTest`, `ScrambleDocsTest`, `HomeDocsTest`, `FeedbackDocsTest`, `FeedbackManagementDocsTest`, `PostDocsTest`, `AdminMemoDocsTest`, `CommentDocsTest`에서 생성된다.
 
 ## 16. 미확정 사항
 

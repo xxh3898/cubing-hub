@@ -31,6 +31,8 @@
 - `GET /api/posts`
 - `GET /api/posts/*`
 - `GET /api/posts/*/comments`
+- `GET /api/qna`
+- `GET /api/qna/*`
 
 ### 인증 필요 경로
 
@@ -52,14 +54,31 @@
   - `POST /api/feedbacks`
 - `POST /api/feedbacks`는 인증 사용자 기준으로 `user_id`와 회신 이메일 snapshot을 함께 저장한다.
 
+### 관리자 전용 경로
+
+- `/api/admin/**`
+- 예시
+  - `GET /api/admin/feedbacks`
+  - `GET /api/admin/feedbacks/{feedbackId}`
+  - `PATCH /api/admin/feedbacks/{feedbackId}/answer`
+  - `PATCH /api/admin/feedbacks/{feedbackId}/visibility`
+  - `GET /api/admin/memos`
+  - `POST /api/admin/memos`
+  - `GET /api/admin/memos/{memoId}`
+  - `PATCH /api/admin/memos/{memoId}`
+  - `DELETE /api/admin/memos/{memoId}`
+
 ### 추가 인가 정책
 
 - 게시글 수정/삭제는 인증만으로 끝나지 않는다.
 - 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
+- 게시글 상세 조회는 로그인 사용자 기준 계정당 1회만 조회수를 증가시키고, 비로그인 사용자는 조회수에 반영하지 않는다.
 - 댓글 삭제는 인증만으로 끝나지 않는다.
 - 댓글 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
 - 기록 penalty 수정/삭제는 인증만으로 끝나지 않는다.
 - 기록 소유자 본인만 허용한다.
+- 관리자 피드백/메모 API는 `ROLE_ADMIN`만 허용한다.
+- 공개 Q&A는 `PUBLIC` 상태이면서 답변이 있는 피드백만 노출한다.
 
 ## 4. 인증 흐름
 

@@ -342,6 +342,66 @@ include::{snippets}/feedback/retry/request-headers.adoc[]
 include::{snippets}/feedback/retry/http-response.adoc[]
 include::{snippets}/feedback/retry/response-fields.adoc[]
 
+=== 관리자 피드백 목록 조회
+==== 요청
+include::{snippets}/feedback/admin/list/http-request.adoc[]
+include::{snippets}/feedback/admin/list/request-headers.adoc[]
+include::{snippets}/feedback/admin/list/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/feedback/admin/list/http-response.adoc[]
+include::{snippets}/feedback/admin/list/response-fields.adoc[]
+
+=== 관리자 피드백 상세 조회
+==== 요청
+include::{snippets}/feedback/admin/detail/http-request.adoc[]
+include::{snippets}/feedback/admin/detail/request-headers.adoc[]
+include::{snippets}/feedback/admin/detail/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/feedback/admin/detail/http-response.adoc[]
+include::{snippets}/feedback/admin/detail/response-fields.adoc[]
+
+=== 관리자 피드백 답변 저장
+==== 요청
+include::{snippets}/feedback/admin/answer/http-request.adoc[]
+include::{snippets}/feedback/admin/answer/request-headers.adoc[]
+include::{snippets}/feedback/admin/answer/path-parameters.adoc[]
+include::{snippets}/feedback/admin/answer/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/feedback/admin/answer/http-response.adoc[]
+include::{snippets}/feedback/admin/answer/response-fields.adoc[]
+
+=== 관리자 피드백 공개 상태 변경
+==== 요청
+include::{snippets}/feedback/admin/visibility/http-request.adoc[]
+include::{snippets}/feedback/admin/visibility/request-headers.adoc[]
+include::{snippets}/feedback/admin/visibility/path-parameters.adoc[]
+include::{snippets}/feedback/admin/visibility/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/feedback/admin/visibility/http-response.adoc[]
+include::{snippets}/feedback/admin/visibility/response-fields.adoc[]
+
+=== 공개 Q&A 목록 조회
+==== 요청
+include::{snippets}/qna/list/http-request.adoc[]
+include::{snippets}/qna/list/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/qna/list/http-response.adoc[]
+include::{snippets}/qna/list/response-fields.adoc[]
+
+=== 공개 Q&A 상세 조회
+==== 요청
+include::{snippets}/qna/detail/http-request.adoc[]
+include::{snippets}/qna/detail/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/qna/detail/http-response.adoc[]
+include::{snippets}/qna/detail/response-fields.adoc[]
+
 == 게시판 (Post)
 
 === 게시글 생성
@@ -364,6 +424,15 @@ include::{snippets}/post/create/bad-request/http-request.adoc[]
 include::{snippets}/post/create/bad-request/request-fields.adoc[]
 include::{snippets}/post/create/bad-request/http-response.adoc[]
 include::{snippets}/post/create/bad-request/response-fields.adoc[]
+
+=== 이미지 첨부 게시글 생성
+==== 요청
+include::{snippets}/post/create-multipart/http-request.adoc[]
+include::{snippets}/post/create-multipart/request-parts.adoc[]
+
+==== 응답
+include::{snippets}/post/create-multipart/http-response.adoc[]
+include::{snippets}/post/create-multipart/response-fields.adoc[]
 
 === 게시글 목록 조회
 ==== 요청
@@ -414,6 +483,49 @@ include::{snippets}/post/delete/path-parameters.adoc[]
 
 ==== 응답
 include::{snippets}/post/delete/http-response.adoc[]
+
+== 관리자 메모 (Admin Memo)
+
+=== 관리자 메모 목록 조회
+==== 요청
+include::{snippets}/admin-memo/list/http-request.adoc[]
+include::{snippets}/admin-memo/list/request-headers.adoc[]
+include::{snippets}/admin-memo/list/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/admin-memo/list/http-response.adoc[]
+include::{snippets}/admin-memo/list/response-fields.adoc[]
+
+=== 관리자 메모 생성
+==== 요청
+include::{snippets}/admin-memo/create/http-request.adoc[]
+include::{snippets}/admin-memo/create/request-headers.adoc[]
+include::{snippets}/admin-memo/create/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/admin-memo/create/http-response.adoc[]
+include::{snippets}/admin-memo/create/response-fields.adoc[]
+
+=== 관리자 메모 상세 조회
+==== 요청
+include::{snippets}/admin-memo/detail/http-request.adoc[]
+include::{snippets}/admin-memo/detail/request-headers.adoc[]
+include::{snippets}/admin-memo/detail/path-parameters.adoc[]
+
+==== 응답
+include::{snippets}/admin-memo/detail/http-response.adoc[]
+include::{snippets}/admin-memo/detail/response-fields.adoc[]
+
+=== 관리자 메모 수정
+==== 요청
+include::{snippets}/admin-memo/update/http-request.adoc[]
+include::{snippets}/admin-memo/update/request-headers.adoc[]
+include::{snippets}/admin-memo/update/path-parameters.adoc[]
+include::{snippets}/admin-memo/update/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/admin-memo/update/http-response.adoc[]
+include::{snippets}/admin-memo/update/response-fields.adoc[]
 
 === 댓글 목록 조회
 ==== 요청

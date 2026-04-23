@@ -107,7 +107,8 @@ Client ↔ AWS Nginx
   - `nickname` 검색 요청 또는 Redis ready marker가 없는 경우는 MySQL `user_pbs` fallback을 사용한다.
   - MySQL `records` / `user_pbs`는 source of truth이고 Redis는 읽기 최적화를 위한 보조 모델이다.
 - 게시판
-  - RDS의 `posts`, `users`를 조합해 목록/상세를 조회한다.
+  - RDS의 `posts`, `users`, `post_attachments`, `post_views`를 조합해 목록/상세를 조회한다.
+  - 공개 Q&A는 `feedbacks`에서 `PUBLIC + answered` 조건만 읽어 `/qna`로 노출한다.
 
 ### 생성 / 수정 / 삭제
 
@@ -122,7 +123,11 @@ Client ↔ AWS Nginx
 - 로그인 사용자 계정 관리
   - 마이페이지에서 프로필을 수정하면 `/api/me`와 화면 데이터를 다시 동기화하고, 비밀번호 변경이 성공하면 기존 refresh token을 모두 정리해 재로그인을 강제한다.
 - 게시글 CRUD
-  - `posts`를 생성/수정/삭제하고, 상세 조회 시 `view_count`를 증가시킨다.
+  - `posts`를 생성/수정/삭제하고, 첨부 이미지는 S3에 저장한 뒤 `post_attachments` metadata로 연결한다.
+  - 상세 조회 시 로그인 사용자 기준 고유 조회 이력을 `post_views`에 기록하고 `view_count`를 증가시킨다.
+- 피드백 운영
+  - `feedbacks`에 관리자 답변과 공개 여부를 함께 저장하고, 관리자 전용 `/api/admin/**`에서 운영한다.
+  - 내부 개발 메모는 `admin_memos`를 별도 도메인으로 둔다.
 
 ### 외부 연동 / 운영 데이터
 

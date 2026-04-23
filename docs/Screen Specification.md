@@ -4,7 +4,7 @@
 
 - 문서 범위: `frontend/src/App.jsx` 기준 사용자 화면 전체
 - 대상 플랫폼: PC / 모바일 웹
-- 화면 수: 13개
+- 화면 수: 18개
 - 보조 라우트: 인증 리다이렉트 1개 (`/auth`)
 - 기준 원칙:
   - 실제 API 연동 여부를 화면별로 명시한다.
@@ -20,14 +20,19 @@
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회, 회전기호 가이드 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
-| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route + `POST /api/posts` 연동 완료 |
-| 커뮤니티 수정 | `/community/:id/edit` | 기존 게시글 preload, 제목/본문 수정 | 보호 route + `GET`, `PUT /api/posts/{postId}` 연동 완료 |
-| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제, 수정 이동 | 게시글 상세/댓글/수정/삭제 연동 완료 |
+| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성, 다중 이미지 첨부 | 보호 route + `POST /api/posts` 연동 완료 |
+| 커뮤니티 수정 | `/community/:id/edit` | 기존 게시글 preload, 제목/본문 수정, 기존/신규 이미지 관리 | 보호 route + `GET`, `PUT /api/posts/{postId}` 연동 완료 |
+| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 첨부 이미지, 댓글 목록, 댓글 작성/삭제, 수정 이동 | 게시글 상세/댓글/수정/삭제 연동 완료 |
+| 공개 Q&A 목록 | `/qna` | 공개 질문/답변 목록, 8개 단위 페이지네이션 | `GET /api/qna` 연동 완료 |
+| 공개 Q&A 상세 | `/qna/:id` | 공개 질문/답변 상세 | `GET /api/qna/{feedbackId}` 연동 완료 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
 | 비밀번호 재설정 | `/reset-password` | 이메일 인증번호 확인 후 새 비밀번호 설정 | password reset request/confirm 연동 완료 |
 | 회원가입 | `/signup` | 이메일 인증번호 확인 후 비밀번호/닉네임/주 종목 입력 | 이메일 인증 request/confirm + `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
 | 마이페이지 | `/mypage` | 프로필, 계정 정보 수정, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록/계정 관리 API 연동 완료 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 route + `POST /api/feedbacks` 연동 완료 |
+| 관리자 메인 | `/admin` | 피드백 목록 필터, 내부 메모 목록/생성 | 관리자 route + `/api/admin/**` 연동 완료 |
+| 관리자 피드백 상세 | `/admin/feedbacks/:id` | 질문 상세, 답변 저장, 공개 여부 변경 | 관리자 route + `GET`, `PATCH /api/admin/feedbacks/**` 연동 완료 |
+| 관리자 메모 상세 | `/admin/memos/:id` | 내부 질문/답변 수정, 삭제 | 관리자 route + `GET`, `PATCH`, `DELETE /api/admin/memos/{memoId}` 연동 완료 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
 ## 3. 사용자 시나리오
@@ -238,11 +243,13 @@
 - 레이아웃 구조
   - 카테고리 선택
   - 제목 / 본문 입력
+  - 첨부 이미지 선택 / 미리보기
   - 제출 / 취소
 - 주요 UI 요소
   - 카테고리 select
   - 제목 input (`maxLength=100`)
   - 본문 textarea (`maxLength=2000`)
+  - 이미지 file input (`jpg/jpeg/png/webp`, 최대 5장)
 - 화면 데이터 요구사항
   - 로그인 사용자 정보
   - 로그인 사용자 권한
@@ -261,8 +268,9 @@
   - 수정 취소 후 상세 또는 목록 복귀
 - 구현 상태
   - 보호 route가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
-  - `POST /api/posts` 연동이 구현되어 있다.
+  - `POST /api/posts`는 multipart 첨부 이미지 업로드를 지원한다.
   - `/community/:id/edit`에서 `GET /api/posts/{postId}`로 기존 글을 preload하고 `PUT /api/posts/{postId}`로 수정한다.
+  - 수정 화면은 기존 첨부 이미지 유지/제외와 신규 이미지 추가를 함께 처리한다.
   - 관리자 로그인 시에만 `NOTICE` 카테고리를 노출한다.
   - 생성 성공 시 생성된 게시글 상세 화면으로 이동한다.
   - 수정 버튼은 작성자 본인 또는 관리자만 진입할 수 있다.
@@ -272,6 +280,7 @@
 
 - 레이아웃 구조
   - 게시글 메타 정보
+  - 첨부 이미지 갤러리
   - 본문
   - 댓글 섹션
   - 삭제/뒤로가기 영역
@@ -296,6 +305,8 @@
   - 목록으로 복귀
 - 구현 상태
   - `GET /api/posts/{postId}` 연동이 구현되어 있다.
+  - 첨부 이미지가 있으면 본문 상단에 다중 이미지 갤러리로 노출한다.
+  - 게시글 조회수는 로그인 사용자 기준 계정당 1회만 증가하고, 비로그인 사용자는 조회수에 반영되지 않는다.
   - 수정 버튼은 작성자 본인 또는 관리자에게만 노출하고 `/community/:id/edit`로 이동한다.
   - 삭제 버튼은 작성자 본인 또는 관리자에게만 노출하고 `DELETE /api/posts/{postId}`를 호출한다.
   - 존재하지 않는 게시글은 에러 메시지와 목록 복귀 버튼으로 처리한다.
@@ -490,6 +501,45 @@
   - 피드백 ID는 내부 재시도 state에만 유지하고 화면에는 노출하지 않는다.
   - Discord 운영 알림 실패 시 같은 화면에서 재시도 버튼을 제공한다.
 
+### 공개 Q&A 목록 / 상세
+
+- 레이아웃 구조
+  - 목록: 질문 카드 목록, 페이지네이션
+  - 상세: 질문 블록, 답변 블록, 목록/피드백 이동 CTA
+- 화면 데이터 요구사항
+  - `GET /api/qna`
+  - `GET /api/qna/{feedbackId}`
+- 상태 및 예외
+  - `loading`, `empty`, `error` 상태가 필요하다.
+  - 비공개 또는 미답변 피드백은 노출하지 않는다.
+- 구현 상태
+  - 공개된 질문/답변만 `/qna`와 `/qna/:id`에 노출한다.
+  - 질문자 표시는 `사용자`, 답변자 표시는 `관리자`로 고정한다.
+
+### 관리자 메인 / 상세
+
+- 레이아웃 구조
+  - 메인: 피드백 탭, 관리자 메모 탭, 피드백 필터, 메모 생성 폼
+  - 상세: 질문 본문, 답변/공개 설정 폼 또는 메모 수정 폼
+- 화면 데이터 요구사항
+  - `GET /api/admin/feedbacks`
+  - `GET /api/admin/feedbacks/{feedbackId}`
+  - `PATCH /api/admin/feedbacks/{feedbackId}/answer`
+  - `PATCH /api/admin/feedbacks/{feedbackId}/visibility`
+  - `GET /api/admin/memos`
+  - `POST /api/admin/memos`
+  - `GET /api/admin/memos/{memoId}`
+  - `PATCH /api/admin/memos/{memoId}`
+  - `DELETE /api/admin/memos/{memoId}`
+- 상태 및 예외
+  - 관리자 권한이 없으면 접근할 수 없다.
+  - 피드백 목록에는 검색 없이 `답변 여부`, `공개 여부` 필터만 사용한다.
+- 구현 상태
+  - `/admin`은 관리자 전용 route다.
+  - 피드백 목록은 최신순, 관리자 메모 목록은 `updatedAt desc` 최신순으로 정렬된다.
+  - 피드백 답변 저장과 공개 여부 전환은 상세 화면에서 처리한다.
+  - 관리자 메모는 질문/답변 한 세트의 list/detail CRUD로 동작한다.
+
 ### 인증 리다이렉트
 
 - 레이아웃 구조
@@ -536,6 +586,18 @@
 | 마이페이지 | `PATCH /api/records/{recordId}` | 기록 penalty 수정 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `DELETE /api/records/{recordId}` | 기록 삭제 | 백엔드 구현 / 프런트 연동 |
 | 피드백 | `POST /api/feedbacks` | 로그인 사용자 피드백 저장 | 백엔드 구현 / 프런트 연동 |
+| 피드백 | `POST /api/feedbacks/{feedbackId}/notification-retry` | Discord 운영 알림 재시도 | 백엔드 구현 / 프런트 연동 |
+| 공개 Q&A 목록 | `GET /api/qna` | 공개 질문/답변 목록 조회 | 백엔드 구현 / 프런트 연동 |
+| 공개 Q&A 상세 | `GET /api/qna/{feedbackId}` | 공개 질문/답변 상세 조회 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메인 | `GET /api/admin/feedbacks` | 관리자 피드백 목록 조회 | 백엔드 구현 / 프런트 연동 |
+| 관리자 피드백 상세 | `GET /api/admin/feedbacks/{feedbackId}` | 관리자 피드백 상세 조회 | 백엔드 구현 / 프런트 연동 |
+| 관리자 피드백 상세 | `PATCH /api/admin/feedbacks/{feedbackId}/answer` | 관리자 피드백 답변 저장 | 백엔드 구현 / 프런트 연동 |
+| 관리자 피드백 상세 | `PATCH /api/admin/feedbacks/{feedbackId}/visibility` | 관리자 피드백 공개 상태 변경 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메인 | `GET /api/admin/memos` | 관리자 메모 목록 조회 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메인 | `POST /api/admin/memos` | 관리자 메모 생성 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메모 상세 | `GET /api/admin/memos/{memoId}` | 관리자 메모 상세 조회 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메모 상세 | `PATCH /api/admin/memos/{memoId}` | 관리자 메모 수정 | 백엔드 구현 / 프런트 연동 |
+| 관리자 메모 상세 | `DELETE /api/admin/memos/{memoId}` | 관리자 메모 삭제 | 백엔드 구현 / 프런트 연동 |
 
 ## 7. 구현 참고
 
@@ -555,11 +617,13 @@
 - 기록: `GET /api/scramble`, `POST /api/records`
 - 랭킹: `GET /api/rankings`
 - 게시판: `POST /api/posts`, `GET /api/posts`, `GET /api/posts/{postId}`, `PUT /api/posts/{postId}`, `DELETE /api/posts/{postId}`
+- 공개 Q&A: `GET /api/qna`, `GET /api/qna/{feedbackId}`
+- 관리자 운영: `GET/PATCH /api/admin/feedbacks/**`, `GET/POST/PATCH/DELETE /api/admin/memos/**`
 
 ## 8. 연결 체크리스트
 
 - 타이머 외 화면의 실제 API 연동 여부를 문서와 코드에서 동시에 갱신할 것
-- 보호 화면(`mypage`, `community/write`, `community/:id/edit`)의 인증 실패 UX를 명시할 것
+- 보호 화면(`mypage`, `community/write`, `community/:id/edit`, `admin/**`)의 인증 실패 UX를 명시할 것
 - 홈, 랭킹, 커뮤니티, 마이페이지에 `loading`, `empty`, `error` 상태를 구현 시점에 점검할 것
 - 피드백 메일 전달이나 처리 상태 관리가 추가되면 이 문서의 화면 데이터 요구사항과 상태를 함께 갱신할 것
 
