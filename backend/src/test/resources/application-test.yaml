@@ -13,6 +13,9 @@ spring:
       hibernate:
         format_sql: false
 
+  flyway:
+    enabled: false
+
 jwt:
   secret: testSecretKeyForTestingPurposes12345678901234
   expiration: 10000
