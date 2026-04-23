@@ -1,8 +1,6 @@
 package com.cubinghub.domain.feedback.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,35 +54,7 @@ class FeedbackNotificationServiceTest {
         FeedbackSubmissionResponse response = feedbackNotificationService.createFeedbackAndNotify("member@cubinghub.com", request);
 
         assertThat(response.getId()).isEqualTo(1L);
-        assertThat(response.getNotificationStatus().name()).isEqualTo("SUCCESS");
-        assertThat(response.getNotificationAttemptCount()).isEqualTo(1);
-        assertThat(response.isNotificationRetryAvailable()).isFalse();
         verify(feedbackService).markNotificationSuccess(1L, attemptedAt);
-    }
-
-    @Test
-    @DisplayName("재시도 전송이 실패하면 실패 상태 응답을 반환한다")
-    void should_return_failed_response_when_notification_retry_fails() {
-        Feedback feedback = createFeedback(2L);
-        LocalDateTime previousAttemptAt = LocalDateTime.of(2026, 4, 22, 20, 35, 10);
-        feedback.markNotificationFailure(previousAttemptAt, "첫 실패");
-        LocalDateTime retriedAt = LocalDateTime.of(2026, 4, 22, 20, 36, 20);
-        Feedback failedFeedback = createFeedback(2L);
-        failedFeedback.markNotificationFailure(previousAttemptAt, "첫 실패");
-        failedFeedback.markNotificationFailure(retriedAt, "Discord webhook 응답 실패 (500)");
-
-        when(feedbackService.getFeedbackForRetry(2L, "member@cubinghub.com")).thenReturn(feedback);
-        when(feedbackService.getFeedbackWithUser(2L)).thenReturn(feedback);
-        when(discordFeedbackNotifier.send(feedback)).thenReturn(FeedbackNotificationAttemptResult.failure(retriedAt, "Discord webhook 응답 실패 (500)"));
-        when(feedbackService.markNotificationFailure(eq(2L), eq(retriedAt), any())).thenReturn(failedFeedback);
-
-        FeedbackSubmissionResponse response = feedbackNotificationService.retryNotification(2L, "member@cubinghub.com");
-
-        assertThat(response.getId()).isEqualTo(2L);
-        assertThat(response.getNotificationStatus().name()).isEqualTo("FAILED");
-        assertThat(response.getNotificationAttemptCount()).isEqualTo(2);
-        assertThat(response.isNotificationRetryAvailable()).isTrue();
-        verify(feedbackService).markNotificationFailure(2L, retriedAt, "Discord webhook 응답 실패 (500)");
     }
 
     private Feedback createFeedback(Long feedbackId) {

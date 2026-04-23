@@ -70,7 +70,7 @@ class FeedbackDocsTest extends RestDocsIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value(201))
-                .andExpect(jsonPath("$.message").value("피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다."))
+                .andExpect(jsonPath("$.message").value("피드백이 접수되었습니다. 감사합니다!"))
                 .andDo(document("feedback/create",
                         requestHeaders(
                                 headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
@@ -85,10 +85,7 @@ class FeedbackDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 피드백 정보"),
-                                fieldWithPath("data.id").type(JsonFieldType.NUMBER).description("생성된 피드백 ID"),
-                                fieldWithPath("data.notificationStatus").type(JsonFieldType.STRING).description("Discord 운영 알림 전송 상태 (`PENDING`, `SUCCESS`, `FAILED`)"),
-                                fieldWithPath("data.notificationAttemptCount").type(JsonFieldType.NUMBER).description("Discord 운영 알림 전송 시도 횟수"),
-                                fieldWithPath("data.notificationRetryAvailable").type(JsonFieldType.BOOLEAN).description("Discord 운영 알림 재시도 가능 여부")
+                                fieldWithPath("data.id").type(JsonFieldType.NUMBER).description("생성된 피드백 ID")
                         )
                 ));
     }
@@ -159,56 +156,4 @@ class FeedbackDocsTest extends RestDocsIntegrationTest {
                 ));
     }
 
-    @Test
-    @DisplayName("로그인 사용자는 실패한 Discord 운영 알림을 재시도할 수 있다")
-    void should_retry_feedback_notification_when_request_is_valid() throws Exception {
-        User savedUser = userRepository.save(User.builder()
-                .email("feedback-retry-docs@cubinghub.com")
-                .password("password")
-                .nickname("FeedbackRetryDocsUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .mainEvent("3x3x3")
-                .build());
-        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, savedUser);
-        FeedbackCreateRequest request = new FeedbackCreateRequest(FeedbackType.BUG, "버그 제보", "reply@cubinghub.com", "상세 내용");
-        when(discordFeedbackNotifier.send(any(Feedback.class)))
-                .thenReturn(FeedbackNotificationAttemptResult.failure(
-                        LocalDateTime.of(2026, 4, 22, 21, 16, 25),
-                        "Discord webhook 응답 실패 (500)"
-                ));
-
-        String responseBody = mockMvc.perform(post("/api/feedbacks")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        Long feedbackId = objectMapper.readTree(responseBody).get("data").get("id").asLong();
-        when(discordFeedbackNotifier.send(any(Feedback.class)))
-                .thenReturn(FeedbackNotificationAttemptResult.success(LocalDateTime.of(2026, 4, 22, 21, 18, 40)));
-
-        mockMvc.perform(post("/api/feedbacks/{feedbackId}/notification-retry", feedbackId)
-                        .header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(200))
-                .andExpect(jsonPath("$.message").value("Discord 운영 알림 재전송을 완료했습니다."))
-                .andDo(document("feedback/retry",
-                        requestHeaders(
-                                headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
-                        ),
-                        responseFields(
-                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
-                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
-                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("재시도 결과 정보"),
-                                fieldWithPath("data.id").type(JsonFieldType.NUMBER).description("재시도한 피드백 ID"),
-                                fieldWithPath("data.notificationStatus").type(JsonFieldType.STRING).description("Discord 운영 알림 전송 상태 (`PENDING`, `SUCCESS`, `FAILED`)"),
-                                fieldWithPath("data.notificationAttemptCount").type(JsonFieldType.NUMBER).description("Discord 운영 알림 전송 시도 횟수"),
-                                fieldWithPath("data.notificationRetryAvailable").type(JsonFieldType.BOOLEAN).description("Discord 운영 알림 재시도 가능 여부")
-                        )
-                ));
-    }
 }

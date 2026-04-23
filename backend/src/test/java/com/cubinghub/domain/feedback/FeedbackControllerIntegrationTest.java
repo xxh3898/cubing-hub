@@ -99,11 +99,11 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("피드백이 접수되었고 Discord 운영 알림 전송을 완료했습니다."))
+                .andExpect(jsonPath("$.message").value("피드백이 접수되었습니다. 감사합니다!"))
                 .andExpect(jsonPath("$.data.id").exists())
-                .andExpect(jsonPath("$.data.notificationStatus").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.notificationAttemptCount").value(1))
-                .andExpect(jsonPath("$.data.notificationRetryAvailable").value(false));
+                .andExpect(jsonPath("$.data.notificationStatus").doesNotExist())
+                .andExpect(jsonPath("$.data.notificationAttemptCount").doesNotExist())
+                .andExpect(jsonPath("$.data.notificationRetryAvailable").doesNotExist());
 
         entityManager.flush();
         entityManager.clear();
@@ -149,7 +149,7 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 내용은 2000자 이하이어야 합니다."));
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 내용은 2000자 이하여야 합니다."));
     }
 
     @Test
@@ -190,10 +190,11 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("피드백이 저장되었지만 Discord 운영 알림 전송에 실패했습니다. 다시 시도해주세요."))
-                .andExpect(jsonPath("$.data.notificationStatus").value("FAILED"))
-                .andExpect(jsonPath("$.data.notificationAttemptCount").value(1))
-                .andExpect(jsonPath("$.data.notificationRetryAvailable").value(true));
+                .andExpect(jsonPath("$.message").value("피드백이 접수되었습니다. 감사합니다!"))
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.notificationStatus").doesNotExist())
+                .andExpect(jsonPath("$.data.notificationAttemptCount").doesNotExist())
+                .andExpect(jsonPath("$.data.notificationRetryAvailable").doesNotExist());
 
         Feedback feedback = feedbackRepository.findAll().get(0);
         assertThat(feedback.getNotificationStatus()).isEqualTo(FeedbackNotificationStatus.FAILED);
@@ -201,81 +202,4 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
         assertThat(feedback.getNotificationLastError()).isEqualTo("Discord webhook 응답 실패 (500)");
     }
 
-    @Test
-    @DisplayName("로그인 사용자는 실패한 피드백 Discord 알림을 재시도할 수 있다")
-    void should_retry_feedback_notification_when_request_user_is_owner() throws Exception {
-        Feedback feedback = feedbackRepository.save(Feedback.builder()
-                .user(savedUser)
-                .type(FeedbackType.BUG)
-                .title("버그 제보")
-                .replyEmail("reply@cubinghub.com")
-                .content("재현 경로")
-                .build());
-        feedback.markNotificationFailure(LocalDateTime.of(2026, 4, 22, 20, 55, 15), "이전 실패");
-        entityManager.flush();
-        entityManager.clear();
-
-        when(discordFeedbackNotifier.send(any(Feedback.class)))
-                .thenReturn(FeedbackNotificationAttemptResult.success(LocalDateTime.of(2026, 4, 22, 21, 10, 10)));
-
-        mockMvc.perform(post("/api/feedbacks/{feedbackId}/notification-retry", feedback.getId())
-                        .header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Discord 운영 알림 재전송을 완료했습니다."))
-                .andExpect(jsonPath("$.data.id").value(feedback.getId()))
-                .andExpect(jsonPath("$.data.notificationStatus").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.notificationAttemptCount").value(2))
-                .andExpect(jsonPath("$.data.notificationRetryAvailable").value(false));
-    }
-
-    @Test
-    @DisplayName("다른 사용자가 피드백 Discord 알림 재시도를 요청하면 403을 반환한다")
-    void should_return_forbidden_when_feedback_notification_retry_is_requested_by_non_owner() throws Exception {
-        User otherUser = userRepository.save(User.builder()
-                .email("other@cubinghub.com")
-                .password("password")
-                .nickname("OtherUser")
-                .role(UserRole.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .mainEvent("3x3x3")
-                .build());
-        String otherUserAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, otherUser);
-        Feedback feedback = feedbackRepository.save(Feedback.builder()
-                .user(savedUser)
-                .type(FeedbackType.BUG)
-                .title("버그 제보")
-                .replyEmail("reply@cubinghub.com")
-                .content("재현 경로")
-                .build());
-        feedback.markNotificationFailure(LocalDateTime.of(2026, 4, 22, 20, 58, 45), "이전 실패");
-        entityManager.flush();
-        entityManager.clear();
-
-        mockMvc.perform(post("/api/feedbacks/{feedbackId}/notification-retry", feedback.getId())
-                        .header("Authorization", "Bearer " + otherUserAccessToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.message").value("피드백 알림 재시도 권한이 없습니다."));
-    }
-
-    @Test
-    @DisplayName("이미 Discord 알림 전송을 완료한 피드백은 재시도 요청 시 409를 반환한다")
-    void should_return_conflict_when_feedback_notification_retry_is_requested_for_success_status() throws Exception {
-        Feedback feedback = feedbackRepository.save(Feedback.builder()
-                .user(savedUser)
-                .type(FeedbackType.BUG)
-                .title("버그 제보")
-                .replyEmail("reply@cubinghub.com")
-                .content("재현 경로")
-                .build());
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 22, 20, 59, 5));
-        entityManager.flush();
-        entityManager.clear();
-
-        mockMvc.perform(post("/api/feedbacks/{feedbackId}/notification-retry", feedback.getId())
-                        .header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value("이미 Discord 알림 전송을 완료했습니다."));
-    }
 }

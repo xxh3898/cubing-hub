@@ -52,7 +52,7 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 피드백 Discord 운영 알림과 재시도 | done | 완료 | 서비스 안에서 보낸 피드백을 운영 채널로 즉시 연결하고 실패 시 사용자 기준으로 재시도할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md), [Screen Specification](./Screen%20Specification.md) | `POST /api/feedbacks` 응답에 Discord 알림 상태를 포함하고, 실패 시 `/api/feedbacks/{feedbackId}/notification-retry`로 재시도할 수 있도록 반영했다. |
+| 피드백 운영 알림 내부 추적 | done | 완료 | 서비스 안에서 보낸 피드백을 운영 채널로 즉시 연결하고, 일반 사용자 화면은 접수 결과만 간단히 확인할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md), [Screen Specification](./Screen%20Specification.md) | `POST /api/feedbacks`는 접수 결과만 반환하고, Discord 운영 알림 상태는 내부 저장과 관리자 화면에서 추적한다. |
 
 ## Account & Admin
 

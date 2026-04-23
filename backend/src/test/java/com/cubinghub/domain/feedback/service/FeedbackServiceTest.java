@@ -16,7 +16,6 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.support.TestFixtures;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -95,51 +94,4 @@ class FeedbackServiceTest {
                 .hasMessage("사용자를 찾을 수 없습니다.");
     }
 
-    @Test
-    @DisplayName("다른 사용자가 피드백 알림 재시도를 요청하면 403 예외를 던진다")
-    void should_throw_forbidden_exception_when_retry_is_requested_by_other_user() {
-        User owner = TestFixtures.createUser(1L, "owner@cubinghub.com", "Owner", UserRole.ROLE_USER, UserStatus.ACTIVE);
-        User otherUser = TestFixtures.createUser(2L, "other@cubinghub.com", "Other", UserRole.ROLE_USER, UserStatus.ACTIVE);
-        Feedback feedback = Feedback.builder()
-                .user(owner)
-                .type(FeedbackType.BUG)
-                .title("버그 제보")
-                .replyEmail("reply@cubinghub.com")
-                .content("내용")
-                .build();
-        ReflectionTestUtils.setField(feedback, "id", 3L);
-
-        when(userRepository.findByEmail(otherUser.getEmail())).thenReturn(Optional.of(otherUser));
-        when(feedbackRepository.findWithUserById(3L)).thenReturn(Optional.of(feedback));
-
-        Throwable thrown = catchThrowable(() -> feedbackService.getFeedbackForRetry(3L, otherUser.getEmail()));
-
-        assertThat(thrown)
-                .isInstanceOf(CustomApiException.class)
-                .hasMessage("피드백 알림 재시도 권한이 없습니다.");
-    }
-
-    @Test
-    @DisplayName("이미 성공한 피드백은 알림 재시도 요청 시 409 예외를 던진다")
-    void should_throw_conflict_exception_when_retry_is_requested_for_successfully_notified_feedback() {
-        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
-        Feedback feedback = Feedback.builder()
-                .user(user)
-                .type(FeedbackType.BUG)
-                .title("버그 제보")
-                .replyEmail("reply@cubinghub.com")
-                .content("내용")
-                .build();
-        ReflectionTestUtils.setField(feedback, "id", 4L);
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 22, 20, 45, 10));
-
-        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(feedbackRepository.findWithUserById(4L)).thenReturn(Optional.of(feedback));
-
-        Throwable thrown = catchThrowable(() -> feedbackService.getFeedbackForRetry(4L, user.getEmail()));
-
-        assertThat(thrown)
-                .isInstanceOf(CustomApiException.class)
-                .hasMessage("이미 Discord 알림 전송을 완료했습니다.");
-    }
 }

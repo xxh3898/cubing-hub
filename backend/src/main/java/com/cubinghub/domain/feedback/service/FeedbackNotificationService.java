@@ -20,11 +20,6 @@ public class FeedbackNotificationService {
         return attemptNotification(feedback.getId());
     }
 
-    public FeedbackSubmissionResponse retryNotification(Long feedbackId, String email) {
-        feedbackService.getFeedbackForRetry(feedbackId, email);
-        return attemptNotification(feedbackId);
-    }
-
     private FeedbackSubmissionResponse attemptNotification(Long feedbackId) {
         Feedback feedback = feedbackService.getFeedbackWithUser(feedbackId);
         FeedbackNotificationAttemptResult result = discordFeedbackNotifier.send(feedback);

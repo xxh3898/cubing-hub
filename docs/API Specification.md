@@ -89,7 +89,6 @@
 | `POST` | `/api/posts/{postId}/comments` | Auth | 댓글 생성 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}/comments/{commentId}` | Auth | 댓글 삭제 | 구현됨 |
 | `POST` | `/api/feedbacks` | Auth | 피드백 접수 | 구현됨 |
-| `POST` | `/api/feedbacks/{feedbackId}/notification-retry` | Auth | Discord 운영 알림 재시도 | 구현됨 |
 | `GET` | `/api/qna` | Public | 공개 질문/답변 목록 조회 | 구현됨 |
 | `GET` | `/api/qna/{feedbackId}` | Public | 공개 질문/답변 상세 조회 | 구현됨 |
 | `GET` | `/api/admin/feedbacks` | Admin | 관리자 피드백 목록 조회 | 구현됨 |
@@ -119,7 +118,7 @@
 #### 에러 계약
 
 - `400 Bad Request`
-  - 이미 가입된 이메일이면 응답 메시지는 `이미 사용중인 이메일입니다.`
+  - 이미 가입된 이메일이면 응답 메시지는 `이미 사용 중인 이메일입니다.`
   - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
 - `503 Service Unavailable`
   - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
@@ -432,7 +431,7 @@
 #### 에러 계약
 
 - `400 Bad Request`
-  - 중복 닉네임이면 응답 메시지는 `이미 사용중인 닉네임입니다.`
+  - 중복 닉네임이면 응답 메시지는 `이미 사용 중인 닉네임입니다.`
   - `mainEvent`가 유효한 WCA 종목 코드가 아니면 응답 메시지는 `잘못된 입력값입니다: 주 종목은 유효한 WCA 종목 코드여야 합니다.`
 
 #### Response
@@ -959,11 +958,9 @@
 
 - 상태 코드: `201 Created`
 - `data.id`: 생성된 피드백 ID
-- `data.notificationStatus`: Discord 알림 상태 (`PENDING`, `SUCCESS`, `FAILED`)
-- `data.notificationAttemptCount`: Discord 알림 시도 횟수
-- `data.notificationRetryAvailable`: 재시도 가능 여부
 - `replyEmail`은 제출 시점의 회신용 이메일 주소를 snapshot으로 저장한다.
-- 응답 메시지는 Discord 운영 알림 성공/실패 결과를 함께 반영할 수 있다.
+- Discord 운영 알림 시도 결과는 서버 내부 상태와 관리자 화면에서 추적하고, 일반 사용자 응답에는 노출하지 않는다.
+- 응답 메시지는 일반 사용자 기준 `피드백이 접수되었습니다. 감사합니다!`를 사용한다.
 
 #### 실패 응답
 
@@ -971,38 +968,6 @@
   - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: ...` 형식을 사용하고, 피드백 작성에서는 `피드백 종류는 필수입니다.`, `제목은 필수입니다.`, `회신 이메일은 필수입니다.`, `올바른 이메일 형식이 아닙니다.`, `내용은 필수입니다.` 같은 사용자 문구를 반환한다.
 - `401 Unauthorized`
   - `Authorization` 헤더가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
-
-### `POST /api/feedbacks/{feedbackId}/notification-retry`
-
-- 설명: Discord 운영 알림이 실패한 피드백에 대해 다시 전송을 시도한다.
-- 인증: Access Token 필요
-- 인가: 작성자 본인 또는 `ROLE_ADMIN`
-- 멱등성: 비멱등
-
-#### Path Parameter
-
-| 필드 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `feedbackId` | Number | 예 | 재시도할 피드백 ID |
-
-#### Response
-
-- 상태 코드: `200 OK`
-- `data.id`: 피드백 ID
-- `data.notificationStatus`: Discord 알림 상태 (`SUCCESS`, `FAILED`)
-- `data.notificationAttemptCount`: 누적 알림 시도 횟수
-- `data.notificationRetryAvailable`: 재시도 가능 여부
-
-#### 실패 응답
-
-- `401 Unauthorized`
-  - 인증 정보가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
-- `403 Forbidden`
-  - 작성자 본인 또는 `ROLE_ADMIN`이 아니면 응답 메시지는 `피드백 알림 재시도 권한이 없습니다.`
-- `404 Not Found`
-  - 해당 피드백이 없으면 응답 메시지는 `피드백을 찾을 수 없습니다.`
-- `409 Conflict`
-  - 이미 Discord 알림 전송을 완료한 피드백이면 응답 메시지는 `이미 Discord 알림 전송을 완료했습니다.`
 
 ### `GET /api/qna`
 
