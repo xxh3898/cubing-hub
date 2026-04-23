@@ -24,21 +24,30 @@ public class SmtpVerificationEmailSender implements VerificationEmailSender {
 
     @Override
     public void sendVerificationCode(String email, String code) {
-        String fromAddress = resolveFromAddress();
-        long expirationMinutes = authEmailVerificationProperties.getCodeExpirationMs() / 60000L;
-
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(email);
-        message.setFrom(fromAddress);
-        message.setSubject(authEmailVerificationProperties.getSubject());
-        message.setText("""
-                Cubing Hub 이메일 인증번호는 %s 입니다.
-
-                %d분 안에 회원가입 화면에 입력해주세요.
+        sendCodeEmail(
+                email,
+                code,
+                authEmailVerificationProperties.getSubject(),
                 """
-                .formatted(code, expirationMinutes));
+                        Cubing Hub 이메일 인증번호는 %s 입니다.
 
-        javaMailSender.send(message);
+                        %d분 안에 회원가입 화면에 입력해주세요.
+                        """
+        );
+    }
+
+    @Override
+    public void sendPasswordResetCode(String email, String code) {
+        sendCodeEmail(
+                email,
+                code,
+                "Cubing Hub 비밀번호 재설정 인증번호",
+                """
+                        Cubing Hub 비밀번호 재설정 인증번호는 %s 입니다.
+
+                        %d분 안에 비밀번호 재설정 화면에 입력해주세요.
+                        """
+        );
     }
 
     private String resolveFromAddress() {
@@ -49,5 +58,18 @@ public class SmtpVerificationEmailSender implements VerificationEmailSender {
             return smtpProperties.getUsername();
         }
         throw new IllegalStateException("SMTP 발신 주소 설정이 필요합니다.");
+    }
+
+    private void sendCodeEmail(String email, String code, String subject, String bodyTemplate) {
+        String fromAddress = resolveFromAddress();
+        long expirationMinutes = authEmailVerificationProperties.getCodeExpirationMs() / 60000L;
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setFrom(fromAddress);
+        message.setSubject(subject);
+        message.setText(bodyTemplate.formatted(code, expirationMinutes));
+
+        javaMailSender.send(message);
     }
 }

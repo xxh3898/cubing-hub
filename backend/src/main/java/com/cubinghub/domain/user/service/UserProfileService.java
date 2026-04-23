@@ -1,9 +1,12 @@
 package com.cubinghub.domain.user.service;
 
 import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
+import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
+import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileRecordResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileResponse;
@@ -16,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +30,11 @@ public class UserProfileService {
 
     private final UserRepository userRepository;
     private final RecordRepository recordRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
     public MyProfileResponse getMyProfile(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
+        User user = findUserByEmail(email);
         RecordSummaryQueryResult summary = recordRepository.findSummaryByUserId(user.getId());
 
         return new MyProfileResponse(
@@ -43,8 +48,7 @@ public class UserProfileService {
     public MyRecordPageResponse getMyRecords(String email, Integer page, Integer size) {
         validatePageRequest(page, size);
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
+        User user = findUserByEmail(email);
         Page<Record> records = recordRepository.findByUserIdOrderByCreatedAtDesc(
                 user.getId(),
                 PageRequest.of(page - 1, size)
@@ -66,6 +70,32 @@ public class UserProfileService {
         );
     }
 
+    @Transactional
+    public void updateMyProfile(String email, UpdateMyProfileRequest request) {
+        User user = findUserByEmail(email);
+
+        if (userRepository.existsByNicknameAndIdNot(request.getNickname(), user.getId())) {
+            throw new IllegalArgumentException("이미 사용중인 닉네임입니다.");
+        }
+
+        user.updateProfile(request.getNickname(), request.getMainEvent());
+    }
+
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        User user = findUserByEmail(email);
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+        }
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+        }
+
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+        refreshTokenService.deleteAllByUser(email);
+    }
+
     private MyProfileSummaryResponse buildSummary(RecordSummaryQueryResult summary) {
         Integer averageTimeMs = summary.averageTimeMs() == null
                 ? null
@@ -76,6 +106,11 @@ public class UserProfileService {
                 summary.personalBestTimeMs(),
                 averageTimeMs
         );
+    }
+
+    private User findUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
     }
 
     private void validatePageRequest(Integer page, Integer size) {

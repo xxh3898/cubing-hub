@@ -1,8 +1,10 @@
 package com.cubinghub.domain.user;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +12,8 @@ import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.repository.RecordRepository;
+import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
+import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -17,12 +21,14 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 @AutoConfigureMockMvc
@@ -39,7 +45,13 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
     private RecordRepository recordRepository;
 
     @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     private User testUser;
     private String accessToken;
@@ -48,7 +60,7 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
     void setUp() {
         testUser = userRepository.save(User.builder()
                 .email("tester@cubinghub.com")
-                .password("password")
+                .password(passwordEncoder.encode("password123!"))
                 .nickname("Tester")
                 .role(UserRole.ROLE_USER)
                 .status(UserStatus.ACTIVE)
@@ -105,6 +117,43 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("인증된 사용자는 마이페이지 프로필 정보를 수정할 수 있다")
+    void should_update_my_profile_when_access_token_is_valid() throws Exception {
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest("UpdatedTester", "WCA_333");
+
+        mockMvc.perform(patch("/api/users/me/profile")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("내 정보를 수정했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        User updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
+        assertThat(updatedUser.getNickname()).isEqualTo("UpdatedTester");
+        assertThat(updatedUser.getMainEvent()).isEqualTo("WCA_333");
+    }
+
+    @Test
+    @DisplayName("인증된 사용자는 현재 비밀번호가 맞으면 비밀번호를 변경할 수 있다")
+    void should_change_password_when_current_password_matches() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("password123!", "newPassword123!");
+
+        mockMvc.perform(patch("/api/users/me/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호를 변경했습니다. 다시 로그인해주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        User updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
+        assertThat(passwordEncoder.matches("newPassword123!", updatedUser.getPassword())).isTrue();
+    }
+
+    @Test
     @DisplayName("Authorization 헤더 없이 마이페이지 조회를 요청하면 401을 반환한다")
     void should_return_unauthorized_when_authorization_header_is_missing() throws Exception {
         mockMvc.perform(get("/api/users/me/profile"))
@@ -133,6 +182,19 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("인증이 필요합니다."))
                 .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 일치하지 않으면 비밀번호 변경은 400을 반환한다")
+    void should_return_bad_request_when_current_password_does_not_match() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("wrongPassword!", "newPassword123!");
+
+        mockMvc.perform(patch("/api/users/me/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("현재 비밀번호가 일치하지 않습니다."));
     }
 
     private Record saveRecord(User user, EventType eventType, int timeMs, Penalty penalty, String scramble) {

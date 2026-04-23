@@ -12,8 +12,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.PasswordResetConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
 import com.cubinghub.domain.auth.repository.EmailVerificationStore;
+import com.cubinghub.domain.auth.repository.PasswordResetStore;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.auth.service.VerificationEmailSender;
 import com.cubinghub.domain.user.entity.User;
@@ -65,6 +67,9 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
 
     @Autowired
     private EmailVerificationStore emailVerificationStore;
+
+    @Autowired
+    private PasswordResetStore passwordResetStore;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -147,6 +152,71 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
         mockMvc.perform(post("/api/auth/email-verification/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new EmailVerificationConfirmRequest(email, "000000"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("인증번호가 일치하지 않습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 요청 성공 시 Redis에 인증 코드를 저장한다")
+    void should_store_reset_code_when_password_reset_is_requested() throws Exception {
+        String email = newEmail("password-reset-request");
+        saveActiveUser(email, newNickname("ResetUser"));
+
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호 재설정 인증번호를 이메일로 전송했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        String storedCode = passwordResetStore.getCode(email);
+        assertThat(storedCode).matches("\\d{6}");
+        assertThat(passwordResetStore.isOnCooldown(email)).isTrue();
+        verify(verificationEmailSender).sendPasswordResetCode(email, storedCode);
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 인증번호가 일치하면 비밀번호를 변경하고 리프레시 토큰을 삭제한다")
+    void should_reset_password_when_password_reset_code_matches() throws Exception {
+        String email = newEmail("password-reset-confirm");
+        saveActiveUser(email, newNickname("ResetUser"));
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isOk());
+        String code = passwordResetStore.getCode(email);
+        assertThat(code).isNotNull();
+        AuthSession session = login(email, TEST_PASSWORD);
+
+        mockMvc.perform(post("/api/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PasswordResetConfirmRequest(email, code, "newPassword123!"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호가 재설정되었습니다. 다시 로그인해주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        User updatedUser = userRepository.findByEmail(email).orElseThrow();
+        assertThat(passwordEncoder.matches("newPassword123!", updatedUser.getPassword())).isTrue();
+        assertThat(refreshTokenService.get(email, jwtTokenProvider.getJti(session.refreshToken()))).isNull();
+    }
+
+    @Test
+    @DisplayName("잘못된 비밀번호 재설정 인증번호를 보내면 400을 반환한다")
+    void should_return_bad_request_when_password_reset_code_is_invalid() throws Exception {
+        String email = newEmail("password-reset-invalid");
+        saveActiveUser(email, newNickname("ResetUser"));
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PasswordResetConfirmRequest(email, "000000", "newPassword123!"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("인증번호가 일치하지 않습니다."))
@@ -432,6 +502,7 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
     private void deleteAuthState(String email) {
         deleteByPattern("refresh:" + email + ":*");
         deleteByPattern("auth:email-verification:*:" + email);
+        deleteByPattern("auth:password-reset:*:" + email);
         userRepository.findByEmail(email).ifPresent(userRepository::delete);
     }
 

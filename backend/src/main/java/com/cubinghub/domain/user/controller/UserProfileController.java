@@ -1,16 +1,21 @@
 package com.cubinghub.domain.user.controller;
 
 import com.cubinghub.common.response.ApiResponse;
+import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
+import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileResponse;
 import com.cubinghub.domain.user.service.UserProfileService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,6 +50,34 @@ public class UserProfileController {
                         HttpStatus.OK,
                         "내 기록을 조회했습니다.",
                         userProfileService.getMyRecords(userDetails.getUsername(), page, size)
+                )
+        );
+    }
+
+    @PatchMapping("/profile")
+    public ResponseEntity<ApiResponse<Void>> updateMyProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateMyProfileRequest request
+    ) {
+        userProfileService.updateMyProfile(userDetails.getUsername(), request);
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        HttpStatus.OK,
+                        "내 정보를 수정했습니다."
+                )
+        );
+    }
+
+    @PatchMapping("/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        userProfileService.changePassword(userDetails.getUsername(), request);
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        HttpStatus.OK,
+                        "비밀번호를 변경했습니다. 다시 로그인해주세요."
                 )
         );
     }

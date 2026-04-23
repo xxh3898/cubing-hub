@@ -4,9 +4,10 @@ import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.domain.auth.cookie.RefreshTokenCookieManager;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
-import com.cubinghub.domain.auth.dto.response.AuthResponse;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.PasswordResetConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
+import com.cubinghub.domain.auth.dto.response.AuthResponse;
 import com.cubinghub.domain.auth.service.AuthService;
 import com.cubinghub.domain.auth.service.TokenDto;
 import jakarta.validation.Valid;
@@ -38,6 +39,22 @@ public class AuthController {
     ) {
         authService.confirmEmailVerification(request);
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "이메일 인증이 완료되었습니다."));
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<ApiResponse<Void>> requestPasswordReset(
+            @Valid @RequestBody EmailVerificationRequest request
+    ) {
+        authService.requestPasswordReset(request);
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "비밀번호 재설정 인증번호를 이메일로 전송했습니다."));
+    }
+
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<ApiResponse<Void>> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request
+    ) {
+        authService.confirmPasswordReset(request);
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "비밀번호가 재설정되었습니다. 다시 로그인해주세요."));
     }
 
     @PostMapping("/signup")

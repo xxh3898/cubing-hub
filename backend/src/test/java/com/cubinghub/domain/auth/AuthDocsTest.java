@@ -3,8 +3,10 @@ package com.cubinghub.domain.auth;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.PasswordResetConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
 import com.cubinghub.domain.auth.repository.EmailVerificationStore;
+import com.cubinghub.domain.auth.repository.PasswordResetStore;
 import com.cubinghub.domain.auth.service.VerificationEmailSender;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
@@ -49,6 +51,9 @@ class AuthDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private EmailVerificationStore emailVerificationStore;
+
+    @Autowired
+    private PasswordResetStore passwordResetStore;
 
     @MockBean
     private VerificationEmailSender verificationEmailSender;
@@ -132,6 +137,68 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                         requestFields(
                                 fieldWithPath("email").description("인증을 완료할 이메일"),
                                 fieldWithPath("code").description("이메일로 수신한 6자리 인증번호")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 인증번호 요청에 성공한다")
+    void should_request_password_reset_code_when_request_is_valid() throws Exception {
+        String email = newEmail("password-reset-request");
+        saveActiveUser(email, newNickname("ResetUser"));
+
+        ResultActions result = mockMvc.perform(post("/api/auth/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호 재설정 인증번호를 이메일로 전송했습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/password-reset/request",
+                        requestFields(
+                                fieldWithPath("email").description("비밀번호를 재설정할 계정 이메일")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 인증번호 확인 후 새 비밀번호를 저장한다")
+    void should_confirm_password_reset_when_code_matches() throws Exception {
+        String email = newEmail("password-reset-confirm");
+        saveActiveUser(email, newNickname("ResetUser"));
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isOk());
+        String code = passwordResetStore.getCode(email);
+        if (code == null) {
+            throw new IllegalStateException("password reset code missing");
+        }
+
+        ResultActions result = mockMvc.perform(post("/api/auth/password-reset/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new PasswordResetConfirmRequest(email, code, "newPassword123!"))));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호가 재설정되었습니다. 다시 로그인해주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andDo(document("auth/password-reset/confirm",
+                        requestFields(
+                                fieldWithPath("email").description("비밀번호를 재설정할 계정 이메일"),
+                                fieldWithPath("code").description("이메일로 수신한 6자리 인증번호"),
+                                fieldWithPath("newPassword").description("새 비밀번호 (8자 이상 64자 이하)")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),

@@ -2,13 +2,17 @@ package com.cubinghub.domain.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
+import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
+import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
 import com.cubinghub.domain.user.dto.response.MyProfileResponse;
 import com.cubinghub.domain.user.entity.User;
@@ -26,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserProfileService 단위 테스트")
@@ -37,11 +42,17 @@ class UserProfileServiceTest {
     @Mock
     private RecordRepository recordRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     private UserProfileService userProfileService;
 
     @BeforeEach
     void setUp() {
-        userProfileService = new UserProfileService(userRepository, recordRepository);
+        userProfileService = new UserProfileService(userRepository, recordRepository, passwordEncoder, refreshTokenService);
     }
 
     @Test
@@ -119,6 +130,38 @@ class UserProfileServiceTest {
     }
 
     @Test
+    @DisplayName("내 정보 수정은 닉네임과 주 종목을 변경한다")
+    void should_update_profile_when_request_is_valid() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest("NewTester", "WCA_333");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userRepository.existsByNicknameAndIdNot(request.getNickname(), user.getId())).thenReturn(false);
+
+        userProfileService.updateMyProfile(user.getEmail(), request);
+
+        assertThat(user.getNickname()).isEqualTo("NewTester");
+        assertThat(user.getMainEvent()).isEqualTo("WCA_333");
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 일치하면 비밀번호를 변경하고 리프레시 토큰을 모두 삭제한다")
+    void should_change_password_when_current_password_matches() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        ChangePasswordRequest request = new ChangePasswordRequest("currentPassword!", "newPassword123!");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())).thenReturn(true);
+        when(passwordEncoder.matches(request.getNewPassword(), user.getPassword())).thenReturn(false);
+        when(passwordEncoder.encode(request.getNewPassword())).thenReturn("encodedNewPassword");
+
+        userProfileService.changePassword(user.getEmail(), request);
+
+        assertThat(user.getPassword()).isEqualTo("encodedNewPassword");
+        verify(refreshTokenService).deleteAllByUser(user.getEmail());
+    }
+
+    @Test
     @DisplayName("존재하지 않는 사용자의 마이페이지 조회는 401 예외를 던진다")
     void should_throw_unauthorized_exception_when_user_does_not_exist() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
@@ -140,6 +183,38 @@ class UserProfileServiceTest {
         assertThat(thrown)
                 .isInstanceOf(CustomApiException.class)
                 .hasMessage("사용자를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("중복 닉네임이면 내 정보 수정은 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_nickname_is_duplicated() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest("Duplicated", "WCA_333");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userRepository.existsByNicknameAndIdNot(request.getNickname(), user.getId())).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> userProfileService.updateMyProfile(user.getEmail(), request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 사용중인 닉네임입니다.");
+    }
+
+    @Test
+    @DisplayName("현재 비밀번호가 일치하지 않으면 비밀번호 변경은 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_current_password_does_not_match() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        ChangePasswordRequest request = new ChangePasswordRequest("wrongPassword!", "newPassword123!");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())).thenReturn(false);
+
+        Throwable thrown = catchThrowable(() -> userProfileService.changePassword(user.getEmail(), request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("현재 비밀번호가 일치하지 않습니다.");
     }
 
     @Test

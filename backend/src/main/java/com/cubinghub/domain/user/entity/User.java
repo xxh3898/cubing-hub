@@ -57,4 +57,13 @@ public class User extends BaseTimeEntity {
         this.status = status;
         this.mainEvent = mainEvent;
     }
+
+    public void updateProfile(String nickname, String mainEvent) {
+        this.nickname = nickname;
+        this.mainEvent = mainEvent;
+    }
+
+    public void updatePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
 }

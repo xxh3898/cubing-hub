@@ -5,7 +5,9 @@ import static org.springframework.restdocs.headers.HeaderDocumentation.headerWit
 import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
+import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.patch;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
+import static org.springframework.restdocs.payload.PayloadDocumentation.requestFields;
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.queryParameters;
@@ -16,6 +18,8 @@ import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.repository.RecordRepository;
+import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
+import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -23,10 +27,12 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.restdocs.payload.JsonFieldType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 class UserProfileDocsTest extends RestDocsIntegrationTest {
 
@@ -38,6 +44,12 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     @DisplayName("인증된 사용자의 마이페이지 프로필을 조회한다")
@@ -134,6 +146,82 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data.totalPages").type(JsonFieldType.NUMBER).description("전체 페이지 수"),
                                 fieldWithPath("data.hasNext").type(JsonFieldType.BOOLEAN).description("다음 페이지 존재 여부"),
                                 fieldWithPath("data.hasPrevious").type(JsonFieldType.BOOLEAN).description("이전 페이지 존재 여부")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("인증된 사용자는 마이페이지 프로필 정보를 수정한다")
+    void should_update_my_profile_when_authorized() throws Exception {
+        User savedUser = userRepository.save(User.builder()
+                .email("profile-update@cubinghub.com")
+                .password(passwordEncoder.encode("password123!"))
+                .nickname("ProfileUser")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("WCA_222")
+                .build());
+
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, savedUser);
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest("UpdatedUser", "WCA_333");
+
+        mockMvc.perform(patch("/api/users/me/profile")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("내 정보를 수정했습니다."))
+                .andDo(document("user/profile/update",
+                        requestHeaders(
+                                headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
+                        ),
+                        requestFields(
+                                fieldWithPath("nickname").description("변경할 닉네임"),
+                                fieldWithPath("mainEvent").description("변경할 주 종목")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("인증된 사용자는 현재 비밀번호 확인 후 비밀번호를 변경한다")
+    void should_change_password_when_authorized() throws Exception {
+        User savedUser = userRepository.save(User.builder()
+                .email("password-update@cubinghub.com")
+                .password(passwordEncoder.encode("password123!"))
+                .nickname("PasswordUser")
+                .role(UserRole.ROLE_USER)
+                .status(UserStatus.ACTIVE)
+                .mainEvent("WCA_333")
+                .build());
+
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, savedUser);
+        ChangePasswordRequest request = new ChangePasswordRequest("password123!", "newPassword123!");
+
+        mockMvc.perform(patch("/api/users/me/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("비밀번호를 변경했습니다. 다시 로그인해주세요."))
+                .andDo(document("user/password/update",
+                        requestHeaders(
+                                headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
+                        ),
+                        requestFields(
+                                fieldWithPath("currentPassword").description("현재 비밀번호"),
+                                fieldWithPath("newPassword").description("새 비밀번호")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.NULL).description("추가 데이터 없음")
                         )
                 ));
     }

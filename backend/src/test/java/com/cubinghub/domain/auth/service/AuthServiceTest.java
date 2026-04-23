@@ -13,9 +13,11 @@ import com.cubinghub.config.AuthEmailVerificationProperties;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.PasswordResetConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
 import com.cubinghub.domain.auth.dto.response.CurrentUserResponse;
 import com.cubinghub.domain.auth.repository.EmailVerificationStore;
+import com.cubinghub.domain.auth.repository.PasswordResetStore;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.user.entity.User;
@@ -75,6 +77,9 @@ class AuthServiceTest {
     private EmailVerificationStore emailVerificationStore;
 
     @Mock
+    private PasswordResetStore passwordResetStore;
+
+    @Mock
     private EmailVerificationCodeGenerator emailVerificationCodeGenerator;
 
     @Mock
@@ -95,6 +100,7 @@ class AuthServiceTest {
                 refreshTokenService,
                 redisBlackListService,
                 emailVerificationStore,
+                passwordResetStore,
                 emailVerificationCodeGenerator,
                 verificationEmailSender,
                 authEmailVerificationProperties
@@ -163,6 +169,72 @@ class AuthServiceTest {
                 .hasMessage("인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
         verify(emailVerificationStore).deleteCode(request.getEmail());
         verify(emailVerificationStore).deleteCooldown(request.getEmail());
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 요청에 성공하면 Redis에 저장하고 메일을 발송한다")
+    void should_store_code_and_send_reset_email_when_password_reset_request_succeeds() {
+        EmailVerificationRequest request = new EmailVerificationRequest("member@cubinghub.com");
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+        when(passwordResetStore.isOnCooldown(request.getEmail())).thenReturn(false);
+        when(emailVerificationCodeGenerator.generate()).thenReturn("654321");
+
+        authService.requestPasswordReset(request);
+
+        verify(passwordResetStore).saveCode(request.getEmail(), "654321", 600000L);
+        verify(passwordResetStore).saveCooldown(request.getEmail(), 60000L);
+        verify(verificationEmailSender).sendPasswordResetCode(request.getEmail(), "654321");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 이메일이면 비밀번호 재설정 요청은 성공처럼 종료한다")
+    void should_skip_password_reset_when_email_does_not_exist() {
+        EmailVerificationRequest request = new EmailVerificationRequest("missing@cubinghub.com");
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+
+        authService.requestPasswordReset(request);
+
+        verify(passwordResetStore, never()).saveCode(any(), any(), any(Long.class));
+        verify(verificationEmailSender, never()).sendPasswordResetCode(any(), any());
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 인증번호가 일치하면 비밀번호를 변경하고 리프레시 토큰을 모두 삭제한다")
+    void should_reset_password_and_delete_all_refresh_tokens_when_reset_code_matches() {
+        PasswordResetConfirmRequest request = new PasswordResetConfirmRequest(
+                "member@cubinghub.com",
+                "123456",
+                "newPassword123!"
+        );
+        User user = TestFixtures.createUser(1L, request.getEmail(), "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+
+        when(passwordResetStore.getCode(request.getEmail())).thenReturn("123456");
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode(request.getNewPassword())).thenReturn("encodedNewPassword");
+
+        authService.confirmPasswordReset(request);
+
+        assertThat(user.getPassword()).isEqualTo("encodedNewPassword");
+        verify(passwordResetStore).deleteCode(request.getEmail());
+        verify(passwordResetStore).deleteCooldown(request.getEmail());
+        verify(refreshTokenService).deleteAllByUser(request.getEmail());
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 인증번호가 없으면 실패한다")
+    void should_throw_illegal_argument_exception_when_password_reset_code_is_missing() {
+        PasswordResetConfirmRequest request = new PasswordResetConfirmRequest(
+                "member@cubinghub.com",
+                "123456",
+                "newPassword123!"
+        );
+        when(passwordResetStore.getCode(request.getEmail())).thenReturn(null);
+
+        Throwable thrown = catchThrowable(() -> authService.confirmPasswordReset(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("인증번호가 만료되었거나 요청되지 않았습니다.");
     }
 
     @Test

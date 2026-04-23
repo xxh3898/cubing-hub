@@ -64,6 +64,24 @@ include::{snippets}/auth/email-verification/confirm/request-fields.adoc[]
 include::{snippets}/auth/email-verification/confirm/http-response.adoc[]
 include::{snippets}/auth/email-verification/confirm/response-fields.adoc[]
 
+=== 비밀번호 재설정 인증번호 요청
+==== 요청
+include::{snippets}/auth/password-reset/request/http-request.adoc[]
+include::{snippets}/auth/password-reset/request/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/password-reset/request/http-response.adoc[]
+include::{snippets}/auth/password-reset/request/response-fields.adoc[]
+
+=== 비밀번호 재설정 인증번호 확인
+==== 요청
+include::{snippets}/auth/password-reset/confirm/http-request.adoc[]
+include::{snippets}/auth/password-reset/confirm/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/auth/password-reset/confirm/http-response.adoc[]
+include::{snippets}/auth/password-reset/confirm/response-fields.adoc[]
+
 === 회원가입
 ==== 요청
 include::{snippets}/auth/signup/http-request.adoc[]
@@ -184,6 +202,26 @@ include::{snippets}/user/records/query-parameters.adoc[]
 ==== 응답
 include::{snippets}/user/records/http-response.adoc[]
 include::{snippets}/user/records/response-fields.adoc[]
+
+=== 마이페이지 프로필 수정
+==== 요청
+include::{snippets}/user/profile/update/http-request.adoc[]
+include::{snippets}/user/profile/update/request-headers.adoc[]
+include::{snippets}/user/profile/update/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/user/profile/update/http-response.adoc[]
+include::{snippets}/user/profile/update/response-fields.adoc[]
+
+=== 마이페이지 비밀번호 변경
+==== 요청
+include::{snippets}/user/password/update/http-request.adoc[]
+include::{snippets}/user/password/update/request-headers.adoc[]
+include::{snippets}/user/password/update/request-fields.adoc[]
+
+==== 응답
+include::{snippets}/user/password/update/http-response.adoc[]
+include::{snippets}/user/password/update/response-fields.adoc[]
 
 == 기록 (Record)
 

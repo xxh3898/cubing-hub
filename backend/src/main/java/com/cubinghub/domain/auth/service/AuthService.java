@@ -4,9 +4,11 @@ import com.cubinghub.config.AuthEmailVerificationProperties;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.EmailVerificationRequest;
 import com.cubinghub.domain.auth.dto.request.LoginRequest;
+import com.cubinghub.domain.auth.dto.request.PasswordResetConfirmRequest;
 import com.cubinghub.domain.auth.dto.request.SignUpRequest;
 import com.cubinghub.domain.auth.dto.response.CurrentUserResponse;
 import com.cubinghub.domain.auth.repository.EmailVerificationStore;
+import com.cubinghub.domain.auth.repository.PasswordResetStore;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.user.entity.User;
@@ -39,6 +41,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final RedisBlackListService redisBlackListService;
     private final EmailVerificationStore emailVerificationStore;
+    private final PasswordResetStore passwordResetStore;
     private final EmailVerificationCodeGenerator emailVerificationCodeGenerator;
     private final VerificationEmailSender verificationEmailSender;
     private final AuthEmailVerificationProperties authEmailVerificationProperties;
@@ -69,6 +72,33 @@ public class AuthService {
         log.info("이메일 인증번호 발송 완료: {}", email);
     }
 
+    public void requestPasswordReset(EmailVerificationRequest request) {
+        String email = request.getEmail();
+
+        if (!userRepository.existsByEmail(email)) {
+            log.info("비밀번호 재설정 요청 - 존재하지 않는 이메일: {}", email);
+            return;
+        }
+        if (passwordResetStore.isOnCooldown(email)) {
+            throw new IllegalArgumentException(resendCooldownMessage());
+        }
+
+        String code = emailVerificationCodeGenerator.generate();
+        passwordResetStore.saveCode(email, code, authEmailVerificationProperties.getCodeExpirationMs());
+        passwordResetStore.saveCooldown(email, authEmailVerificationProperties.getResendCooldownMs());
+
+        try {
+            verificationEmailSender.sendPasswordResetCode(email, code);
+        } catch (RuntimeException e) {
+            passwordResetStore.deleteCode(email);
+            passwordResetStore.deleteCooldown(email);
+            log.error("비밀번호 재설정 메일 발송 실패 - email: {}", email, e);
+            throw new IllegalStateException("비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        }
+
+        log.info("비밀번호 재설정 인증번호 발송 완료: {}", email);
+    }
+
     public void confirmEmailVerification(EmailVerificationConfirmRequest request) {
         String email = request.getEmail();
 
@@ -87,6 +117,28 @@ public class AuthService {
         emailVerificationStore.deleteCode(email);
         emailVerificationStore.markVerified(email, authEmailVerificationProperties.getVerifiedExpirationMs());
         log.info("이메일 인증 완료: {}", email);
+    }
+
+    @Transactional
+    public void confirmPasswordReset(PasswordResetConfirmRequest request) {
+        String email = request.getEmail();
+        String storedCode = passwordResetStore.getCode(email);
+
+        if (storedCode == null) {
+            throw new IllegalArgumentException("인증번호가 만료되었거나 요청되지 않았습니다.");
+        }
+        if (!storedCode.equals(request.getCode())) {
+            throw new IllegalArgumentException("인증번호가 일치하지 않습니다.");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("인증번호가 만료되었거나 요청되지 않았습니다."));
+
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+        passwordResetStore.deleteCode(email);
+        passwordResetStore.deleteCooldown(email);
+        refreshTokenService.deleteAllByUser(email);
+        log.info("비밀번호 재설정 완료: {}", email);
     }
 
     /**
