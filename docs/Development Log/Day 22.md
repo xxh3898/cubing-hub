@@ -1,4 +1,4 @@
-# Development Log - 2026-04-23
+# Development Log - 2026-04-21
 
 프로젝트: Cubing Hub
 
@@ -6,106 +6,126 @@
 
 ## 오늘 작업
 
-- 회원가입 전에 이메일 인증번호 request/confirm 단계를 추가
-- `Redis TTL` 기반 인증번호, resend cooldown, verified marker 저장소 구현
-- `SMTP` 기반 인증 메일 발송 경계를 추가하고 환경 변수/배포 설정을 정리
-- `POST /api/auth/signup`이 이메일 인증 완료 marker가 있을 때만 계정을 생성하도록 변경
-- 프런트 `/signup`을 이메일 인증 2단계 UI로 전환
-- auth 단위 테스트, 통합 테스트, REST Docs, 프런트 테스트를 함께 갱신
-- 공식 설계 문서와 개발 로그 인덱스를 현재 구현 계약에 맞게 동기화
+- `GET /api/rankings`의 기본 조회 경로를 Redis ZSET 기반 랭킹 V2 hybrid 구조로 전환
+- `nickname` 부분 검색 계약은 유지하기 위해 MySQL `user_pbs` fallback 경로를 유지
+- `POST`, `PATCH`, `DELETE /api/records`에서 PB 변경 시 Redis 랭킹 read model을 증분 동기화하도록 보강
+- `RankingRedisBackfillService`, `RankingRedisStartupRunner`로 초기 재구축 경로를 추가하고 로컬 프로필 startup 재구축을 확인
+- `2026-04-20` 기준선과 같은 `300,000` PB seed, 같은 `k6` 시나리오로 V2 재측정을 실행하고 전/후 비교 산출물을 생성
+- 프런트 브랜딩 이름과 파비콘도 실제 서비스 표기에 맞게 정리했다
+- `2026-04-21` 결과에 맞춰 일정, 설계 문서, 개발 로그 허브를 동기화
 
 ---
 
 ## 핵심 정리 상세
 
-### 1. DB 상태를 늘리지 않고 signup만 잠그는 방향 선택
+### Redis 랭킹 V2 hybrid 구조 적용
 
 #### 문제 상황
-- 기존 signup은 이메일/닉네임 중복만 확인하고 바로 `users.status=ACTIVE` 계정을 생성했다.
-- 이메일 소유 확인이 전혀 없어서 공개 운영 기준으로 가입 장벽이 너무 낮았다.
+- `2026-04-20` baseline 기준 `GET /api/rankings?eventType=WCA_333&page=1&size=25`는 `300,000` PB 후보에서 `p95 13.02s`가 나왔다.
+- 기존 V1은 사용자 중복 제거를 위해 `user_pbs`를 사용했지만, 읽기 hot path는 여전히 MySQL 정렬/페이징에 남아 있었다.
+- 동시에 `nickname` 검색 계약은 `containsIgnoreCase()` 기반 부분 검색이라, 단순 ZSET만으로는 같은 비용 구조로 유지하기 어려웠다.
 
-#### 선택
-- `signup 후 PENDING 활성화`가 아니라 `이메일 인증 후 signup`으로 갔다.
-- 이유는 현재 로그인 경계와 `UserStatus`를 거의 건드리지 않고도 요구사항을 닫을 수 있기 때문이다.
-
-#### 결과
-- DB schema 변경 없이 auth 흐름만으로 이메일 인증을 강제할 수 있게 됐다.
-- 로그인/토큰 발급 로직에는 영향이 최소화됐다.
-
-### 2. Redis에 이메일 인증 임시 상태를 두는 구조
-
-#### 구현
-- 아래 key를 추가했다.
-  - `auth:email-verification:code:{email}`
-  - `auth:email-verification:cooldown:{email}`
-  - `auth:email-verification:verified:{email}`
-- TTL은 다음 기준으로 뒀다.
-  - 인증번호 `10분`
-  - resend cooldown `1분`
-  - verified marker `30분`
-
-#### 이유
-- 인증번호와 verified marker는 영속 source of truth가 아니라 임시 상태라 Redis TTL과 잘 맞는다.
-- 기존 refresh token / blacklist / ranking과 같은 Redis 활용 패턴을 재사용할 수 있다.
+#### 해결 방법
+- `nickname`이 비어 있는 기본 랭킹 조회만 Redis ZSET read model로 전환했다.
+- `nickname` 검색 요청과 Redis ready marker가 없는 경우는 기존 MySQL QueryDSL 경로로 fallback 하도록 유지했다.
+- Redis ZSET score는 `bestTimeMs`, member는 `createdAtMillis:recordId:userId` 0-패딩 문자열로 구성해 기존 동점 처리 기준인 `created_at asc -> record.id asc`를 유지했다.
+- `nicknames` hash에는 `userId -> nickname`, `members` hash에는 `userId -> member`를 저장해 update/delete 동기화를 단순하게 만들었다.
+- `RecordService`에서 PB 재계산 결과가 실제로 바뀐 경우에만 Redis read model을 증분 갱신하거나 제거하도록 연결했다.
 
 #### 결과
-- 가입 미완료 상태 정리용 별도 배치나 테이블이 필요 없어졌다.
-- signup 성공 시 verified marker를 바로 소비하도록 맞췄다.
+- `GET /api/rankings`의 응답 형식과 검색/페이지네이션 계약은 유지됐다.
+- 기본 조회는 Redis ZSET, `nickname` 검색은 MySQL fallback이라는 hybrid V2 구조가 정리됐다.
+- MySQL `records` / `user_pbs`는 source of truth로 유지되고, Redis는 읽기 최적화를 위한 read model 역할만 맡는다.
 
-### 3. SMTP 발송 경계와 실패 롤백
+### 초기 재구축 경로 추가와 startup 비용 확인
 
-#### 구현
-- `spring-boot-starter-mail` 의존성을 추가했다.
-- SMTP host가 없으면 unavailable sender가 명시적으로 실패하도록 뒀다.
-- 인증번호 요청 시 Redis에 code/cooldown을 저장한 뒤 메일 발송을 시도하고, 발송 실패 시 Redis 상태를 롤백한다.
+#### 문제 상황
+- Redis read model을 조회 경로에 추가하면 Redis가 비어 있는 초기 상태를 먼저 해결해야 했다.
+- empty Redis 상태에서 바로 조회를 Redis로 넘기면 첫 요청이 빈 랭킹으로 보일 수 있었다.
 
-#### 이유
-- 메일 발송 실패 후 Redis 상태만 남으면 사용자는 메일을 못 받았는데 cooldown과 code만 걸린 상태가 된다.
-- 반대로 메일만 보내고 Redis 저장이 실패하면 받은 인증번호가 서버에 없는 상태가 된다.
-
-#### 결과
-- 완전한 분산 트랜잭션은 아니지만 현재 범위에서 가장 실용적인 정합성을 확보했다.
-
-### 4. 프런트 signup을 서버 규칙과 동일하게 잠금
-
-#### 구현
-- 이메일 입력, 인증번호 요청, 인증번호 확인, 나머지 signup 입력 순서로 바꿨다.
-- 이메일이 바뀌면 인증 완료 상태와 인증번호 입력값을 즉시 초기화한다.
-- 인증 완료 전에는 `가입완료` 버튼이 비활성화된다.
-
-#### 이유
-- 서버만 막아두면 UX상 이유를 모르는 실패가 늘어난다.
-- 프런트도 같은 규칙을 보여줘야 가입 흐름이 자연스럽다.
+#### 해결 방법
+- `RankingRedisBackfillService`를 추가해 MySQL `user_pbs`에서 Redis 랭킹 키를 전체 재구축하도록 했다.
+- `RankingRedisStartupRunner`를 추가하고 `ranking.redis.rebuild-on-startup` property로 startup 재구축 여부를 제어하도록 했다.
+- `application.yaml` 기본값은 `false`, `application-local.yaml`은 `true`로 두어 로컬 benchmark에서는 자동 재구축이 돌도록 맞췄다.
+- Redis ready marker를 도입해 재구축이 끝나기 전에는 조회가 MySQL fallback을 타도록 했다.
 
 #### 결과
-- signup 화면이 서버의 `이메일 인증 필요` 규칙과 일치하게 됐다.
+- 로컬 `300,000` PB 기준 `WCA_333` startup 재구축은 약 9분이 걸렸다.
+- 재구축 완료 후 `ranking:v2:WCA_333:ready`와 `ZCARD 300000`을 확인했고, 기본 조회는 Redis 경로, `nickname` 검색은 MySQL fallback 경로로 정상 응답했다.
+- startup 재구축은 로컬 검증에는 단순하지만, 운영에서 항상 켤지 여부는 별도 배포 세션에서 결정해야 한다.
 
-### 5. 테스트와 문서를 한 번에 갱신
+### `2026-04-21` `k6` 재측정 결과
 
-#### 구현
-- backend
-  - `AuthServiceTest`
-  - `AuthControllerIntegrationTest`
-  - `AuthDocsTest`
-- frontend
-  - `SignupPage.test.jsx`
-- 문서
-  - API, auth, 화면, 아키텍처, 배포, DB 설계 문서
+#### 실행 조건
+- API: `GET /api/rankings?eventType=WCA_333&page=1&size=25`
+- 데이터셋: `users`, `records`, `user_pbs` 각 `300,000`
+- seed: `k6/sql/seed-rankings-v1-baseline.sql`
+- 시나리오: `k6/rankings-v1-baseline.js`
+- baseline run label: `MySQL-v1`
+- current run label: `redis-v2`
+- storage label: `mysql`, `redis`
+
+#### 핵심 결과
+- `http_req_duration avg`: `21.10 ms`
+- `http_req_duration p95`: `36.94 ms`
+- `http_req_duration max`: `94.53 ms`
+- `http_reqs count`: `202,875`
+- `http_reqs rate`: `1,502.77/s`
+- `http_req_failed`: `0.00%`
+- `checks`: `100.00%`
+
+#### V1 대비 비교
+- avg: `7,245.23 ms -> 21.10 ms` (`-99.71%`)
+- p95: `12,429.58 ms -> 36.94 ms` (`-99.70%`)
+- max: `13,288.98 ms -> 94.53 ms` (`-99.29%`)
+- request rate: `4.21/s -> 1,502.77/s` (`+35,610.49%`)
+- 산출물:
+  - `docs/performance/rankings-v2-summary.json`
+  - `docs/performance/rankings-v2-report.md`
+  - `docs/performance/rankings-v2-report.html`
+  - `docs/performance/rankings-v1-v2-comparison.md`
+  - `docs/performance/rankings-v1-v2-comparison.html`
+
+#### 해석
+- Prometheus 초기화 후 `MySQL-v1`, `redis-v2` 두 라벨로 다시 측정했고, 같은 seed와 같은 endpoint 기준으로 읽기 성능 개선 폭이 충분히 분명하게 드러났다.
+- 이번 측정은 `nickname` 없는 기본 랭킹 조회를 Redis로 전환한 결과다.
+- `nickname` 검색은 계속 MySQL fallback이므로, 검색 부하 최적화는 후속 범위로 남는다.
+
+### 프런트 브랜딩 이름과 파비콘 정리
+
+#### 작업 내용
+- 브라우저 탭과 정적 자산에서 보이는 서비스 이름과 아이콘을 현재 `Cubing Hub` 표기에 맞게 정리했다.
+- 파비콘 자산을 실제 브랜드 기준 이미지로 교체해 배포 후 브라우저 탭에서도 서비스 정체성이 바로 드러나게 맞췄다.
 
 #### 결과
-- 코드, 테스트, REST Docs, 사람이 읽는 설계 문서가 같은 계약을 보게 됐다.
+- Redis V2 성능 개선과 직접 관련은 없지만, 같은 날 배포 전 기준선 정리 과정에서 사용자-facing 브랜딩도 현재 서비스 이름과 맞춰졌다.
+
+### 배포 범위 분리
+
+#### 문제 상황
+- `2026-04-21` 원래 계획에는 최종 배포가 포함돼 있었지만, 저장소 안에는 프로덕션 env 값, 실제 도메인, AWS 자원, 배포 스크립트가 충분히 정리돼 있지 않았다.
+
+#### 결정
+- 이번 세션은 `리팩토링 + 재측정 + 문서 마감`까지만 닫았다.
+- 실제 배포와 대상 환경 스모크 테스트는 별도 세션으로 분리했다.
+
+#### 영향
+- 설계 문서와 일정 문서는 배포가 아직 남아 있음을 명시한다.
+- 성능 개선과 코드/문서 정합성은 이번 세션에서 확보했고, 운영 반영 절차는 다음 세션에서 이어서 다룬다.
 
 ---
 
 ## 사용 기술
 
-- Spring Boot Mail
+- Spring Boot
+- MySQL
 - Redis
-- Spring Security
+- QueryDSL
 - JUnit 5
-- Spring REST Docs
-- React
-- Vitest
+- Testcontainers
+- k6
+- Prometheus
+- Grafana
 
 ---
 
@@ -113,12 +133,17 @@
 
 - `cd backend && ./gradlew test`
 - `cd backend && ./gradlew build`
-- `cd frontend && npm run lint`
-- `cd frontend && npm test -- --run`
-- `cd frontend && npm run build`
+- `curl 'http://127.0.0.1:8080/api/rankings?eventType=WCA_333&page=1&size=3'`
+- `curl 'http://127.0.0.1:8080/api/rankings?eventType=WCA_333&nickname=User24&page=1&size=3'`
+- `docker exec cubing_hub_redis redis-cli EXISTS ranking:v2:WCA_333:ready`
+- `docker exec cubing_hub_redis redis-cli ZCARD ranking:v2:WCA_333:zset`
+- `K6_PROMETHEUS_RW_TREND_STATS=avg,p(95),max k6 run -o experimental-prometheus-rw=http://127.0.0.1:9090/api/v1/write --summary-export ... -e RUN_LABEL=MySQL-v1 ...`
+- `K6_PROMETHEUS_RW_TREND_STATS=avg,p(95),max k6 run -o experimental-prometheus-rw=http://127.0.0.1:9090/api/v1/write --summary-export ... -e RUN_LABEL=redis-v2 ...`
+- `node k6/generate-performance-report.mjs --previous docs/performance/rankings-v1-summary.json --current docs/performance/rankings-v2-summary.json ...`
+- `curl 'http://127.0.0.1:9090/api/v1/label/run/values'`
+- `curl -u admin:*** 'http://127.0.0.1:3000/api/search?query=Rankings%20Baseline'`
 
 ## 남은 리스크
 
-- 실제 SMTP 자격 증명을 연결한 상태의 실메일 발송은 아직 수동 검증하지 않았다.
-- abuse 방어는 현재 이메일 단위 resend cooldown만 있고, IP rate limit이나 CAPTCHA는 포함하지 않았다.
-- frontend build는 기존과 동일하게 500kB 초과 chunk warning을 출력한다.
+- `300,000` PB 기준 local startup 재구축이 약 9분이 걸려 운영에서 같은 방식을 그대로 켜기 어렵다.
+- `nickname` 검색은 여전히 MySQL fallback이라 검색 부하까지 Redis로 옮긴 상태는 아니다.

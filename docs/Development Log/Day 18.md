@@ -2,74 +2,75 @@
 
 프로젝트: Cubing Hub
 
+> 일정상 `2026-04-16` 안정화 작업을 commit 반영일 기준으로 `2026-04-17` 로그에 다시 맞춰 기록했다.
+
 ---
 
 ## 오늘 작업
 
-- `frontend/src/index.css`를 import 허브로 축소하고 `frontend/src/styles/*` 구조로 CSS 파일을 분리
-- `FeedbackPage`, `CommunityWritePage`, `CommunityDetailPage`에서 실제로 쓰지만 비어 있던 스타일을 보강
-- 댓글 삭제 버튼의 `disabled` 상태가 화면에서 드러나도록 스타일을 추가
-- `Project Schedule`, `Internal Schedule.internal`, `dev-log.md`, `Day 17`, `Day 18` 로그를 현재 결과 기준으로 동기화
-- 작업 폴더에 Day 17, Day 18 안정화 결과 review 문서를 추가
-- `frontend` 전체 lint/build/test를 다시 실행
+- 커뮤니티, 댓글, 마이페이지 흐름에서 `토큰은 유효하지만 사용자 정보가 없는 경우`를 `401 Unauthorized`와 일관된 메시지로 정리
+- `MyPage` 프로필/기록 조회 실패 시 재시도 버튼을 추가해 복구 경로를 화면에 노출
+- `CommunityWritePage` 제목 `100자`, `CommunityDetailPage` 댓글 `500자` 제한을 서버 validation과 맞춤
+- `/api/home` optional auth 경계에서 사용자 누락 시 guest home fallback으로 정리
+- `FeedbackPage` 제출 중 폼 잠금과 입력 변경 시 메시지 초기화로 상태 처리 정리
+- `2026-04-16` 안정화 범위 대상 backend/frontend 자동 회귀 검증을 다시 실행
 
 ---
 
-## 핵심 정리 상세
+## 핵심 안정화 상세
 
-### CSS 구조 분리
-
-#### 문제 상황
-- `frontend/src/index.css`에 공통 레이아웃, 폼, 타이머, 홈, 랭킹, 커뮤니티, 인증, 마이페이지 스타일이 한 파일에 몰려 있었다.
-- Day 18 범위에서 CSS 구조를 정리하되, 시각적 전면 수정 없이 유지보수 경계만 나누는 것이 필요했다.
-
-#### 해결 방법
-- `index.css`를 import 허브로만 남기고 `base`, `home`, `timer`, `rankings`, `learning`, `community`, `auth`, `mypage`, `feedback`, `responsive` 파일로 분리했다.
-- 기존 selector 이름과 import 순서는 유지해 시각적 우선순위가 바뀌지 않도록 했다.
-
-#### 결과
-- 스타일 책임이 화면/공통 단위로 나뉘어 이후 CSS Modules 전환이나 화면 수정의 진입점이 더 명확해졌다.
-- 기능 동작을 건드리지 않고 CSS 구조만 정리하는 refactor 단위를 별도로 닫을 수 있게 됐다.
-
-### 피드백/커뮤니티 화면 잔버그 정리
+### 커뮤니티/댓글/마이페이지 인증 경계 정리
 
 #### 문제 상황
-- `FeedbackPage`, `CommunityWritePage`, `CommunityDetailPage`는 JSX에서 쓰는 클래스 중 일부가 실제 CSS에 정의되어 있지 않아 화면 간격과 메타 영역 밀도가 깨질 수 있었다.
-- 댓글 삭제 버튼은 `disabled`가 되어도 시각적으로 거의 구분되지 않았다.
+- 삭제되었거나 조회되지 않는 사용자가 유효한 Access Token을 가진 상태에서 커뮤니티, 댓글, 기록 관리 API를 호출하면 일부 경로가 `400 Bad Request` 또는 비일관 메시지로 끝났다.
+- 프런트에서는 `MyPage` 로드 실패 후 사용자가 직접 재시도할 수 있는 경로가 부족했다.
 
 #### 해결 방법
-- `feedback.css`를 추가하고 피드백 헤더/폼 간격을 보강했다.
-- `community.css`에 작성 화면 레이아웃, 상세 메타 행, 댓글 삭제 버튼 `disabled` 상태 스타일을 추가했다.
+- `PostService`, `CommentService`, `RecordService`에서 사용자 조회 실패를 `401 Unauthorized`와 `사용자를 찾을 수 없습니다.` 메시지로 일관화했다.
+- `MyPage`에 프로필/기록 로드 실패 시 각각 다시 시도할 수 있는 버튼을 추가했다.
+- 게시글 제목과 댓글 입력 길이를 서버 validation 한계와 같은 값으로 맞췄다.
 
 #### 결과
-- 피드백과 커뮤니티 주요 화면의 누락된 레이아웃 클래스가 채워졌고, 댓글 삭제 진행 중 상태가 화면에도 드러나게 됐다.
+- 인증 토큰은 있지만 사용자 컨텍스트가 사라진 경우의 응답이 공통 예외 계약과 일치하도록 정리됐다.
+- 마이페이지 로드 실패 시 세션 복구 또는 재호출할 수 있는 경로가 명확해졌다.
 
-### 문서와 작업 산출물 마감
+### 홈 optional auth fallback과 피드백 상태 처리 정리
 
-#### 작업 내용
-- 공개 일정 문서와 내부 일정 문서에서 Day 17, Day 18 완료 상태를 반영했다.
-- 허브 로그와 Day 17, Day 18 원본 로그를 현재 구현/검증 결과와 맞췄다.
-- `/Users/chiho/AI/cubing-hub/20260417/01-day-17-v1-stabilization/review-day-17-v1-stabilization.md`에 구현, 검증, 남은 리스크를 정리했다.
+#### 문제 상황
+- `/api/home`는 optional auth endpoint지만, 인증 토큰이 남아 있고 해당 사용자를 찾지 못하는 경우 guest home으로 내려가지 못하고 실패할 수 있었다.
+- `FeedbackPage`는 제출 중에도 필드가 활성화되어 있었고, 에러 메시지가 남은 상태에서 입력을 바꾸면 예전 메시지가 그대로 남았다.
+
+#### 해결 방법
+- `HomeService`에서 사용자 조회 중 `401` 성격의 예외는 guest home fallback으로 처리하고, 다른 예외만 다시 던지도록 분기했다.
+- `FeedbackPage`는 제출 중 전체 필드를 잠그고, 사용자가 입력을 수정하면 이전 success/error 메시지를 즉시 지우도록 정리했다.
 
 #### 결과
-- 코드, 일정표, 허브 로그, 날짜 로그, AI 작업 산출물이 같은 기준으로 정렬됐다.
+- optional auth로 설계된 홈 API가 만료/누락 사용자 상황에서도 guest 기준으로 안정적으로 응답하게 됐다.
+- 피드백 폼에서 제출 중 중복 조작과 오래된 메시지 노출을 방지하도록 정리했다.
 
 ---
 
 ## 사용 기술
 
+- Spring Boot
+- Spring Security
 - React
-- Vite
-- CSS
 - Vitest
-- ESLint
+- Testing Library
 
 ---
 
 ## 검증
 
+### 백엔드
+
+- `cd backend && ./gradlew test --tests com.cubinghub.domain.post.service.PostServiceTest --tests com.cubinghub.domain.post.service.CommentServiceTest --tests com.cubinghub.domain.record.service.RecordServiceTest --tests com.cubinghub.domain.post.PostControllerIntegrationTest --tests com.cubinghub.domain.post.CommentControllerIntegrationTest --tests com.cubinghub.domain.record.RecordControllerIntegrationTest`
+- `cd backend && ./gradlew test --tests com.cubinghub.domain.home.service.HomeServiceTest --tests com.cubinghub.domain.home.HomeControllerIntegrationTest --tests com.cubinghub.domain.feedback.FeedbackControllerIntegrationTest --tests com.cubinghub.domain.feedback.service.FeedbackServiceTest`
+
+### 프런트
+
+- `cd frontend && npm run test -- --run src/pages/MyPage.test.jsx src/pages/CommunityWritePage.test.jsx src/pages/CommunityDetailPage.test.jsx`
+- `cd frontend && npm run test -- --run src/pages/HomePage.test.jsx src/pages/FeedbackPage.test.jsx`
 - `cd frontend && npm run lint`
-- `cd frontend && npm run build`
-- `cd frontend && npm run test -- --run`
 
 자동 검증은 모두 통과했다.

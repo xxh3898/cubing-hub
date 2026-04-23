@@ -6,99 +6,133 @@
 
 ## 오늘 작업
 
-- 로그인 화면에서 `비밀번호 재설정` 진입 링크와 안내 상태를 추가했다
-- `POST /api/auth/password-reset/request`, `POST /api/auth/password-reset/confirm`을 구현하고 SMTP/Redis 기반 6자리 인증번호 흐름을 회원가입 인증과 같은 방식으로 재사용했다
-- 마이페이지에서 닉네임/주 종목 수정과 현재 비밀번호 기반 비밀번호 변경을 `계정 관리` 모달 탭에서 처리하도록 정리하고 `PATCH /api/users/me/profile`, `PATCH /api/users/me/password`를 연동했다
-- 비밀번호 변경과 비밀번호 재설정 성공 시 기존 refresh token을 정리하고 재로그인을 유도하도록 맞췄다
-- 커뮤니티 상세에서 작성자/관리자만 `수정` 버튼을 보도록 하고, `/community/:id/edit` route에서 기존 게시글 preload + `PUT /api/posts/{postId}` 연동을 붙였다
-- 학습 화면 상단 첫 탭에 WCA 3x3x3 스크램블 기준 `U/D/L/R/F/B` 회전기호 VisualCube 가이드를 추가했다
-- 회전기호 VisualCube는 `case` 대신 `alg`를 사용하도록 보정해 `U`와 `U'` 같은 90도 회전 카드가 뒤집혀 보이지 않게 맞췄다
-- 공식 설계 문서, backlog, 아키텍처/배포/DB/포트폴리오 문서를 현재 구현 상태에 맞게 동기화했다
-- frontend 전체 테스트에서 깨지던 `localStorage` 환경 의존성을 공용 test setup fallback으로 보완했다
+- 기록 저장/삭제와 피드백 전송 결과를 blocking alert 대신 toast 알림으로 전환했다
+- 회원가입 전에 이메일 인증번호 request/confirm 단계를 추가
+- `Redis TTL` 기반 인증번호, resend cooldown, verified marker 저장소 구현
+- `SMTP` 기반 인증 메일 발송 경계를 추가하고 환경 변수/배포 설정을 정리
+- `POST /api/auth/signup`이 이메일 인증 완료 marker가 있을 때만 계정을 생성하도록 변경
+- 프런트 `/signup`을 이메일 인증 2단계 UI로 전환
+- auth 단위 테스트, 통합 테스트, REST Docs, 프런트 테스트를 함께 갱신
+- 공식 설계 문서와 개발 로그 인덱스를 현재 구현 계약에 맞게 동기화
 
 ---
 
 ## 핵심 정리 상세
 
-### 1. 비밀번호 재설정은 회원가입 인증 인프라를 재사용했다
-
-#### 선택
-- 별도 토큰 저장소를 새로 만들지 않고, Redis TTL 기반 6자리 인증번호와 resend cooldown 구조를 password reset 전용 key로 분리해 재사용했다.
-- 가입되지 않은 이메일은 동일 성공 응답으로 처리해 계정 존재 여부를 노출하지 않도록 했다.
-
-#### 결과
-- 회원가입과 동일한 사용자 경험을 유지하면서도 인증 인프라 중복을 줄였다.
-- 메일 발송 실패와 cooldown, 코드 만료/불일치 같은 예외 메시지를 auth 계층 표준과 맞출 수 있었다.
-
-### 2. 계정 정보 변경은 마이페이지 안에서 바로 닫았다
-
-#### 구현
-- `PATCH /api/users/me/profile`로 닉네임/주 종목을 수정하고, 성공 후 `/api/me`를 다시 동기화해 헤더 닉네임까지 즉시 반영했다.
-- `PATCH /api/users/me/password`는 현재 비밀번호 일치 여부를 확인하고, 기존 refresh token을 모두 제거한 뒤 로그인 화면으로 돌려보내도록 구성했다.
-- 인라인 폼으로 기록 영역을 밀어내지 않도록 `계정 관리` 버튼을 누를 때만 모달을 열고, 안에서 `프로필 수정`과 `비밀번호 변경` 탭을 전환하도록 바꿨다.
-
-#### 이유
-- 별도 설정 화면을 늘리지 않으면서도 기록 보기 흐름을 덜 방해하려면, 이미 보호 route와 사용자 컨텍스트가 있는 마이페이지 안에서 계정 관리만 모달로 분리하는 편이 범위 대비 효율적이었다.
-
-### 3. 커뮤니티 수정은 기존 작성 폼을 공용화했다
-
-#### 구현
-- `CommunityWritePage`를 create/edit 공용 form으로 확장했다.
-- edit mode에서는 `getPost`로 기존 글을 preload하고, 작성자 또는 관리자만 수정 가능하도록 프런트 권한 분기를 추가했다.
-- 성공 시 같은 상세 화면으로 복귀하도록 `PUT /api/posts/{postId}`와 보호 route를 연결했다.
-
-#### 남은 주의점
-- 수정 화면 진입 시 상세 조회 API를 재사용하므로 조회수 증가가 함께 일어난다.
-- 조회수 증가 없는 preload 전용 API가 필요하다면 후속 분리가 필요하다.
-
-### 4. 회전기호 가이드는 별도 페이지가 아니라 학습 화면 안에 배치했다
-
-#### 선택
-- 새 라우트를 늘리지 않고 학습 화면 상단 첫 탭에 최소 범위 가이드를 추가했다.
-- WCA 3x3x3 스크램블에서 실제로 마주치는 `U/D/L/R/F/B`의 기본, prime, double turn만 남기고 wide move, rotation은 제외했다.
-- 각 카드는 한 기호당 하나의 VisualCube 이미지만 보여주도록 구성했다.
-
-#### 결과
-- 기존 CFOP 카드 흐름을 유지하면서도 학습 화면에 들어오자마자 기본 표기법을 바로 참고할 수 있게 됐다.
-- 후속으로 VisualCube `case` 대신 `alg`를 사용하도록 보정해 90도 회전 기호 카드 방향이 실제 표기와 맞게 보이도록 정리했다.
-
-### 5. 테스트 런타임의 `localStorage` 깨짐을 setup fallback으로 흡수했다
+### 1. DB 상태를 늘리지 않고 signup만 잠그는 방향 선택
 
 #### 문제 상황
-- 데스크톱 실행 환경에서 Node 프로세스에 `--localstorage-file` 플래그가 잘못 전달돼 jsdom `localStorage`가 부분적으로 깨졌다.
-- `guestTimerStorage` 테스트 3건이 `setItem is not a function`으로 실패했다.
+- 기존 signup은 이메일/닉네임 중복만 확인하고 바로 `users.status=ACTIVE` 계정을 생성했다.
+- 이메일 소유 확인이 전혀 없어서 공개 운영 기준으로 가입 장벽이 너무 낮았다.
 
-#### 해결
-- `src/test/setup.js`에서 `localStorage` 메서드가 비정상일 때만 메모리 기반 fallback storage를 주입하고, 각 테스트 후 clear하도록 보완했다.
+#### 선택
+- `signup 후 PENDING 활성화`가 아니라 `이메일 인증 후 signup`으로 갔다.
+- 이유는 현재 로그인 경계와 `UserStatus`를 거의 건드리지 않고도 요구사항을 닫을 수 있기 때문이다.
 
 #### 결과
-- frontend 전체 테스트를 환경 경고와 분리해 안정적으로 통과시킬 수 있게 됐다.
+- DB schema 변경 없이 auth 흐름만으로 이메일 인증을 강제할 수 있게 됐다.
+- 로그인/토큰 발급 로직에는 영향이 최소화됐다.
+
+### 2. Redis에 이메일 인증 임시 상태를 두는 구조
+
+#### 구현
+- 아래 key를 추가했다.
+  - `auth:email-verification:code:{email}`
+  - `auth:email-verification:cooldown:{email}`
+  - `auth:email-verification:verified:{email}`
+- TTL은 다음 기준으로 뒀다.
+  - 인증번호 `10분`
+  - resend cooldown `1분`
+  - verified marker `30분`
+
+#### 이유
+- 인증번호와 verified marker는 영속 source of truth가 아니라 임시 상태라 Redis TTL과 잘 맞는다.
+- 기존 refresh token / blacklist / ranking과 같은 Redis 활용 패턴을 재사용할 수 있다.
+
+#### 결과
+- 가입 미완료 상태 정리용 별도 배치나 테이블이 필요 없어졌다.
+- signup 성공 시 verified marker를 바로 소비하도록 맞췄다.
+
+### 3. SMTP 발송 경계와 실패 롤백
+
+#### 구현
+- `spring-boot-starter-mail` 의존성을 추가했다.
+- SMTP host가 없으면 unavailable sender가 명시적으로 실패하도록 뒀다.
+- 인증번호 요청 시 Redis에 code/cooldown을 저장한 뒤 메일 발송을 시도하고, 발송 실패 시 Redis 상태를 롤백한다.
+
+#### 이유
+- 메일 발송 실패 후 Redis 상태만 남으면 사용자는 메일을 못 받았는데 cooldown과 code만 걸린 상태가 된다.
+- 반대로 메일만 보내고 Redis 저장이 실패하면 받은 인증번호가 서버에 없는 상태가 된다.
+
+#### 결과
+- 완전한 분산 트랜잭션은 아니지만 현재 범위에서 가장 실용적인 정합성을 확보했다.
+
+### 4. 프런트 signup을 서버 규칙과 동일하게 잠금
+
+#### 구현
+- 이메일 입력, 인증번호 요청, 인증번호 확인, 나머지 signup 입력 순서로 바꿨다.
+- 이메일이 바뀌면 인증 완료 상태와 인증번호 입력값을 즉시 초기화한다.
+- 인증 완료 전에는 `가입완료` 버튼이 비활성화된다.
+
+#### 이유
+- 서버만 막아두면 UX상 이유를 모르는 실패가 늘어난다.
+- 프런트도 같은 규칙을 보여줘야 가입 흐름이 자연스럽다.
+
+#### 결과
+- signup 화면이 서버의 `이메일 인증 필요` 규칙과 일치하게 됐다.
+
+### 5. 테스트와 문서를 한 번에 갱신
+
+#### 구현
+- backend
+  - `AuthServiceTest`
+  - `AuthControllerIntegrationTest`
+  - `AuthDocsTest`
+- frontend
+  - `SignupPage.test.jsx`
+- 문서
+  - API, auth, 화면, 아키텍처, 배포, DB 설계 문서
+
+#### 결과
+- 코드, 테스트, REST Docs, 사람이 읽는 설계 문서가 같은 계약을 보게 됐다.
+
+### 6. 액션 결과 피드백은 alert 대신 toast로 정리
+
+#### 선택
+- 기록 저장/삭제와 피드백 전송 완료/실패 메시지를 브라우저 기본 alert가 아니라 toast로 노출하도록 바꿨다.
+
+#### 이유
+- 이메일 인증, 가입, 기록 저장, 피드백 전송 흐름이 같은 시점에 열리면서 blocking alert는 화면 전환과 입력 흐름을 자주 끊었다.
+- auth 화면과 기록/피드백 화면 모두 비동기 상태가 많아서 non-blocking 피드백으로 기준을 맞추는 편이 자연스러웠다.
+
+#### 결과
+- 사용자 액션 결과가 페이지 흐름을 끊지 않고도 일관된 방식으로 보이게 됐다.
+- 같은 날짜에 붙인 이메일 인증 UX와 기록/피드백 상호작용이 더 자연스럽게 이어졌다.
 
 ---
 
 ## 사용 기술
 
-- Spring Boot
-- Spring Security
+- Spring Boot Mail
 - Redis
-- SMTP
+- Spring Security
+- JUnit 5
+- Spring REST Docs
 - React
-- React Router DOM
 - Vitest
-- Testing Library
 
 ---
 
 ## 검증
 
-- `cd backend && env JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ./gradlew test --tests 'com.cubinghub.domain.auth.service.AuthServiceTest' --tests 'com.cubinghub.domain.auth.AuthControllerIntegrationTest' --tests 'com.cubinghub.domain.auth.AuthDocsTest' --tests 'com.cubinghub.domain.user.service.UserProfileServiceTest' --tests 'com.cubinghub.domain.user.UserProfileIntegrationTest' --tests 'com.cubinghub.domain.user.UserProfileDocsTest'`
-- `cd backend && env JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ./gradlew build`
-- `cd frontend && /opt/homebrew/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js test -- --run`
-- `cd frontend && /opt/homebrew/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js run lint`
-- `cd frontend && /opt/homebrew/bin/node /opt/homebrew/lib/node_modules/npm/bin/npm-cli.js run build`
+- `cd backend && ./gradlew test`
+- `cd backend && ./gradlew build`
+- `cd frontend && npm run lint`
+- `cd frontend && npm test -- --run`
+- `cd frontend && npm run build`
 
 ## 남은 리스크
 
-- 비밀번호 재설정 메일 발송과 실제 로그인 재진입은 브라우저/실서버 기준 수동 검증을 아직 하지 않았다.
-- 커뮤니티 수정 진입 시 조회수 증가를 허용하고 있어, 운영 정책상 문제가 되면 preload 전용 API 분리가 필요하다.
+- 실제 SMTP 자격 증명을 연결한 상태의 실메일 발송은 아직 수동 검증하지 않았다.
+- abuse 방어는 현재 이메일 단위 resend cooldown만 있고, IP rate limit이나 CAPTCHA는 포함하지 않았다.
 - frontend build는 기존과 동일하게 500kB 초과 chunk warning을 출력한다.

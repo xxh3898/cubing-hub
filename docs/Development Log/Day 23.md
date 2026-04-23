@@ -1,4 +1,4 @@
-# Development Log - 2026-04-23
+# Development Log - 2026-04-22
 
 프로젝트: Cubing Hub
 
@@ -6,159 +6,190 @@
 
 ## 오늘 작업
 
-- 모바일 상단 nav를 grid형으로 재배치해 390px 전후 폭에서 clipping과 어색한 줄바뀜을 줄였다
-- `rankings`, `community`, `mypage`, 로그인 사용자 `home`의 테이블형 데이터를 모바일 stacked card row로 전환했다
-- `useCubeTimer`에 `touch`/`pen` pointer 입력을 추가해 모바일 터치가 기존 `Space` 상태 머신을 그대로 타도록 맞췄다
-- 타이머 안내 문구를 입력 장치 중립 표현으로 정리하고 모바일 터치 surface 속성을 보강했다
-- 타이머 touch 회귀 테스트를 추가하고 headless Chrome 모바일 캡처로 주요 공개 화면을 다시 확인했다
-- 공식 설계 문서와 개발 로그 인덱스를 현재 구현 상태에 맞게 동기화했다
-- 랭킹 닉네임 검색이 검색 결과 집합 안에서 재순위되지 않고 전체 랭킹 기준 실제 순위를 유지하도록 백엔드 조회를 수정했다
-- 타이머를 `정지 -> 저장/캐시 -> 성공 시 자동 초기화 + 다음 스크램블` 흐름으로 바꾸고, 비로그인 사용자는 게스트 `localStorage` 기록 캐시를 사용하도록 정리했다
-- 로그인/회원가입/랭킹/커뮤니티/피드백 입력에 합의된 길이 제한을 반영하고, 백엔드 DTO/검색 파라미터 validation과 비밀번호 UTF-8 byte-length 검증을 추가했다
-- 피드백 화면에서 `feedbackId`는 재시도 내부 state에만 유지하고 UI에서는 숨기도록 정리했다
-- 배포/로컬 HAR을 확인해 긴 검색 입력 실패를 `status 0 + net::ERR_FAILED` 기준으로 재정리하고, backlog와 일정/로그 문서를 최신화했다
+- `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료
+- EC2 `Docker Compose` 기준 `Nginx + Spring Boot + Redis + RDS` 운영 구성을 실제 도메인으로 연결
+- frontend build 시 `VITE_API_BASE_URL` 누락 문제를 확인하고 `https://api.cubing-hub.com` 기준으로 다시 빌드
+- backend image의 `linux/amd64` manifest mismatch를 확인하고 Docker Hub 이미지를 재빌드/재푸시
+- EC2 Nginx가 `options-ssl-nginx.conf`, `ssl-dhparams.pem` 누락으로 재시작하는 문제를 해결
+- first deploy 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
+- apex(`https://cubing-hub.com`) origin의 CORS preflight가 `403`으로 차단되는 운영 설정 누락을 확인하고 `CORS_ALLOWED_ORIGINS` 기본값을 apex + www 동시 허용으로 보정
+- `Backend CI`, `Frontend CI` 성공 뒤에 이어지는 분리 deploy workflow를 추가
+- malformed `refresh_token`가 login/bootstrap 자체를 막는 운영 증상을 재현하고 `POST /api/session/clear-refresh-cookie` 기반 복구 흐름을 추가
+- 홈 오늘의 스크램블을 `Asia/Seoul` 날짜 기준으로 고정하고, 랭킹/커뮤니티/댓글/마이페이지에 grouped 페이지네이션과 상단 안내 문구를 공통 적용
+- 랭킹/커뮤니티 검색 debounce, 커뮤니티 반복 호출 루프 수정, 브라우저 자동 번역 오인 방지 설정으로 화면 안정성을 보강
+- MyPage summary를 `aggregate query`로 최적화하고 benchmark/Grafana 자산을 추가
+- 피드백 Discord 알림 상태/재시도 UX, 타이머 스크램블 이미지 미리보기, 마이페이지 기록 그래프와 `Ao5`, `Ao12` 통계를 추가
+- 배포, 스크램블 정책, 페이지네이션, benchmark, Discord 운영, 기록 그래프 관련 문서를 같은 날짜 상태로 동기화
 
 ---
 
 ## 핵심 정리 상세
 
-### 1. 표 markup은 유지하고 모바일만 카드형으로 바꾸는 방향 선택
+### 1. 프런트 API 주소 주입 누락 해결
 
 #### 문제 상황
-- 홈 최근 기록, 랭킹, 커뮤니티, 마이페이지 기록 표는 데스크톱에서는 읽기 쉬웠지만 모바일에서는 가로 폭이 부족했다.
-- 단순 `overflow-x`에 기대면 사용자가 핵심 값을 한눈에 읽기 어렵고, 페이지마다 수평 스크롤 의존이 남았다.
+- S3/CloudFront로 배포한 프런트가 `http://localhost:8080`을 기준으로 API를 호출했다.
+- 브라우저에서는 `localhost:8080`으로 향하는 요청 때문에 CORS 오류와 `Network Error`가 발생했다.
 
-#### 선택
-- 데스크톱 table markup은 유지하고, 모바일에서만 `data-label` 기반 stacked card row로 재해석하는 CSS를 추가했다.
+#### 해결 방법
+- `frontend`를 `VITE_API_BASE_URL=https://api.cubing-hub.com`로 다시 빌드했다.
+- 새 빌드 산출물을 S3에 올리고 CloudFront invalidation으로 반영했다.
 
 #### 결과
-- 데스크톱 구조와 접근성은 크게 건드리지 않으면서 모바일 가독성을 개선했다.
-- 페이지별 별도 모바일 전용 list markup을 추가하지 않아 JSX 변경 범위를 최소화했다.
+- 프런트는 더 이상 `localhost:8080`을 호출하지 않고 `api.cubing-hub.com`으로 API를 요청한다.
+- 이후 문제는 프런트가 아니라 백엔드/Nginx 쪽으로 좁혀졌다.
 
-### 2. 상단 nav와 액션 영역은 wrap이 아니라 명시적 grid/stack으로 정리
+### 2. backend image platform mismatch 해결
 
 #### 문제 상황
-- 상단 nav, 랭킹 툴바, 커뮤니티 검색/작성 액션, 마이페이지 헤더, 타이머 액션 버튼은 모바일에서 폭이 모자라면 일부가 잘리거나 밀릴 수 있었다.
+- EC2에서 `docker compose pull` 시 `xxh3898/cubing-hub-backend:latest`를 `linux/amd64`로 가져오지 못했다.
+- 에러는 `no matching manifest for linux/amd64`였다.
 
-#### 선택
-- 모바일 폭에서 nav는 2열 grid로, 툴바와 액션은 세로 stack 또는 full-width 버튼으로 재배치했다.
-- nav item과 meta container에는 `min-width: 0`을 같이 둬서 flex/grid 최소 너비 때문에 overflow가 생기지 않게 했다.
+#### 해결 방법
+- 로컬 맥에서 backend image를 Docker Hub에 다시 빌드/푸시했다.
+- 결과 manifest list가 Docker Hub에 올라가 EC2에서 pull 가능한 상태로 맞췄다.
 
 #### 결과
-- 한 줄 고정 레이아웃에서 나오던 clipping 가능성을 줄였다.
-- 버튼과 필터가 모바일에서 누르기 쉬운 폭으로 정리됐다.
+- `cubing_hub_app` 컨테이너가 EC2에서 정상 기동했다.
+- RDS 연결과 Redis startup rebuild까지 로그로 확인했다.
 
-### 3. 타이머 터치 입력은 keyboard 상태 머신과 같은 전이를 공유
+### 3. RDS schema 확인과 first deploy 부팅
+
+#### 문제 상황
+- RDS 인스턴스 식별자와 실제 schema 이름이 다를 수 있어 `.env`의 `DB_NAME`을 확인할 필요가 있었다.
+- prod는 기본 `ddl-auto=validate`라 비어 있는 schema에 바로 붙이면 실패할 수 있었다.
+
+#### 해결 방법
+- EC2에서 RDS MySQL에 직접 접속해 `SHOW DATABASES;`를 실행했다.
+- 실제 schema 이름이 `cubinghub`임을 확인했다.
+- first deploy에서는 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`, `RANKING_REDIS_REBUILD_ON_STARTUP=true`로 기동했다.
+
+#### 결과
+- 앱이 RDS에 연결되고 Redis ready marker까지 생성했다.
+- 정상 기동 확인 후 `.env`를 `validate`, `false`로 원복했다.
+
+### 4. Nginx HTTPS 기동 문제 해결
+
+#### 문제 상황
+- `cubing_hub_nginx`가 계속 재시작했고 `443` 포트를 리슨하지 않았다.
+- 로그에서 순서대로 아래 누락을 확인했다.
+  - `/etc/letsencrypt/options-ssl-nginx.conf`
+  - `/etc/letsencrypt/ssl-dhparams.pem`
+
+#### 해결 방법
+- host의 `/etc/letsencrypt` 아래에 `options-ssl-nginx.conf`를 생성했다.
+- `openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048`로 `ssl-dhparams.pem`을 생성했다.
+- Nginx 컨테이너를 다시 기동했다.
+
+#### 결과
+- `cubing_hub_nginx`가 `Up` 상태가 되었고 `0.0.0.0:443` 포트가 열렸다.
+- `curl -vk https://api.cubing-hub.com/actuator/health`에서 `HTTP/2 200`, `{\"status\":\"UP\"}`를 확인했다.
+
+### 5. 배포 직후 운영 기본값과 자동 배포 경로까지 같이 닫음
+
+#### 문제 상황
+- `https://www.cubing-hub.com`에서는 API가 동작했지만 `https://cubing-hub.com`에서는 홈과 refresh 요청 preflight가 `403`으로 차단됐다.
+- 1차 수동 배포는 열렸지만 이후 재배포를 계속 수동으로 반복하면 env 누락과 절차 실수가 다시 생길 수 있었다.
+
+#### 해결 방법
+- backend prod 기본값과 `docker-compose.prod.yml`의 `CORS_ALLOWED_ORIGINS` 기본값을 `https://cubing-hub.com`, `https://www.cubing-hub.com` 동시 허용으로 보정했다.
+- CORS 통합 테스트도 두 origin이 모두 허용되도록 보강했다.
+- `deploy-backend.yml`, `deploy-frontend.yml`를 추가하고 `workflow_run + workflow_dispatch`를 같이 두었다.
+- backend deploy에는 Docker Hub 로그인, `linux/amd64` image build/push, EC2 `docker compose pull && up -d`, local health check를 묶었다.
+- frontend deploy에는 build, S3 sync, CloudFront invalidation을 묶었다.
+
+#### 결과
+- 저장소 기준 운영 기본값이 apex + www 동시 허용과 일치하게 됐다.
+- deploy workflow와 runbook이 같은 운영 경로를 설명하도록 정리됐다.
+- 실제 자동 배포 성공 여부는 필요한 GitHub Secrets/Variables를 모두 등록한 뒤 확인해야 했다.
+
+### 6. malformed `refresh_token` 복구와 반복 호출 원인을 운영 증상 기준으로 다시 정리
+
+#### 문제 상황
+- 비정상 `refresh_token` cookie가 `/api/auth` 경로에 남아 있으면 login이나 bootstrap refresh 자체가 브라우저/프록시 단계에서 잘리며 `Network Error`처럼 보일 수 있었다.
+- 같은 시점에 일부 반복 호출과 커뮤니티 루프가 겹쳐 원인 분리가 더 어려웠다.
+
+#### 해결 방법
+- `/api/auth` 밖에서 bad cookie를 지울 수 있는 `POST /api/session/clear-refresh-cookie` endpoint를 추가했다.
+- frontend는 bootstrap refresh 실패나 로그인 `Network Error`가 malformed/401 계열로 판단되면 이 endpoint를 best-effort로 호출하고 재로그인을 유도하도록 보강했다.
+- 로컬 모니터링으로 반복 호출 원인을 다시 확인하고, 커뮤니티 페이지 반복 호출 루프를 별도 수정했다.
+
+#### 결과
+- bad cookie 때문에 인증 부트스트랩 전체가 막히는 증상을 recovery 가능한 흐름으로 바꿨다.
+- auth recovery와 반복 호출 이슈를 한 문제로 뭉개지 않고 원인별로 분리할 수 있게 됐다.
+
+### 7. 홈/목록 UX는 날짜 기준 스크램블, grouped pagination, debounce로 같이 정리
 
 #### 구현
-- `useCubeTimer`에 `transitionToHolding`, `transitionToIdle`, `transitionToRunning`, `transitionToStopped`를 분리했다.
-- keyboard `Space`와 모바일 `touch`/`pen` pointer가 같은 전이 함수를 사용하도록 연결했다.
-- `mouse` pointer는 제외해 데스크톱 클릭으로 의도치 않게 타이머가 동작하지 않도록 했다.
+- `GET /api/home`의 오늘의 스크램블을 `Asia/Seoul` 날짜 기준으로 고정했다.
+- 랭킹, 커뮤니티, 댓글, 마이페이지에 `1~10` 단위 grouped 페이지네이션과 상단 카피를 공통 적용했다.
+- 랭킹과 커뮤니티 검색에 debounce를 넣어 입력 중 불필요한 요청을 줄였다.
 
 #### 이유
-- 모바일용 로직을 별도 상태 머신으로 만들면 키보드 동작과 쉽게 어긋난다.
-- 같은 상태 전이를 공유하면 `holding -> ready -> running -> stopped` 규칙을 한 곳에서 유지할 수 있다.
+- 홈 스크램블이 새로고침마다 바뀌면 같은 날 같은 기준 경험을 제공하기 어렵다.
+- 페이지네이션과 검색 요청은 사용자가 가장 자주 체감하는 흐름이라, 운영 배포 직후에도 공통 UX 기준을 빨리 고정할 필요가 있었다.
 
 #### 결과
-- 모바일에서도 길게 누른 뒤 떼서 시작하고, 실행 중 다시 눌러 정지하는 흐름이 일관되게 동작한다.
-- 안내 문구도 `Space` 전용 문장에서 입력 장치 중립 표현으로 바뀌었다.
+- 홈, 랭킹, 커뮤니티, 댓글, 마이페이지의 탐색 경험이 같은 규칙을 공유하게 됐다.
+- 검색 입력 중 요청 폭주와 페이지 이동 가독성 문제를 동시에 줄였다.
 
-### 4. 테스트와 시각 검증을 같이 묶어 회귀를 고정
+### 8. MyPage summary는 캐시보다 먼저 aggregate query로 내렸다
+
+#### 문제 상황
+- 마이페이지 요약은 로그인 직후 자주 호출되는데, 기존 구조는 사용자 전체 `records`를 읽어 Java 메모리에서 요약을 계산했다.
+- 데이터가 커질수록 응답 시간과 메모리 비용이 같이 증가해 운영 기준으로 불리했다.
+
+#### 해결 방법
+- `count/min/avg aggregate query` 기반으로 summary 조회를 교체했다.
+- `10 users x 10,000 records` 기준 benchmark와 Grafana 자산을 함께 남겨 baseline과 optimized를 비교할 수 있게 했다.
+
+#### 결과
+- 같은 시나리오 기준 `avg 451.04 ms -> 77.86 ms`, `p95 790.68 ms -> 137.39 ms`, `70.62 req/s -> 407.21 req/s`를 확인했다.
+- 캐시를 먼저 붙이지 않고도 summary hot path를 구조적으로 줄였다는 설명 근거를 확보했다.
+
+### 9. 운영 UX와 시각 피드백도 같은 날 같이 닫았다
 
 #### 구현
-- `useCubeTimer.test.jsx`를 추가해 touch hold/release, 조기 release, running 중 stop, mouse ignore 케이스를 검증했다.
-- `npm run lint`, `npm test -- --run`, `npm run build`를 다시 실행했다.
-- Vite dev server와 headless Chrome 390px 캡처로 홈, 타이머, 랭킹, 커뮤니티, 학습, 로그인, 회원가입의 공개 화면 레이아웃을 확인했다.
+- 피드백 전송 후 Discord 알림 상태를 응답에 포함하고 실패 시 재시도 UX를 붙였다.
+- 타이머 상단에 VisualCube 기반 스크램블 이미지 미리보기를 추가했다.
+- 마이페이지에 기록 그래프와 `Ao5`, `Ao12` 통계를 표시했다.
+- 브라우저 자동 번역이 큐빙 표기와 한국어 UI를 깨뜨리지 않도록 번역 오인 방지 설정을 넣었다.
 
 #### 결과
-- 상태 머신 회귀와 기본 반응형 레이아웃 회귀를 동시에 확인할 수 있게 됐다.
-
-### 5. 랭킹 검색은 필터된 집합 재순위가 아니라 전체 순위를 유지하도록 수정
-
-#### 문제 상황
-- `user1`이 1위, `user2`가 2위일 때 `user2`만 검색하면 결과가 1건이라 `1위`로 보였다.
-- 사용자 기대는 검색 결과 안의 상대 순위가 아니라 전체 랭킹 기준 실제 순위 유지였다.
-
-#### 선택
-- 서비스 단에서 페이지 offset으로 `rank`를 재계산하지 않고, 저장소 조회 결과가 전체 순위를 함께 반환하도록 바꿨다.
-- `nickname` 검색은 MySQL window function을 사용해 필터 전 전체 순위를 계산한 뒤 검색 조건을 적용하도록 정리했다.
-
-#### 결과
-- 검색 결과가 1건이어도 해당 사용자의 실제 전체 랭킹 순위가 그대로 노출된다.
-- 랭킹 화면과 API 문서의 `rank` 의미가 사용자 기대와 일치하게 됐다.
-
-### 6. 타이머 저장은 solve snapshot 기준 한 번만 처리하도록 흐름을 재정리
-
-#### 문제 상황
-- 기존 타이머는 `stopped`, `finalTime`, 현재 `scrambleData` 조합에 저장 effect가 걸려 있어 스크램블 상태 변화에 따라 같은 solve가 다시 저장될 여지가 있었다.
-- 비로그인 사용자는 서버 저장이 없어서 자동 초기화 구조와 함께 쓰면 방금 기록이 곧바로 사라졌다.
-
-#### 선택
-- 정지 시점의 `{ eventType, timeMs, scramble }` solve snapshot을 고정하고, 저장 또는 게스트 캐시는 그 snapshot만 기준으로 실행하도록 바꿨다.
-- 로그인 사용자는 서버 저장 성공 시, 비로그인 사용자는 게스트 캐시 성공 시에만 타이머와 스크램블을 다음 solve 기준으로 자동 초기화하도록 정리했다.
-- 저장 실패 시에는 정지된 기록을 유지하고 `저장 재시도`만 노출하도록 분기했다.
-
-#### 결과
-- 중복 저장 가능성을 구조적으로 줄였고, 비로그인 사용자도 최근 기록과 `Ao5`, `Ao12`를 이어서 확인할 수 있게 됐다.
-- 타이머 UI에서 수동 스크램블 초기화/타이머 초기화 버튼 없이 solve 중심 흐름을 유지하게 됐다.
-
-### 7. 긴 검색 입력 오류는 CORS 수정이 아니라 길이 제한과 validation으로 닫는 방향으로 정리
-
-#### 문제 상황
-- 랭킹/커뮤니티 입력에 매우 긴 문자열을 넣으면 브라우저에서 `CORS 오류`, `Network Error`처럼만 보였고 상태코드가 노출되지 않았다.
-- `localhost.har`, `www.cubing-hub.com.har` 모두 `status 0`, `net::ERR_FAILED`, 응답 헤더 없음으로 기록돼 실제 HTTP 응답이 오지 않은 상태였다.
-
-#### 선택
-- 문제를 CORS 설정이 아니라 과도한 입력 길이와 요청 전송 실패로 보고, 프런트 `maxLength`와 백엔드 검색 파라미터/DTO validation을 함께 넣었다.
-- 비밀번호는 `BCrypt` 잘림 이슈를 피하기 위해 UI `8~64자`, 서버 UTF-8 `72 bytes` 제한으로 분리했다.
-
-#### 결과
-- 랭킹 닉네임 검색, 커뮤니티 검색, 게시글/피드백 본문, 인증 입력까지 계약이 있는 필드들의 길이 제한이 코드/문서/테스트에 함께 고정됐다.
-- 긴 query로 인한 브라우저 레벨 실패를 사용자 입력 단계에서 먼저 줄일 수 있게 됐다.
-
-### 8. backlog와 공식 문서를 현재 구현 상태에 맞게 다시 정렬
-
-#### 구현
-- `docs/Feature Backlog.md`에 회전기호 설명 페이지, 정보 변경, 비밀번호 재설정, 관리자 Q&A, 게시글 사진첨부 기능을 backlog 후보로 정리했다.
-- 모바일 반응형과 모바일용 터치 타이머는 이미 구현된 상태이므로 backlog에서 `done`으로 정리했다.
-- `docs/API Specification.md`, `docs/Screen Specification.md`, `docs/dev-log.md`, 일정 문서를 현재 구현과 테스트 상태에 맞게 갱신했다.
-
-#### 결과
-- backlog, 설계 문서, 진행 문서가 같은 상태를 보도록 다시 맞춰졌다.
+- 운영 알림, 타이머 가시성, 기록 통계, 다국어 브라우저 환경까지 같은 날짜 안에서 사용자 체감 품질을 보강했다.
+- 배포/인증/성능 최적화만이 아니라 실제 사용 흐름에서 보이는 마감 품질도 같이 끌어올렸다.
 
 ---
 
 ## 사용 기술
 
+- AWS EC2
+- AWS RDS
+- AWS S3
+- AWS CloudFront
+- Docker
+- Docker Compose
+- Nginx
+- Let's Encrypt / Certbot
 - Spring Boot
-- Hibernate Validator
-- MySQL 8 window function
-- React
-- localStorage
-- Vite
-- Vitest
-- Testing Library
-- Headless Chrome
+- Redis
+- Grafana
+- Discord webhook
 
 ---
 
 ## 검증
 
-- `cd frontend && npm run lint`
-- `cd frontend && npm test -- --run`
-- `cd frontend && npm run build`
-- `http://127.0.0.1:4173` 기준 390px headless Chrome 캡처 확인
-- `cd backend && env JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ./gradlew test --tests 'com.cubinghub.domain.record.RankingControllerIntegrationTest' --tests 'com.cubinghub.domain.record.RankingDocsTest' --tests 'com.cubinghub.domain.record.service.RecordServiceTest' --tests 'com.cubinghub.domain.post.PostControllerIntegrationTest' --tests 'com.cubinghub.domain.feedback.FeedbackControllerIntegrationTest' --tests 'com.cubinghub.domain.auth.AuthControllerIntegrationTest'`
-- `cd backend && env JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ./gradlew build`
-- `cd frontend && /Users/chiho/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/eslint/bin/eslint.js .`
-- `cd frontend && /Users/chiho/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/vitest/vitest.mjs --run src/lib/guestTimerStorage.test.js src/pages/TimerPage.test.jsx src/pages/RankingsPage.test.jsx src/pages/CommunityPage.test.jsx src/pages/FeedbackPage.test.jsx src/pages/SignupPage.test.jsx src/pages/LoginPage.test.jsx src/pages/CommunityWritePage.test.jsx src/pages/CommunityDetailPage.test.jsx src/hooks/useCubeTimer.test.jsx`
-- `cd frontend && /Users/chiho/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/vite/bin/vite.js build`
+- `docker compose --env-file .env -f docker-compose.prod.yml ps`
+- `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 app`
+- `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 nginx`
+- `curl -vk https://api.cubing-hub.com/actuator/health`
+- 브라우저에서 `www.cubing-hub.com`, `cubing-hub.com` 접근과 API 요청 확인
+- EC2에서 RDS 접속 후 `SHOW DATABASES;`
+- 관련 CORS, auth recovery, summary, feedback, graph, pagination 변경에 대한 backend/frontend 테스트와 문서 동기화 확인
 
 ## 남은 리스크
 
-- 로그인 사용자 홈/마이페이지의 실제 데이터가 채워진 상태는 백엔드와 인증 데이터를 붙여서 다시 수동 확인하지 않았다.
-- 실제 물리 모바일 기기에서의 터치 감도와 브라우저별 pointer 이벤트 차이는 아직 별도 수동 검증하지 않았다.
-- frontend build는 기존과 동일하게 500kB 초과 chunk warning을 출력한다.
-- 랭킹 검색의 전체 순위 보존은 MySQL 8 window function 의존이 있으므로 DB dialect나 버전이 달라지면 fallback 경로가 깨질 수 있다.
-- 게스트 기록 캐시는 `localStorage`에 의존하므로 저장소 사용이 제한된 브라우저에서는 기록 저장이 실패할 수 있다.
-- 운영 환경에서 긴 검색 입력이 정확히 어느 계층에서 차단되는지는 로그 상 특정하지 않았다.
+- 현재 배포는 여전히 일부 수동 절차 의존성이 있다.
+- Docker Hub, AWS, EC2 SSH 관련 비밀값이 정리되지 않으면 자동 배포 workflow가 다시 막힐 수 있다.
+- 인증서 갱신 자동화와 운영 Redis 재구축 정책은 아직 미확정이다.

@@ -1,4 +1,4 @@
-# Development Log - 2026-04-22
+# Development Log - 2026-04-20
 
 프로젝트: Cubing Hub
 
@@ -6,169 +6,95 @@
 
 ## 오늘 작업
 
-- `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료
-- EC2 `Docker Compose` 기준 `Nginx + Spring Boot + Redis + RDS` 운영 구성을 실제 도메인으로 연결
-- frontend build 시 `VITE_API_BASE_URL` 누락 문제를 확인하고 `https://api.cubing-hub.com` 기준으로 다시 빌드
-- backend image의 `linux/amd64` manifest mismatch를 확인하고 Docker Hub 이미지를 재빌드/재푸시
-- EC2 Nginx가 `options-ssl-nginx.conf`, `ssl-dhparams.pem` 누락으로 재시작하는 문제를 해결
-- first deploy 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
-- apex(`https://cubing-hub.com`) origin의 CORS preflight가 `403`으로 차단되는 운영 설정 누락을 확인하고 `CORS_ALLOWED_ORIGINS` 기본값을 apex + www 동시 허용으로 보정
-- 배포 후 공식 문서와 운영 체크리스트 정리 범위를 확정
-- `Backend CI`, `Frontend CI` 성공 뒤에 이어지는 분리 deploy workflow를 추가
+- `k6/sql/seed-rankings-v1-baseline.sql`로 `users`, `records`, `user_pbs` 각 `300,000`건 baseline 데이터셋 생성 경로를 추가
+- `k6/rankings-v1-baseline.js`로 `GET /api/rankings?eventType=WCA_333&page=1&size=25` 고정 시나리오를 추가
+- `k6/generate-performance-report.mjs`와 `docs/performance/runbook.md`로 V1, V2 공통 리포트/실행 절차를 추가
+- `docker-compose.yml`, `backend/src/main/resources/prometheus.yml`, `infra/grafana/**`를 갱신해 `k6 -> Prometheus -> Grafana` 최소 시각화 경로를 구성
+- `.github/workflows/performance-benchmark.yml`로 수동 `workflow_dispatch` benchmark workflow를 추가
+- V1 baseline을 실제 실행하고 `docs/performance/rankings-v1-*` 산출물을 생성
 
 ---
 
 ## 핵심 정리 상세
 
-### 1. 프런트 API 주소 주입 누락 해결
+### 30만 PB 기준 baseline 데이터셋 고정
 
 #### 문제 상황
-- S3/CloudFront로 배포한 프런트가 `http://localhost:8080`을 기준으로 API를 호출했다.
-- 브라우저에서는 `localhost:8080`으로 향하는 요청 때문에 CORS 오류와 `Network Error`가 발생했다.
+- Redis 리팩토링 전후 비교를 하려면 V1과 V2가 같은 랭킹 후보 수를 봐야 했다.
+- 랭킹 V1 hot path는 `records` 총량보다 같은 종목 `user_pbs` 후보 수의 영향을 크게 받으므로, baseline 데이터는 `user_pbs`를 최대한 명확하게 고정할 필요가 있었다.
 
 #### 해결 방법
-- `frontend`를 `VITE_API_BASE_URL=https://api.cubing-hub.com`로 다시 빌드했다.
-- 새 빌드 산출물을 S3에 올리고 CloudFront invalidation으로 반영했다.
+- `seed-rankings-v1-baseline.sql` 하나로 `users`, `records`, `user_pbs`를 각각 `300,000`건씩 생성하도록 고정했다.
+- 계정 규칙은 `user1@test.com`부터 `user300000@test.com`까지, 공통 로그인 비밀번호 원문은 `pass1234!`로 맞췄다.
+- 각 유저는 `WCA_333` 기록 1건과 PB 1건만 가지도록 단순화해 랭킹 조회 비교에 필요한 최소 구조만 남겼다.
 
 #### 결과
-- 프런트는 더 이상 `localhost:8080`을 호출하지 않고 `api.cubing-hub.com`으로 API를 요청한다.
-- 이후 문제는 프런트가 아니라 백엔드/Nginx 쪽으로 좁혀졌다.
+- V1, V2 모두 `DB reset(create) -> 같은 seed 적재 -> 같은 k6 시나리오 실행` 절차로 다시 측정할 수 있는 기준선이 생겼다.
+- 실제 로컬 적재 후 row count는 `users 300000`, `records 300000`, `user_pbs 300000`으로 확인했다.
 
-### 2. backend image platform mismatch 해결
+### `k6 -> Prometheus -> Grafana` 최소 시각화 경로 구성
 
 #### 문제 상황
-- EC2에서 `docker compose pull` 시 `xxh3898/cubing-hub-backend:latest`를 `linux/amd64`로 가져오지 못했다.
-- 에러는 `no matching manifest for linux/amd64`였다.
+- 기존 로컬 구성에는 Prometheus와 Grafana 컨테이너가 있었지만 `k6` 결과를 같은 대시보드 축에서 바로 비교할 수 있는 연결은 없었다.
+- V1, V2를 포트폴리오용 전/후 캡처로 남기려면 같은 대시보드와 같은 라벨 체계가 필요했다.
 
 #### 해결 방법
-- 로컬 맥에서 backend image를 Docker Hub에 다시 빌드/푸시했다.
-- 결과 manifest list가 Docker Hub에 올라가 EC2에서 pull 가능한 상태로 맞췄다.
+- Prometheus에 `--web.enable-remote-write-receiver`를 추가해 `k6 experimental-prometheus-rw` 출력을 받을 수 있게 했다.
+- Grafana provisioning과 `Rankings Baseline` 대시보드를 추가해 `run`, `storage` 변수로 같은 패널을 재사용하도록 맞췄다.
+- 패널은 `Requests/s`, `Response Time avg`, `Response Time p95`, `Error Rate`, `Virtual Users`, `JVM Heap Used`, `GC Pause Rate`로 구성했다.
+- 별도 `performance-benchmark.yml`을 추가해 GitHub Actions에서도 수동 benchmark와 `summary.json`, `comparison.md` artifact 업로드를 재현할 수 있게 했다.
 
 #### 결과
-- `cubing_hub_app` 컨테이너가 EC2에서 정상 기동했다.
-- RDS 연결과 Redis startup rebuild까지 로그로 확인했다.
+- 스모크 실행 기준으로 `k6_http_reqs_total`, `k6_http_req_duration_avg`, `k6_http_req_duration_p95`, `k6_http_req_failed_rate`, `k6_vus`가 Prometheus에 적재되는 것을 확인했다.
+- Grafana API에서 `Rankings Baseline` 대시보드 provisioning 인식도 확인했다.
 
-### 3. RDS schema 확인과 first deploy 부팅
+### V1 baseline 실행 결과
 
-#### 문제 상황
-- RDS 인스턴스 식별자와 실제 schema 이름이 다를 수 있어 `.env`의 `DB_NAME`을 확인할 필요가 있었다.
-- prod는 기본 `ddl-auto=validate`라 비어 있는 schema에 바로 붙이면 실패할 수 있었다.
+#### 실행 조건
+- API: `GET /api/rankings?eventType=WCA_333&page=1&size=25`
+- 저장소 라벨: `v1 / mysql`
+- 데이터셋: `users`, `records`, `user_pbs` 각 `300,000`
+- `k6` 시나리오: `30s warmup -> 90s steady -> 15s cooldown`, 최대 `60 VUs`
 
-#### 해결 방법
-- EC2에서 RDS MySQL에 직접 접속해 `SHOW DATABASES;`를 실행했다.
-- 실제 schema 이름이 `cubinghub`임을 확인했다.
-- first deploy에서는 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`, `RANKING_REDIS_REBUILD_ON_STARTUP=true`로 기동했다.
+#### 핵심 결과
+- `http_req_duration avg`: `7,810.60 ms`
+- `http_req_duration p95`: `13,023.45 ms`
+- `http_req_duration max`: `14,105.83 ms`
+- `http_reqs count`: `532`
+- `http_reqs rate`: `3.81/s`
+- `http_req_failed`: `0.00%`
+- `checks`: `100.00%`
 
-#### 결과
-- 앱이 RDS에 연결되고 Redis ready marker까지 생성했다.
-- 정상 기동 확인 후 `.env`를 `validate`, `false`로 원복했다.
-
-### 4. Nginx HTTPS 기동 문제 해결
-
-#### 문제 상황
-- `cubing_hub_nginx`가 계속 재시작했고 `443` 포트를 리슨하지 않았다.
-- 로그에서 순서대로 아래 누락을 확인했다.
-  - `/etc/letsencrypt/options-ssl-nginx.conf`
-  - `/etc/letsencrypt/ssl-dhparams.pem`
-
-#### 해결 방법
-- host의 `/etc/letsencrypt` 아래에 `options-ssl-nginx.conf`를 생성했다.
-- `openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048`로 `ssl-dhparams.pem`을 생성했다.
-- Nginx 컨테이너를 다시 기동했다.
-
-#### 결과
-- `cubing_hub_nginx`가 `Up` 상태가 되었고 `0.0.0.0:443` 포트가 열렸다.
-- `curl -vk https://api.cubing-hub.com/actuator/health`에서 `HTTP/2 200`, `{"status":"UP"}`를 확인했다.
-
-### 5. 배포 완료 후 남은 후속 작업
-
-- 배포 완료 직후 기준 남은 핵심 작업은 backend/frontend 자동 배포 workflow 추가였다.
-
-#### 정리 방향
-
-- 자동 배포 workflow 구현
-
-### 5-1. apex origin CORS 차단 보정
-
-#### 문제 상황
-- `https://www.cubing-hub.com`에서는 API가 동작했지만 `https://cubing-hub.com`에서는 홈과 refresh 요청 preflight가 `403`으로 차단됐다.
-- 브라우저 콘솔에는 `No 'Access-Control-Allow-Origin' header`와 `blocked by CORS policy`가 표시됐다.
-- 운영 기본값 `CORS_ALLOWED_ORIGINS`가 `https://www.cubing-hub.com` 하나만 허용하고 있었다.
-
-#### 해결 방법
-- backend prod 기본값과 `docker-compose.prod.yml`의 `CORS_ALLOWED_ORIGINS` 기본값을 아래 두 origin으로 보정했다.
-  - `https://cubing-hub.com`
-  - `https://www.cubing-hub.com`
-- CORS 통합 테스트도 두 origin이 모두 허용되도록 보강했다.
-
-#### 결과
-- 저장소 기준 운영 기본값이 apex + www 동시 허용과 일치하게 됐다.
-- 실제 운영 반영에는 EC2의 `infra/docker/.env` 값도 같은 목록으로 맞추고 app 컨테이너를 재기동해야 한다.
-
-### 6. 자동 배포 workflow 추가
-
-#### 결정
-- backend와 frontend deploy를 한 workflow에 묶지 않고 분리했다.
-- 자동 배포는 `workflow_run`으로 기존 `Backend CI`, `Frontend CI` 성공 뒤 이어지도록 하고, 필요할 때 수동 재실행할 수 있도록 `workflow_dispatch`도 같이 뒀다.
-
-#### 구현
-- `deploy-backend.yml`
-  - backend build
-  - Docker Hub 로그인
-  - `linux/amd64` image build/push
-  - EC2에 `docker-compose.prod.yml`, `nginx.conf` 동기화
-  - EC2에서 `docker compose pull && up -d`
-  - local health check
-- `deploy-frontend.yml`
-  - frontend build
-  - S3 sync
-  - CloudFront invalidation
-
-#### 남은 조건
-- GitHub `Secrets`
-  - `DOCKERHUB_TOKEN`
-  - `EC2_SSH_PRIVATE_KEY`
-  - `AWS_ACCESS_KEY_ID`
-  - `AWS_SECRET_ACCESS_KEY`
-- GitHub `Variables`
-  - `DOCKERHUB_USERNAME`
-  - `BACKEND_IMAGE`
-  - `EC2_HOST`
-  - `EC2_USER`
-  - `AWS_REGION`
-  - `S3_BUCKET`
-  - `CLOUDFRONT_DISTRIBUTION_ID`
-  - `VITE_API_BASE_URL`
-- 실제 자동 배포 성공 여부는 이 값들을 연결한 뒤 확인해야 한다.
+#### 해석
+- V1 baseline은 기능 오류 없이 끝났지만, `p(95)<1500ms` 임계값은 실패했다.
+- 즉 현재 MySQL `user_pbs` 기반 랭킹 조회는 `300,000` PB 후보 기준에서 읽기 지연이 크고, Redis ZSET 전환 후 비교 이득이 선명하게 드러날 조건이다.
+- 산출물은 `docs/performance/rankings-v1-summary.json`, `docs/performance/rankings-v1-report.md`, `docs/performance/rankings-v1-report.html`에 남겼다.
+- `report.html`은 그래프 리포트가 아니라 `summary.json` 기반 요약표다.
+- V1, V2 전/후 시각화 기준은 Grafana `Rankings Baseline` 대시보드 캡처로 유지한다.
 
 ---
 
 ## 사용 기술
 
-- AWS EC2
-- AWS RDS
-- AWS S3
-- AWS CloudFront
-- Docker
-- Docker Compose
-- Nginx
-- Let's Encrypt / Certbot
-- Spring Boot
+- MySQL
 - Redis
+- Prometheus
+- Grafana
+- k6
+- GitHub Actions
+- Spring Boot
 
 ---
 
 ## 검증
 
-- `docker compose --env-file .env -f docker-compose.prod.yml ps`
-- `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 app`
-- `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 nginx`
-- `curl -vk https://api.cubing-hub.com/actuator/health`
-- 브라우저에서 `www.cubing-hub.com` 접근과 API 요청 확인
-- EC2에서 RDS 접속 후 `SHOW DATABASES;`
+- `docker compose up -d prometheus grafana`
+- `docker exec -i cubing_hub_mysql mysql ... < k6/sql/seed-rankings-v1-baseline.sql`
+- `curl http://127.0.0.1:8080/actuator/health`
+- `curl 'http://127.0.0.1:8080/api/rankings?eventType=WCA_333&page=1&size=3'`
+- `k6 run -o experimental-prometheus-rw=http://127.0.0.1:9090/api/v1/write --summary-export ... k6/rankings-v1-baseline.js`
+- `node --check k6/generate-performance-report.mjs`
+- `curl 'http://127.0.0.1:9090/api/v1/query?query=k6_http_req_duration_p95'`
+- `curl -u admin:*** 'http://127.0.0.1:3000/api/search?query=Rankings%20Baseline'`
 
-## 남은 리스크
-
-- 현재 배포는 수동 절차 의존성이 크다.
-- Docker Hub, AWS, EC2 SSH 관련 비밀값이 정리되지 않으면 자동 배포 workflow 구현 시 다시 막힐 수 있다.
-- 인증서 갱신 자동화와 운영 Redis 재구축 정책은 아직 미확정이다.
+`k6` baseline 자체는 `http_req_duration p95 < 1500ms` threshold 때문에 종료 코드 `99`를 반환했다. 이는 실행 실패가 아니라 `2026-04-20` 기준선 측정 결과로 기록한다.
