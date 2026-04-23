@@ -5,8 +5,26 @@ import {
   setStoredAccessToken,
 } from '../authStorage.js'
 
+export function resolveApiBaseUrl(env = import.meta.env) {
+  const configuredBaseUrl = env.VITE_API_BASE_URL?.trim()
+
+  if (!env.PROD) {
+    return configuredBaseUrl || 'http://localhost:8080'
+  }
+
+  if (!configuredBaseUrl) {
+    throw new Error('VITE_API_BASE_URL is required for production builds.')
+  }
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredBaseUrl)) {
+    throw new Error('VITE_API_BASE_URL must not point to localhost in production builds.')
+  }
+
+  return configuredBaseUrl
+}
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
+  baseURL: resolveApiBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

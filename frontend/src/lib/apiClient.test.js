@@ -35,6 +35,36 @@ function getHeaderValue(headers, name) {
 }
 
 describe('apiClient auth refresh flow', () => {
+  it('should_fallback_to_localhost_in_non_production_when_api_base_url_is_missing', async () => {
+    const { resolveApiBaseUrl } = await import('./apiClient.js')
+
+    expect(resolveApiBaseUrl({ PROD: false, VITE_API_BASE_URL: '' })).toBe('http://localhost:8080')
+  })
+
+  it('should_throw_when_api_base_url_is_missing_in_production', async () => {
+    const { resolveApiBaseUrl } = await import('./apiClient.js')
+
+    expect(() => resolveApiBaseUrl({ PROD: true, VITE_API_BASE_URL: '' })).toThrow(
+      'VITE_API_BASE_URL is required for production builds.',
+    )
+  })
+
+  it('should_throw_when_api_base_url_points_to_localhost_in_production', async () => {
+    const { resolveApiBaseUrl } = await import('./apiClient.js')
+
+    expect(() => resolveApiBaseUrl({ PROD: true, VITE_API_BASE_URL: 'http://localhost:8080' })).toThrow(
+      'VITE_API_BASE_URL must not point to localhost in production builds.',
+    )
+  })
+
+  it('should_use_configured_api_base_url_in_production', async () => {
+    const { resolveApiBaseUrl } = await import('./apiClient.js')
+
+    expect(resolveApiBaseUrl({ PROD: true, VITE_API_BASE_URL: 'https://api.cubing-hub.com' })).toBe(
+      'https://api.cubing-hub.com',
+    )
+  })
+
   it('should_share_single_refresh_request_when_refresh_is_requested_concurrently', async () => {
     const { mock, getStoredAccessToken, refreshAccessToken } = await setupApiClientHarness()
     let refreshRequestCount = 0
