@@ -9,7 +9,9 @@ import com.cubinghub.domain.record.entity.EventType;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -21,7 +23,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
 
-    private static final String SEARCH_RANKINGS_QUERY = """
+    private static final String SEARCH_RANKINGS_QUERY_BASE = """
             SELECT ranked.global_rank, ranked.nickname, ranked.event_type, ranked.time_ms
             FROM (
                 SELECT
@@ -34,17 +36,31 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                 JOIN records r ON up.record_id = r.id
                 WHERE up.event_type = :eventType
             ) ranked
-            WHERE (:nickname IS NULL OR LOWER(ranked.nickname) LIKE CONCAT('%', LOWER(:nickname), '%'))
+            """;
+
+    private static final String SEARCH_RANKINGS_QUERY_WITH_NICKNAME = SEARCH_RANKINGS_QUERY_BASE + """
+            WHERE LOWER(ranked.nickname) LIKE CONCAT('%', :nickname, '%')
             ORDER BY ranked.global_rank
             LIMIT :limit OFFSET :offset
             """;
 
-    private static final String SEARCH_RANKINGS_COUNT_QUERY = """
+    private static final String SEARCH_RANKINGS_QUERY_WITHOUT_NICKNAME = SEARCH_RANKINGS_QUERY_BASE + """
+            ORDER BY ranked.global_rank
+            LIMIT :limit OFFSET :offset
+            """;
+
+    private static final String SEARCH_RANKINGS_COUNT_QUERY_BASE = """
+            SELECT COUNT(*)
+            FROM user_pbs up
+            WHERE up.event_type = :eventType
+            """;
+
+    private static final String SEARCH_RANKINGS_COUNT_QUERY_WITH_NICKNAME = """
             SELECT COUNT(*)
             FROM user_pbs up
             JOIN users u ON up.user_id = u.id
             WHERE up.event_type = :eventType
-              AND (:nickname IS NULL OR LOWER(u.nickname) LIKE CONCAT('%', LOWER(:nickname), '%'))
+              AND LOWER(u.nickname) LIKE CONCAT('%', :nickname, '%')
             """;
 
     private final JPAQueryFactory queryFactory;
@@ -54,20 +70,14 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
     public Page<RankingQueryResult> searchRankings(EventType eventType, String nickname, Pageable pageable) {
         String normalizedNickname = normalizeSearchTerm(nickname);
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = entityManager.createNativeQuery(SEARCH_RANKINGS_QUERY)
-                .setParameter("eventType", eventType.name())
-                .setParameter("nickname", normalizedNickname)
-                .setParameter("limit", pageable.getPageSize())
-                .setParameter("offset", Math.toIntExact(pageable.getOffset()))
+        List<Object[]> rows = createSearchRankingsQuery(eventType, normalizedNickname, pageable)
                 .getResultList();
 
         List<RankingQueryResult> items = rows.stream()
                 .map(this::mapRankingQueryResult)
                 .toList();
 
-        Number total = (Number) entityManager.createNativeQuery(SEARCH_RANKINGS_COUNT_QUERY)
-                .setParameter("eventType", eventType.name())
-                .setParameter("nickname", normalizedNickname)
+        Number total = (Number) createSearchRankingsCountQuery(eventType, normalizedNickname)
                 .getSingleResult();
 
         return new PageImpl<>(items, pageable, total.longValue());
@@ -112,7 +122,7 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
             return null;
         }
 
-        return searchTerm.trim();
+        return searchTerm.trim().toLowerCase(Locale.ROOT);
     }
 
     private RankingQueryResult mapRankingQueryResult(Object[] row) {
@@ -122,5 +132,33 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                 EventType.valueOf((String) row[2]),
                 ((Number) row[3]).intValue()
         );
+    }
+
+    private Query createSearchRankingsQuery(EventType eventType, String normalizedNickname, Pageable pageable) {
+        Query query = entityManager.createNativeQuery(
+                normalizedNickname == null ? SEARCH_RANKINGS_QUERY_WITHOUT_NICKNAME : SEARCH_RANKINGS_QUERY_WITH_NICKNAME
+        )
+                .setParameter("eventType", eventType.name())
+                .setParameter("limit", pageable.getPageSize())
+                .setParameter("offset", Math.toIntExact(pageable.getOffset()));
+
+        if (normalizedNickname != null) {
+            query.setParameter("nickname", normalizedNickname);
+        }
+
+        return query;
+    }
+
+    private Query createSearchRankingsCountQuery(EventType eventType, String normalizedNickname) {
+        Query query = entityManager.createNativeQuery(
+                normalizedNickname == null ? SEARCH_RANKINGS_COUNT_QUERY_BASE : SEARCH_RANKINGS_COUNT_QUERY_WITH_NICKNAME
+        )
+                .setParameter("eventType", eventType.name());
+
+        if (normalizedNickname != null) {
+            query.setParameter("nickname", normalizedNickname);
+        }
+
+        return query;
     }
 }

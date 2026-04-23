@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Table(name = "records", indexes = {
         @Index(name = "idx_record_event_time", columnList = "event_type, time_ms"),
-        @Index(name = "idx_record_user_id", columnList = "user_id")
+        @Index(name = "idx_record_user_created_at", columnList = "user_id, created_at")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Record extends BaseTimeEntity {

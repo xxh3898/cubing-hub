@@ -4,6 +4,7 @@ import com.cubinghub.domain.post.dto.response.PostListItemResponse;
 import com.cubinghub.domain.post.entity.PostCategory;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -21,26 +22,21 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     @Override
     public PostSearchResult search(PostCategory category, String keyword, String author, int offset, int limit) {
+        BooleanExpression categoryPredicate = categoryEq(category);
+        BooleanExpression keywordPredicate = keywordContains(keyword);
+        BooleanExpression authorPredicate = authorContains(author);
+
         List<PostListItemResponse> items = basePostListQuery()
                 .where(
-                        categoryEq(category),
-                        keywordContains(keyword),
-                        authorContains(author)
+                        categoryPredicate,
+                        keywordPredicate,
+                        authorPredicate
                 )
                 .offset(offset)
                 .limit(limit)
                 .fetch();
 
-        Long totalElements = queryFactory
-                .select(post.count())
-                .from(post)
-                .join(post.user, user)
-                .where(
-                        categoryEq(category),
-                        keywordContains(keyword),
-                        authorContains(author)
-                )
-                .fetchOne();
+        Long totalElements = countPosts(categoryPredicate, keywordPredicate, authorPredicate);
 
         return new PostSearchResult(items, totalElements != null ? totalElements : 0L);
     }
@@ -66,6 +62,22 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.user, user)
                 .orderBy(post.createdAt.desc(), post.id.desc());
+    }
+
+    private Long countPosts(BooleanExpression categoryPredicate,
+                            BooleanExpression keywordPredicate,
+                            BooleanExpression authorPredicate) {
+        JPAQuery<Long> countQuery = queryFactory
+                .select(post.count())
+                .from(post)
+                .where(categoryPredicate, keywordPredicate);
+
+        if (authorPredicate != null) {
+            countQuery.join(post.user, user)
+                    .where(authorPredicate);
+        }
+
+        return countQuery.fetchOne();
     }
 
     private BooleanExpression categoryEq(PostCategory category) {

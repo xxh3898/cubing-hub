@@ -15,7 +15,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @Table(name = "posts", indexes = {
-        @Index(name = "idx_post_category", columnList = "category"),
+        @Index(name = "idx_post_category_created_at_id", columnList = "category, created_at, id"),
+        @Index(name = "idx_post_created_at_id", columnList = "created_at, id"),
         @Index(name = "idx_post_user_id", columnList = "user_id")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

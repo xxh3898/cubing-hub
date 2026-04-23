@@ -87,7 +87,7 @@ Records 1:1 (또는 1:0) User_PBs
 | 인덱스명 | 컬럼 | 목적 |
 | --- | --- | --- |
 | `idx_record_event_time` | `event_type, time_ms` | 종목별 원본 기록 탐색과 정렬 보조 |
-| `idx_record_user_id` | `user_id` | 사용자 기준 기록 조회 |
+| `idx_record_user_created_at` | `user_id, created_at` | 사용자 최근 기록 조회와 페이지 정렬 |
 
 #### 제약 / 비즈니스 규칙
 
@@ -208,7 +208,8 @@ Records 1:1 (또는 1:0) User_PBs
 
 | 인덱스명 | 컬럼 | 목적 |
 | --- | --- | --- |
-| `idx_post_category` | `category` | 카테고리 필터 |
+| `idx_post_category_created_at_id` | `category, created_at, id` | 카테고리별 게시글 목록 정렬 |
+| `idx_post_created_at_id` | `created_at, id` | 최근글 조회와 전체 목록 정렬 |
 | `idx_post_user_id` | `user_id` | 작성자 기준 조회 |
 
 #### 제약 / 비즈니스 규칙
