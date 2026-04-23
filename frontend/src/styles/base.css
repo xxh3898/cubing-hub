@@ -282,10 +282,6 @@ button {
   color: #12202b;
 }
 
-.record-table-cell-actions {
-  width: 100%;
-}
-
 .two-up {
   display: grid;
   gap: 20px;
