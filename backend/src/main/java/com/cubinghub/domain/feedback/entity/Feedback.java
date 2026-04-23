@@ -1,5 +1,6 @@
 package com.cubinghub.domain.feedback.entity;
 
+import com.cubinghub.domain.feedback.entity.FeedbackVisibility;
 import com.cubinghub.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -63,6 +64,16 @@ public class Feedback {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
+    @Column(columnDefinition = "TEXT")
+    private String answer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "answered_by_user_id", foreignKey = @ForeignKey(name = "fk_feedback_answered_by_user"))
+    private User answeredByUser;
+
+    @Column(name = "answered_at")
+    private LocalDateTime answeredAt;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "notification_status", nullable = false, length = 20)
@@ -78,6 +89,14 @@ public class Feedback {
     @Column(name = "notification_last_error", length = 500)
     private String notificationLastError;
 
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private FeedbackVisibility visibility;
+
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -91,6 +110,7 @@ public class Feedback {
         this.content = content;
         this.notificationStatus = FeedbackNotificationStatus.PENDING;
         this.notificationAttemptCount = 0;
+        this.visibility = FeedbackVisibility.PRIVATE;
     }
 
     public void markNotificationSuccess(LocalDateTime attemptedAt) {
@@ -109,6 +129,21 @@ public class Feedback {
 
     public boolean isNotificationRetryAvailable() {
         return this.notificationStatus != FeedbackNotificationStatus.SUCCESS;
+    }
+
+    public boolean isAnswered() {
+        return this.answer != null && !this.answer.isBlank();
+    }
+
+    public void updateAnswer(User answeredByUser, String answer, LocalDateTime answeredAt) {
+        this.answeredByUser = answeredByUser;
+        this.answer = answer;
+        this.answeredAt = answeredAt;
+    }
+
+    public void updateVisibility(FeedbackVisibility visibility, LocalDateTime changedAt) {
+        this.visibility = visibility;
+        this.publishedAt = visibility == FeedbackVisibility.PUBLIC ? changedAt : null;
     }
 
     private String abbreviateError(String errorMessage) {

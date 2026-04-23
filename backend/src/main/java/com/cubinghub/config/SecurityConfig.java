@@ -53,7 +53,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth
                             .requestMatchers("/api/auth/**", "/api/session/clear-refresh-cookie", "/api/rankings", "/api/scramble", "/api/home", "/actuator/health", "/docs/**", "/error").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments").permitAll();
+                            .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments", "/api/qna", "/api/qna/*").permitAll()
+                            .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN");
 
                     if (permitPrometheusEndpoint) {
                         auth.requestMatchers("/actuator/prometheus").permitAll();

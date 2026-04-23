@@ -169,4 +169,31 @@ class SecurityAccessControlIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
     }
+
+    @Test
+    @DisplayName("공개 QnA 목록 경로는 인증 없이도 접근할 수 있다")
+    void should_allow_access_to_public_qna_list_when_authentication_is_missing() throws Exception {
+        mockMvc.perform(get("/api/qna"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("공개 질문 목록을 조회했습니다."));
+    }
+
+    @Test
+    @DisplayName("관리자 피드백 경로는 인증 없이 접근하면 401을 반환한다")
+    void should_return_unauthorized_when_accessing_admin_feedbacks_without_authentication() throws Exception {
+        mockMvc.perform(get("/api/admin/feedbacks"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+    }
+
+    @Test
+    @DisplayName("관리자 메모 경로는 인증 없이 접근하면 401을 반환한다")
+    void should_return_unauthorized_when_accessing_admin_memos_without_authentication() throws Exception {
+        mockMvc.perform(get("/api/admin/memos"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+    }
 }

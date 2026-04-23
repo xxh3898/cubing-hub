@@ -1,15 +1,26 @@
 package com.cubinghub.domain.feedback.service;
 
 import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.domain.feedback.dto.response.AdminFeedbackDetailResponse;
+import com.cubinghub.domain.feedback.dto.response.AdminFeedbackListItemResponse;
+import com.cubinghub.domain.feedback.dto.response.AdminFeedbackPageResponse;
 import com.cubinghub.domain.feedback.dto.request.FeedbackCreateRequest;
+import com.cubinghub.domain.feedback.dto.response.PublicFeedbackDetailResponse;
+import com.cubinghub.domain.feedback.dto.response.PublicFeedbackListItemResponse;
+import com.cubinghub.domain.feedback.dto.response.PublicFeedbackPageResponse;
 import com.cubinghub.domain.feedback.entity.Feedback;
 import com.cubinghub.domain.feedback.entity.FeedbackNotificationStatus;
+import com.cubinghub.domain.feedback.entity.FeedbackVisibility;
 import com.cubinghub.domain.feedback.repository.FeedbackRepository;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.repository.UserRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +73,76 @@ public class FeedbackService {
         return feedback;
     }
 
+    public AdminFeedbackPageResponse getAdminFeedbacks(Boolean answered, FeedbackVisibility visibility, Integer page, Integer size) {
+        validatePageRequest(page, size);
+
+        PageRequest pageRequest = PageRequest.of(page - 1, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<Feedback> feedbackPage = findAdminFeedbackPage(answered, visibility, pageRequest);
+        List<AdminFeedbackListItemResponse> items = feedbackPage.getContent().stream()
+                .map(AdminFeedbackListItemResponse::from)
+                .toList();
+
+        return new AdminFeedbackPageResponse(
+                items,
+                page,
+                size,
+                feedbackPage.getTotalElements(),
+                feedbackPage.getTotalPages(),
+                feedbackPage.hasNext(),
+                feedbackPage.hasPrevious()
+        );
+    }
+
+    public AdminFeedbackDetailResponse getAdminFeedbackDetail(Long feedbackId) {
+        return AdminFeedbackDetailResponse.from(getFeedbackWithUser(feedbackId));
+    }
+
+    @Transactional
+    public AdminFeedbackDetailResponse updateAnswer(Long feedbackId, String adminEmail, String answer) {
+        User adminUser = findAdminUser(adminEmail);
+        Feedback feedback = getFeedbackWithUser(feedbackId);
+        feedback.updateAnswer(adminUser, answer, LocalDateTime.now());
+        return AdminFeedbackDetailResponse.from(feedback);
+    }
+
+    @Transactional
+    public AdminFeedbackDetailResponse updateVisibility(Long feedbackId, String adminEmail, FeedbackVisibility visibility) {
+        findAdminUser(adminEmail);
+        Feedback feedback = getFeedbackWithUser(feedbackId);
+
+        if (visibility == FeedbackVisibility.PUBLIC && !feedback.isAnswered()) {
+            throw new IllegalStateException("답변이 등록된 피드백만 공개할 수 있습니다.");
+        }
+
+        feedback.updateVisibility(visibility, LocalDateTime.now());
+        return AdminFeedbackDetailResponse.from(feedback);
+    }
+
+    public PublicFeedbackPageResponse getPublicFeedbacks(Integer page, Integer size) {
+        validatePageRequest(page, size);
+
+        PageRequest pageRequest = PageRequest.of(page - 1, size, Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id")));
+        Page<Feedback> feedbackPage = feedbackRepository.findByVisibilityAndAnswerIsNotNull(FeedbackVisibility.PUBLIC, pageRequest);
+        List<PublicFeedbackListItemResponse> items = feedbackPage.getContent().stream()
+                .map(PublicFeedbackListItemResponse::from)
+                .toList();
+
+        return new PublicFeedbackPageResponse(
+                items,
+                page,
+                size,
+                feedbackPage.getTotalElements(),
+                feedbackPage.getTotalPages(),
+                feedbackPage.hasNext(),
+                feedbackPage.hasPrevious()
+        );
+    }
+
+    public PublicFeedbackDetailResponse getPublicFeedbackDetail(Long feedbackId) {
+        Feedback feedback = findPublicFeedbackById(feedbackId);
+        return PublicFeedbackDetailResponse.from(feedback);
+    }
+
     private User findUser(String email) {
         if (!StringUtils.hasText(email)) {
             throw new CustomApiException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED);
@@ -71,9 +152,29 @@ public class FeedbackService {
                 .orElseThrow(() -> new CustomApiException("사용자를 찾을 수 없습니다.", HttpStatus.UNAUTHORIZED));
     }
 
+    private User findAdminUser(String email) {
+        User user = findUser(email);
+
+        if (user.getRole() != UserRole.ROLE_ADMIN) {
+            throw new CustomApiException("접근 권한이 없습니다.", HttpStatus.FORBIDDEN);
+        }
+
+        return user;
+    }
+
     private Feedback findFeedbackById(Long feedbackId) {
         return feedbackRepository.findById(feedbackId)
                 .orElseThrow(() -> new CustomApiException("피드백을 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+    }
+
+    private Feedback findPublicFeedbackById(Long feedbackId) {
+        Feedback feedback = findFeedbackById(feedbackId);
+
+        if (feedback.getVisibility() != FeedbackVisibility.PUBLIC || !feedback.isAnswered()) {
+            throw new CustomApiException("공개된 질문을 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
+        }
+
+        return feedback;
     }
 
     private void validateOwnershipOrAdmin(Feedback feedback, User currentUser) {
@@ -90,5 +191,35 @@ public class FeedbackService {
         if (feedback.getNotificationStatus() == FeedbackNotificationStatus.SUCCESS) {
             throw new CustomApiException("이미 Discord 알림 전송을 완료했습니다.", HttpStatus.CONFLICT);
         }
+    }
+
+    private void validatePageRequest(Integer page, Integer size) {
+        if (page < 1) {
+            throw new IllegalArgumentException("page는 1 이상이어야 합니다.");
+        }
+
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("size는 1 이상 100 이하여야 합니다.");
+        }
+    }
+
+    private Page<Feedback> findAdminFeedbackPage(Boolean answered, FeedbackVisibility visibility, PageRequest pageRequest) {
+        if (answered == null && visibility == null) {
+            return feedbackRepository.findAllBy(pageRequest);
+        }
+
+        if (answered == null) {
+            return feedbackRepository.findByVisibility(visibility, pageRequest);
+        }
+
+        if (visibility == null) {
+            return answered
+                    ? feedbackRepository.findByAnswerIsNotNull(pageRequest)
+                    : feedbackRepository.findByAnswerIsNull(pageRequest);
+        }
+
+        return answered
+                ? feedbackRepository.findByAnswerIsNotNullAndVisibility(visibility, pageRequest)
+                : feedbackRepository.findByAnswerIsNullAndVisibility(visibility, pageRequest);
     }
 }
