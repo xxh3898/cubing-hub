@@ -89,7 +89,7 @@ export default function QnaPage() {
       <div className="panel qna-header-panel">
         <p className="eyebrow">Public Q&A</p>
         <h2>공개 질문과 답변</h2>
-        <p className="helper-text">관리자가 공개로 전환한 피드백만 모아서 볼 수 있는 운영 Q&A 보드입니다.</p>
+        <p className="helper-text">자주 묻는 질문과 답변을 모아둔 Q&A 보드입니다.</p>
       </div>
 
       <div className="panel qna-board-panel">

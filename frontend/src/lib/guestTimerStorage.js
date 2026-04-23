@@ -3,7 +3,7 @@ const MAX_RECORDS_PER_EVENT = 100
 
 function getStorage() {
   if (typeof window === 'undefined' || !window.localStorage) {
-    throw new Error('게스트 기록 저장소를 사용할 수 없습니다.')
+    throw new Error('게스트 기록을 저장할 수 없습니다.')
   }
 
   return window.localStorage

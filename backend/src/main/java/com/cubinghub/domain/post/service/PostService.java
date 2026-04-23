@@ -242,11 +242,11 @@ public class PostService {
 
     private void validatePageRequest(Integer page, Integer size) {
         if (page < 1) {
-            throw new IllegalArgumentException("page는 1 이상이어야 합니다.");
+            throw new IllegalArgumentException("잘못된 페이지 번호입니다.");
         }
 
         if (size < 1 || size > 100) {
-            throw new IllegalArgumentException("size는 1 이상 100 이하여야 합니다.");
+            throw new IllegalArgumentException("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
         }
     }
 

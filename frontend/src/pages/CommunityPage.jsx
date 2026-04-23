@@ -133,7 +133,7 @@ export default function CommunityPage() {
         <div className="community-header-copy">
           <p className="eyebrow">Community</p>
           <h2>커뮤니티</h2>
-          <p className="helper-text">게시글을 빠르게 훑고, 제목/본문과 작성자 조건으로 필요한 글을 바로 찾을 수 있는 커뮤니티 보드입니다.</p>
+          <p className="helper-text">게시글을 검색하고 소통할 수 있는 커뮤니티 보드입니다.</p>
         </div>
       </div>
 

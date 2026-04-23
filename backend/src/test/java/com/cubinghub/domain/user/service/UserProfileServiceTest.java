@@ -198,7 +198,7 @@ class UserProfileServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이미 사용중인 닉네임입니다.");
+                .hasMessage("이미 사용 중인 닉네임입니다.");
     }
 
     @Test
@@ -224,7 +224,7 @@ class UserProfileServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("page는 1 이상이어야 합니다.");
+                .hasMessage("잘못된 페이지 번호입니다.");
     }
 
     @Test
@@ -234,7 +234,7 @@ class UserProfileServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("size는 1 이상 100 이하여야 합니다.");
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
     }
 
     @Test
@@ -244,6 +244,6 @@ class UserProfileServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("size는 1 이상 100 이하여야 합니다.");
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
     }
 }

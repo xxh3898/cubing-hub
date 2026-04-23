@@ -18,10 +18,10 @@ public class PostCreateRequest {
     private PostCategory category;
 
     @NotBlank(message = "제목은 필수입니다.")
-    @Size(max = InputConstraints.POST_TITLE_MAX_LENGTH, message = "제목은 100자 이하이어야 합니다.")
+    @Size(max = InputConstraints.POST_TITLE_MAX_LENGTH, message = "제목은 100자 이하여야 합니다.")
     private String title;
 
     @NotBlank(message = "내용은 필수입니다.")
-    @Size(max = InputConstraints.POST_CONTENT_MAX_LENGTH, message = "내용은 2000자 이하이어야 합니다.")
+    @Size(max = InputConstraints.POST_CONTENT_MAX_LENGTH, message = "내용은 2000자 이하여야 합니다.")
     private String content;
 }

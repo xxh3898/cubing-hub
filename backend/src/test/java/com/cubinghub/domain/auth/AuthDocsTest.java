@@ -158,7 +158,7 @@ class AuthDocsTest extends RestDocsIntegrationTest {
 
         result.andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
-                .andExpect(jsonPath("$.message").value("비밀번호 재설정 인증번호를 이메일로 전송했습니다."))
+                .andExpect(jsonPath("$.message").value("인증번호를 전송했습니다. 이메일을 확인해주세요."))
                 .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("auth/password-reset/request",
                         requestFields(

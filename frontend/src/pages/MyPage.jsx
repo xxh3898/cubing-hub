@@ -613,7 +613,7 @@ export default function MyPage() {
         ) : isLoadingRecords ? (
           <p className="helper-text">마이페이지 기록을 불러오는 중입니다.</p>
         ) : records.length === 0 ? (
-          <p className="helper-text">아직 작성된 기록이 없습니다.</p>
+          <p className="helper-text">아직 저장된 기록이 없습니다.</p>
         ) : (
           <>
             <div className="record-table-wrap">
@@ -699,7 +699,7 @@ export default function MyPage() {
               <div>
                 <p className="eyebrow">Account</p>
                 <h2 id="mypage-account-modal-title">계정 관리</h2>
-                <p className="helper-text">프로필 수정과 비밀번호 변경은 기록 화면을 가리지 않도록 모달 안에서만 처리합니다.</p>
+                <p className="helper-text">프로필과 비밀번호를 변경할 수 있습니다.</p>
               </div>
               <button className="ghost-button" type="button" onClick={handleCloseAccountModal}>
                 닫기
@@ -784,7 +784,7 @@ export default function MyPage() {
               >
                 <div className="mypage-modal-section">
                   <h3>비밀번호 변경</h3>
-                  <p className="helper-text">변경이 완료되면 현재 세션을 종료하고 다시 로그인하도록 안내합니다.</p>
+                  <p className="helper-text">변경 후 자동으로 로그아웃되며, 새 비밀번호로 다시 로그인해야 합니다.</p>
                 </div>
                 {passwordFormError ? <p className="message error">{passwordFormError}</p> : null}
                 <form className="form-grid mypage-account-form" onSubmit={handleChangePassword}>

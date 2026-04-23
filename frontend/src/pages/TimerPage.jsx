@@ -22,7 +22,7 @@ function getTimerMessage(status, isSupported, hasScramble) {
   }
 
   if (status === 'holding') {
-    return '계속 누르고 있으면 준비 상태로 전환됩니다.'
+    return '계속 누르고 있으면 준비됩니다.'
   }
 
   if (status === 'ready') {
@@ -30,14 +30,14 @@ function getTimerMessage(status, isSupported, hasScramble) {
   }
 
   if (status === 'running') {
-    return '기록을 멈추려면 스페이스바를 누르거나 타이머 영역을 다시 누르세요.'
+    return '스페이스바를 누르거나 화면을 터치하면 정지됩니다.'
   }
 
   if (status === 'stopped') {
     return ''
   }
 
-  return '스페이스바 또는 타이머 영역을 길게 누른 뒤 손을 떼면 시작됩니다.'
+  return '스페이스바 또는 화면을 길게 누른 뒤 떼면 시작됩니다.'
 }
 
 function getStatusLabel(status) {
@@ -314,7 +314,7 @@ export default function TimerPage() {
 
     activePersistKeyRef.current = snapshot.key
     setSaveStatus('saving')
-    setSaveNotice('기록을 저장하는 중입니다.')
+    setSaveNotice('기록 저장 중...')
 
     try {
       if (isAuthenticated) {
@@ -387,7 +387,7 @@ export default function TimerPage() {
               <p className="scramble-text timer-scramble-text">
                 {isLoadingScramble
                   ? '스크램블을 불러오는 중입니다...'
-                  : scrambleData?.scramble ?? '지원 종목을 선택하거나 스크램블을 다시 불러와 주세요.'}
+                  : scrambleData?.scramble ?? '지원 종목을 선택하거나 스크램블을 다시 불러와주세요.'}
               </p>
               {scrambleVisualUrl && hasScrambleVisualError ? (
                 <p className="helper-text timer-visual-fallback">스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.</p>

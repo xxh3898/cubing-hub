@@ -337,7 +337,7 @@ describe('MyPage', () => {
     })
 
     expect(toast.success).toHaveBeenCalledWith('기록이 삭제되었습니다.')
-    expect(screen.getByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
+    expect(screen.getByText('아직 저장된 기록이 없습니다.')).toBeInTheDocument()
   })
 
   it('should_show_error_message_when_profile_loading_fails', async () => {
@@ -400,7 +400,7 @@ describe('MyPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
-    expect(await screen.findByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('아직 저장된 기록이 없습니다.')).toBeInTheDocument()
     expect(getMyRecords).toHaveBeenCalledTimes(2)
   })
 

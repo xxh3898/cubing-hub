@@ -62,7 +62,7 @@ export function AuthProvider({ children }) {
         const nextAccessToken = response.data?.accessToken
 
         if (!nextAccessToken) {
-          throw new Error('토큰 재발급 응답에 access token이 없습니다.')
+          throw new Error('인증 정보를 갱신하지 못했습니다. 다시 로그인해주세요.')
         }
 
         if (isCancelled) {

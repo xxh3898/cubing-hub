@@ -46,7 +46,7 @@ public class AuthController {
             @Valid @RequestBody EmailVerificationRequest request
     ) {
         authService.requestPasswordReset(request);
-        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "비밀번호 재설정 인증번호를 이메일로 전송했습니다."));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "인증번호를 전송했습니다. 이메일을 확인해주세요."));
     }
 
     @PostMapping("/password-reset/confirm")

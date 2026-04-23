@@ -115,7 +115,7 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                         .param("page", "0")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(containsString("page는 1 이상이어야 합니다.")));
+                .andExpect(jsonPath("$.message").value(containsString("잘못된 페이지 번호입니다.")));
     }
 
     @Test

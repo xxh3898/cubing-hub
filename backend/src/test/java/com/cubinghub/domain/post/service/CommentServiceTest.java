@@ -205,7 +205,7 @@ class CommentServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("page는 1 이상이어야 합니다.");
+                .hasMessage("잘못된 페이지 번호입니다.");
     }
 
     private Comment createComment(Long id, Post post, User user, String content) {

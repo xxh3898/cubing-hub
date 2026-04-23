@@ -38,7 +38,7 @@ export default function LoginPage() {
       const nextAccessToken = response.data?.accessToken
 
       if (!nextAccessToken) {
-        throw new Error('로그인 응답에 access token이 없습니다.')
+        throw new Error('로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.')
       }
 
       await setAccessToken(nextAccessToken)
@@ -47,7 +47,7 @@ export default function LoginPage() {
       if (error?.isNetworkError) {
         try {
           await clearRefreshCookie()
-          setErrorMessage('세션 쿠키를 정리했습니다. 다시 로그인해주세요.')
+          setErrorMessage('세션이 만료되었습니다. 다시 로그인해주세요.')
           return
         } catch {
           // fallback to the original network error message below

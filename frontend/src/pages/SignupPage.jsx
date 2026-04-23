@@ -103,7 +103,7 @@ export default function SignupPage() {
         replace: true,
         state: {
           from: returnTo,
-          notice: '이메일 인증 후 회원가입이 완료되었습니다. 로그인해주세요.',
+          notice: '회원가입이 완료되었습니다. 로그인해주세요.',
           email,
         },
       })
@@ -236,7 +236,7 @@ export default function SignupPage() {
           </div>
           <div className="auth-actions">
             <button type="submit" className="primary-button auth-submit" disabled={isBusy || !isEmailVerified}>
-              {isSubmitting ? '가입 중...' : '가입완료'}
+              {isSubmitting ? '가입 중...' : '가입 완료'}
             </button>
           </div>
         </form>

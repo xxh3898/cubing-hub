@@ -187,7 +187,7 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
-                .andExpect(jsonPath("$.message").value("비밀번호 재설정 인증번호를 이메일로 전송했습니다."))
+                .andExpect(jsonPath("$.message").value("인증번호를 전송했습니다. 이메일을 확인해주세요."))
                 .andExpect(jsonPath("$.data").value(nullValue()));
 
         String storedCode = passwordResetStore.getCode(email);
@@ -329,7 +329,7 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(new LoginRequest("tester@cubinghub.com", "a".repeat(65)))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("비밀번호는 64자 이하이어야 합니다.")));
+                .andExpect(jsonPath("$.message", containsString("비밀번호는 64자 이하여야 합니다.")));
     }
 
     @Test

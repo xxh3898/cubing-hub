@@ -61,7 +61,7 @@ describe('LoginPage', () => {
       expect(clearRefreshCookie).toHaveBeenCalledTimes(1)
     })
 
-    expect(await screen.findByText('세션 쿠키를 정리했습니다. 다시 로그인해주세요.')).toBeInTheDocument()
+    expect(await screen.findByText('세션이 만료되었습니다. 다시 로그인해주세요.')).toBeInTheDocument()
     expect(mockSetAccessToken).not.toHaveBeenCalled()
   })
 

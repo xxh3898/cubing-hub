@@ -58,7 +58,7 @@ export default function LearningPage() {
         <div className="learning-header-copy">
           <p className="eyebrow">Learning</p>
           <h2>학습</h2>
-          <p className="helper-text">3x3x3 CFOP 해법을 `F2L`, `OLL`, `PLL` 흐름으로 정리한 학습 라이브러리입니다.</p>
+          <p className="helper-text">3x3x3 CFOP 해법을 F2L -&gt; OLL -&gt; PLL 흐름으로 정리한 학습 라이브러리입니다.</p>
         </div>
       </div>
 

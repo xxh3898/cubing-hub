@@ -97,7 +97,7 @@ export default function RankingsPage() {
         <div className="rankings-header-copy">
           <p className="eyebrow">Rankings</p>
           <h2>랭킹</h2>
-          <p className="helper-text">종목별 기록을 빠르게 비교할 수 있도록 25개 단위로 정리한 랭킹 보드입니다.</p>
+          <p className="helper-text">종목별 기록을 한눈에 비교할 수 있는 랭킹 보드입니다.</p>
         </div>
 
         <div className="rankings-toolbar">

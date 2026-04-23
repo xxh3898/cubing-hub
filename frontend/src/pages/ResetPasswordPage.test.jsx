@@ -35,7 +35,7 @@ describe('ResetPasswordPage', () => {
 
   it('should_request_password_reset_code_when_email_is_entered', async () => {
     vi.mocked(requestPasswordReset).mockResolvedValue({
-      message: '비밀번호 재설정 인증번호를 이메일로 전송했습니다.',
+      message: '인증번호를 전송했습니다. 이메일을 확인해주세요.',
       data: null,
     })
 
@@ -48,7 +48,7 @@ describe('ResetPasswordPage', () => {
       expect(requestPasswordReset).toHaveBeenCalledWith({ email: 'member@cubinghub.com' })
     })
 
-    expect(await screen.findByText('비밀번호 재설정 인증번호를 이메일로 전송했습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('인증번호를 전송했습니다. 이메일을 확인해주세요.')).toBeInTheDocument()
   })
 
   it('should_redirect_to_login_when_password_reset_confirm_succeeds', async () => {

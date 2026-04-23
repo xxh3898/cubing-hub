@@ -579,7 +579,7 @@ class RecordServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("page는 1 이상이어야 합니다.");
+                .hasMessage("잘못된 페이지 번호입니다.");
         verify(userPBRepository, never()).searchRankings(any(), any(), any());
     }
 
@@ -590,7 +590,7 @@ class RecordServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("size는 1 이상 100 이하여야 합니다.");
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
         verify(userPBRepository, never()).searchRankings(any(), any(), any());
     }
 
@@ -601,7 +601,7 @@ class RecordServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("size는 1 이상 100 이하여야 합니다.");
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
         verify(userPBRepository, never()).searchRankings(any(), any(), any());
     }
 }

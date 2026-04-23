@@ -117,7 +117,7 @@ class AuthServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이미 사용중인 이메일입니다.");
+                .hasMessage("이미 사용 중인 이메일입니다.");
         verify(emailVerificationCodeGenerator, never()).generate();
     }
 
@@ -305,7 +305,7 @@ class AuthServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이미 사용중인 이메일입니다.");
+                .hasMessage("이미 사용 중인 이메일입니다.");
         verify(userRepository, never()).saveAndFlush(any(User.class));
     }
 
@@ -321,7 +321,7 @@ class AuthServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("이미 사용중인 닉네임입니다.");
+                .hasMessage("이미 사용 중인 닉네임입니다.");
         verify(userRepository, never()).saveAndFlush(any(User.class));
     }
 

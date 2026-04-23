@@ -248,7 +248,7 @@ export default function HomePage() {
         <div className="home-scramble-actions">
           <p className="helper-text">
             {isGuestHome
-              ? '오늘 첫 솔브를 바로 시작하고, 로그인하면 개인 요약과 최근 기록도 함께 확인할 수 있습니다.'
+              ? '로그인하면 개인 기록 요약과 최근 기록까지 함께 확인할 수 있습니다.'
               : '오늘 첫 솔브를 바로 시작하거나 최근 기록 흐름을 이어서 확인할 수 있습니다.'}
           </p>
           <NavLink className="primary-button home-action-link" to="/timer">

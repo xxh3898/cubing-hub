@@ -194,7 +194,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("내용은 2000자 이하이어야 합니다.")));
+                .andExpect(jsonPath("$.message", containsString("내용은 2000자 이하여야 합니다.")));
     }
 
     @Test
@@ -232,7 +232,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("page는 1 이상이어야 합니다."));
+                .andExpect(jsonPath("$.message").value("잘못된 페이지 번호입니다."));
     }
 
     @Test

@@ -77,7 +77,7 @@ describe('SignupPage', () => {
     fireEvent.change(screen.getByLabelText('닉네임'), { target: { value: 'CubeMaster' } })
     fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'password123!' } })
     fireEvent.change(screen.getByLabelText('비밀번호 확인'), { target: { value: 'password123!' } })
-    fireEvent.click(screen.getByRole('button', { name: '가입완료' }))
+    fireEvent.click(screen.getByRole('button', { name: '가입 완료' }))
 
     await waitFor(() => {
       expect(signUp).toHaveBeenCalledWith({
@@ -92,7 +92,7 @@ describe('SignupPage', () => {
       replace: true,
       state: {
         from: '/',
-        notice: '이메일 인증 후 회원가입이 완료되었습니다. 로그인해주세요.',
+        notice: '회원가입이 완료되었습니다. 로그인해주세요.',
         email: 'member@cubinghub.com',
       },
     })
@@ -113,12 +113,12 @@ describe('SignupPage', () => {
     fireEvent.change(screen.getByLabelText('인증번호'), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: '인증 확인' }))
     expect(await screen.findByText('이메일 인증이 완료되었습니다.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '가입완료' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeEnabled()
 
     fireEvent.change(screen.getByLabelText('이메일'), { target: { value: 'other@cubinghub.com' } })
 
     expect(screen.queryByText('이메일 인증이 완료되었습니다.')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '가입완료' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled()
   })
 
   it('should_apply_input_length_limits_to_signup_fields', () => {

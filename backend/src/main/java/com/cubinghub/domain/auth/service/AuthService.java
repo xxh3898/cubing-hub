@@ -51,7 +51,7 @@ public class AuthService {
         String email = request.getEmail();
 
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("이미 사용중인 이메일입니다.");
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
         if (emailVerificationStore.isOnCooldown(email)) {
             throw new IllegalArgumentException(resendCooldownMessage());
@@ -104,7 +104,7 @@ public class AuthService {
         String email = request.getEmail();
 
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("이미 사용중인 이메일입니다.");
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
 
         String storedCode = emailVerificationStore.getCode(email);
@@ -151,10 +151,10 @@ public class AuthService {
             throw new IllegalArgumentException("이메일 인증이 필요합니다.");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("이미 사용중인 이메일입니다.");
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
         if (userRepository.existsByNickname(request.getNickname())) {
-            throw new IllegalArgumentException("이미 사용중인 닉네임입니다.");
+            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
         User user = User.builder()
