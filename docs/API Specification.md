@@ -59,6 +59,8 @@
 | --- | --- | --- | --- | --- |
 | `POST` | `/api/auth/email-verification/request` | Public | 회원가입용 이메일 인증번호 요청 | 구현됨 |
 | `POST` | `/api/auth/email-verification/confirm` | Public | 회원가입용 이메일 인증번호 확인 | 구현됨 |
+| `POST` | `/api/auth/password-reset/request` | Public | 비밀번호 재설정 인증번호 요청 | 구현됨 |
+| `POST` | `/api/auth/password-reset/confirm` | Public | 비밀번호 재설정 확인 및 비밀번호 변경 | 구현됨 |
 | `POST` | `/api/auth/signup` | Public | 회원가입 | 구현됨 |
 | `POST` | `/api/auth/login` | Public | 로그인 | 구현됨 |
 | `POST` | `/api/auth/refresh` | Public + Cookie | 토큰 재발급 | 구현됨 |
@@ -68,6 +70,8 @@
 | `GET` | `/api/home` | Public + Optional Auth | 홈 대시보드 조회 | 구현됨 |
 | `GET` | `/api/users/me/profile` | Auth | 마이페이지 프로필/요약 조회 | 구현됨 |
 | `GET` | `/api/users/me/records` | Auth | 마이페이지 전체 기록 페이지 조회 | 구현됨 |
+| `PATCH` | `/api/users/me/profile` | Auth | 마이페이지 프로필 수정 | 구현됨 |
+| `PATCH` | `/api/users/me/password` | Auth | 로그인 사용자 비밀번호 변경 | 구현됨 |
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
 | `PATCH` | `/api/records/{recordId}` | Auth | 기록 penalty 수정 | 구현됨 |
 | `DELETE` | `/api/records/{recordId}` | Auth | 기록 삭제 | 구현됨 |
@@ -122,6 +126,59 @@
 | --- | --- | --- | --- |
 | `email` | String | 예 | 인증을 완료할 이메일, 최대 255자 |
 | `code` | String | 예 | 6자리 인증번호 |
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 인증번호가 없거나 만료됐으면 응답 메시지는 `인증번호가 만료되었거나 요청되지 않았습니다.`
+  - 인증번호가 일치하지 않으면 응답 메시지는 `인증번호가 일치하지 않습니다.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+### `POST /api/auth/password-reset/request`
+
+- 설명: 비밀번호 재설정 전에 이메일 인증번호를 발송한다.
+- 인증: Public
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `email` | String | 예 | 비밀번호를 재설정할 이메일, 최대 255자 |
+
+#### 동작 메모
+
+- 가입되지 않은 이메일이어도 동일한 성공 응답을 반환한다.
+- 계정 존재 여부를 외부에 노출하지 않기 위한 정책이다.
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 1분 뒤에 가능합니다.`
+  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+### `POST /api/auth/password-reset/confirm`
+
+- 설명: 이메일로 받은 6자리 인증번호를 확인하고 비밀번호를 재설정한다.
+- 인증: Public
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `email` | String | 예 | 비밀번호를 재설정할 이메일, 최대 255자 |
+| `code` | String | 예 | 6자리 인증번호 |
+| `newPassword` | String | 예 | 새 비밀번호, 8자 이상 64자 이하, UTF-8 기준 최대 72바이트 |
 
 #### 에러 계약
 
@@ -341,6 +398,53 @@
 | `data.totalPages` | Number | 전체 페이지 수 |
 | `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
 | `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
+
+### `PATCH /api/users/me/profile`
+
+- 설명: 로그인 사용자의 닉네임과 주 종목을 수정한다.
+- 인증: Access Token 필요
+- 멱등성: 약한 멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `nickname` | String | 예 | 2자 이상 50자 이하 닉네임 |
+| `mainEvent` | String | 예 | 주 종목 WCA 코드 (`WCA_333` 등) |
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 중복 닉네임이면 응답 메시지는 `이미 사용중인 닉네임입니다.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
+
+### `PATCH /api/users/me/password`
+
+- 설명: 로그인 사용자의 비밀번호를 변경하고 기존 refresh token을 무효화한다.
+- 인증: Access Token 필요
+- 멱등성: 비멱등
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `currentPassword` | String | 예 | 현재 비밀번호, 최대 64자 / UTF-8 기준 최대 72바이트 |
+| `newPassword` | String | 예 | 새 비밀번호, 8자 이상 64자 이하 / UTF-8 기준 최대 72바이트 |
+
+#### 에러 계약
+
+- `400 Bad Request`
+  - 현재 비밀번호가 일치하지 않으면 응답 메시지는 `현재 비밀번호가 일치하지 않습니다.`
+  - 새 비밀번호가 현재 비밀번호와 같으면 응답 메시지는 `새 비밀번호는 현재 비밀번호와 달라야 합니다.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: `null`
 
 ## 8. 기록 API
 

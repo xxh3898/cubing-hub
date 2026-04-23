@@ -2,8 +2,9 @@
 
 ## 1. 적용 범위
 
-- 회원가입용 이메일 인증 / 회원가입 / 로그인 / 토큰 재발급 / 로그아웃 API
+- 회원가입용 이메일 인증 / 비밀번호 재설정 / 회원가입 / 로그인 / 토큰 재발급 / 로그아웃 API
 - 보호 API 접근 제어
+- 로그인 사용자의 계정 정보/비밀번호 변경
 - 게시글과 댓글 삭제의 소유자 검증
 - 프런트의 Access Token 보관 및 API 호출 규칙
 
@@ -38,6 +39,8 @@
   - `GET /api/me`
   - `GET /api/users/me/profile`
   - `GET /api/users/me/records`
+  - `PATCH /api/users/me/profile`
+  - `PATCH /api/users/me/password`
   - `POST /api/records`
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
@@ -84,14 +87,30 @@
 5. 회원가입 성공 후 verified marker를 삭제한다.
 6. 기본 권한은 `ROLE_USER`, 기본 상태는 `ACTIVE`다.
 
-### 4. 로그인
+### 4. 비밀번호 재설정 인증번호 요청
+
+1. 사용자가 비밀번호를 재설정할 이메일을 전달한다.
+2. 같은 이메일의 재요청 cooldown을 확인한다.
+3. 6자리 인증번호를 생성한다.
+4. Redis에 password reset 인증번호와 resend cooldown을 TTL과 함께 저장한다.
+5. 계정 존재 여부는 외부에 노출하지 않고, 가입된 이메일인 경우에만 SMTP로 인증번호 메일을 발송한다.
+
+### 5. 비밀번호 재설정 확인
+
+1. 사용자가 이메일, 6자리 인증번호, 새 비밀번호를 전달한다.
+2. Redis에 저장된 password reset 인증번호와 비교한다.
+3. 일치하면 사용자의 비밀번호를 암호화해 갱신한다.
+4. 관련 password reset key를 삭제한다.
+5. 해당 사용자의 Refresh Token을 모두 제거해 재로그인을 강제한다.
+
+### 6. 로그인
 
 1. `AuthenticationManager`로 이메일/비밀번호를 검증한다.
 2. Access Token과 Refresh Token을 생성한다.
 3. Refresh Token을 Redis에 저장한다.
 4. Access Token은 응답 body로, Refresh Token은 `HttpOnly` cookie로 반환한다.
 
-### 5. 토큰 재발급
+### 7. 토큰 재발급
 
 1. `refresh_token` cookie를 전달한다. cookie가 없으면 `400 Bad Request`를 반환한다.
 2. Refresh Token 자체 유효성을 검증한다.
@@ -100,11 +119,19 @@
 5. 불일치 시 해당 사용자의 모든 Refresh Token을 제거하고 `401 Unauthorized`를 반환해 재로그인을 강제한다.
 6. 일치하면 기존 Refresh Token을 삭제하고 새 Access/Refresh Token을 발급한다.
 
-### 6. 로그아웃
+### 8. 로그아웃
 
 1. Refresh Token이 전달되면 Redis에서 제거한다.
 2. Access Token이 전달되면 남은 만료 시간 기준으로 블랙리스트에 등록한다.
 3. `refresh_token` cookie를 즉시 만료 처리한다.
+
+### 9. 로그인 사용자 비밀번호 변경
+
+1. 로그인 사용자가 현재 비밀번호와 새 비밀번호를 전달한다.
+2. 현재 비밀번호 일치 여부를 확인한다.
+3. 새 비밀번호가 현재 비밀번호와 다른지 확인한다.
+4. 새 비밀번호를 암호화해 저장한다.
+5. 해당 사용자의 Refresh Token을 모두 제거해 재로그인을 강제한다.
 
 ## 5. 인가 흐름
 
@@ -137,6 +164,8 @@
 - 백엔드 인증 API는 구현되어 있다.
   - `POST /api/auth/email-verification/request`
   - `POST /api/auth/email-verification/confirm`
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/password-reset/confirm`
   - `POST /api/auth/signup`
   - `POST /api/auth/login`
   - `POST /api/auth/refresh`
@@ -149,6 +178,9 @@
 - 마이페이지 상세 조회 API가 구현되어 있다.
   - `GET /api/users/me/profile`
   - `GET /api/users/me/records`
+- 로그인 사용자 계정 관리 API가 구현되어 있다.
+  - `PATCH /api/users/me/profile`
+  - `PATCH /api/users/me/password`
 - 기록 관리 API가 구현되어 있다.
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
@@ -156,7 +188,7 @@
 - React는 `AuthContext` + `authStorage.js` 기반 메모리 보관 구조를 사용한다.
 - React는 앱 초기 `refresh -> /api/me` 순서로 사용자 컨텍스트를 동기화한다.
 - `apiClient`는 `withCredentials: true`와 `401 -> refresh -> retry`를 사용한다.
-- React 로그인/회원가입/로그아웃, 회원가입 이메일 인증 단계, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
+- React 로그인/회원가입/로그아웃, 비밀번호 재설정, 회원가입 이메일 인증 단계, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
 - React는 malformed refresh token, token reuse, 브라우저 레벨 request rejection처럼 `refresh_token`이 비정상 상태로 판단되면 세션 복구용 cookie clear endpoint를 best-effort로 호출한다.
 
 ### React 구조
@@ -227,13 +259,27 @@
   - verified marker: `30분`
 - 메일 발송은 SMTP 기반이다.
 
+#### 비밀번호 재설정 인증 상태
+
+- 인증번호와 cooldown은 Redis에 저장된다.
+- Key 전략
+  - `auth:password-reset:code:{email}`
+  - `auth:password-reset:cooldown:{email}`
+- TTL 정책
+  - 인증번호: `10분`
+  - resend cooldown: `1분`
+- 가입되지 않은 이메일은 인증번호를 저장하지 않고 동일 성공 응답만 반환한다.
+
 ## 7. 예외 처리 정책
 
 | 상황 | HTTP Status | 백엔드 처리 | 프런트 처리 |
 | --- | --- | --- | --- |
 | 이메일 인증번호 재요청 cooldown | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
 | 잘못되거나 만료된 이메일 인증번호 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 인증번호 재입력 또는 재요청 유도 |
+| 비밀번호 재설정 인증번호 재요청 cooldown | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
+| 잘못되거나 만료된 비밀번호 재설정 인증번호 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 인증번호 재입력 또는 재요청 유도 |
 | 이메일 인증 미완료 회원가입 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 이메일 인증 단계 재진행 유도 |
+| 현재 비밀번호 불일치 또는 동일 비밀번호 변경 시도 | `400` | `UserProfileService`의 `IllegalArgumentException` 처리 | 비밀번호 입력 재확인 유도 |
 | `refresh_token` cookie 누락 | `400` | `GlobalExceptionHandler`의 `MissingRequestCookieException` 처리 | 세션 확인 또는 재로그인 유도 |
 | 잘못된 refresh token | `400` | `AuthService`의 `IllegalArgumentException` 처리 | refresh 재시도 중단, 세션 정리 판단 |
 | Refresh Token 재사용 감지 | `401` | `AuthService`가 Redis 불일치 감지 후 해당 사용자의 Refresh Token을 전체 삭제 | 세션 전체 정리 후 재로그인 유도 |
@@ -247,12 +293,18 @@
 ## 8. 프런트 처리 규칙
 
 - 보호 라우트 처리:
-  - `mypage`, `community/write`에 명시적 보호 라우트가 적용되어 있다.
+  - `mypage`, `community/write`, `community/:id/edit`에 명시적 보호 라우트가 적용되어 있다.
   - `login`, `signup`에는 guest-only route가 적용되어 있다.
+- 비밀번호 재설정 처리:
+  - `/reset-password`는 이메일 입력 -> 인증번호 요청 -> 새 비밀번호 입력 -> 로그인 화면 복귀 순서로 동작한다.
+  - 비밀번호 재설정 성공 시 로그인 화면으로 이동하고 안내 메시지와 이메일 prefill 상태를 전달한다.
 - 회원가입 처리:
   - `/signup`은 이메일 입력 -> 인증번호 요청 -> 인증번호 확인 -> 가입 제출 순서로 동작한다.
   - 이메일이 바뀌면 프런트는 인증 완료 상태와 인증번호 입력값을 즉시 초기화한다.
   - 이메일 인증이 완료되기 전까지 최종 가입 버튼은 비활성화한다.
+- 로그인 사용자 계정 관리 처리:
+  - 마이페이지는 `/api/users/me/profile`, `/api/users/me/records` 조회와 함께 프로필 수정, 비밀번호 변경을 처리한다.
+  - 비밀번호 변경 성공 시 프런트는 세션을 정리하고 로그인 화면으로 이동한다.
 - 로그인 사용자 컨텍스트 처리:
   - 헤더와 전역 auth-aware UI는 `GET /api/me`를 사용해 최소 사용자 컨텍스트를 조회한다.
   - `GET /api/me`는 `userId`, `email`, `nickname`, `role`을 반환하고, 상세 프로필/기록은 `/api/users/me/profile`, `/api/users/me/records`로 분리한다.

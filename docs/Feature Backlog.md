@@ -46,7 +46,7 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 회전기호 설명 페이지 | candidate | 미정 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 표기법 범위, 예시 이미지, 학습 화면과의 연결 방식 결정 필요 |
+| 회전기호 설명 페이지 | done | 완료 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 학습 화면 상단 첫 탭에 WCA `3x3x3` 스크램블 기준 `U/D/L/R/F/B`의 기본, prime, double turn VisualCube 가이드를 배치했다. |
 
 ## Feedback & Integration
 
@@ -58,8 +58,8 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 정보 변경 기능 (`닉네임`, `비밀번호` 등) | candidate | 미정 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 변경 범위, 재인증 정책, 화면 진입 위치 설계 필요 |
-| 비밀번호 재설정 기능 | candidate | 미정 | 비밀번호 분실 시 계정 회복 경로를 제공할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | 이메일 토큰/코드 방식과 보안 정책 결정 필요 |
+| 정보 변경 기능 (`닉네임`, `비밀번호` 등) | done | 완료 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 마이페이지 `계정 관리` 모달에서 닉네임/주 종목 수정과 현재 비밀번호 기반 비밀번호 변경을 처리할 수 있다. |
+| 비밀번호 재설정 기능 | done | 완료 | 비밀번호 분실 시 계정 회복 경로를 제공할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | 이메일 6자리 인증번호와 Redis TTL을 재사용해 로그인 전 비밀번호 재설정 흐름을 제공한다. |
 | 관리자 페이지 (`개발 Q&A`) | candidate | 미정 | 운영/개발용 내부 질의응답과 관리 작업을 분리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | `ROLE_ADMIN` 전용 범위와 노출 정책 정의 필요 |
 
 ## Community

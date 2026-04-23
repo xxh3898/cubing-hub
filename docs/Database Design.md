@@ -162,6 +162,24 @@ Records 1:1 (또는 1:0) User_PBs
 - verified marker TTL은 `30분`이다.
 - 회원가입 성공 시 verified marker는 즉시 삭제한다.
 
+### Redis auth password reset state
+
+- 목적:
+  - 로그인 전 비밀번호 재설정 인증 상태를 임시 저장한다.
+- 설명:
+  - 별도 영속 테이블 없이 password reset 인증번호와 재요청 cooldown만 TTL로 관리하는 임시 모델이다.
+
+| Key | 타입 | 설명 |
+| --- | --- | --- |
+| `auth:password-reset:code:{email}` | String | 6자리 인증번호 |
+| `auth:password-reset:cooldown:{email}` | String | 재요청 제한 marker |
+
+#### 비즈니스 규칙
+
+- 인증번호 TTL은 회원가입 이메일 인증과 같은 `10분` 설정을 재사용한다.
+- resend cooldown TTL은 회원가입 이메일 인증과 같은 `1분` 설정을 재사용한다.
+- 비밀번호 재설정 성공 시 code와 cooldown key를 즉시 삭제한다.
+
 ### `posts`
 
 - 목적:

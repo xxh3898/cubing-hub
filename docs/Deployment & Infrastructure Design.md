@@ -115,6 +115,7 @@
   - `SMTP_AUTH`
   - `SMTP_STARTTLS_ENABLE`
   - `SMTP_FROM_ADDRESS`
+  - 위 SMTP 설정은 회원가입 이메일 인증과 비밀번호 재설정 메일 발송에 공통으로 사용한다.
 - `docker compose up -d`
   - `LOCAL_DB_PASSWORD`, `LOCAL_GRAFANA_ADMIN_PASSWORD`를 사용한다.
 - `cd backend && ./gradlew bootRun`
@@ -144,9 +145,9 @@
 - `AUTH_REFRESH_COOKIE_SECURE`
   - 기본값 `true`
 - `AUTH_EMAIL_VERIFICATION_CODE_EXPIRATION_MS`
-  - 회원가입 인증번호 만료 시간, 기본 `600000`
+  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 만료 시간, 기본 `600000`
 - `AUTH_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS`
-  - 회원가입 인증번호 재요청 cooldown, 기본 `60000`
+  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 재요청 cooldown, 기본 `60000`
 - `AUTH_EMAIL_VERIFICATION_VERIFIED_EXPIRATION_MS`
   - 이메일 인증 완료 marker 유지 시간, 기본 `1800000`
 - `AUTH_EMAIL_VERIFICATION_SUBJECT`
@@ -161,6 +162,7 @@
 - `SMTP_STARTTLS_ENABLE`
   - 기본값 `true`
 - `SMTP_FROM_ADDRESS`
+- SMTP 설정은 회원가입 인증 메일과 비밀번호 재설정 인증 메일에 공통으로 사용한다.
 - `FEEDBACK_DISCORD_WEBHOOK_URL`
   - Discord incoming webhook URL
 - `MONITORING_PROMETHEUS_PERMIT_ALL`

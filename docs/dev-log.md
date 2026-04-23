@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Post-deploy stabilization: 랭킹 검색 순위 보존 + 타이머 저장 흐름 개편 + 입력 길이 제한 |
-| 상태 | 랭킹 검색은 검색 결과에서도 전체 랭킹 기준 순위를 유지하도록 정리했고, 타이머는 solve snapshot 기준 저장/게스트 캐시 후 성공 시 자동 초기화 흐름으로 바꿨다. 입력 길이 제한, 피드백 ID UI 비노출, backlog 동기화까지 반영했고 backend targeted test/build, frontend `lint`/`vitest`/`build`는 통과했다 |
-| 범위 | 랭킹 검색 semantics 수정, 타이머 저장 snapshot/게스트 `localStorage` 캐시, 인증/게시글/피드백/검색 입력 검증 보강, 피드백 UI 정리, backlog/API/화면/일정/로그 문서 동기화 |
-| 핵심 리스크 | 실제 브라우저에서 로그인/비로그인 타이머 흐름 수동 확인은 남아 있고, 긴 검색 입력 실패가 정확히 어느 계층에서 차단되는지는 운영 로그로 아직 특정하지 못했다. 게스트 기록 캐시는 `localStorage` 비가용 브라우저에서 실패할 수 있다 |
-| 참조 문서 | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Feature Backlog](./Feature%20Backlog.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) |
-| 다음 로그 대상 | 운영 로그 기반 긴 검색 입력 실패 계층 확인, 또는 계정 관리/커뮤니티 첨부 기능을 실제 backlog 작업으로 승격할 때 후속 로그를 남긴다 |
+| 작업명 | Post-deploy stabilization: 계정 복구/관리 + 커뮤니티 수정 + 학습 가이드 |
+| 상태 | 비밀번호 재설정, 마이페이지 계정 관리 모달, 커뮤니티 게시글 수정 프런트 연동, 학습 화면 상단 회전기호 가이드 탭과 VisualCube 방향 보정을 반영했다. backend targeted test/build와 frontend 전체 `lint`/`vitest`/`build`는 통과했다 |
+| 범위 | 비밀번호 재설정 이메일 코드/Redis TTL 재사용, 마이페이지 프로필/비밀번호 변경 모달 탭, 커뮤니티 수정 route와 form preload/권한 분기, 학습 상단 회전기호 VisualCube 가이드, 공식 문서 전체 동기화 |
+| 핵심 리스크 | 커뮤니티 수정 화면 진입 시 `GET /api/posts/{postId}`를 재사용하므로 조회수가 증가한다. 실제 브라우저에서 비밀번호 재설정 메일과 로그인 재진입 동작은 아직 수동 검증하지 않았다 |
+| 참조 문서 | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [Feature Backlog](./Feature%20Backlog.md), [Day 23](./Development%20Log/Day%2023.md), [Day 24](./Development%20Log/Day%2024.md) |
+| 다음 로그 대상 | 게시글 사진첨부, 기록 내보내기, 운영 로그 기반 긴 검색 입력 실패 계층 확인 중 먼저 실제 구현 범위로 승격되는 항목 |
 
 ## 로그 파일 목록
 
@@ -30,7 +30,7 @@
 | Core API | [Day 8](./Development%20Log/Day%2008.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) | AWS 1차 배포와 운영 이슈 정리, 회원가입 이메일 인증 추가, 모바일 UI 대응, 배포 후 타이머/랭킹/입력 검증 안정화 |
+| 최신 로그 | [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md), [Day 24](./Development%20Log/Day%2024.md) | 회원가입 이메일 인증 추가, 모바일/타이머 안정화, 계정 복구/관리와 커뮤니티 수정/학습 가이드 반영 |
 
 ## 주요 설계 결정 추적
 
@@ -41,8 +41,8 @@
 
 ## 최근 정리 문서
 
-- 최근 일자 로그: [Day 23](./Development%20Log/Day%2023.md)
-- 현재 작업 요약: [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md)
+- 최근 일자 로그: [Day 24](./Development%20Log/Day%2024.md)
+- 현재 작업 요약: [Day 23](./Development%20Log/Day%2023.md), [Day 24](./Development%20Log/Day%2024.md)
 - 현재 단계 리뷰: [현재 개발 단계 리뷰](./ai/20260414-현재개발단계리뷰/review-현재개발단계리뷰.md)
 - 인증 설계 기준: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md)
 - API 계약 기준: [API Specification](./API%20Specification.md)

@@ -4,7 +4,7 @@
 
 - 문서 범위: `frontend/src/App.jsx` 기준 사용자 화면 전체
 - 대상 플랫폼: PC / 모바일 웹
-- 화면 수: 11개
+- 화면 수: 13개
 - 보조 라우트: 인증 리다이렉트 1개 (`/auth`)
 - 기준 원칙:
   - 실제 API 연동 여부를 화면별로 명시한다.
@@ -18,13 +18,15 @@
 | 홈 | `/` | 오늘의 스크램블, 프로필/통계 요약, 최근 기록 | `GET /api/home` 연동 완료 |
 | 타이머 | `/timer` | 종목 선택, 스크램블 조회, 스크램블 이미지 미리보기, 키보드/터치 상태 머신, 기록 저장, Ao5/Ao12 | `GET /api/scramble`, `POST`, `PATCH`, `DELETE /api/records` 연동 완료 |
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
-| 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회 | 정적 학습 데이터 렌더링 구현 |
+| 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회, 회전기호 가이드 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
 | 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성 | 보호 route + `POST /api/posts` 연동 완료 |
-| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제 | 게시글 상세/댓글/삭제 연동 완료 |
+| 커뮤니티 수정 | `/community/:id/edit` | 기존 게시글 preload, 제목/본문 수정 | 보호 route + `GET`, `PUT /api/posts/{postId}` 연동 완료 |
+| 커뮤니티 상세 | `/community/:id` | 게시글 상세, 댓글 목록, 댓글 작성/삭제, 수정 이동 | 게시글 상세/댓글/수정/삭제 연동 완료 |
 | 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
+| 비밀번호 재설정 | `/reset-password` | 이메일 인증번호 확인 후 새 비밀번호 설정 | password reset request/confirm 연동 완료 |
 | 회원가입 | `/signup` | 이메일 인증번호 확인 후 비밀번호/닉네임/주 종목 입력 | 이메일 인증 request/confirm + `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
-| 마이페이지 | `/mypage` | 프로필, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록 API 연동 완료 |
+| 마이페이지 | `/mypage` | 프로필, 계정 정보 수정, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록/계정 관리 API 연동 완료 |
 | 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 route + `POST /api/feedbacks` 연동 완료 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
@@ -54,6 +56,8 @@
 2. 인증번호 확인이 끝나면 닉네임, 주 종목, 비밀번호를 입력해 가입을 완료한다.
 3. 가입 완료 후 로그인 화면으로 이동하고, 로그인 성공 시 원래 보호 경로 또는 홈으로 복귀한다.
 4. 로그인 후 마이페이지에서 프로필, 기록 요약, 전체 기록 페이지를 조회하고 penalty 수정/삭제를 수행한다.
+5. 비밀번호를 잊은 경우 로그인 화면에서 비밀번호 재설정으로 이동해 이메일 인증번호 확인 뒤 새 비밀번호를 설정한다.
+6. 로그인 사용자는 마이페이지에서 닉네임/주 종목을 수정하거나 현재 비밀번호를 확인한 뒤 새 비밀번호로 변경한다.
 
 ## 4. 공통 상태 및 예외 정책
 
@@ -175,13 +179,16 @@
 ### 학습
 
 - 레이아웃 구조
-  - `F2L`, `OLL`, `PLL` 탭
+  - `회전기호 가이드`, `F2L`, `OLL`, `PLL` 탭
   - 케이스 카드 그리드
 - 주요 UI 요소
   - 케이스 이미지
+  - 회전기호 VisualCube 이미지
   - 알고리즘 텍스트
+  - 표기법 예시 코드 블록
 - 화면 데이터 요구사항
   - 정적 학습 데이터 119건
+  - 정적 회전기호 가이드 18종 (`U/D/L/R/F/B`의 기본, prime, double turn)
 - 상태 및 예외
   - 정적 데이터 기반이라 별도 로딩/에러 처리가 없다.
   - 외부 데이터 전환 시 탭별 로딩과 실패 상태가 필요하다.
@@ -191,6 +198,7 @@
 - 구현 상태
   - 정적 데이터 기반 렌더링이 구현되어 있다.
   - `F2L 41`, `OLL 57`, `PLL 21` 구성이 반영되어 있다.
+  - 첫 탭에서 WCA 3x3x3 스크램블 기준 `U/D/L/R/F/B` 회전기호를 VisualCube 카드로 제공한다.
 
 ### 커뮤니티 목록
 
@@ -225,7 +233,7 @@
   - `loading`, `empty`, `error`, `다시 시도` 상태가 반영되어 있다.
   - 모바일 폭에서는 카테고리/검색/작성 액션이 stack 또는 grid로 재배치되고 게시글 목록은 stacked card row로 노출된다.
 
-### 커뮤니티 작성
+### 커뮤니티 작성 / 수정
 
 - 레이아웃 구조
   - 카테고리 선택
@@ -240,6 +248,8 @@
   - 로그인 사용자 권한
   - 작성 권한
   - 게시글 생성 API
+  - 수정 모드일 때 게시글 상세 preload
+  - 게시글 수정 API
 - 상태 및 예외
   - 인증 필요
   - 공지사항 작성은 권한 제한이 필요하다.
@@ -248,11 +258,14 @@
   - 카테고리 변경
   - 제목/본문 입력
   - 제출
+  - 수정 취소 후 상세 또는 목록 복귀
 - 구현 상태
   - 보호 route가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
   - `POST /api/posts` 연동이 구현되어 있다.
+  - `/community/:id/edit`에서 `GET /api/posts/{postId}`로 기존 글을 preload하고 `PUT /api/posts/{postId}`로 수정한다.
   - 관리자 로그인 시에만 `NOTICE` 카테고리를 노출한다.
   - 생성 성공 시 생성된 게시글 상세 화면으로 이동한다.
+  - 수정 버튼은 작성자 본인 또는 관리자만 진입할 수 있다.
   - validation 및 서버 오류 메시지를 화면에 표시한다.
 
 ### 커뮤니티 상세
@@ -264,6 +277,7 @@
   - 삭제/뒤로가기 영역
 - 주요 UI 요소
   - 댓글 입력
+  - 게시글 수정 링크
   - 댓글 삭제
   - 게시글 삭제
 - 화면 데이터 요구사항
@@ -277,10 +291,12 @@
   - 작성자/관리자 권한 분기 필요
 - 사용자 액션
   - 댓글 작성/삭제
+  - 게시글 수정 화면 이동
   - 게시글 삭제
   - 목록으로 복귀
 - 구현 상태
   - `GET /api/posts/{postId}` 연동이 구현되어 있다.
+  - 수정 버튼은 작성자 본인 또는 관리자에게만 노출하고 `/community/:id/edit`로 이동한다.
   - 삭제 버튼은 작성자 본인 또는 관리자에게만 노출하고 `DELETE /api/posts/{postId}`를 호출한다.
   - 존재하지 않는 게시글은 에러 메시지와 목록 복귀 버튼으로 처리한다.
   - 댓글 목록은 `GET /api/posts/{postId}/comments` 기준 5개 단위 서버 페이지네이션으로 동작한다.
@@ -293,6 +309,7 @@
 - 레이아웃 구조
   - 입력 폼
   - 안내 문구
+  - 비밀번호 재설정 이동 링크
   - 회원가입 이동 링크
 - 주요 UI 요소
   - 이메일 input (`maxLength=255`)
@@ -308,11 +325,44 @@
   - 재로그인 필요 상태
 - 사용자 액션
   - 로그인 요청
+  - 비밀번호 재설정 이동
   - 회원가입 이동
 - 구현 상태
   - `POST /api/auth/login` 연동이 구현되어 있다.
   - 로그인 성공 시 access token을 메모리에 저장하고 `/api/me` 사용자 컨텍스트 동기화 뒤 원래 보호 경로 또는 홈으로 복귀한다.
   - 앱 초기 진입/새로고침 시에는 `refresh -> /api/me` 부트스트랩으로 로그인 상태를 복구한다.
+  - 비밀번호 재설정 또는 비밀번호 변경 성공 후 안내 메시지와 이메일 prefill 상태를 받아 로그인 화면에 표시한다.
+
+### 비밀번호 재설정
+
+- 레이아웃 구조
+  - 이메일 + 인증번호 요청 행
+  - 인증번호 / 새 비밀번호 / 새 비밀번호 확인 폼
+  - 로그인 복귀 링크
+- 주요 UI 요소
+  - 이메일 input (`maxLength=255`)
+  - 인증번호 요청 버튼
+  - 인증번호 input (`maxLength=6`)
+  - 새 비밀번호 input (`minLength=8`, `maxLength=64`)
+  - 새 비밀번호 확인 input (`minLength=8`, `maxLength=64`)
+  - 비밀번호 변경 버튼
+- 화면 데이터 요구사항
+  - `POST /api/auth/password-reset/request`
+  - `POST /api/auth/password-reset/confirm`
+- 상태 및 예외
+  - validation error
+  - 인증번호 재요청 cooldown
+  - 인증번호 불일치 / 만료
+  - 비밀번호 변경 후 로그인 화면 복귀 안내
+- 사용자 액션
+  - 이메일 입력
+  - 인증번호 요청
+  - 새 비밀번호 입력 / 확인
+  - 비밀번호 변경
+- 구현 상태
+  - `POST /api/auth/password-reset/request`, `POST /api/auth/password-reset/confirm` 연동이 구현되어 있다.
+  - 인증번호 요청 성공 시 안내 메시지를 화면에 표시한다.
+  - 성공 시 로그인 화면으로 이동하고 이메일을 미리 채운다.
 
 ### 회원가입
 
@@ -355,17 +405,24 @@
 
 - 레이아웃 구조
   - 프로필 카드
+  - 계정 관리 모달
   - 요약 통계
   - 주 종목 기록 추세 그래프
   - 전체 기록 테이블
   - 로그아웃
 - 주요 UI 요소
+  - 계정 관리 버튼
   - 로그아웃 버튼
+  - 닉네임 / 주 종목 수정 input
+  - 현재 비밀번호 / 새 비밀번호 / 새 비밀번호 확인 input
+  - 계정 관리 탭 (`프로필 수정`, `비밀번호 변경`)
   - 기록 추세 그래프
   - 기록 테이블
 - 화면 데이터 요구사항
   - `GET /api/users/me/profile`
   - `GET /api/users/me/records`
+  - `PATCH /api/users/me/profile`
+  - `PATCH /api/users/me/password`
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
   - 프로필
@@ -377,6 +434,8 @@
   - 보호 화면 처리 필요
   - `loading`, `empty`, `error`, `auth failure`가 모두 필요하다.
 - 사용자 액션
+  - 닉네임 / 주 종목 수정
+  - 비밀번호 변경
   - 로그아웃
   - 기록 페이지 이동
   - 기록 penalty 수정
@@ -386,6 +445,9 @@
   - 헤더 닉네임은 `/api/me` 기준으로 표시된다.
   - `/api/users/me/profile`로 프로필/요약을 조회한다.
   - `/api/users/me/records?page&size`로 전체 기록을 서버 페이지네이션으로 조회한다.
+  - 프로필 수정과 비밀번호 변경은 `계정 관리` 모달 안의 탭에서만 노출된다.
+  - `PATCH /api/users/me/profile`로 닉네임과 주 종목을 수정하고 `/api/me`를 다시 동기화한다.
+  - `PATCH /api/users/me/password` 성공 시 현재 세션을 정리하고 로그인 화면으로 이동한다.
   - 같은 records API를 재사용해 주 종목 기준 최근 기록 추세 그래프를 렌더링한다.
   - 전체 기록 페이지네이션은 `1~10` 단위 그룹과 `이전`, `다음`, `<<`, `>>` 이동으로 동작한다.
   - 기록 penalty 수정과 삭제 후 프로필/기록을 다시 조회해 화면을 갱신한다.
@@ -456,17 +518,21 @@
 | 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}` | 게시글 상세 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 연동 |
-| 커뮤니티 상세 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 미연동 |
+| 커뮤니티 수정 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}/comments` | 댓글 목록 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `POST /api/posts/{postId}/comments` | 댓글 생성 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}/comments/{commentId}` | 댓글 삭제 | 백엔드 구현 / 프런트 연동 |
 | 로그인 | `POST /api/auth/login` | 로그인 | 백엔드 구현 / 프런트 연동 |
+| 비밀번호 재설정 | `POST /api/auth/password-reset/request` | 인증번호 요청 | 백엔드 구현 / 프런트 연동 |
+| 비밀번호 재설정 | `POST /api/auth/password-reset/confirm` | 비밀번호 재설정 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/email-verification/request` | 인증번호 요청 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/email-verification/confirm` | 인증번호 확인 | 백엔드 구현 / 프런트 연동 |
 | 회원가입 | `POST /api/auth/signup` | 회원가입 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `GET /api/users/me/profile` | 프로필/요약 조회 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `GET /api/users/me/records` | 전체 기록 페이지 조회 | 백엔드 구현 / 프런트 연동 |
+| 마이페이지 | `PATCH /api/users/me/profile` | 프로필 수정 | 백엔드 구현 / 프런트 연동 |
+| 마이페이지 | `PATCH /api/users/me/password` | 비밀번호 변경 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `PATCH /api/records/{recordId}` | 기록 penalty 수정 | 백엔드 구현 / 프런트 연동 |
 | 마이페이지 | `DELETE /api/records/{recordId}` | 기록 삭제 | 백엔드 구현 / 프런트 연동 |
 | 피드백 | `POST /api/feedbacks` | 로그인 사용자 피드백 저장 | 백엔드 구현 / 프런트 연동 |
@@ -485,6 +551,7 @@
 ### Backend / 연동 참고
 
 - 인증: `POST /api/auth/email-verification/request`, `POST /api/auth/email-verification/confirm`, `POST /api/auth/signup`, `POST /api/auth/login`
+- 계정 관리: `POST /api/auth/password-reset/request`, `POST /api/auth/password-reset/confirm`, `PATCH /api/users/me/profile`, `PATCH /api/users/me/password`
 - 기록: `GET /api/scramble`, `POST /api/records`
 - 랭킹: `GET /api/rankings`
 - 게시판: `POST /api/posts`, `GET /api/posts`, `GET /api/posts/{postId}`, `PUT /api/posts/{postId}`, `DELETE /api/posts/{postId}`
@@ -492,12 +559,11 @@
 ## 8. 연결 체크리스트
 
 - 타이머 외 화면의 실제 API 연동 여부를 문서와 코드에서 동시에 갱신할 것
-- 보호 화면(`mypage`, `community/write`)의 인증 실패 UX를 명시할 것
+- 보호 화면(`mypage`, `community/write`, `community/:id/edit`)의 인증 실패 UX를 명시할 것
 - 홈, 랭킹, 커뮤니티, 마이페이지에 `loading`, `empty`, `error` 상태를 구현 시점에 점검할 것
 - 피드백 메일 전달이나 처리 상태 관리가 추가되면 이 문서의 화면 데이터 요구사항과 상태를 함께 갱신할 것
 
 ## 9. 미확정 사항
 
 - 로그인 성공 후 이동 경로와 토큰 만료 시 재로그인 UX
-- 커뮤니티 상세의 게시글 수정 UX와 권한 분기 표현
 - 랭킹 `nickname` 검색을 Redis secondary index로 확장할지 여부

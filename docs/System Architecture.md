@@ -14,7 +14,7 @@ graph TD
     subgraph AWS_EC2 ["AWS EC2 (Docker Compose)"]
         Nginx[Nginx Reverse Proxy]
         SB[Spring Boot API]
-        Redis[Redis - Token / Cache / Ranking]
+        Redis[Redis - Token / Auth State / Ranking]
     end
 
     RDS[(AWS RDS - MySQL)]
@@ -57,9 +57,9 @@ Client ↔ AWS Nginx
 | S3 | React 정적 파일 호스팅 |
 | Nginx | Reverse Proxy 및 외부 진입점 |
 | Spring Boot API | 인증, 기록, 랭킹, 게시판 등 비즈니스 로직 처리 |
-| Redis | Refresh Token, Blacklist, 랭킹 read model |
+| Redis | Refresh Token, Blacklist, 이메일 인증 / 비밀번호 재설정 임시 상태, 랭킹 read model |
 | RDS MySQL | 영속 데이터 저장 |
-| SMTP Server | 회원가입 인증번호 발송 |
+| SMTP Server | 회원가입 / 비밀번호 재설정 인증번호 발송 |
 
 ## 3. 요청 흐름
 
@@ -113,10 +113,14 @@ Client ↔ AWS Nginx
 
 - 회원가입
   - SMTP로 인증번호를 발송하고 Redis에 인증 상태를 임시 저장한 뒤, 확인 완료 후 `users`에 새 계정을 저장한다.
+- 비밀번호 재설정
+  - SMTP로 비밀번호 재설정 인증번호를 발송하고 Redis에 code/cooldown을 임시 저장한 뒤, 확인 완료 후 비밀번호를 갱신하고 기존 refresh token을 모두 정리한다.
 - 기록 저장
   - `records`에 solve를 저장하고 `user_pbs`를 갱신하며, PB가 바뀌면 Redis 랭킹 read model도 함께 동기화한다.
 - 기록 수정/삭제
   - `records`의 penalty 수정과 삭제를 허용하고, 변경 후 `user_pbs`를 다시 계산하며 Redis 랭킹 read model을 갱신하거나 제거한다.
+- 로그인 사용자 계정 관리
+  - 마이페이지에서 프로필을 수정하면 `/api/me`와 화면 데이터를 다시 동기화하고, 비밀번호 변경이 성공하면 기존 refresh token을 모두 정리해 재로그인을 강제한다.
 - 게시글 CRUD
   - `posts`를 생성/수정/삭제하고, 상세 조회 시 `view_count`를 증가시킨다.
 
@@ -152,7 +156,7 @@ Client ↔ AWS Nginx
 | AWS S3 | React 정적 파일 저장 |
 | AWS CloudFront | CDN 배포 |
 | AWS RDS | MySQL 관리형 DB |
-| SMTP Server | 회원가입 인증번호 발송 |
+| SMTP Server | 회원가입 / 비밀번호 재설정 인증번호 발송 |
 | GitHub Actions | CI 실행 및 수동 benchmark workflow |
 | Docker Hub | 컨테이너 이미지 배포 저장소 |
 
