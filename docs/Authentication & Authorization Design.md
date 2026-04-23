@@ -47,6 +47,7 @@
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
   - `POST /api/posts`
+  - `GET /api/posts/{postId}/edit`
   - `PUT /api/posts/{postId}`
   - `DELETE /api/posts/{postId}`
   - `POST /api/posts/{postId}/comments`

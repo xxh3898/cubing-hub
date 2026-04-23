@@ -322,6 +322,45 @@ class PostDocsTest extends RestDocsIntegrationTest {
     }
 
     @Test
+    @DisplayName("작성자는 게시글 수정 preload 정보를 조회할 수 있다")
+    void should_return_editable_post_when_author_requests_edit_preload() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+
+        ResultActions result = mockMvc.perform(get("/api/posts/{postId}/edit", savedPost.getId())
+                .header("Authorization", "Bearer " + authorAccessToken)
+                .accept(MediaType.APPLICATION_JSON));
+
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.message").value("게시글 수정용 정보를 조회했습니다."))
+                .andExpect(jsonPath("$.data.id").value(savedPost.getId()))
+                .andExpect(jsonPath("$.data.viewCount").value(0))
+                .andDo(document("post/detail-edit",
+                        pathParameters(
+                                parameterWithName("postId").description("수정 preload할 게시글 ID")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("게시글 수정 preload 정보"),
+                                fieldWithPath("data.id").description("게시글 ID"),
+                                fieldWithPath("data.category").description("게시판 카테고리"),
+                                fieldWithPath("data.title").description("게시글 제목"),
+                                fieldWithPath("data.content").description("게시글 본문"),
+                                fieldWithPath("data.authorNickname").description("작성자 닉네임"),
+                                fieldWithPath("data.viewCount").description("현재 조회수"),
+                                fieldWithPath("data.attachments").type(JsonFieldType.ARRAY).description("첨부 이미지 목록"),
+                                fieldWithPath("data.attachments[].id").type(JsonFieldType.NUMBER).description("첨부 이미지 ID").optional(),
+                                fieldWithPath("data.attachments[].imageUrl").type(JsonFieldType.STRING).description("첨부 이미지 URL").optional(),
+                                fieldWithPath("data.attachments[].originalFileName").type(JsonFieldType.STRING).description("원본 파일명").optional(),
+                                fieldWithPath("data.attachments[].displayOrder").type(JsonFieldType.NUMBER).description("표시 순서").optional(),
+                                fieldWithPath("data.createdAt").description("작성 시각"),
+                                fieldWithPath("data.updatedAt").description("수정 시각")
+                        )
+                ));
+    }
+
+    @Test
     @DisplayName("작성자는 자신의 게시글을 수정할 수 있다")
     void should_update_post_when_author_submits_valid_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");

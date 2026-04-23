@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { createPost, getPost, updatePost } from '../api.js'
+import { createPost, getEditablePost, updatePost } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import CommunityWritePage from './CommunityWritePage.jsx'
 
@@ -9,7 +9,7 @@ const mockNavigate = vi.fn()
 
 vi.mock('../api.js', () => ({
   createPost: vi.fn(),
-  getPost: vi.fn(),
+  getEditablePost: vi.fn(),
   updatePost: vi.fn(),
 }))
 
@@ -95,7 +95,7 @@ describe('CommunityWritePage', () => {
         role: 'ROLE_USER',
       },
     })
-    vi.mocked(getPost).mockResolvedValue({
+    vi.mocked(getEditablePost).mockResolvedValue({
       data: {
         id: 33,
         category: 'FREE',
@@ -113,6 +113,7 @@ describe('CommunityWritePage', () => {
 
     expect(await screen.findByDisplayValue('기존 제목')).toBeInTheDocument()
     expect(screen.getByDisplayValue('기존 본문')).toBeInTheDocument()
+    expect(getEditablePost).toHaveBeenCalledWith(33)
 
     fireEvent.change(screen.getByLabelText('제목'), { target: { value: '수정 제목' } })
     fireEvent.change(screen.getByLabelText('내용'), { target: { value: '수정 본문' } })
@@ -137,16 +138,7 @@ describe('CommunityWritePage', () => {
         role: 'ROLE_USER',
       },
     })
-    vi.mocked(getPost).mockResolvedValue({
-      data: {
-        id: 33,
-        category: 'FREE',
-        title: '기존 제목',
-        content: '기존 본문',
-        authorNickname: 'AnotherUser',
-        attachments: [],
-      },
-    })
+    vi.mocked(getEditablePost).mockRejectedValue(new Error('게시글 수정/삭제 권한이 없습니다.'))
 
     renderCommunityWritePage('/community/33/edit')
 
@@ -166,7 +158,7 @@ describe('CommunityWritePage', () => {
     renderCommunityWritePage('/community/not-a-number/edit')
 
     expect(await screen.findByText('게시글을 찾을 수 없습니다.')).toBeInTheDocument()
-    expect(getPost).not.toHaveBeenCalled()
+    expect(getEditablePost).not.toHaveBeenCalled()
   })
 
   it('should_show_validation_error_when_title_or_content_is_blank', async () => {

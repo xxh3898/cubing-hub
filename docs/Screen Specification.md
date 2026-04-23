@@ -269,7 +269,7 @@
 - 구현 상태
   - 보호 route가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
   - `POST /api/posts`는 multipart 첨부 이미지 업로드를 지원한다.
-  - `/community/:id/edit`에서 `GET /api/posts/{postId}`로 기존 글을 preload하고 `PUT /api/posts/{postId}`로 수정한다.
+  - `/community/:id/edit`에서 `GET /api/posts/{postId}/edit`로 기존 글을 preload하고 `PUT /api/posts/{postId}`로 수정한다.
   - 수정 화면은 기존 첨부 이미지 유지/제외와 신규 이미지 추가를 함께 처리한다.
   - 관리자 로그인 시에만 `NOTICE` 카테고리를 노출한다.
   - 생성 성공 시 생성된 게시글 상세 화면으로 이동한다.
@@ -567,6 +567,7 @@
 | 랭킹 | `GET /api/rankings` | 종목별 랭킹 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}` | 게시글 상세 조회 | 백엔드 구현 / 프런트 연동 |
+| 커뮤니티 수정 | `GET /api/posts/{postId}/edit` | 게시글 수정 preload 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 수정 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 연동 |

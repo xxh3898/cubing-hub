@@ -82,6 +82,7 @@
 | `POST` | `/api/posts` | Auth | 게시글 생성 | 구현됨 |
 | `GET` | `/api/posts` | Public | 게시글 목록 조회 | 구현됨 |
 | `GET` | `/api/posts/{postId}` | Public | 게시글 상세 조회 | 구현됨 |
+| `GET` | `/api/posts/{postId}/edit` | Auth | 게시글 수정 preload 조회 | 구현됨 |
 | `PUT` | `/api/posts/{postId}` | Auth | 게시글 수정 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}` | Auth | 게시글 삭제 | 구현됨 |
 | `GET` | `/api/posts/{postId}/comments` | Public | 댓글 목록 조회 | 구현됨 |
@@ -704,6 +705,49 @@
 | `data.authorNickname` | String | 작성자 닉네임 |
 | `data.viewCount` | Number | 조회수 |
 | `data.attachments[]` | Array | 첨부 이미지 목록 |
+| `data.attachments[].id` | Number | 첨부 이미지 ID |
+| `data.attachments[].imageUrl` | String | 첨부 이미지 URL |
+| `data.attachments[].originalFileName` | String | 원본 파일명 |
+| `data.attachments[].displayOrder` | Number | 표시 순서 |
+| `data.createdAt` | String | 작성 시각 |
+| `data.updatedAt` | String | 수정 시각 |
+
+### `GET /api/posts/{postId}/edit`
+
+- 설명: 게시글 수정 화면 preload용 상세 정보를 조회한다.
+- 인증: Access Token 필요
+- 멱등성: 멱등
+- 추가 동작: 조회수는 증가하지 않는다. 작성자 본인 또는 관리자만 접근할 수 있다.
+
+#### Path Parameter
+
+| 이름 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `postId` | Number | 예 | 조회할 게시글 ID |
+
+#### 에러 계약
+
+- `401 Unauthorized`
+  - 인증이 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
+- `403 Forbidden`
+  - 작성자 본인 또는 관리자가 아니면 응답 메시지는 `게시글 수정/삭제 권한이 없습니다.`
+- `404 Not Found`
+  - 게시글이 없으면 응답 메시지는 `게시글을 찾을 수 없습니다.`
+
+#### Response
+
+- 상태 코드: `200 OK`
+- `data`: 게시글 수정 preload 정보
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `data.id` | Number | 게시글 ID |
+| `data.category` | String | 게시판 카테고리 |
+| `data.title` | String | 게시글 제목 |
+| `data.content` | String | 게시글 본문 |
+| `data.authorNickname` | String | 작성자 닉네임 |
+| `data.viewCount` | Number | 현재 조회수 |
+| `data.attachments` | Array | 첨부 이미지 목록 |
 | `data.attachments[].id` | Number | 첨부 이미지 ID |
 | `data.attachments[].imageUrl` | String | 첨부 이미지 URL |
 | `data.attachments[].originalFileName` | String | 원본 파일명 |

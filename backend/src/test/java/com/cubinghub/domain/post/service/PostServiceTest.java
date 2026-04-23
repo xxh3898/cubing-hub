@@ -243,6 +243,42 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("게시글 수정 preload 조회는 조회수를 증가시키지 않고 상세를 반환한다")
+    void should_return_editable_post_without_increasing_view_count_when_author_requests_edit_preload() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findWithUserById(post.getId())).thenReturn(Optional.of(post));
+
+        PostDetailResponse response = postService.getEditablePost(post.getId(), author.getEmail());
+
+        assertThat(post.getViewCount()).isZero();
+        assertThat(response.getId()).isEqualTo(post.getId());
+        assertThat(response.getViewCount()).isZero();
+        verify(postViewRepository, never()).save(any(PostView.class));
+    }
+
+    @Test
+    @DisplayName("게시글 수정 preload 조회는 작성자나 관리자가 아니면 403 예외를 반환한다")
+    void should_throw_forbidden_exception_when_non_owner_requests_editable_post() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User viewer = TestFixtures.createUser(2L, "viewer@cubinghub.com", "Viewer", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(userRepository.findByEmail(viewer.getEmail())).thenReturn(Optional.of(viewer));
+        when(postRepository.findWithUserById(post.getId())).thenReturn(Optional.of(post));
+
+        Throwable thrown = catchThrowable(() -> postService.getEditablePost(post.getId(), viewer.getEmail()));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(exception.getMessage()).isEqualTo("게시글 수정/삭제 권한이 없습니다.");
+        verify(postViewRepository, never()).save(any(PostView.class));
+    }
+
+    @Test
     @DisplayName("작성자는 자신의 게시글을 수정할 수 있다")
     void should_update_post_when_author_updates_own_post() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);

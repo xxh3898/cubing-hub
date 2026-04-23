@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createPost, getPost, updatePost } from '../api.js'
+import { createPost, getEditablePost, updatePost } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
 
@@ -92,7 +92,7 @@ export default function CommunityWritePage() {
       setFormErrorMessage(null)
 
       try {
-        const response = await getPost(postId)
+        const response = await getEditablePost(postId)
 
         if (isCancelled) {
           return
@@ -102,13 +102,6 @@ export default function CommunityWritePage() {
 
         if (!nextPost) {
           setLoadErrorMessage('게시글을 찾을 수 없습니다.')
-          return
-        }
-
-        const canEditPost = isAdmin || currentUser?.nickname === nextPost.authorNickname
-
-        if (!canEditPost) {
-          setLoadErrorMessage('게시글 수정/삭제 권한이 없습니다.')
           return
         }
 
@@ -133,7 +126,7 @@ export default function CommunityWritePage() {
     return () => {
       isCancelled = true
     }
-  }, [currentUser?.nickname, isAdmin, isEditMode, postId])
+  }, [isEditMode, postId])
 
   const handleImageChange = (event) => {
     const nextFiles = Array.from(event.target.files ?? [])

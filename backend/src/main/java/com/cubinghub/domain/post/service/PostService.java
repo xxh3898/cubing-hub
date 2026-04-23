@@ -108,6 +108,17 @@ public class PostService {
     public PostDetailResponse getPost(Long postId, String email) {
         Post post = findPostWithUserById(postId);
         registerViewIfNeeded(post, email);
+        return buildPostDetailResponse(postId, post);
+    }
+
+    public PostDetailResponse getEditablePost(Long postId, String email) {
+        User currentUser = findUserByEmail(email);
+        Post post = findPostWithUserById(postId);
+        validateOwnershipOrAdmin(post, currentUser);
+        return buildPostDetailResponse(postId, post);
+    }
+
+    private PostDetailResponse buildPostDetailResponse(Long postId, Post post) {
         List<PostAttachmentResponse> attachments = postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(postId)
                 .stream()
                 .map(PostAttachmentResponse::from)

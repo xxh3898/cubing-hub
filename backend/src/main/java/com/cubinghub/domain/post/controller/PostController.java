@@ -80,6 +80,16 @@ public class PostController {
         );
     }
 
+    @GetMapping("/{postId}/edit")
+    public ResponseEntity<ApiResponse<PostDetailResponse>> getEditablePost(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success(HttpStatus.OK, "게시글 수정용 정보를 조회했습니다.", postService.getEditablePost(postId, userDetails.getUsername()))
+        );
+    }
+
     @PutMapping(value = "/{postId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<Void>> updatePostJson(
             @PathVariable Long postId,

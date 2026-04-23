@@ -334,6 +334,40 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("작성자가 게시글 수정 preload를 조회하면 조회수를 증가시키지 않는다")
+    void should_return_editable_post_without_increasing_view_count_when_author_requests_edit_preload() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+
+        mockMvc.perform(get("/api/posts/{postId}/edit", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글 수정용 정보를 조회했습니다."))
+                .andExpect(jsonPath("$.data.id").value(savedPost.getId()))
+                .andExpect(jsonPath("$.data.viewCount").value(0));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Post foundPost = postRepository.findById(savedPost.getId()).orElseThrow();
+        assertThat(foundPost.getViewCount()).isZero();
+        assertThat(postViewRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("작성자가 아닌 사용자가 게시글 수정 preload를 조회하면 403을 반환한다")
+    void should_return_forbidden_when_non_author_requests_edit_preload() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+
+        mockMvc.perform(get("/api/posts/{postId}/edit", savedPost.getId())
+                        .header("Authorization", "Bearer " + otherAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("게시글 수정/삭제 권한이 없습니다."));
+    }
+
+    @Test
     @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
     void should_return_not_found_when_post_detail_does_not_exist() throws Exception {
         mockMvc.perform(get("/api/posts/{postId}", 99999L)

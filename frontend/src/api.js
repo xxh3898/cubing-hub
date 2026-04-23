@@ -273,6 +273,15 @@ export async function getPost(postId) {
   }
 }
 
+export async function getEditablePost(postId) {
+  try {
+    const response = await apiClient.get(`/api/posts/${postId}/edit`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function deletePost(postId) {
   try {
     const response = await apiClient.delete(`/api/posts/${postId}`)
