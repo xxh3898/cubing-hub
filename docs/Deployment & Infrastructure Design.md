@@ -167,8 +167,10 @@
   - Discord incoming webhook URL
 - `MONITORING_PROMETHEUS_PERMIT_ALL`
   - 기본값 `false`, local scraping 재현이 필요할 때만 제한적으로 사용
-- `RANKING_REDIS_REBUILD_ON_STARTUP`
-  - 기본값 `false`, first deploy 1회만 `true` 사용 가능
+- `RANKING_REDIS_REBUILD_MODE`
+  - 기본값 `disabled`
+  - `startup`: local startup 재구축
+  - `oneshot`: 수동 Redis 랭킹 재구축 workflow 전용
 - `BACKEND_IMAGE`
   - Docker Hub backend image 경로
 - `BACKEND_IMAGE_TAG`
@@ -276,9 +278,9 @@
 - 1차 배포는 `GET /actuator/health`만 공개한다.
 - `prometheus`, `grafana`는 local 관찰 기준선으로 유지하고 production 범위에서는 제외한다.
 - RDS는 first deploy 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
-- Redis ready marker가 필요하므로 first deploy 시점에만 `RANKING_REDIS_REBUILD_ON_STARTUP=true`를 사용할 수 있다.
-- 운영 Redis read model이 비어 복구가 필요하면 `RANKING_REDIS_REBUILD_ON_STARTUP=true`로 1회 재시작 후 완료 확인 뒤 다시 `false`로 원복한다.
-- startup rebuild는 데이터가 크면 deploy workflow health check 대기 시간보다 오래 걸릴 수 있으므로 복구용 one-shot 절차로만 사용한다.
+- Redis ready marker가 필요할 때는 일반 deploy startup 경로가 아니라 수동 Redis 재구축 workflow를 사용한다.
+- 운영 Redis read model이 비어 복구가 필요하면 `RANKING_REDIS_REBUILD_MODE=oneshot`으로 one-shot 컨테이너를 실행해 재구축한다.
+- 일반 backend deploy는 startup rebuild를 사용하지 않고 health check와 분리한다.
 - AWS Billing Alarm 설정으로 과도한 비용 사용을 방지한다.
 - 실제 first deploy / redeploy 절차와 운영 후처리 체크리스트는 [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md)에 정리한다.
 

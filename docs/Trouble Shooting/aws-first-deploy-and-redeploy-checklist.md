@@ -28,7 +28,6 @@
 - `JWT_SECRET`이 placeholder가 아닌 실제 값인지 확인
 - first deploy 시점에는 아래 값을 사용
   - `SPRING_JPA_HIBERNATE_DDL_AUTO=update`
-  - `RANKING_REDIS_REBUILD_ON_STARTUP=true`
 
 ### HTTPS / Nginx
 
@@ -45,13 +44,13 @@
 - `docker compose --env-file .env -f docker-compose.prod.yml ps`
 - `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 app`
 - `docker compose --env-file .env -f docker-compose.prod.yml logs --tail=200 nginx`
+- 필요 시 GitHub Actions `Rebuild Ranking Redis` workflow를 수동 실행
 - `curl -vk https://api.cubing-hub.com/actuator/health`
 
 ## 1차 배포 직후 후처리
 
 - `.env`를 아래 값으로 원복
   - `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`
-  - `RANKING_REDIS_REBUILD_ON_STARTUP=false`
 - `docker compose --env-file .env -f docker-compose.prod.yml up -d`
 - 다시 `ps`와 `actuator/health` 확인
 - 브라우저에서 최소 스모크 테스트 수행
@@ -90,7 +89,8 @@
 | `api.cubing-hub.com` 연결 거부 | Nginx 컨테이너 재시작 반복 | Nginx 로그 확인 후 SSL 보조 파일 생성 |
 | `options-ssl-nginx.conf` 누락 | Let's Encrypt 보조 파일 미생성 | `/etc/letsencrypt/options-ssl-nginx.conf` 생성 |
 | `ssl-dhparams.pem` 누락 | dhparams 파일 미생성 | `openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048` 실행 |
-| 앱은 떴는데 배포 후 운영 위험 남음 | first deploy 플래그 원복 누락 | `validate`, `false`로 바꾸고 compose 재기동 |
+| Redis 랭킹 read model이 비어 있음 | Redis 재구축이 아직 수행되지 않음 | GitHub Actions `Rebuild Ranking Redis` workflow 또는 `RANKING_REDIS_REBUILD_MODE=oneshot` one-shot 실행 |
+| 앱은 떴는데 배포 후 운영 위험 남음 | first deploy 플래그 원복 누락 | `validate`로 바꾸고 compose 재기동 |
 
 ## 운영 보안 후처리 권장
 

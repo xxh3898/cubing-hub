@@ -6,5 +6,5 @@ spring:
 
 ranking:
   redis:
-    rebuild-on-startup: false
+    rebuild-mode: disabled
     batch-size: 1000

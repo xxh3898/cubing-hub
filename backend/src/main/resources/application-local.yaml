@@ -74,7 +74,7 @@ smtp:
 
 ranking:
   redis:
-    rebuild-on-startup: true
+    rebuild-mode: startup
 
 monitoring:
   prometheus:

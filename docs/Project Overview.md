@@ -162,7 +162,7 @@ flowchart TD
 - `POST`, `PATCH`, `DELETE /api/records`에서 PB가 바뀌면 Redis ZSET read model을 증분 동기화한다.
 - `GET /api/rankings`는 `nickname`이 비어 있고 Redis ready marker가 있으면 Redis를 사용하고, 그 외에는 MySQL fallback을 사용한다.
 - Redis가 비어 있거나 초기화된 경우 `user_pbs -> Redis` 전체 재구축으로 read model을 다시 채운다.
-- local 프로필은 `ranking.redis.rebuild-on-startup=true`로 startup 재구축을 사용한다.
+- local 프로필은 `ranking.redis.rebuild-mode=startup`으로 startup 재구축을 사용한다.
 
 ## 8. 기술 스택
 

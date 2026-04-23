@@ -61,7 +61,7 @@ smtp:
 
 ranking:
   redis:
-    rebuild-on-startup: ${RANKING_REDIS_REBUILD_ON_STARTUP:false}
+    rebuild-mode: ${RANKING_REDIS_REBUILD_MODE:disabled}
 
 monitoring:
   prometheus:

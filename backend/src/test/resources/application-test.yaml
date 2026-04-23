@@ -45,6 +45,10 @@ smtp:
   timeout-ms: 3000
   write-timeout-ms: 5000
 
+ranking:
+  redis:
+    rebuild-mode: disabled
+
 feedback:
   discord:
     webhook-url:

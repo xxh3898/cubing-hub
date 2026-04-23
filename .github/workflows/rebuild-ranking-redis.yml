@@ -1,0 +1,51 @@
+name: Rebuild Ranking Redis
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild-ranking-redis:
+    name: Redis 랭킹 수동 재구축
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: SSH 준비
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: 배포 파일 동기화
+        shell: bash
+        run: |
+          ssh "$EC2_USER@$EC2_HOST" "mkdir -p /opt/cubing-hub/infra/docker"
+          scp ./infra/docker/docker-compose.prod.yml "$EC2_USER@$EC2_HOST:/opt/cubing-hub/infra/docker/docker-compose.prod.yml"
+
+      - name: Redis 랭킹 재구축 실행
+        shell: bash
+        run: |
+          ssh "$EC2_USER@$EC2_HOST" <<'EOF'
+            set -euo pipefail
+            cd /opt/cubing-hub/infra/docker
+            docker builder prune -af || true
+            docker image prune -af || true
+            docker compose --env-file .env -f docker-compose.prod.yml pull app
+            docker compose --env-file .env -f docker-compose.prod.yml run --rm \
+              -e RANKING_REDIS_REBUILD_MODE=oneshot \
+              app
+            docker image prune -af || true
+          EOF
