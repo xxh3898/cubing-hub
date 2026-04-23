@@ -2,6 +2,7 @@ package com.cubinghub.domain.auth.dto.request;
 
 import com.cubinghub.common.validation.InputConstraints;
 import com.cubinghub.common.validation.Utf8ByteLength;
+import com.cubinghub.common.validation.ValidEventType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -26,6 +27,7 @@ public class SignUpRequest {
     @Size(min = 2, max = InputConstraints.NICKNAME_MAX_LENGTH, message = "닉네임은 2자 이상 50자 이하이어야 합니다.")
     private String nickname;
 
+    @ValidEventType(allowNull = true, message = "주 종목은 유효한 WCA 종목 코드여야 합니다.")
     private String mainEvent;
 
     public SignUpRequest(String email, String password, String nickname, String mainEvent) {

@@ -178,7 +178,7 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
                         ),
                         requestFields(
                                 fieldWithPath("nickname").description("변경할 닉네임"),
-                                fieldWithPath("mainEvent").description("변경할 주 종목")
+                                fieldWithPath("mainEvent").description("변경할 주 종목 WCA 코드 (`WCA_333` 등)")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),

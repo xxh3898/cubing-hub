@@ -283,7 +283,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("이메일 인증이 없으면 회원가입에 실패한다")
     void should_throw_illegal_argument_exception_when_sign_up_without_verified_email() {
-        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "WCA_333");
         when(emailVerificationStore.isVerified(request.getEmail())).thenReturn(false);
 
         Throwable thrown = catchThrowable(() -> authService.signUp(request));
@@ -297,7 +297,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("이미 사용 중인 이메일이면 회원가입에 실패한다")
     void should_throw_illegal_argument_exception_when_sign_up_with_duplicate_email() {
-        SignUpRequest request = new SignUpRequest("duplicate@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest("duplicate@cubinghub.com", "password123!", "CubeMaster", "WCA_333");
         when(emailVerificationStore.isVerified(request.getEmail())).thenReturn(true);
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
 
@@ -312,7 +312,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("이미 사용 중인 닉네임이면 회원가입에 실패한다")
     void should_throw_illegal_argument_exception_when_sign_up_with_duplicate_nickname() {
-        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "WCA_333");
         when(emailVerificationStore.isVerified(request.getEmail())).thenReturn(true);
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(userRepository.existsByNickname(request.getNickname())).thenReturn(true);
@@ -328,7 +328,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("회원가입에 성공하면 암호화된 비밀번호와 기본 사용자 상태로 저장한다")
     void should_save_user_with_encoded_password_when_sign_up_succeeds() {
-        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "WCA_333");
         when(emailVerificationStore.isVerified(request.getEmail())).thenReturn(true);
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(userRepository.existsByNickname(request.getNickname())).thenReturn(false);
@@ -353,7 +353,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("회원가입 저장 중 무결성 예외가 나면 중복 예외로 변환한다")
     void should_throw_data_integrity_violation_exception_when_sign_up_save_fails() {
-        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "3x3x3");
+        SignUpRequest request = new SignUpRequest("tester@cubinghub.com", "password123!", "CubeMaster", "WCA_333");
         when(emailVerificationStore.isVerified(request.getEmail())).thenReturn(true);
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(userRepository.existsByNickname(request.getNickname())).thenReturn(false);

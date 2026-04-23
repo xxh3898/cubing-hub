@@ -80,7 +80,7 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("email").description("이메일 (이메일 형식 필수)"),
                                 fieldWithPath("password").description("비밀번호 (8자 이상)"),
                                 fieldWithPath("nickname").description("닉네임 (2자 이상 50자 이하)"),
-                                fieldWithPath("mainEvent").description("주 종목 (선택사항)")
+                                fieldWithPath("mainEvent").description("주 종목 WCA 코드 (선택 사항, `WCA_333` 등)")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
@@ -226,7 +226,7 @@ class AuthDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("email").description("이메일"),
                                 fieldWithPath("password").description("비밀번호 (8자 이상)"),
                                 fieldWithPath("nickname").description("닉네임 (2자 이상 50자 이하)"),
-                                fieldWithPath("mainEvent").description("주 종목 (선택사항)")
+                                fieldWithPath("mainEvent").description("주 종목 WCA 코드 (선택 사항, `WCA_333` 등)")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),

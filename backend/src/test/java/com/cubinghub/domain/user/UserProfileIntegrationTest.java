@@ -136,6 +136,20 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("유효하지 않은 주 종목 코드를 보내면 프로필 수정은 400을 반환한다")
+    void should_return_bad_request_when_update_my_profile_main_event_is_invalid() throws Exception {
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest("UpdatedTester", "3x3x3");
+
+        mockMvc.perform(patch("/api/users/me/profile")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("주 종목은 유효한 WCA 종목 코드여야 합니다.")));
+    }
+
+    @Test
     @DisplayName("인증된 사용자는 현재 비밀번호가 맞으면 비밀번호를 변경할 수 있다")
     void should_change_password_when_current_password_matches() throws Exception {
         ChangePasswordRequest request = new ChangePasswordRequest("password123!", "newPassword123!");

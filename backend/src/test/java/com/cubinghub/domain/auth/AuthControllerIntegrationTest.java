@@ -294,6 +294,19 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("유효하지 않은 주 종목 코드를 보내면 회원가입은 400을 반환한다")
+    void should_return_bad_request_when_signup_main_event_is_invalid() throws Exception {
+        SignUpRequest request = new SignUpRequest(newEmail("signup-invalid-main-event"), TEST_PASSWORD, newNickname("CubeMaster"), "3x3x3");
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("주 종목은 유효한 WCA 종목 코드여야 합니다.")));
+    }
+
+    @Test
     @DisplayName("비밀번호가 UTF-8 기준 72바이트를 넘으면 회원가입은 400을 반환한다")
     void should_return_bad_request_when_signup_password_exceeds_utf8_byte_limit() throws Exception {
         String email = newEmail("signup-byte-limit");
