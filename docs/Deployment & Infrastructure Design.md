@@ -90,10 +90,11 @@
 - 실제 반영 상태
   - `api.cubing-hub.com` HTTPS 응답과 `/actuator/health` 확인을 완료했다.
   - 프런트는 `VITE_API_BASE_URL=https://api.cubing-hub.com`로 다시 빌드해 배포했다.
+  - backend/frontend 자동 배포 workflow의 운영 반영을 확인했고, 배포환경 핵심 기능과 관리자 기능 수동 검증을 완료했다.
 - 제외 범위
   - Prometheus / Grafana 운영 배포
 - 초기 운영 정책
-  - `GET /actuator/health`만 공개
+  - 1차 운영 반영에서는 `GET /actuator/health`를 먼저 확인하고, 이후 핵심 사용자 기능과 관리자 기능까지 수동 검증한다.
   - `Spring Boot`는 `prod` profile로 동작
   - Redis 랭킹 초기화는 env로 제어한다.
   - `/actuator/prometheus`는 기본값으로 공개하지 않는다.
@@ -222,13 +223,13 @@
 9. 필요 시 `Performance Benchmark`를 수동 실행
 10. benchmark workflow에서 schema reset, seed 적재, `k6` baseline 실행
 11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
-12. 실제 운영 배포는 현재 수동으로 수행한다.
-13. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
+12. `deploy-backend.yml`은 `Backend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 Docker Hub push, EC2 deploy, health check를 수행한다.
+13. `deploy-frontend.yml`은 `Frontend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 production `VITE_API_BASE_URL` 검증, S3 sync, CloudFront invalidation을 수행한다.
 14. backend는 Docker Hub image push 후 EC2에서 unused Docker artifact를 정리한 뒤 `docker compose pull app && up -d`로 반영한다.
-15. `deploy-backend.yml`은 `Backend CI` 성공 후 Docker Hub push와 EC2 deploy를 자동화한다.
-16. `deploy-frontend.yml`은 `Frontend CI` 성공 후 S3 sync와 CloudFront invalidation을 자동화한다.
+15. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
+16. backend/frontend CI와 deploy workflow의 운영 반영을 확인했고, 배포환경 수동 검증까지 완료했다.
 
-### 목표 흐름
+### 운영 적용 흐름
 
 1. GitHub Push
 2. GitHub Actions 테스트 통과
@@ -275,7 +276,7 @@
 
 ## 7. 운영 고려사항
 
-- 1차 배포는 `GET /actuator/health`만 공개한다.
+- 1차 운영 반영에서는 `GET /actuator/health`를 먼저 확인하고, 이후 핵심 사용자 기능과 관리자 기능까지 수동 검증한다.
 - `prometheus`, `grafana`는 local 관찰 기준선으로 유지하고 production 범위에서는 제외한다.
 - RDS는 first deploy 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
 - Redis ready marker가 필요할 때는 일반 deploy startup 경로가 아니라 수동 Redis 재구축 workflow를 사용한다.
@@ -316,6 +317,6 @@ flowchart LR
 ## 10. 미확정 사항
 
 - HTTPS 인증서 발급/갱신 자동화 방식
-- Docker Hub 기반 CD 스크립트의 최종 자동화 방식
+- 운영 Redis rebuild trigger와 장애 복구 절차
 - Route 53, OAC 세부 운영 절차
-- GitHub Actions deploy workflow의 최종 trigger 정책과 secret/variable 구조
+- HTTPS 인증서 갱신 자동화 이후의 runbook 운영 수준

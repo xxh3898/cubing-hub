@@ -4,7 +4,7 @@
 
 - 프로젝트 이름: 큐빙허브 (Cubing Hub)
 - 개발 기간: 1개월
-- 개발 목적: 기존 큐빙 유저들의 데이터 파편화 문제를 해결하는 통합 플랫폼을 구축하고, Docker 기반 배포/운용, 테스트 자동화, 모니터링, 성능 최적화 과정을 실제 프로젝트 안에서 학습한다.
+- 개발 목적: 기존 큐빙 유저들의 데이터 파편화 문제를 해결하는 통합 플랫폼을 구축하고, Docker 기반 배포/운용, 테스트 자동화, 모니터링, 성능 최적화 과정을 실제 서비스 개발을 통해 경험하고 정리한다.
 
 ## 2. 문제 정의
 
@@ -134,7 +134,7 @@ flowchart TD
     PB --> End([End])
 ```
 
-- Day 19 baseline은 `user_pbs`를 기준으로 사용자당 종목별 PB 1건만 반환하는 MySQL 읽기 경로였다.
+- `2026-04-20` 기준선 로그는 `user_pbs`를 기준으로 사용자당 종목별 PB 1건만 반환하는 MySQL 읽기 경로였다.
 
 ### 현재 흐름 (V2 Hybrid)
 
@@ -183,7 +183,7 @@ flowchart TD
 - 랭킹
   - `GET /api/rankings` 기본 조회는 Redis ZSET read model을 사용한다.
   - `nickname` 검색 또는 Redis 미준비 상태는 MySQL `user_pbs` fallback을 사용한다.
-  - Day 19 V1 baseline과 Day 20 Redis V2 비교 산출물을 확보했다.
+  - `2026-04-20` V1 baseline과 `2026-04-21` Redis V2 비교 산출물을 확보했다.
 - 커뮤니티
   - 게시글 CRUD API와 프런트 작성/수정/상세/삭제 흐름이 구현되어 있다.
   - 댓글 API와 프런트 댓글 연동이 구현되어 있다.
@@ -208,7 +208,8 @@ flowchart TD
   - local `300,000` PB 기준 startup 재구축 시간은 약 9분으로 확인했다.
   - `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료했다.
   - 현재 운영 구조는 `S3 + CloudFront` 프런트와 `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드다.
-  - `deploy-backend.yml`, `deploy-frontend.yml` 자동 배포 workflow를 추가했고, 현재는 GitHub `Secrets` / `Variables` 연결과 첫 실행 검증이 남아 있다.
+  - `deploy-backend.yml`, `deploy-frontend.yml` 자동 배포 workflow는 `main` 기준 CI 성공 후 `workflow_run`으로 이어지고, 수동 `workflow_dispatch` fallback도 지원한다.
+  - backend/frontend CI와 deploy workflow의 운영 반영을 확인했고, 배포환경 기준 핵심 기능과 관리자 기능 수동 검증을 완료했다.
 
 ## 10. 성공 기준
 
@@ -220,8 +221,9 @@ flowchart TD
 | 문서화 | 구현 상태, 목표 상태, 공개 계약을 관련 문서에서 일관되게 유지한다. |
 | 성능 | 개발 완료 후 `k6` 부하 테스트를 수행하고 개선 전/후 비교 문서를 남긴다. |
 
+`2026-04-23` 기준으로 위 성공 기준을 현재 코드, 운영 반영 결과, 문서 마감 상태와 대조해 확인했다.
+
 ## 11. 미확정 사항
 
-- GitHub Actions 기반 frontend/backend 자동 배포 workflow의 실제 운영 검증 결과
 - 운영 환경에서의 Redis 재구축 시점과 트리거 정책
 - `nickname` 검색을 Redis secondary index로 확장할지 여부

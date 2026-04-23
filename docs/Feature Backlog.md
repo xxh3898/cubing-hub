@@ -9,7 +9,7 @@
 
 - MVP 범위와 제외 범위의 기준선은 [Project Overview](./Project%20Overview.md)에서 관리한다.
 - 실제 일정에 올린 항목은 [Project Schedule](./Project%20Schedule.md) 또는 개발 로그에서 추적한다.
-- 이 문서에는 운영/배포 작업보다 사용자 가치와 기능 확장성이 있는 항목을 우선 남긴다.
+- 이 문서에는 운영/배포 작업보다 사용자에게 직접 가치가 있거나 기능 확장 여지가 있는 항목을 우선 남긴다.
 - 상태와 우선순위가 확정되지 않은 항목은 `candidate`, `미정`으로 유지하고 추측해서 올리지 않는다.
 
 ## Backlog Summary
@@ -60,13 +60,13 @@
 | --- | --- | --- | --- | --- | --- |
 | 정보 변경 기능 (`닉네임`, `비밀번호` 등) | done | 완료 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 마이페이지 `계정 관리` 모달에서 닉네임/주 종목 수정과 현재 비밀번호 기반 비밀번호 변경을 처리할 수 있다. |
 | 비밀번호 재설정 기능 | done | 완료 | 비밀번호 분실 시 계정 회복 경로를 제공할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | 이메일 6자리 인증번호와 Redis TTL을 재사용해 로그인 전 비밀번호 재설정 흐름을 제공한다. |
-| 관리자 페이지 (`개발 Q&A`) | candidate | 미정 | 운영/개발용 내부 질의응답과 관리 작업을 분리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | `ROLE_ADMIN` 전용 범위와 노출 정책 정의 필요 |
+| 관리자 피드백/Q&A/메모 운영 | done | 완료 | 운영 질문, 답변, 공개 여부, 내부 메모를 한곳에서 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | `/admin`, `/api/admin/feedbacks`, `/api/admin/memos`, `/qna` 흐름을 반영했다. |
 
 ## Community
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 게시글 사진첨부 기능 | candidate | 미정 | 글 작성 시 이미지로 설명과 기록 공유를 더 쉽게 할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md) | 업로드 저장소, 허용 형식/용량, 렌더링 위치와 보안 정책 결정 필요 |
+| 게시글 사진첨부 기능 | done | 완료 | 글 작성 시 이미지로 설명과 기록 공유를 더 쉽게 할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md) | 게시글 create/update에서 다중 이미지 첨부, S3 + DB metadata 저장, production env wiring까지 반영했다. |
 
 ## Mobile UX
 
