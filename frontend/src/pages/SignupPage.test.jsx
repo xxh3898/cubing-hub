@@ -120,4 +120,15 @@ describe('SignupPage', () => {
     expect(screen.queryByText('이메일 인증이 완료되었습니다.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '가입완료' })).toBeDisabled()
   })
+
+  it('should_apply_input_length_limits_to_signup_fields', () => {
+    renderSignupPage()
+
+    expect(screen.getByLabelText('이메일')).toHaveAttribute('maxLength', '255')
+    expect(screen.getByLabelText('인증번호')).toHaveAttribute('maxLength', '6')
+    expect(screen.getByLabelText('닉네임')).toHaveAttribute('maxLength', '50')
+    expect(screen.getByLabelText('비밀번호')).toHaveAttribute('maxLength', '64')
+    expect(screen.getByLabelText('비밀번호')).toHaveAttribute('minLength', '8')
+    expect(screen.getByLabelText('비밀번호 확인')).toHaveAttribute('maxLength', '64')
+  })
 })

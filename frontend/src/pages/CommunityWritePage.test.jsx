@@ -98,4 +98,18 @@ describe('CommunityWritePage', () => {
     expect(await screen.findByText('제목과 내용을 모두 입력해주세요.')).toBeInTheDocument()
     expect(createPost).not.toHaveBeenCalled()
   })
+
+  it('should_apply_input_length_limits_to_post_form_fields', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+
+    renderCommunityWritePage()
+
+    expect(screen.getByLabelText('제목')).toHaveAttribute('maxLength', '100')
+    expect(screen.getByLabelText('내용')).toHaveAttribute('maxLength', '2000')
+  })
 })

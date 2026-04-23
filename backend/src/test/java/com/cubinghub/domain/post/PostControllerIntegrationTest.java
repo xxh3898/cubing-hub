@@ -158,6 +158,19 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("게시글 본문이 너무 길면 생성 요청은 400을 반환한다")
+    void should_return_bad_request_when_creating_post_with_content_over_max_length() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "제목", "a".repeat(2001));
+
+        mockMvc.perform(post("/api/posts")
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("내용은 2000자 이하이어야 합니다.")));
+    }
+
+    @Test
     @DisplayName("게시글 목록 조회 요청이 오면 카테고리 검색과 페이지 메타데이터를 함께 반환한다")
     void should_return_paginated_posts_when_list_query_parameters_are_provided() throws Exception {
         savePost(authorUser, PostCategory.FREE, "큐브 연습법", "OLL 연습 내용을 정리합니다.");
@@ -204,6 +217,17 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("category 파라미터 형식이 올바르지 않습니다."));
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회에서 검색어가 너무 길면 400을 반환한다")
+    void should_return_bad_request_when_post_list_query_exceeds_max_length() throws Exception {
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "a".repeat(101))
+                        .param("author", "b".repeat(51))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("게시글 검색어는 100자 이하여야 합니다."));
     }
 
     @Test

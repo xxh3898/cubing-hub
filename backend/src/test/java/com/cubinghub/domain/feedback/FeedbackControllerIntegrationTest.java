@@ -135,6 +135,25 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("피드백 본문이 너무 길면 400을 반환한다")
+    void should_return_bad_request_when_feedback_content_exceeds_max_length() throws Exception {
+        FeedbackCreateRequest request = new FeedbackCreateRequest(
+                FeedbackType.OTHER,
+                "제목",
+                "reply@cubinghub.com",
+                "a".repeat(2001)
+        );
+
+        mockMvc.perform(post("/api/feedbacks")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("내용은 2000자 이하이어야 합니다.")));
+    }
+
+    @Test
     @DisplayName("인증 토큰의 사용자 정보가 없으면 피드백 생성 요청은 401을 반환한다")
     void should_return_unauthorized_when_feedback_create_request_is_sent_with_missing_user() throws Exception {
         User missingUser = User.builder()

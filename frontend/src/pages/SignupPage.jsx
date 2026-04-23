@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { confirmEmailVerification, requestEmailVerification, signUp } from '../api.js'
+import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { eventOptions } from '../constants/eventOptions.js'
 
 export default function SignupPage() {
@@ -136,6 +137,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={handleEmailChange}
                 placeholder="example@cubinghub.com"
+                maxLength={INPUT_LIMITS.email}
                 required
                 disabled={isBusy}
               />
@@ -183,10 +185,11 @@ export default function SignupPage() {
               id="signup-nickname"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="사용할 닉네임을 입력하세요"
-              required
-              disabled={isBusy}
-            />
+                placeholder="사용할 닉네임을 입력하세요"
+                maxLength={INPUT_LIMITS.nickname}
+                required
+                disabled={isBusy}
+              />
           </div>
           <div className="field">
             <label htmlFor="signup-main-event">주 종목</label>
@@ -211,6 +214,8 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호를 입력하세요"
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={INPUT_LIMITS.password}
               required
               disabled={isBusy}
             />
@@ -223,6 +228,8 @@ export default function SignupPage() {
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               placeholder="비밀번호를 다시 입력하세요"
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={INPUT_LIMITS.password}
               required
               disabled={isBusy}
             />

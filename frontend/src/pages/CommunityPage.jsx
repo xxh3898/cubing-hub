@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
+import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { communityCategories, communityPageSize } from '../constants/mockCommunity.js'
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
 
@@ -151,6 +152,7 @@ export default function CommunityPage() {
               value={keyword}
               onChange={handleKeywordChange}
               placeholder="제목 또는 본문으로 검색"
+              maxLength={INPUT_LIMITS.communityKeywordSearch}
             />
           </div>
 
@@ -162,6 +164,7 @@ export default function CommunityPage() {
               value={authorQuery}
               onChange={handleAuthorQueryChange}
               placeholder="작성자 닉네임으로 검색"
+              maxLength={INPUT_LIMITS.communityAuthorSearch}
             />
           </div>
         </div>

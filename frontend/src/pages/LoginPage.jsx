@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { clearRefreshCookie, login } from '../api.js'
+import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
 
 export default function LoginPage() {
@@ -77,6 +78,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@cubinghub.com"
+              maxLength={INPUT_LIMITS.email}
               required
               disabled={isSubmitting}
             />
@@ -89,6 +91,8 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호를 입력하세요"
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={INPUT_LIMITS.password}
               required
               disabled={isSubmitting}
             />

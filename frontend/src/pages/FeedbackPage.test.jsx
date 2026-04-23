@@ -85,7 +85,7 @@ describe('FeedbackPage', () => {
     })
 
     expect(screen.getByText('Discord 알림 전송 완료')).toBeInTheDocument()
-    expect(screen.getByText('피드백 ID #1')).toBeInTheDocument()
+    expect(screen.queryByText('피드백 ID #1')).not.toBeInTheDocument()
     expect(screen.getByText('알림 시도 1회')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Discord 알림 재시도' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('회신 이메일')).toHaveValue('member@cubinghub.com')
@@ -116,7 +116,7 @@ describe('FeedbackPage', () => {
     })
 
     expect(screen.getByText('Discord 알림 전송 실패')).toBeInTheDocument()
-    expect(screen.getByText('피드백 ID #7')).toBeInTheDocument()
+    expect(screen.queryByText('피드백 ID #7')).not.toBeInTheDocument()
     expect(screen.getByText('알림 시도 1회')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Discord 알림 재시도' })).toBeInTheDocument()
   })
@@ -251,5 +251,13 @@ describe('FeedbackPage', () => {
     fireEvent.change(screen.getByLabelText('내용'), { target: { value: '내용 수정' } })
 
     expect(screen.queryByText('회신 이메일, 제목, 내용을 모두 입력해주세요.')).not.toBeInTheDocument()
+  })
+
+  it('should_apply_input_length_limits_to_feedback_fields', () => {
+    renderFeedbackPage()
+
+    expect(screen.getByLabelText('회신 이메일')).toHaveAttribute('maxLength', '255')
+    expect(screen.getByLabelText('제목')).toHaveAttribute('maxLength', '100')
+    expect(screen.getByLabelText('내용')).toHaveAttribute('maxLength', '2000')
   })
 })

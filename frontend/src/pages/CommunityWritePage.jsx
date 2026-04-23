@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPost } from '../api.js'
+import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
 
 export default function CommunityWritePage() {
@@ -93,6 +94,7 @@ export default function CommunityWritePage() {
               onChange={(e) => setContent(e.target.value)}
               placeholder="게시글 내용을 입력하세요"
               rows={10}
+              maxLength={INPUT_LIMITS.postContent}
               disabled={isSubmitting}
             />
           </div>

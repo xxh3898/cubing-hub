@@ -57,6 +57,7 @@ describe('RankingsPage', () => {
       page: 1,
       size: 25,
     })
+    expect(screen.getByLabelText('닉네임 검색')).toHaveAttribute('maxLength', '50')
   })
 
   it('should_refetch_rankings_after_debounce_when_search_query_changes', async () => {

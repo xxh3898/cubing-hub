@@ -1,5 +1,6 @@
 package com.cubinghub.domain.post.service;
 
+import com.cubinghub.common.validation.InputConstraints;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.post.dto.request.PostCreateRequest;
 import com.cubinghub.domain.post.dto.response.PostDetailResponse;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ public class PostService {
 
     public PostPageResponse getPosts(PostCategory category, String keyword, String author, Integer page, Integer size) {
         validatePageRequest(page, size);
+        validateSearchRequest(keyword, author);
 
         PostSearchResult result = postRepository.search(category, keyword, author, (page - 1) * size, size);
         long totalElements = result.getTotalElements();
@@ -127,6 +130,16 @@ public class PostService {
 
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("size는 1 이상 100 이하여야 합니다.");
+        }
+    }
+
+    private void validateSearchRequest(String keyword, String author) {
+        if (StringUtils.hasText(keyword) && keyword.trim().length() > InputConstraints.POST_SEARCH_KEYWORD_MAX_LENGTH) {
+            throw new IllegalArgumentException("게시글 검색어는 100자 이하여야 합니다.");
+        }
+
+        if (StringUtils.hasText(author) && author.trim().length() > InputConstraints.POST_SEARCH_AUTHOR_MAX_LENGTH) {
+            throw new IllegalArgumentException("작성자 검색어는 50자 이하여야 합니다.");
         }
     }
 }

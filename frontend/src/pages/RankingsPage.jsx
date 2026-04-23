@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getRankings } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
+import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
 import { formatTimeMs } from '../utils/formatTime.js'
@@ -108,6 +109,7 @@ export default function RankingsPage() {
               value={nicknameQuery}
               onChange={handleNicknameQueryChange}
               placeholder="닉네임으로 검색"
+              maxLength={INPUT_LIMITS.rankingNicknameSearch}
             />
           </div>
 

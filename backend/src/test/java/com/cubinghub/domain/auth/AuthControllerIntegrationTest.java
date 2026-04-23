@@ -188,6 +188,32 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("비밀번호가 UTF-8 기준 72바이트를 넘으면 회원가입은 400을 반환한다")
+    void should_return_bad_request_when_signup_password_exceeds_utf8_byte_limit() throws Exception {
+        String email = newEmail("signup-byte-limit");
+        markEmailVerified(email);
+        SignUpRequest request = new SignUpRequest(email, "가".repeat(25), newNickname("ByteLimitUser"), "WCA_333");
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("비밀번호는 UTF-8 기준 72바이트 이하여야 합니다.")));
+    }
+
+    @Test
+    @DisplayName("비밀번호가 64자를 넘으면 로그인은 400을 반환한다")
+    void should_return_bad_request_when_login_password_exceeds_max_length() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("tester@cubinghub.com", "a".repeat(65)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message", containsString("비밀번호는 64자 이하이어야 합니다.")));
+    }
+
+    @Test
     @DisplayName("로그인 성공 시 Refresh Token을 Redis에 저장한다")
     void should_store_refresh_token_when_login_succeeds() throws Exception {
         String email = newEmail("login");

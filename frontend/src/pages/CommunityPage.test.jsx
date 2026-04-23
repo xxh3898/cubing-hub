@@ -64,6 +64,8 @@ describe('CommunityPage', () => {
       page: 1,
       size: 8,
     })
+    expect(screen.getByLabelText('제목/본문 검색')).toHaveAttribute('maxLength', '100')
+    expect(screen.getByLabelText('작성자 검색')).toHaveAttribute('maxLength', '50')
   })
 
   it('should_not_refetch_posts_repeatedly_when_search_filters_do_not_change', async () => {

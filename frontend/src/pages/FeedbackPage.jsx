@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { createFeedback, retryFeedbackNotification } from '../api.js'
+import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -150,7 +151,6 @@ export default function FeedbackPage() {
                 </span>
               </div>
               <div className="feedback-notification-meta">
-                <span>{`피드백 ID #${notificationState.feedbackId}`}</span>
                 <span>{`알림 시도 ${notificationState.notificationAttemptCount}회`}</span>
               </div>
               {notificationState.notificationRetryAvailable ? (
@@ -217,6 +217,7 @@ export default function FeedbackPage() {
               onChange={handleContentChange}
               placeholder="어떤 상황에서 어떤 문제가 발생했는지, 혹은 어떤 기능이 있으면 좋을지 자유롭게 적어주세요!"
               rows={8}
+              maxLength={INPUT_LIMITS.feedbackContent}
               disabled={isSubmitting || isRetryingNotification}
             />
           </div>

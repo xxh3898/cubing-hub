@@ -79,4 +79,12 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Network Error')).toBeInTheDocument()
   })
+
+  it('should_apply_input_length_limits_to_login_fields', () => {
+    renderLoginPage()
+
+    expect(screen.getByLabelText('이메일')).toHaveAttribute('maxLength', '255')
+    expect(screen.getByLabelText('비밀번호')).toHaveAttribute('maxLength', '64')
+    expect(screen.getByLabelText('비밀번호')).toHaveAttribute('minLength', '8')
+  })
 })
