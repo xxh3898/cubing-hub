@@ -4,11 +4,13 @@ import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalt
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
+import { deleteGuestTimerRecord, getGuestTimerRecords, saveGuestTimerRecord, updateGuestTimerRecordPenalty } from '../lib/guestTimerStorage.js'
 import { calculateAverageOf, filterLatestRecordsByEvent, formatAverageResult, formatRecordTime } from '../utils/recordStats.js'
 import { buildVisualCubeUrl } from '../utils/visualCube.js'
 
 const RECENT_STATS_FETCH_SIZE = 100
 const RECENT_STATS_LIMIT = 12
+const RECENT_SAVED_LIMIT = 5
 
 function getTimerMessage(status, isSupported, hasScramble) {
   if (!isSupported) {
@@ -78,6 +80,18 @@ function getDisplayTime(record) {
   return formatRecordTime(record.effectiveTimeMs ?? record.timeMs, { padSeconds: true })
 }
 
+function createSavedRecord({ id, eventType, timeMs, penalty, scramble, createdAt = new Date().toISOString() }) {
+  return {
+    id,
+    eventType,
+    timeMs,
+    effectiveTimeMs: penalty === 'DNF' ? null : penalty === 'PLUS_TWO' ? timeMs + 2000 : timeMs,
+    penalty,
+    scramble,
+    createdAt,
+  }
+}
+
 export default function TimerPage() {
   const { isAuthenticated } = useAuth()
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
@@ -92,7 +106,10 @@ export default function TimerPage() {
   const [isLoadingRecentStats, setIsLoadingRecentStats] = useState(false)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
-  const lastAutoSavedRecordRef = useRef(null)
+  const [stoppedSolveSnapshot, setStoppedSolveSnapshot] = useState(null)
+  const [saveStatus, setSaveStatus] = useState('idle')
+  const activePersistKeyRef = useRef(null)
+  const completedStoppedSolveRef = useRef(false)
 
   const currentEvent = useMemo(() => findEventOption(selectedEvent), [selectedEvent])
   const isSupported = Boolean(currentEvent?.supported)
@@ -145,7 +162,16 @@ export default function TimerPage() {
     }
   }, [isAuthenticated])
 
-  const loadScramble = async (eventType) => {
+  const loadGuestStatistics = useCallback((eventType) => {
+    const guestRecords = getGuestTimerRecords(eventType)
+
+    setRecentSavedRecords(guestRecords.slice(0, RECENT_SAVED_LIMIT))
+    setRecentStatsRecords(guestRecords.slice(0, RECENT_STATS_LIMIT))
+    setRecentStatsError(null)
+    setIsLoadingRecentStats(false)
+  }, [])
+
+  const loadScramble = useCallback(async (eventType) => {
     setIsLoadingScramble(true)
     setScrambleMessage(null)
     setSaveNotice(null)
@@ -159,11 +185,14 @@ export default function TimerPage() {
     } finally {
       setIsLoadingScramble(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     resetTimer()
     setSaveNotice(null)
+    setSaveStatus('idle')
+    setStoppedSolveSnapshot(null)
+    completedStoppedSolveRef.current = false
 
     if (!isSupported) {
       setScrambleData(null)
@@ -172,31 +201,32 @@ export default function TimerPage() {
     }
 
     loadScramble(selectedEvent)
-  }, [isSupported, resetTimer, selectedEvent])
+  }, [isSupported, loadScramble, resetTimer, selectedEvent])
 
   useEffect(() => {
     setHasScrambleVisualError(false)
   }, [scrambleVisualUrl])
 
   useEffect(() => {
-    if (!isAuthenticated || !isSupported) {
+    if (!isSupported) {
+      setRecentSavedRecords([])
       setRecentStatsRecords([])
       setRecentStatsError(null)
       setIsLoadingRecentStats(false)
       return
     }
 
+    if (!isAuthenticated) {
+      loadGuestStatistics(selectedEvent)
+      return
+    }
+
+    setRecentSavedRecords([])
     loadRecentStatistics(selectedEvent)
-  }, [isAuthenticated, isSupported, loadRecentStatistics, selectedEvent])
+  }, [isAuthenticated, isSupported, loadGuestStatistics, loadRecentStatistics, selectedEvent])
 
   const handleEventChange = (event) => {
     setSelectedEvent(event.target.value)
-  }
-
-  const handleScrambleRetry = () => {
-    if (isSupported) {
-      loadScramble(selectedEvent)
-    }
   }
 
   const handleDeleteRecentRecord = async (recordId) => {
@@ -208,10 +238,16 @@ export default function TimerPage() {
     setSaveNotice(null)
 
     try {
-      const response = await deleteRecord(recordId)
-      setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
-      await loadRecentStatistics(selectedEvent)
-      toast.success(response.message)
+      if (isAuthenticated) {
+        const response = await deleteRecord(recordId)
+        setRecentSavedRecords((current) => current.filter((record) => record.id !== recordId))
+        await loadRecentStatistics(selectedEvent)
+        toast.success(response.message)
+      } else {
+        deleteGuestTimerRecord(selectedEvent, recordId)
+        loadGuestStatistics(selectedEvent)
+        toast.success('게스트 기록이 삭제되었습니다.')
+      }
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -224,21 +260,27 @@ export default function TimerPage() {
     setSaveNotice(null)
 
     try {
-      const response = await updateRecordPenalty(recordId, { penalty })
-      setRecentSavedRecords((current) =>
-        current.map((record) =>
-          record.id === recordId
-            ? {
-                ...record,
-                penalty: response.data.penalty,
-                timeMs: response.data.timeMs,
-                effectiveTimeMs: response.data.effectiveTimeMs,
-              }
-            : record,
-        ),
-      )
-      await loadRecentStatistics(selectedEvent)
-      toast.success(response.message)
+      if (isAuthenticated) {
+        const response = await updateRecordPenalty(recordId, { penalty })
+        setRecentSavedRecords((current) =>
+          current.map((record) =>
+            record.id === recordId
+              ? {
+                  ...record,
+                  penalty: response.data.penalty,
+                  timeMs: response.data.timeMs,
+                  effectiveTimeMs: response.data.effectiveTimeMs,
+                }
+              : record,
+          ),
+        )
+        await loadRecentStatistics(selectedEvent)
+        toast.success(response.message)
+      } else {
+        updateGuestTimerRecordPenalty(selectedEvent, recordId, penalty)
+        loadGuestStatistics(selectedEvent)
+        toast.success('게스트 기록 페널티가 수정되었습니다.')
+      }
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -247,58 +289,88 @@ export default function TimerPage() {
   }
 
   useEffect(() => {
-    if (status !== 'stopped' || !finalTime || !scrambleData?.scramble || !isSupported) {
+    if (status !== 'stopped' || !finalTime || !isSupported || !scrambleData?.scramble || stoppedSolveSnapshot || completedStoppedSolveRef.current) {
       return
     }
 
-    if (!isAuthenticated) {
-      setSaveNotice('로그인 후 기록이 자동 저장됩니다.')
+    const roundedTime = Math.max(1, Math.round(finalTime))
+    const nextSnapshot = {
+      key: `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`,
+      eventType: selectedEvent,
+      timeMs: roundedTime,
+      penalty: 'NONE',
+      scramble: scrambleData.scramble,
+    }
+
+    setStoppedSolveSnapshot(nextSnapshot)
+    setSaveStatus('idle')
+    setSaveNotice(null)
+  }, [finalTime, isSupported, scrambleData?.scramble, selectedEvent, status, stoppedSolveSnapshot])
+
+  const persistStoppedSolve = useCallback(async (snapshot) => {
+    if (!snapshot || activePersistKeyRef.current === snapshot.key) {
       return
     }
 
-    const nextSaveKey = `${selectedEvent}:${Math.round(finalTime)}:${scrambleData.scramble}`
+    activePersistKeyRef.current = snapshot.key
+    setSaveStatus('saving')
+    setSaveNotice('기록을 저장하는 중입니다.')
 
-    if (lastAutoSavedRecordRef.current === nextSaveKey) {
-      return
-    }
-
-    const persistRecord = async () => {
-      setSaveNotice(null)
-
-      try {
-        const roundedTime = Math.max(1, Math.round(finalTime))
+    try {
+      if (isAuthenticated) {
         const response = await saveRecord({
-          eventType: selectedEvent,
-          timeMs: roundedTime,
-          penalty: 'NONE',
-          scramble: scrambleData.scramble,
+          eventType: snapshot.eventType,
+          timeMs: snapshot.timeMs,
+          penalty: snapshot.penalty,
+          scramble: snapshot.scramble,
         })
 
         setRecentSavedRecords((current) => [
-          {
+          createSavedRecord({
             id: response.data?.id ?? Date.now(),
-            eventType: selectedEvent,
-            timeMs: roundedTime,
-            effectiveTimeMs: roundedTime,
-            penalty: 'NONE',
-            scramble: scrambleData.scramble,
-          },
+            eventType: snapshot.eventType,
+            timeMs: snapshot.timeMs,
+            penalty: snapshot.penalty,
+            scramble: snapshot.scramble,
+          }),
           ...current,
-        ].slice(0, 5))
-        await loadRecentStatistics(selectedEvent)
-        toast.success(`${response.message} 타이머 초기화 후 다음 기록을 시작할 수 있습니다.`)
-        lastAutoSavedRecordRef.current = `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`
-      } catch (error) {
-        toast.error(error.message)
+        ].slice(0, RECENT_SAVED_LIMIT))
+        await loadRecentStatistics(snapshot.eventType)
+        toast.success(response.message)
+      } else {
+        saveGuestTimerRecord(snapshot)
+        loadGuestStatistics(snapshot.eventType)
+        toast.success('게스트 기록이 저장되었습니다.')
       }
+
+      setStoppedSolveSnapshot(null)
+      completedStoppedSolveRef.current = true
+      setSaveStatus('success')
+      setSaveNotice(null)
+      resetTimer()
+      await loadScramble(snapshot.eventType)
+    } catch (error) {
+      setSaveStatus('error')
+      setSaveNotice(error.message)
+    } finally {
+      activePersistKeyRef.current = null
+    }
+  }, [isAuthenticated, loadGuestStatistics, loadRecentStatistics, loadScramble, resetTimer])
+
+  useEffect(() => {
+    if (!stoppedSolveSnapshot || status !== 'stopped' || saveStatus !== 'idle') {
+      return
     }
 
-    persistRecord()
-  }, [finalTime, isAuthenticated, isSupported, loadRecentStatistics, scrambleData, selectedEvent, status])
+    persistStoppedSolve(stoppedSolveSnapshot)
+  }, [persistStoppedSolve, saveStatus, status, stoppedSolveSnapshot])
 
   useEffect(() => {
     if (status !== 'stopped') {
       setSaveNotice(null)
+      setSaveStatus('idle')
+      setStoppedSolveSnapshot(null)
+      completedStoppedSolveRef.current = false
     }
   }, [status])
 
@@ -345,15 +417,6 @@ export default function TimerPage() {
                 ))}
               </select>
             </div>
-
-            <div className="timer-actions timer-actions-row timer-toolbar-actions">
-              <button className="ghost-button" type="button" onClick={handleScrambleRetry} disabled={!isSupported || isLoadingScramble}>
-                스크램블 초기화
-              </button>
-              <button className="secondary-button" type="button" onClick={resetTimer}>
-                타이머 초기화
-              </button>
-            </div>
           </div>
 
           <div
@@ -367,6 +430,11 @@ export default function TimerPage() {
             <h2 className="timer-value">{formattedTime}</h2>
             <p className="helper-text timer-helper">{timerMessage}</p>
             {saveNotice ? <p className="helper-text timer-save-notice">{saveNotice}</p> : null}
+            {saveStatus === 'error' && stoppedSolveSnapshot ? (
+              <button className="ghost-button" type="button" onClick={() => persistStoppedSolve(stoppedSolveSnapshot)}>
+                저장 재시도
+              </button>
+            ) : null}
           </div>
 
           <section className="timer-recent-panel">
@@ -387,8 +455,8 @@ export default function TimerPage() {
               </article>
             </div>
             {recentStatsError ? <p className="message error">{recentStatsError}</p> : null}
-            {!recentStatsError && !isAuthenticated ? (
-              <p className="helper-text">로그인 후 Ao5, Ao12가 계산됩니다.</p>
+            {!recentStatsError && !isAuthenticated && recentStatsRecords.length === 0 ? (
+              <p className="helper-text">게스트 기록이 쌓이면 Ao5, Ao12를 계산합니다.</p>
             ) : null}
             {!recentStatsError && isAuthenticated && !isSupported ? (
               <p className="helper-text">이 종목은 아직 Ao 통계를 지원하지 않습니다.</p>

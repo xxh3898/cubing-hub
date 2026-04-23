@@ -4,6 +4,7 @@ import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
+import { getGuestTimerRecords, saveGuestTimerRecord } from '../lib/guestTimerStorage.js'
 import TimerPage from './TimerPage.jsx'
 
 vi.mock('../api.js', () => ({
@@ -30,6 +31,13 @@ vi.mock('../hooks/useCubeTimer.js', () => ({
   useCubeTimer: vi.fn(),
 }))
 
+vi.mock('../lib/guestTimerStorage.js', () => ({
+  deleteGuestTimerRecord: vi.fn(),
+  getGuestTimerRecords: vi.fn(),
+  saveGuestTimerRecord: vi.fn(),
+  updateGuestTimerRecordPenalty: vi.fn(),
+}))
+
 function createRecentRecord(overrides = {}) {
   return {
     id: 1,
@@ -54,8 +62,12 @@ describe('TimerPage', () => {
       status: 'stopped',
       finalTime: 8123,
       formattedTime: '08.123',
+      handlePointerDown: vi.fn(),
+      handlePointerUp: vi.fn(),
+      handlePointerCancel: vi.fn(),
       resetTimer: vi.fn(),
     })
+    vi.mocked(getGuestTimerRecords).mockReturnValue([])
     vi.mocked(getScramble).mockResolvedValue({
       data: {
         eventType: 'WCA_333',
@@ -204,5 +216,55 @@ describe('TimerPage', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('기록 삭제 실패')
     })
+  })
+
+  it('should_save_guest_record_to_local_storage_when_user_is_not_authenticated', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+    })
+    vi.mocked(saveGuestTimerRecord).mockReturnValue(
+      createRecentRecord({
+        id: 'guest-1',
+        scramble: "R U R' U'",
+      }),
+    )
+
+    render(<TimerPage />)
+
+    await waitFor(() => {
+      expect(saveGuestTimerRecord).toHaveBeenCalledWith({
+        key: "WCA_333:8123:R U R' U'",
+        eventType: 'WCA_333',
+        timeMs: 8123,
+        penalty: 'NONE',
+        scramble: "R U R' U'",
+      })
+    })
+
+    expect(saveRecord).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('게스트 기록이 저장되었습니다.')
+  })
+
+  it('should_retry_record_save_when_auto_save_fails', async () => {
+    vi.mocked(saveRecord)
+      .mockRejectedValueOnce(new Error('기록 저장 실패'))
+      .mockResolvedValueOnce({
+        message: '기록이 저장되었습니다.',
+        data: {
+          id: 101,
+        },
+      })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('기록 저장 실패')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '저장 재시도' }))
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalledTimes(2)
+    })
+
+    expect(toast.success).toHaveBeenCalledWith('기록이 저장되었습니다.')
   })
 })
