@@ -17,8 +17,11 @@
 | Category               | Count | Note                     |
 | ---------------------- | ----- | ------------------------ |
 | Timer & Records        | 5     | 기록 분석, 타이머 UX, 데이터 활용 확장 |
+| Learning & Guide       | 1     | 큐빙 학습/입문 안내 확장            |
 | UI / UX Polish         | 2     | 공통 문구와 페이지네이션 사용성 개선 |
 | Feedback & Integration | 1     | 피드백 운영 알림과 확인 흐름 실사용화     |
+| Account & Admin        | 3     | 계정 관리와 운영 도구 후속 확장       |
+| Community              | 1     | 게시글 작성 경험 확장              |
 | Mobile UX              | 2     | 모바일 접근성과 입력 방식 보강        |
 | Reference Notes        | 1     | 비교 서비스 기반 기능 후보 탐색       |
 
@@ -39,18 +42,38 @@
 | 홈/공통 소개 문구 정리 | done | 완료 | 홈 상단 소개 문구를 더 자연스럽고 제품 중심으로 정리해 첫 인상을 개선할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 상단 helper text를 제품 소개형 문구로 교체했다. |
 | 공통 페이지네이션 UX 개선 | done | 완료 | 긴 페이지 번호 나열 대신 `1~10` 단위 그룹과 `<<`, `>>` 이동을 적용해 탐색 가독성을 높일 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 랭킹, 커뮤니티 목록, 댓글, 마이페이지에 grouped 페이지네이션을 반영했다. |
 
+## Learning & Guide
+
+| Feature | Status | Priority | User Value | Related Docs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 회전기호 설명 페이지 | candidate | 미정 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 표기법 범위, 예시 이미지, 학습 화면과의 연결 방식 결정 필요 |
+
 ## Feedback & Integration
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
 | 피드백 Discord 운영 알림과 재시도 | done | 완료 | 서비스 안에서 보낸 피드백을 운영 채널로 즉시 연결하고 실패 시 사용자 기준으로 재시도할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md), [Screen Specification](./Screen%20Specification.md) | `POST /api/feedbacks` 응답에 Discord 알림 상태를 포함하고, 실패 시 `/api/feedbacks/{feedbackId}/notification-retry`로 재시도할 수 있도록 반영했다. |
 
+## Account & Admin
+
+| Feature | Status | Priority | User Value | Related Docs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 정보 변경 기능 (`닉네임`, `비밀번호` 등) | candidate | 미정 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 변경 범위, 재인증 정책, 화면 진입 위치 설계 필요 |
+| 비밀번호 재설정 기능 | candidate | 미정 | 비밀번호 분실 시 계정 회복 경로를 제공할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | 이메일 토큰/코드 방식과 보안 정책 결정 필요 |
+| 관리자 페이지 (`개발 Q&A`) | candidate | 미정 | 운영/개발용 내부 질의응답과 관리 작업을 분리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | `ROLE_ADMIN` 전용 범위와 노출 정책 정의 필요 |
+
+## Community
+
+| Feature | Status | Priority | User Value | Related Docs | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 게시글 사진첨부 기능 | candidate | 미정 | 글 작성 시 이미지로 설명과 기록 공유를 더 쉽게 할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md) | 업로드 저장소, 허용 형식/용량, 렌더링 위치와 보안 정책 결정 필요 |
+
 ## Mobile UX
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 모바일 반응형 구현 | candidate | 미정 | 모바일 브라우저에서도 주요 흐름을 무리 없이 사용할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 공통 레이아웃과 주요 페이지 전체 점검 필요 |
-| 모바일용 터치 타이머 구현 | candidate | 미정 | 모바일 환경에서도 실제 타이머 사용 경험을 제공할 수 있다. | [Screen Specification](./Screen%20Specification.md) | hold, ready, start, stop 제스처 기준 별도 설계 필요 |
+| 모바일 반응형 구현 | done | 완료 | 모바일 브라우저에서도 주요 흐름을 무리 없이 사용할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 상단 nav와 주요 액션 영역을 모바일 grid/stack 기준으로 재배치하고, 홈/랭킹/커뮤니티/마이페이지 표형 데이터를 stacked card row로 정리했다. |
+| 모바일용 터치 타이머 구현 | done | 완료 | 모바일 환경에서도 실제 타이머 사용 경험을 제공할 수 있다. | [Screen Specification](./Screen%20Specification.md) | `touch`/`pen` pointer 입력이 keyboard `Space`와 같은 상태 머신을 공유하도록 반영해 hold, ready, start, stop 흐름을 모바일에서도 지원한다. |
 
 ## Reference Notes
 

@@ -96,7 +96,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `email` | String | 예 | 인증번호를 받을 이메일 |
+| `email` | String | 예 | 인증번호를 받을 이메일, 최대 255자 |
 
 #### 에러 계약
 
@@ -120,7 +120,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `email` | String | 예 | 인증을 완료할 이메일 |
+| `email` | String | 예 | 인증을 완료할 이메일, 최대 255자 |
 | `code` | String | 예 | 6자리 인증번호 |
 
 #### 에러 계약
@@ -144,8 +144,8 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `email` | String | 예 | 이메일 형식 필수 |
-| `password` | String | 예 | 8자 이상 비밀번호 |
+| `email` | String | 예 | 이메일 형식 필수, 최대 255자 |
+| `password` | String | 예 | 8자 이상 64자 이하, UTF-8 기준 최대 72바이트 |
 | `nickname` | String | 예 | 2자 이상 50자 이하 닉네임 |
 | `mainEvent` | String | 아니오 | 주 종목 |
 
@@ -173,8 +173,8 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `email` | String | 예 | 로그인 이메일 |
-| `password` | String | 예 | 비밀번호 |
+| `email` | String | 예 | 로그인 이메일, 최대 255자 |
+| `password` | String | 예 | 비밀번호, 최대 64자 / UTF-8 기준 최대 72바이트 |
 
 #### Response Body
 
@@ -427,7 +427,7 @@
 | 이름 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `eventType` | String | 예 | 조회할 WCA 종목 코드 |
-| `nickname` | String | 아니오 | 닉네임 포함 검색어 |
+| `nickname` | String | 아니오 | 닉네임 포함 검색어, 최대 50자 |
 | `page` | Number | 아니오 | 1부터 시작하는 페이지 번호, 기본값 `1` |
 | `size` | Number | 아니오 | 페이지 크기, 기본값 `25`, 최대 `100` |
 
@@ -435,7 +435,7 @@
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `data.items[].rank` | Number | 1부터 시작하는 순위 |
+| `data.items[].rank` | Number | 검색 결과에서도 유지되는 전체 랭킹 순위 |
 | `data.items[].nickname` | String | 사용자 닉네임 |
 | `data.items[].eventType` | String | WCA 종목 코드 |
 | `data.items[].timeMs` | Number | PB 기준 기록 시간(밀리초) |
@@ -452,6 +452,7 @@
 - `nickname`이 비어 있고 Redis ready marker가 있으면 Redis ZSET read model을 사용한다.
 - `nickname` 검색 요청 또는 Redis 미준비 상태는 MySQL `user_pbs` QueryDSL 경로로 fallback 한다.
 - 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`를 유지한다.
+- `nickname` 검색 결과는 필터된 집합 안의 재계산 순위가 아니라 전체 랭킹 기준 순위를 유지한다.
 - 응답 형식, 검색 계약, 서버 페이지네이션은 V1과 동일하게 유지한다.
 - MySQL `records` / `user_pbs`는 source of truth이고 Redis는 읽기 최적화를 위한 보조 read model이다.
 
@@ -497,8 +498,8 @@
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `category` | String | 예 | `NOTICE`, `FREE` (`NOTICE`는 `ROLE_ADMIN`만 작성 가능) |
-| `title` | String | 예 | 게시글 제목 |
-| `content` | String | 예 | 게시글 본문 |
+| `title` | String | 예 | 게시글 제목, 최대 100자 |
+| `content` | String | 예 | 게시글 본문, 최대 2000자 |
 
 #### Response
 
@@ -519,8 +520,8 @@
 | 이름 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `category` | String | 아니오 | 게시판 카테고리 (`NOTICE`, `FREE`) |
-| `keyword` | String | 아니오 | 제목/본문 키워드 |
-| `author` | String | 아니오 | 작성자 닉네임 |
+| `keyword` | String | 아니오 | 제목/본문 키워드, 최대 100자 |
+| `author` | String | 아니오 | 작성자 닉네임, 최대 50자 |
 | `page` | Number | 아니오 | 조회할 페이지 번호, 기본값 `1` |
 | `size` | Number | 아니오 | 페이지당 게시글 수, 기본값 `8` |
 
@@ -587,8 +588,8 @@
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `category` | String | 예 | 수정할 카테고리 (`NOTICE`는 `ROLE_ADMIN`만 설정 가능) |
-| `title` | String | 예 | 수정할 제목 |
-| `content` | String | 예 | 수정할 본문 |
+| `title` | String | 예 | 수정할 제목, 최대 100자 |
+| `content` | String | 예 | 수정할 본문, 최대 2000자 |
 
 #### Response
 
@@ -749,9 +750,9 @@
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `type` | String | 예 | 피드백 종류 (`BUG`, `FEATURE`, `UX`, `OTHER`) |
-| `title` | String | 예 | 피드백 제목 |
-| `replyEmail` | String | 예 | 회신 받을 이메일 주소 |
-| `content` | String | 예 | 피드백 상세 내용 |
+| `title` | String | 예 | 피드백 제목, 최대 100자 |
+| `replyEmail` | String | 예 | 회신 받을 이메일 주소, 최대 255자 |
+| `content` | String | 예 | 피드백 상세 내용, 최대 2000자 |
 
 #### Response
 

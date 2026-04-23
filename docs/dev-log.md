@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | Frontend mobile compatibility: 카드형 테이블 + 타이머 터치 입력 |
-| 상태 | 모바일 상단 nav, 툴바, 테이블형 데이터 표현을 재배치했고 타이머에 `touch`/`pen` 입력을 추가했다. frontend `lint`, `test`, `build`는 통과했고 390px 기준 headless Chrome 캡처로 주요 공개 화면을 다시 확인했다 |
-| 범위 | `responsive.css` 중심 모바일 레이아웃 보강, 홈/랭킹/커뮤니티/마이페이지의 stacked card row 전환, `useCubeTimer` 터치 상태 머신 추가, 타이머 프런트 테스트 보강, 화면/개요/개발 로그 문서 동기화 |
-| 핵심 리스크 | 로그인 사용자 홈/마이페이지의 실제 데이터 채워진 상태와 물리 모바일 기기 터치 UX는 아직 end-to-end 수동 검증하지 않았다. frontend bundle은 여전히 500kB 초과 경고를 출력한다 |
-| 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) |
-| 다음 로그 대상 | 로그인 사용자 모바일 화면 수동 점검, 또는 추가 responsive polish가 필요할 때 후속 로그를 남긴다 |
+| 작업명 | Post-deploy stabilization: 랭킹 검색 순위 보존 + 타이머 저장 흐름 개편 + 입력 길이 제한 |
+| 상태 | 랭킹 검색은 검색 결과에서도 전체 랭킹 기준 순위를 유지하도록 정리했고, 타이머는 solve snapshot 기준 저장/게스트 캐시 후 성공 시 자동 초기화 흐름으로 바꿨다. 입력 길이 제한, 피드백 ID UI 비노출, backlog 동기화까지 반영했고 backend targeted test/build, frontend `lint`/`vitest`/`build`는 통과했다 |
+| 범위 | 랭킹 검색 semantics 수정, 타이머 저장 snapshot/게스트 `localStorage` 캐시, 인증/게시글/피드백/검색 입력 검증 보강, 피드백 UI 정리, backlog/API/화면/일정/로그 문서 동기화 |
+| 핵심 리스크 | 실제 브라우저에서 로그인/비로그인 타이머 흐름 수동 확인은 남아 있고, 긴 검색 입력 실패가 정확히 어느 계층에서 차단되는지는 운영 로그로 아직 특정하지 못했다. 게스트 기록 캐시는 `localStorage` 비가용 브라우저에서 실패할 수 있다 |
+| 참조 문서 | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Feature Backlog](./Feature%20Backlog.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) |
+| 다음 로그 대상 | 운영 로그 기반 긴 검색 입력 실패 계층 확인, 또는 계정 관리/커뮤니티 첨부 기능을 실제 backlog 작업으로 승격할 때 후속 로그를 남긴다 |
 
 ## 로그 파일 목록
 
@@ -30,7 +30,7 @@
 | Core API | [Day 8](./Development%20Log/Day%2008.md) ~ [Day 11](./Development%20Log/Day%2011.md) | 인증, 기록, 랭킹, 게시판 API 기준선 |
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
-| 최신 로그 | [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) | AWS 1차 배포와 운영 이슈 정리, 회원가입 이메일 인증 추가, 모바일 UI 호환성과 타이머 터치 입력 정리 |
+| 최신 로그 | [Day 21](./Development%20Log/Day%2021.md), [Day 22](./Development%20Log/Day%2022.md), [Day 23](./Development%20Log/Day%2023.md) | AWS 1차 배포와 운영 이슈 정리, 회원가입 이메일 인증 추가, 모바일 UI 대응, 배포 후 타이머/랭킹/입력 검증 안정화 |
 
 ## 주요 설계 결정 추적
 
@@ -88,3 +88,4 @@
 - local 프로필은 startup 재구축을 사용하고, production first deploy는 `update` / `true` 1회 적용 후 `validate` / `false`로 원복했다.
 - 실제 AWS 1차 배포에서 frontend env 누락, Docker image amd64 manifest, Nginx SSL 보조 파일 누락을 확인했고 재발 방지 체크리스트를 별도 문서로 정리했다.
 - backend/frontend 자동 deploy workflow 파일은 추가됐고, GitHub `Secrets` / `Variables` 연결 후 실제 실행 결과를 확인해야 한다.
+- 긴 검색 입력 오류는 HAR 기준 `status 0 + net::ERR_FAILED`로 확인됐고, 현재 방향은 CORS 설정 변경이 아니라 입력 길이 제한과 검색 파라미터 검증 강화다.

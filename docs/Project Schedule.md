@@ -21,6 +21,7 @@ gantt
     k6 Baseline Before Redis Refactor :2026-04-20, 1d
     Redis Refactor + Verify           :done, 2026-04-21, 1d
     AWS First Deploy + CD Setup       :done, 2026-04-22, 1d
+    Post-Deploy Stabilization         :done, 2026-04-23, 1d
 ```
 
 ## Week 1: 인프라 기반 구축
@@ -137,3 +138,8 @@ gantt
 - [X] HTTPS health check와 브라우저 스모크 테스트 확인
 - [X] 운영 체크리스트와 공식 문서 최신화
 - [X] backend/frontend 자동 배포 workflow 추가
+
+**Post-Deploy Stabilization (목, 2026-04-23)**
+- [X] 회원가입 이메일 인증 흐름, SMTP/Redis TTL, 관련 설계 문서 정리
+- [X] 모바일 반응형 레이아웃과 타이머 `touch`/`pen` 입력 보강
+- [X] 랭킹 검색 전체 순위 보존, 타이머 게스트 캐시/자동 초기화, 입력 길이 제한, backlog 및 화면/API 문서 동기화
