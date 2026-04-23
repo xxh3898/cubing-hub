@@ -4,6 +4,7 @@ export function buildVisualCubeUrl({
   puzzle = '3x3',
   algorithm = '',
   stage = '',
+  stateType = 'case',
 } = {}) {
   const params = {
     fmt: 'svg',
@@ -12,16 +13,16 @@ export function buildVisualCubeUrl({
   }
 
   if (algorithm) {
-    params.case = algorithm;
+    params[stateType] = algorithm
   }
 
   if (stage) {
-    params.stage = stage.toLowerCase();
+    params.stage = stage.toLowerCase()
     if (params.stage === 'oll' || params.stage === 'pll') {
-      params.view = 'plan';
+      params.view = 'plan'
     }
   }
 
-  const searchParams = new URLSearchParams(params);
+  const searchParams = new URLSearchParams(params)
   return `${VISUAL_CUBE_BASE_URL}?${searchParams.toString()}`
 }

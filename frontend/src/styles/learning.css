@@ -69,6 +69,14 @@
   height: auto;
 }
 
+.learning-notation-card {
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+
+.learning-notation-visual img {
+  max-width: 150px;
+}
+
 .learning-case-copy {
   display: grid;
   gap: 8px;
