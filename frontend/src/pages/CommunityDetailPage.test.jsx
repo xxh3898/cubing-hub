@@ -107,6 +107,7 @@ describe('CommunityDetailPage', () => {
     expect(await screen.findByText('둘째 댓글')).toBeInTheDocument()
     expect(screen.getByText('댓글 2')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '수정' })).toHaveAttribute('href', '/community/5/edit')
+    expect(document.querySelector('.community-post-actions')).not.toBeNull()
 
     expect(getComments).toHaveBeenCalledWith(5, { page: 1, size: 5 })
     expect(screen.getAllByRole('button', { name: '댓글 삭제' })).toHaveLength(1)

@@ -281,7 +281,7 @@ export default function CommunityDetailPage() {
             </span>
           ))}
         </div>
-        <div className="community-detail-actions">
+        <div className="community-detail-actions community-post-actions">
           {canEditPost ? (
             <Link to={`/community/${post.id}/edit`} className="ghost-button">
               수정

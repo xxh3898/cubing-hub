@@ -50,6 +50,8 @@ describe('RankingsPage', () => {
     expect(screen.getByText('랭킹을 불러오는 중입니다.')).toBeInTheDocument()
     expect(await screen.findByText('Alpha')).toBeInTheDocument()
     expect(screen.getByText('9.800초')).toBeInTheDocument()
+    expect(document.querySelector('.rankings-row')).not.toBeNull()
+    expect(document.querySelector('.rankings-row-time')).not.toBeNull()
 
     expect(getRankings).toHaveBeenCalledWith({
       eventType: 'WCA_333',

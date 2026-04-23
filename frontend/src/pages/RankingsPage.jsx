@@ -160,11 +160,11 @@ export default function RankingsPage() {
                 </thead>
                 <tbody>
                   {pageItems.map((item) => (
-                    <tr key={`${item.eventType}-${item.rank}-${item.nickname}`}>
-                      <td data-label="순위">{item.rank}위</td>
-                      <td data-label="닉네임" className="record-table-cell-primary">{item.nickname}</td>
-                      <td data-label="종목">{findEventOption(item.eventType)?.label ?? item.eventType}</td>
-                      <td data-label="기록" className="record-table-cell-primary">{formatTimeMs(item.timeMs)}</td>
+                    <tr key={`${item.eventType}-${item.rank}-${item.nickname}`} className="rankings-row">
+                      <td data-label="순위" className="rankings-row-rank">{item.rank}위</td>
+                      <td data-label="닉네임" className="record-table-cell-primary rankings-row-nickname">{item.nickname}</td>
+                      <td data-label="종목" className="rankings-row-event">{findEventOption(item.eventType)?.label ?? item.eventType}</td>
+                      <td data-label="기록" className="record-table-cell-primary rankings-row-time">{formatTimeMs(item.timeMs)}</td>
                     </tr>
                   ))}
                 </tbody>

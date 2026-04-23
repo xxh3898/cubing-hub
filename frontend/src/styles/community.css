@@ -79,18 +79,41 @@
   font-weight: 700;
 }
 
-.community-title-cell a {
-  display: block;
+.community-post-row {
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+
+.community-post-row:hover td {
+  background: rgba(18, 32, 43, 0.03);
+}
+
+.community-post-row:focus-visible {
+  outline: 2px solid #1b4332;
+  outline-offset: 3px;
+}
+
+.community-post-category {
+  font-weight: 700;
+  color: #5b6f62;
+}
+
+.community-post-title {
   min-width: 0;
-  text-decoration: none;
   color: inherit;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
-.community-title-cell a:hover {
-  text-decoration: underline;
-  color: #ff3e00;
+.community-post-author,
+.community-post-date,
+.community-post-views {
+  color: #385b73;
+}
+
+.community-post-date,
+.community-post-views {
+  white-space: nowrap;
 }
 
 .community-pagination {
@@ -196,6 +219,18 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.community-post-actions {
+  align-items: center;
+}
+
+.community-post-actions .ghost-button,
+.community-post-actions .community-post-delete {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .community-post-delete {

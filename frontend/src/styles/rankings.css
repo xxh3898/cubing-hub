@@ -57,6 +57,19 @@
   white-space: nowrap;
 }
 
+.rankings-row-rank {
+  color: #5b6f62;
+  font-weight: 700;
+}
+
+.rankings-row-event {
+  color: #385b73;
+}
+
+.rankings-row-time {
+  white-space: nowrap;
+}
+
 .rankings-pagination {
   display: flex;
   flex-wrap: wrap;

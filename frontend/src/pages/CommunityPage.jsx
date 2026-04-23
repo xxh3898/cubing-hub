@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
@@ -13,6 +13,7 @@ function formatCommunityDate(value) {
 }
 
 export default function CommunityPage() {
+  const navigate = useNavigate()
   const [selectedCategory, setSelectedCategory] = useState('ALL')
   const [keyword, setKeyword] = useState('')
   const [authorQuery, setAuthorQuery] = useState('')
@@ -110,6 +111,19 @@ export default function CommunityPage() {
     setReloadKey((current) => current + 1)
   }
 
+  const handlePostSelect = (postId) => {
+    navigate(`/community/${postId}`)
+  }
+
+  const handlePostKeyDown = (event, postId) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+
+    event.preventDefault()
+    handlePostSelect(postId)
+  }
+
   const pagePosts = postPage?.items ?? []
   const totalPages = postPage?.totalPages ?? 0
 
@@ -203,14 +217,24 @@ export default function CommunityPage() {
               </thead>
               <tbody>
                 {pagePosts.map((post) => (
-                  <tr key={post.id}>
-                    <td data-label="분류">{post.category === 'NOTICE' ? '공지' : '자유'}</td>
-                    <td data-label="제목" className="community-title-cell record-table-cell-primary">
-                      <Link to={`/community/${post.id}`}>{post.title}</Link>
+                  <tr
+                    key={post.id}
+                    className="community-post-row"
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`${post.title} 상세 보기`}
+                    onClick={() => handlePostSelect(post.id)}
+                    onKeyDown={(event) => handlePostKeyDown(event, post.id)}
+                  >
+                    <td data-label="분류" className="community-post-category">
+                      {post.category === 'NOTICE' ? '공지' : '자유'}
                     </td>
-                    <td data-label="작성자">{post.authorNickname}</td>
-                    <td data-label="조회">{post.viewCount}</td>
-                    <td data-label="작성일">{formatCommunityDate(post.createdAt)}</td>
+                    <td data-label="제목" className="community-title-cell record-table-cell-primary community-post-title">
+                      {post.title}
+                    </td>
+                    <td data-label="작성자" className="community-post-author">{post.authorNickname}</td>
+                    <td data-label="조회" className="community-post-views">{`조회 ${post.viewCount}`}</td>
+                    <td data-label="작성일" className="community-post-date">{formatCommunityDate(post.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

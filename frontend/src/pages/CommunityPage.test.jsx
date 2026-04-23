@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import CommunityPage from './CommunityPage.jsx'
 
@@ -30,10 +30,19 @@ function createPostPageResponse({
   }
 }
 
+function CommunityDetailStub() {
+  const { id } = useParams()
+
+  return <p>{`상세 페이지 ${id}`}</p>
+}
+
 function renderCommunityPage() {
   render(
-    <MemoryRouter>
-      <CommunityPage />
+    <MemoryRouter initialEntries={['/community']}>
+      <Routes>
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community/:id" element={<CommunityDetailStub />} />
+      </Routes>
     </MemoryRouter>,
   )
 }
@@ -66,6 +75,24 @@ describe('CommunityPage', () => {
     })
     expect(screen.getByLabelText('제목/본문 검색')).toHaveAttribute('maxLength', '100')
     expect(screen.getByLabelText('작성자 검색')).toHaveAttribute('maxLength', '50')
+  })
+
+  it('should_navigate_to_post_detail_when_post_row_is_clicked', async () => {
+    vi.mocked(getPosts).mockResolvedValue(
+      createPostPageResponse({
+        items: [
+          { id: 1, category: 'FREE', title: '큐브 연습법', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' },
+        ],
+      }),
+    )
+
+    renderCommunityPage()
+
+    const rowLink = await screen.findByRole('link', { name: '큐브 연습법 상세 보기' })
+
+    fireEvent.click(rowLink)
+
+    expect(await screen.findByText('상세 페이지 1')).toBeInTheDocument()
   })
 
   it('should_not_refetch_posts_repeatedly_when_search_filters_do_not_change', async () => {
