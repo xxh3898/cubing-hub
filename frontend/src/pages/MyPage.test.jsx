@@ -149,9 +149,11 @@ describe('MyPage', () => {
       })
     })
 
-    expect(mockSetAccessToken).toHaveBeenCalledWith('fresh-token')
-    expect(toast.success).toHaveBeenCalledWith('내 정보를 수정했습니다.')
-    expect(screen.queryByRole('dialog', { name: '계정 관리' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockSetAccessToken).toHaveBeenCalledWith('fresh-token')
+      expect(toast.success).toHaveBeenCalledWith('내 정보를 수정했습니다.')
+      expect(screen.queryByRole('dialog', { name: '계정 관리' })).not.toBeInTheDocument()
+    })
     expect(await screen.findAllByText('2x2x2')).not.toHaveLength(0)
   })
 
