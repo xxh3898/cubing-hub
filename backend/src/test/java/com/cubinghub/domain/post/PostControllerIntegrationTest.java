@@ -1,5 +1,7 @@
 package com.cubinghub.domain.post;
 
+import com.cubinghub.common.exception.CustomApiException;
+import static org.hamcrest.Matchers.allOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
@@ -165,7 +168,7 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     @Test
     @DisplayName("게시글 생성 요청이 유효하지 않으면 400을 반환한다")
     void should_return_bad_request_when_creating_post_with_invalid_request() throws Exception {
-        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "", "");
+        PostCreateRequest request = new PostCreateRequest(null, "", "");
 
         mockMvc.perform(post("/api/posts")
                         .header("Authorization", "Bearer " + authorAccessToken)
@@ -173,7 +176,12 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
+                .andExpect(jsonPath("$.message", allOf(
+                        containsString("잘못된 입력값입니다:"),
+                        containsString("카테고리는 필수입니다."),
+                        containsString("제목은 필수입니다."),
+                        containsString("내용은 필수입니다.")
+                )));
     }
 
     @Test
@@ -375,6 +383,30 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("게시글 이미지 업로드 중 저장소 문제가 발생하면 503을 반환한다")
+    void should_return_service_unavailable_when_post_image_upload_fails() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "이미지 게시글", "이미지가 포함된 본문");
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request",
+                "",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(request)
+        );
+        MockMultipartFile imagePart = new MockMultipartFile("images", "cube.jpg", MediaType.IMAGE_JPEG_VALUE, "cube-image".getBytes());
+
+        when(postImageStorageService.upload(any()))
+                .thenThrow(new CustomApiException("이미지 업로드 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE));
+
+        mockMvc.perform(multipart("/api/posts")
+                        .file(requestPart)
+                        .file(imagePart)
+                        .header("Authorization", "Bearer " + authorAccessToken))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("이미지 업로드 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요."));
+    }
+
+    @Test
     @DisplayName("작성자가 multipart 수정 요청으로 기존 이미지 일부를 유지하고 새 이미지를 추가할 수 있다")
     void should_update_post_with_retained_and_new_attachments_when_author_submits_multipart_request() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
@@ -439,6 +471,38 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
                         org.assertj.core.groups.Tuple.tuple("old-keep.png", 0),
                         org.assertj.core.groups.Tuple.tuple("new.webp", 1)
                 );
+    }
+
+    @Test
+    @DisplayName("게시글 수정 요청의 retainedAttachmentIds가 현재 첨부 목록과 맞지 않으면 400을 반환한다")
+    void should_return_bad_request_when_retained_attachment_ids_are_invalid() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+        PostAttachment retainedAttachment = postAttachmentRepository.save(PostAttachment.builder()
+                .post(savedPost)
+                .objectKey("community/posts/old-keep.png")
+                .imageUrl("https://cdn.example.com/community/posts/old-keep.png")
+                .originalFileName("old-keep.png")
+                .contentType(MediaType.IMAGE_PNG_VALUE)
+                .fileSizeBytes(12L)
+                .displayOrder(0)
+                .build());
+        entityManager.flush();
+        entityManager.clear();
+
+        PostUpdateRequest request = new PostUpdateRequest(
+                PostCategory.FREE,
+                "수정 후 제목",
+                "수정 후 본문",
+                java.util.List.of(retainedAttachment.getId(), 99999L)
+        );
+
+        mockMvc.perform(put("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("기존 첨부 이미지 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요."));
     }
 
     @Test

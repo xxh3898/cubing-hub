@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FeedbackAnswerUpdateRequest {
 
-    @NotBlank
+    @NotBlank(message = "답변은 필수입니다.")
     @Size(max = InputConstraints.FEEDBACK_ANSWER_MAX_LENGTH, message = "답변은 2000자 이하이어야 합니다.")
     private String answer;
 }

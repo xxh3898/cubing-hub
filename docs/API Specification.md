@@ -29,6 +29,7 @@
   - 권한 부족은 `403 Forbidden`
   - 리소스 없음은 `404 Not Found`
   - 중복/무결성 충돌은 `409 Conflict`
+  - 일시적인 외부 연동 장애는 `503 Service Unavailable`
 - 공통 응답 구조 사용 이유:
   - 프런트가 성공/실패를 같은 형태로 처리할 수 있게 하고, 메시지와 데이터 유무를 일관되게 다루기 위함이다.
 
@@ -51,6 +52,7 @@
 | `403` | 소유자/관리자 권한 부족 | `PostService.validateOwnershipOrAdmin` | 권한 없음 메시지 노출 |
 | `404` | 게시글 등 리소스를 찾을 수 없음 | `PostService.findPostById` | 목록 복귀 또는 안내 메시지 |
 | `409` | 중복 데이터 또는 무결성 충돌 | `GlobalExceptionHandler.handleDataIntegrityViolationException` | 중복 입력 수정 유도 |
+| `503` | 메일/S3 같은 외부 연동의 일시적 장애 | `AuthService`, `S3PostImageStorageService`, `UnavailablePostImageStorageService` | 잠시 후 재시도 안내 |
 | `500` | 서버 내부 오류 | `GlobalExceptionHandler.handleGenericException` | 재시도 안내 및 운영 로그 확인 |
 
 ## 5. 구현 API 목록
@@ -117,8 +119,9 @@
 
 - `400 Bad Request`
   - 이미 가입된 이메일이면 응답 메시지는 `이미 사용중인 이메일입니다.`
-  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 1분 뒤에 가능합니다.`
-  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.`
+  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
+- `503 Service Unavailable`
+  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
 
 #### Response
 
@@ -169,8 +172,9 @@
 #### 에러 계약
 
 - `400 Bad Request`
-  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 1분 뒤에 가능합니다.`
-  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.`
+  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
+- `503 Service Unavailable`
+  - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
 
 #### Response
 
@@ -633,6 +637,13 @@
 | --- | --- | --- |
 | `data.id` | Number | 생성된 게시글 ID |
 
+#### 실패 응답
+
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: ...` 형식을 사용하고, 게시글 작성에서는 `카테고리는 필수입니다.`, `제목은 필수입니다.`, `내용은 필수입니다.` 같은 사용자 문구를 반환한다.
+- `503 Service Unavailable`
+  - 이미지 업로드 저장소를 사용할 수 없으면 응답 메시지는 `이미지 업로드 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
+
 ### `GET /api/posts`
 
 - 설명: 게시글 목록을 조회한다.
@@ -727,6 +738,14 @@
 - 상태 코드: `200 OK`
 - `data`: `null`
 
+#### 실패 응답
+
+- `400 Bad Request`
+  - `retainedAttachmentIds`가 현재 첨부 목록과 맞지 않으면 응답 메시지는 `기존 첨부 이미지 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: ...` 형식을 사용하고, 게시글 수정에서는 `카테고리는 필수입니다.`, `제목은 필수입니다.`, `내용은 필수입니다.` 같은 사용자 문구를 반환한다.
+- `503 Service Unavailable`
+  - 새 이미지 업로드 중 저장소 문제가 발생하면 응답 메시지는 `이미지 업로드 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
+
 ### `DELETE /api/posts/{postId}`
 
 - 설명: 게시글을 삭제한다.
@@ -807,6 +826,11 @@
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | `data.id` | Number | 생성된 댓글 ID |
+
+#### 실패 응답
+
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: ...` 형식을 사용하고, 댓글 작성에서는 `댓글 내용은 필수입니다.` 같은 사용자 문구를 반환한다.
 
 ### `DELETE /api/posts/{postId}/comments/{commentId}`
 
@@ -897,6 +921,8 @@
 
 #### 실패 응답
 
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: ...` 형식을 사용하고, 피드백 작성에서는 `피드백 종류는 필수입니다.`, `제목은 필수입니다.`, `회신 이메일은 필수입니다.`, `올바른 이메일 형식이 아닙니다.`, `내용은 필수입니다.` 같은 사용자 문구를 반환한다.
 - `401 Unauthorized`
   - `Authorization` 헤더가 없거나 유효하지 않으면 응답 메시지는 `인증이 필요합니다.`
 
@@ -1007,6 +1033,11 @@
 | --- | --- | --- | --- |
 | `answer` | String | 예 | 관리자 답변 내용, 최대 2000자 |
 
+#### 실패 응답
+
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: 답변은 필수입니다.`
+
 ### `PATCH /api/admin/feedbacks/{feedbackId}/visibility`
 
 - 설명: 피드백 질문/답변 묶음의 공개 상태를 변경한다.
@@ -1043,6 +1074,11 @@
 | `question` | String | 예 | 내부 질문, 최대 500자 |
 | `answer` | String | 아니오 | 내부 답변, 최대 2000자 |
 
+#### 실패 응답
+
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: 질문은 필수입니다.`
+
 ### `GET /api/admin/memos/{memoId}`
 
 - 설명: 관리자 메모 상세를 조회한다.
@@ -1053,6 +1089,11 @@
 - 설명: 관리자 메모를 수정한다.
 - 인증: `ROLE_ADMIN`
 - Request Body: `POST /api/admin/memos`와 동일하다.
+
+#### 실패 응답
+
+- `400 Bad Request`
+  - validation 실패 시 응답 메시지는 `잘못된 입력값입니다: 질문은 필수입니다.`
 
 ### `DELETE /api/admin/memos/{memoId}`
 

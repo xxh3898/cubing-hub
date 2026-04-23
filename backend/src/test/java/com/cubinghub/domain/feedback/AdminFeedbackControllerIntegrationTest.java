@@ -117,6 +117,20 @@ class AdminFeedbackControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("should_return_bad_request_when_admin_submits_blank_feedback_answer")
+    void should_return_bad_request_when_admin_submits_blank_feedback_answer() throws Exception {
+        Feedback feedback = saveFeedback(submitter, FeedbackType.BUG, "빈 답변 대상");
+
+        mockMvc.perform(patch("/api/admin/feedbacks/{feedbackId}/answer", feedback.getId())
+                        .header("Authorization", "Bearer " + adminAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("answer", ""))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 답변은 필수입니다."));
+    }
+
+    @Test
     @DisplayName("should_return_bad_request_when_admin_publishes_unanswered_feedback")
     void should_return_bad_request_when_admin_publishes_unanswered_feedback() throws Exception {
         Feedback feedback = saveFeedback(submitter, FeedbackType.BUG, "미답변 공개 시도");

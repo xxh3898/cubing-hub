@@ -132,7 +132,7 @@ class AuthServiceTest {
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("인증번호 재요청은 1분 뒤에 가능합니다.");
+                .hasMessage("인증번호 재요청은 약 1분 뒤에 가능합니다.");
         verify(emailVerificationCodeGenerator, never()).generate();
     }
 
@@ -165,8 +165,10 @@ class AuthServiceTest {
         Throwable thrown = catchThrowable(() -> authService.requestEmailVerification(request));
 
         assertThat(thrown)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+                .isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(exception.getMessage()).isEqualTo("메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.");
         verify(emailVerificationStore).deleteCode(request.getEmail());
         verify(emailVerificationStore).deleteCooldown(request.getEmail());
     }

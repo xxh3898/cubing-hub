@@ -339,14 +339,14 @@ public class PostService {
         Set<Long> uniqueIds = new HashSet<>(retainedAttachmentIds);
 
         if (uniqueIds.size() != retainedAttachmentIds.size()) {
-            throw new IllegalArgumentException("유지할 첨부 이미지 정보가 올바르지 않습니다.");
+            throw new IllegalArgumentException("기존 첨부 이미지 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
         }
 
         List<PostAttachment> retainedAttachments = new ArrayList<>(retainedAttachmentIds.size());
         for (Long retainedAttachmentId : retainedAttachmentIds) {
             PostAttachment attachment = attachmentMap.get(retainedAttachmentId);
             if (attachment == null) {
-                throw new IllegalArgumentException("유지할 첨부 이미지 정보가 올바르지 않습니다.");
+                throw new IllegalArgumentException("기존 첨부 이미지 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
             }
             retainedAttachments.add(attachment);
         }

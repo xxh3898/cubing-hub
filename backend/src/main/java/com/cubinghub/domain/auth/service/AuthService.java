@@ -45,6 +45,7 @@ public class AuthService {
     private final EmailVerificationCodeGenerator emailVerificationCodeGenerator;
     private final VerificationEmailSender verificationEmailSender;
     private final AuthEmailVerificationProperties authEmailVerificationProperties;
+    private static final String MAIL_SERVICE_UNAVAILABLE_MESSAGE = "메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.";
 
     public void requestEmailVerification(EmailVerificationRequest request) {
         String email = request.getEmail();
@@ -66,7 +67,7 @@ public class AuthService {
             emailVerificationStore.deleteCode(email);
             emailVerificationStore.deleteCooldown(email);
             log.error("이메일 인증 메일 발송 실패 - email: {}", email, e);
-            throw new IllegalStateException("인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            throw new CustomApiException(MAIL_SERVICE_UNAVAILABLE_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
         }
 
         log.info("이메일 인증번호 발송 완료: {}", email);
@@ -93,7 +94,7 @@ public class AuthService {
             passwordResetStore.deleteCode(email);
             passwordResetStore.deleteCooldown(email);
             log.error("비밀번호 재설정 메일 발송 실패 - email: {}", email, e);
-            throw new IllegalStateException("비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            throw new CustomApiException(MAIL_SERVICE_UNAVAILABLE_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
         }
 
         log.info("비밀번호 재설정 인증번호 발송 완료: {}", email);
@@ -299,7 +300,11 @@ public class AuthService {
     }
 
     private String resendCooldownMessage() {
-        long cooldownMinutes = Math.max(1L, authEmailVerificationProperties.getResendCooldownMs() / 60000L);
-        return "인증번호 재요청은 " + cooldownMinutes + "분 뒤에 가능합니다.";
+        long cooldownMinutes = Math.max(1L, (authEmailVerificationProperties.getResendCooldownMs() + 59999L) / 60000L);
+        if (cooldownMinutes == 1L) {
+            return "인증번호 재요청은 약 1분 뒤에 가능합니다.";
+        }
+
+        return "인증번호 재요청은 약 " + cooldownMinutes + "분 뒤에 가능합니다.";
     }
 }

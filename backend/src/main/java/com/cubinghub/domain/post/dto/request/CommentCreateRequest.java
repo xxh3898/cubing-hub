@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CommentCreateRequest {
 
-    @NotBlank
-    @Size(max = 500)
+    @NotBlank(message = "댓글 내용은 필수입니다.")
+    @Size(max = 500, message = "댓글은 500자 이하이어야 합니다.")
     private String content;
 }

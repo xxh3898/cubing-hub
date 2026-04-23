@@ -132,6 +132,21 @@ class AdminMemoControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("should_return_bad_request_when_admin_memo_question_is_blank")
+    void should_return_bad_request_when_admin_memo_question_is_blank() throws Exception {
+        mockMvc.perform(post("/api/admin/memos")
+                        .header("Authorization", "Bearer " + adminAccessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "question", "",
+                                "answer", "답변"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 질문은 필수입니다."));
+    }
+
+    @Test
     @DisplayName("should_delete_admin_memo_when_admin_requests_deletion")
     void should_delete_admin_memo_when_admin_requests_deletion() throws Exception {
         AdminMemo memo = adminMemoRepository.save(AdminMemo.builder()

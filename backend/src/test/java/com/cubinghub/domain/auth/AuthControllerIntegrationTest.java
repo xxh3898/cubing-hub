@@ -3,6 +3,7 @@ package com.cubinghub.domain.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
@@ -121,7 +122,24 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("인증번호 재요청은 1분 뒤에 가능합니다."))
+                .andExpect(jsonPath("$.message").value("인증번호 재요청은 약 1분 뒤에 가능합니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("인증 메일 전송 중 SMTP 문제가 발생하면 503을 반환한다")
+    void should_return_service_unavailable_when_email_verification_mail_send_fails() throws Exception {
+        String email = newEmail("verify-smtp-fail");
+        org.mockito.Mockito.doThrow(new IllegalStateException("smtp error"))
+                .when(verificationEmailSender)
+                .sendVerificationCode(anyString(), anyString());
+
+        mockMvc.perform(post("/api/auth/email-verification/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요."))
                 .andExpect(jsonPath("$.data").value(nullValue()));
     }
 
@@ -176,6 +194,24 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
         assertThat(storedCode).matches("\\d{6}");
         assertThat(passwordResetStore.isOnCooldown(email)).isTrue();
         verify(verificationEmailSender).sendPasswordResetCode(email, storedCode);
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 메일 전송 중 SMTP 문제가 발생하면 503을 반환한다")
+    void should_return_service_unavailable_when_password_reset_mail_send_fails() throws Exception {
+        String email = newEmail("password-reset-smtp-fail");
+        saveActiveUser(email, newNickname("ResetUser"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("smtp error"))
+                .when(verificationEmailSender)
+                .sendPasswordResetCode(anyString(), anyString());
+
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EmailVerificationRequest(email))))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
     }
 
     @Test

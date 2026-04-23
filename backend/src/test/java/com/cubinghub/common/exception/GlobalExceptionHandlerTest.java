@@ -85,7 +85,7 @@ class GlobalExceptionHandlerTest {
                         .content(objectMapper.writeValueAsString(new ValidationRequest(""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: name: name is required"))
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: name is required"))
                 .andExpect(jsonPath("$.data").isEmpty());
     }
 

@@ -162,7 +162,7 @@ class CommentControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(new CommentCreateRequest(""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 댓글 내용은 필수입니다."));
     }
 
     @Test

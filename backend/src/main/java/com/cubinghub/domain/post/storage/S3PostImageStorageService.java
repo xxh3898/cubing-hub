@@ -1,11 +1,13 @@
 package com.cubinghub.domain.post.storage;
 
+import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.config.PostImageStorageProperties;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -15,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @RequiredArgsConstructor
 public class S3PostImageStorageService implements PostImageStorageService {
+    private static final String IMAGE_UPLOAD_UNAVAILABLE_MESSAGE = "이미지 업로드 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.";
 
     private final S3Client s3Client;
     private final PostImageStorageProperties properties;
@@ -43,8 +46,8 @@ public class S3PostImageStorageService implements PostImageStorageService {
 
         try {
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-        } catch (IOException ex) {
-            throw new IllegalStateException("게시글 이미지 업로드에 실패했습니다.", ex);
+        } catch (IOException | RuntimeException ex) {
+            throw new CustomApiException(IMAGE_UPLOAD_UNAVAILABLE_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
         }
 
         return new StoredPostImage(

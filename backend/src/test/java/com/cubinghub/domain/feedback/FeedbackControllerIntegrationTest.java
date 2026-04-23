@@ -1,7 +1,6 @@
 package com.cubinghub.domain.feedback;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -131,7 +130,7 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("잘못된 입력값입니다")));
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 올바른 이메일 형식이 아닙니다."));
     }
 
     @Test
@@ -150,7 +149,7 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", containsString("내용은 2000자 이하이어야 합니다.")));
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다: 내용은 2000자 이하이어야 합니다."));
     }
 
     @Test

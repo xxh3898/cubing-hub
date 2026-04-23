@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         String errorMessage = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .map(error -> error.getDefaultMessage())
                 .reduce((msg1, msg2) -> msg1 + ", " + msg2)
                 .orElse("잘못된 입력값입니다.");
         log.warn("검증 실패 - status: {}, request: {}, message: {}",

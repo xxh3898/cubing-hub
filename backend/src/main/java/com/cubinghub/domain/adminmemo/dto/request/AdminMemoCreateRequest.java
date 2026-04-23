@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AdminMemoCreateRequest {
 
-    @NotBlank
+    @NotBlank(message = "질문은 필수입니다.")
     @Size(max = InputConstraints.ADMIN_MEMO_QUESTION_MAX_LENGTH, message = "질문은 500자 이하이어야 합니다.")
     private String question;
 
