@@ -62,7 +62,11 @@ class DiscordFeedbackNotifierTest {
         String content = payload.get("content").asText();
         assertThat(content).contains("[새 피드백]");
         assertThat(content).contains("feedbackId: 1");
+        assertThat(content).contains("authorUserId: 10");
+        assertThat(content).contains("authorNickname: FeedbackUser");
         assertThat(content).contains("본문이 길어 일부만 표시했습니다. 전체 내용은 DB에서 feedbackId 기준으로 확인하세요.");
+        assertThat(content).doesNotContain("reply@cubinghub.com");
+        assertThat(content).doesNotContain("feedback@cubinghub.com");
         assertThat(content.length()).isLessThanOrEqualTo(2000);
     }
 

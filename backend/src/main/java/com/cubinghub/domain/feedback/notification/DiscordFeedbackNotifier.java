@@ -102,8 +102,7 @@ public class DiscordFeedbackNotifier {
 
     private String buildDiscordMessage(Feedback feedback) {
         String title = abbreviate(feedback.getTitle(), 100);
-        String replyEmail = abbreviate(feedback.getReplyEmail(), 120);
-        String author = abbreviate(feedback.getUser().getNickname() + " <" + feedback.getUser().getEmail() + ">", 120);
+        String authorNickname = abbreviate(feedback.getUser().getNickname(), 120);
         String createdAt = feedback.getCreatedAt() == null ? "-" : feedback.getCreatedAt().format(CREATED_AT_FORMATTER);
 
         String header = """
@@ -111,16 +110,16 @@ public class DiscordFeedbackNotifier {
                 feedbackId: %d
                 type: %s
                 title: %s
-                replyEmail: %s
-                author: %s
+                authorUserId: %d
+                authorNickname: %s
                 createdAt: %s
                 content:
                 """.formatted(
                 feedback.getId(),
                 feedback.getType().name(),
                 title,
-                replyEmail,
-                author,
+                feedback.getUser().getId(),
+                authorNickname,
                 createdAt
         );
 
