@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostService {
@@ -97,10 +99,12 @@ public class PostService {
         );
     }
 
+    @Transactional
     public PostDetailResponse getPost(Long postId) {
         return getPost(postId, null);
     }
 
+    @Transactional
     public PostDetailResponse getPost(Long postId, String email) {
         Post post = findPostWithUserById(postId);
         registerViewIfNeeded(post, email);
@@ -188,11 +192,11 @@ public class PostService {
             return;
         }
 
-        if (postViewRepository.existsByPostIdAndUserId(post.getId(), currentUser.getId())) {
-            return;
-        }
-
         try {
+            if (postViewRepository.existsByPostIdAndUserId(post.getId(), currentUser.getId())) {
+                return;
+            }
+
             postViewRepository.save(PostView.builder()
                     .post(post)
                     .user(currentUser)
@@ -200,6 +204,8 @@ public class PostService {
             post.increaseViewCount();
         } catch (DataIntegrityViolationException ignored) {
             // 같은 사용자의 동시 요청 경합에서는 unique 제약이 최종 방어선이다.
+        } catch (RuntimeException ex) {
+            log.error("게시글 조회수 기록 실패 - postId: {}, userId: {}", post.getId(), currentUser.getId(), ex);
         }
     }
 

@@ -206,6 +206,28 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("게시글 상세 조회 중 조회수 기록이 실패해도 상세 응답은 반환한다")
+    void should_return_post_detail_when_view_tracking_throws_runtime_exception() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User viewer = TestFixtures.createUser(2L, "viewer@cubinghub.com", "Viewer", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(postRepository.findWithUserById(post.getId())).thenReturn(Optional.of(post));
+        when(userRepository.findByEmail(viewer.getEmail())).thenReturn(Optional.of(viewer));
+        when(postViewRepository.existsByPostIdAndUserId(post.getId(), viewer.getId())).thenReturn(false);
+        when(postViewRepository.save(any(PostView.class))).thenThrow(new RuntimeException("write failed"));
+
+        PostDetailResponse response = postService.getPost(post.getId(), viewer.getEmail());
+
+        assertThat(post.getViewCount()).isZero();
+        assertThat(response.getId()).isEqualTo(post.getId());
+        assertThat(response.getTitle()).isEqualTo("제목");
+        assertThat(response.getAuthorNickname()).isEqualTo("Author");
+        assertThat(response.getViewCount()).isZero();
+        verify(postViewRepository).save(any(PostView.class));
+    }
+
+    @Test
     @DisplayName("게시글 상세 조회 시 비로그인 사용자는 조회수를 증가시키지 않는다")
     void should_not_increase_view_count_when_anonymous_user_views_post() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);

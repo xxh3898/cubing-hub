@@ -309,6 +309,31 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("로그인 사용자가 첨부 이미지가 있는 게시글 상세를 조회하면 첨부 목록과 함께 응답한다")
+    void should_return_post_detail_with_attachments_when_authenticated_user_requests_post_detail() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "이미지 제목", "이미지 본문");
+        postAttachmentRepository.save(PostAttachment.builder()
+                .post(savedPost)
+                .objectKey("community/posts/detail.png")
+                .imageUrl("https://cdn.example.com/community/posts/detail.png")
+                .originalFileName("detail.png")
+                .contentType(MediaType.IMAGE_PNG_VALUE)
+                .fileSizeBytes(1234L)
+                .displayOrder(0)
+                .build());
+
+        mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글을 조회했습니다."))
+                .andExpect(jsonPath("$.data.viewCount").value(1))
+                .andExpect(jsonPath("$.data.attachments.length()").value(1))
+                .andExpect(jsonPath("$.data.attachments[0].imageUrl").value("https://cdn.example.com/community/posts/detail.png"))
+                .andExpect(jsonPath("$.data.attachments[0].originalFileName").value("detail.png"));
+    }
+
+    @Test
     @DisplayName("존재하지 않는 게시글 상세 조회는 404를 반환한다")
     void should_return_not_found_when_post_detail_does_not_exist() throws Exception {
         mockMvc.perform(get("/api/posts/{postId}", 99999L)
