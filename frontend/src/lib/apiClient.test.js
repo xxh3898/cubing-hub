@@ -22,6 +22,18 @@ afterEach(() => {
   vi.resetModules()
 })
 
+function getHeaderValue(headers, name) {
+  if (!headers) {
+    return undefined
+  }
+
+  if (typeof headers.get === 'function') {
+    return headers.get(name)
+  }
+
+  return headers[name] ?? headers[name.toLowerCase()]
+}
+
 describe('apiClient auth refresh flow', () => {
   it('should_share_single_refresh_request_when_refresh_is_requested_concurrently', async () => {
     const { mock, getStoredAccessToken, refreshAccessToken } = await setupApiClientHarness()
@@ -117,6 +129,26 @@ describe('apiClient auth refresh flow', () => {
     })
 
     expect(getStoredAccessToken()).toBeNull()
+
+    mock.restore()
+  })
+
+  it('should_not_force_json_content_type_when_form_data_is_sent', async () => {
+    const { apiClient, mock } = await setupApiClientHarness()
+    const formData = new FormData()
+    formData.append('request', new Blob([JSON.stringify({ title: '이미지 글' })], { type: 'application/json' }))
+    formData.append('images', new File(['image-data'], 'cube.jpg', { type: 'image/jpeg' }))
+
+    mock.onPost('/api/posts').reply((config) => [
+      200,
+      {
+        contentType: getHeaderValue(config.headers, 'Content-Type') ?? null,
+      },
+    ])
+
+    const response = await apiClient.post('/api/posts', formData)
+
+    expect(response.data.contentType).not.toBe('application/json')
 
     mock.restore()
   })

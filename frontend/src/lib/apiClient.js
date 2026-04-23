@@ -15,6 +15,21 @@ const apiClient = axios.create({
 
 let refreshPromise = null
 
+function clearContentTypeHeader(headers) {
+  if (!headers) {
+    return
+  }
+
+  if (typeof headers.delete === 'function') {
+    headers.delete('Content-Type')
+    headers.delete('content-type')
+    return
+  }
+
+  delete headers['Content-Type']
+  delete headers['content-type']
+}
+
 function shouldSkipRefresh(config) {
   const requestUrl = config?.url ?? ''
 
@@ -55,6 +70,11 @@ export async function refreshAccessToken() {
 }
 
 apiClient.interceptors.request.use((config) => {
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers = config.headers ?? {}
+    clearContentTypeHeader(config.headers)
+  }
+
   const accessToken = getStoredAccessToken()
 
   if (accessToken) {
