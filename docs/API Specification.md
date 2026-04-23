@@ -451,6 +451,7 @@
 - 상태: V2 hybrid
 - `nickname`이 비어 있고 Redis ready marker가 있으면 Redis ZSET read model을 사용한다.
 - `nickname` 검색 요청 또는 Redis 미준비 상태는 MySQL `user_pbs` QueryDSL 경로로 fallback 한다.
+- `nickname` 검색 fallback 경로는 MySQL 8 window function(`ROW_NUMBER() OVER (...)`)을 전제로 한다.
 - 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`를 유지한다.
 - `nickname` 검색 결과는 필터된 집합 안의 재계산 순위가 아니라 전체 랭킹 기준 순위를 유지한다.
 - 응답 형식, 검색 계약, 서버 페이지네이션은 V1과 동일하게 유지한다.

@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | Frontend | AWS S3, AWS CloudFront | 정적 자산 호스팅 및 CDN 배포 |
 | Backend | AWS EC2, Docker Compose, Nginx, Spring Boot, Redis | API 실행, HTTPS reverse proxy, 토큰/캐시 처리 |
-| Data | AWS RDS (MySQL) | 영속 데이터 저장 |
+| Data | AWS RDS (MySQL 8) | 영속 데이터 저장 |
 | Delivery | GitHub Actions, Docker Hub | CI/CD 자동화 |
 
 ## 3. 서버 구성
@@ -20,7 +20,7 @@
 ### Local
 
 - `docker-compose.yml`
-  - `mysql`
+  - `mysql` (`mysql:8.0`)
   - `redis`
   - `prometheus`
   - `grafana`
@@ -33,6 +33,8 @@
   - API 연동 확인
   - 모니터링 환경 로컬 재현
   - Redis 리팩토링 전/후 성능 기준선 재현
+- 제약
+  - 랭킹 `nickname` 검색 fallback 구현은 MySQL 8 window function을 사용하므로 Local/Test/Production DB 기준은 MySQL 8을 유지한다.
 
 ### Test
 
