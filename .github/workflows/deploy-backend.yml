@@ -97,8 +97,12 @@ jobs:
           ssh "$EC2_USER@$EC2_HOST" <<'EOF'
             set -euo pipefail
             cd /opt/cubing-hub/infra/docker
-            docker compose --env-file .env -f docker-compose.prod.yml pull
+            docker system df || true
+            docker builder prune -af || true
+            docker image prune -af || true
+            docker compose --env-file .env -f docker-compose.prod.yml pull app
             docker compose --env-file .env -f docker-compose.prod.yml up -d
+            docker image prune -af || true
             docker compose --env-file .env -f docker-compose.prod.yml ps
           EOF
 

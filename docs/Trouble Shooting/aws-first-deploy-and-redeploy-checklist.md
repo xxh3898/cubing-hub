@@ -66,7 +66,8 @@
 
 - backend jar 빌드
 - Docker Hub image push
-- EC2에서 `docker compose pull && up -d`
+- EC2에서 `docker builder prune -af && docker image prune -af`
+- EC2에서 `docker compose pull app && up -d`
 - `docker compose ps`
 - `docker compose logs --tail=100 app`
 - `curl -vk https://api.cubing-hub.com/actuator/health`
@@ -85,6 +86,7 @@
 | --- | --- | --- |
 | 프런트가 `localhost:8080`으로 요청 | `VITE_API_BASE_URL` 없이 build | `VITE_API_BASE_URL=https://api.cubing-hub.com npm run build` 후 재배포 |
 | EC2에서 backend image pull 실패 | Docker Hub image에 `linux/amd64` manifest 없음 | `docker buildx build --platform linux/amd64 ... --push` 또는 multi-arch push |
+| EC2에서 `no space left on device`로 backend image extract 실패 | root 디스크에 unused Docker image/cache가 누적된 상태에서 새 image pull | `docker builder prune -af && docker image prune -af` 후 `docker compose pull app && up -d` |
 | `api.cubing-hub.com` 연결 거부 | Nginx 컨테이너 재시작 반복 | Nginx 로그 확인 후 SSL 보조 파일 생성 |
 | `options-ssl-nginx.conf` 누락 | Let's Encrypt 보조 파일 미생성 | `/etc/letsencrypt/options-ssl-nginx.conf` 생성 |
 | `ssl-dhparams.pem` 누락 | dhparams 파일 미생성 | `openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048` 실행 |

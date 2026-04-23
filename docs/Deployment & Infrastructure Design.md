@@ -222,7 +222,7 @@
 11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
 12. 실제 운영 배포는 현재 수동으로 수행한다.
 13. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
-14. backend는 Docker Hub image push 후 EC2에서 `docker compose pull && up -d`로 반영한다.
+14. backend는 Docker Hub image push 후 EC2에서 unused Docker artifact를 정리한 뒤 `docker compose pull app && up -d`로 반영한다.
 15. `deploy-backend.yml`은 `Backend CI` 성공 후 Docker Hub push와 EC2 deploy를 자동화한다.
 16. `deploy-frontend.yml`은 `Frontend CI` 성공 후 S3 sync와 CloudFront invalidation을 자동화한다.
 
