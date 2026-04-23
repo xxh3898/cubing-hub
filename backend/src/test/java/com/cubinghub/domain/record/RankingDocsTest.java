@@ -81,7 +81,7 @@ class RankingDocsTest extends RestDocsIntegrationTest {
                 .andDo(document("ranking/list",
                         queryParameters(
                                 parameterWithName("eventType").description("조회할 WCA 종목 코드 (e.g. WCA_333)"),
-                                parameterWithName("nickname").optional().description("닉네임 포함 검색어"),
+                                parameterWithName("nickname").optional().description("닉네임 포함 검색어 (최대 50자)"),
                                 parameterWithName("page").optional().description("1부터 시작하는 페이지 번호 (기본값 1)"),
                                 parameterWithName("size").optional().description("페이지 크기 (기본값 25, 최대 100)")
                         ),
@@ -90,7 +90,7 @@ class RankingDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("랭킹 페이지 응답"),
                                 fieldWithPath("data.items").type(JsonFieldType.ARRAY).description("현재 페이지 랭킹 목록"),
-                                fieldWithPath("data.items[].rank").description("랭킹 순위 (페이지 offset 포함, 1부터 시작)"),
+                                fieldWithPath("data.items[].rank").description("검색 결과에서도 유지되는 전체 랭킹 순위 (1부터 시작)"),
                                 fieldWithPath("data.items[].nickname").description("사용자 닉네임"),
                                 fieldWithPath("data.items[].eventType").description("WCA 종목 코드"),
                                 fieldWithPath("data.items[].timeMs").description("PB 기준 기록 시간 (밀리초)"),

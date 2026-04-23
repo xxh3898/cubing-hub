@@ -1,5 +1,6 @@
 package com.cubinghub.domain.record.service;
 
+import com.cubinghub.common.validation.InputConstraints;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
@@ -37,6 +38,7 @@ public class RecordService {
 
     public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size) {
         validateRankingPageRequest(page, size);
+        validateRankingSearchRequest(nickname);
 
         if (!StringUtils.hasText(nickname) && rankingRedisService.isReady(eventType)) {
             return rankingRedisService.getRankings(eventType, page, size);
@@ -52,12 +54,10 @@ public class RecordService {
                 PageRequest.of(page - 1, size)
         );
         List<RankingResponse> responses = new ArrayList<>(rankings.getNumberOfElements());
-        int startRank = (page - 1) * size;
 
-        for (int i = 0; i < rankings.getContent().size(); i++) {
-            RankingQueryResult ranking = rankings.getContent().get(i);
+        for (RankingQueryResult ranking : rankings.getContent()) {
             responses.add(new RankingResponse(
-                    startRank + i + 1,
+                    ranking.getRank(),
                     ranking.getNickname(),
                     ranking.getEventType(),
                     ranking.getTimeMs()
@@ -201,6 +201,16 @@ public class RecordService {
         }
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("size는 1 이상 100 이하여야 합니다.");
+        }
+    }
+
+    private void validateRankingSearchRequest(String nickname) {
+        if (!StringUtils.hasText(nickname)) {
+            return;
+        }
+
+        if (nickname.trim().length() > InputConstraints.RANKING_NICKNAME_SEARCH_MAX_LENGTH) {
+            throw new IllegalArgumentException("닉네임 검색어는 50자 이하여야 합니다.");
         }
     }
 

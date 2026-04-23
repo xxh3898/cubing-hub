@@ -89,11 +89,22 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
-                .andExpect(jsonPath("$.data.items[0].rank").value(1))
+                .andExpect(jsonPath("$.data.items[0].rank").value(2))
                 .andExpect(jsonPath("$.data.items[0].nickname").value("AlphaCube"))
                 .andExpect(jsonPath("$.data.items[0].timeMs").value(12000))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.totalPages").value(1));
+    }
+
+    @Test
+    @DisplayName("랭킹 조회에서 닉네임 검색어가 너무 길면 400을 반환한다")
+    void should_return_bad_request_when_ranking_nickname_query_exceeds_max_length() throws Exception {
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_333.name())
+                        .param("nickname", "a".repeat(51))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("닉네임 검색어는 50자 이하여야 합니다.")));
     }
 
     @Test

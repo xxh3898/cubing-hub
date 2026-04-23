@@ -504,13 +504,13 @@ class RecordServiceTest {
     }
 
     @Test
-    @DisplayName("랭킹 조회는 페이지 offset을 반영해 순번을 부여한다")
-    void should_assign_offset_rank_when_rankings_are_requested_with_pagination() {
+    @DisplayName("랭킹 조회는 저장소가 반환한 실제 순위를 그대로 응답에 담는다")
+    void should_return_global_rank_when_rankings_are_requested_with_pagination() {
         when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq("a"), eq(PageRequest.of(1, 2))))
                 .thenReturn(new PageImpl<>(
                         List.of(
-                                new RankingQueryResult("Alpha", EventType.WCA_333, 9800),
-                                new RankingQueryResult("Beta", EventType.WCA_333, 10100)
+                                new RankingQueryResult(3, "Alpha", EventType.WCA_333, 9800),
+                                new RankingQueryResult(4, "Beta", EventType.WCA_333, 10100)
                         ),
                         PageRequest.of(1, 2),
                         5
@@ -560,7 +560,7 @@ class RecordServiceTest {
         when(rankingRedisService.isReady(EventType.WCA_333)).thenReturn(false);
         when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq(null), eq(PageRequest.of(0, 25))))
                 .thenReturn(new PageImpl<>(
-                        List.of(new RankingQueryResult("Alpha", EventType.WCA_333, 9800)),
+                        List.of(new RankingQueryResult(1, "Alpha", EventType.WCA_333, 9800)),
                         PageRequest.of(0, 25),
                         1
                 ));
