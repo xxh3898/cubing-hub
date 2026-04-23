@@ -5,6 +5,7 @@ import com.cubinghub.domain.post.entity.PostCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,4 +25,10 @@ public class PostUpdateRequest {
     @NotBlank
     @Size(max = InputConstraints.POST_CONTENT_MAX_LENGTH, message = "내용은 2000자 이하이어야 합니다.")
     private String content;
+
+    private List<Long> retainedAttachmentIds;
+
+    public PostUpdateRequest(PostCategory category, String title, String content) {
+        this(category, title, content, null);
+    }
 }

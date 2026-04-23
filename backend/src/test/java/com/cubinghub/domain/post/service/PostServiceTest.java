@@ -3,10 +3,14 @@ package com.cubinghub.domain.post.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.config.PostImageStorageProperties;
 import com.cubinghub.domain.post.dto.request.PostCreateRequest;
 import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
 import com.cubinghub.domain.post.dto.response.PostDetailResponse;
@@ -14,8 +18,13 @@ import com.cubinghub.domain.post.dto.response.PostListItemResponse;
 import com.cubinghub.domain.post.dto.response.PostPageResponse;
 import com.cubinghub.domain.post.entity.Post;
 import com.cubinghub.domain.post.entity.PostCategory;
+import com.cubinghub.domain.post.entity.PostView;
+import com.cubinghub.domain.post.repository.CommentRepository;
+import com.cubinghub.domain.post.repository.PostAttachmentRepository;
 import com.cubinghub.domain.post.repository.PostRepository;
 import com.cubinghub.domain.post.repository.PostSearchResult;
+import com.cubinghub.domain.post.repository.PostViewRepository;
+import com.cubinghub.domain.post.storage.PostImageStorageService;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -42,11 +51,34 @@ class PostServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private CommentRepository commentRepository;
+
+    @Mock
+    private PostAttachmentRepository postAttachmentRepository;
+
+    @Mock
+    private PostViewRepository postViewRepository;
+
+    @Mock
+    private PostImageStorageService postImageStorageService;
+
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        postService = new PostService(postRepository, userRepository);
+        PostImageStorageProperties properties = new PostImageStorageProperties();
+        postService = new PostService(
+                postRepository,
+                commentRepository,
+                postAttachmentRepository,
+                postViewRepository,
+                userRepository,
+                postImageStorageService,
+                properties
+        );
+
+        lenient().when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(anyLong())).thenReturn(List.of());
     }
 
     @Test
@@ -153,8 +185,29 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 상세 조회 시 조회수를 증가시키고 응답으로 매핑한다")
-    void should_increase_view_count_and_return_detail_response_when_post_exists() {
+    @DisplayName("게시글 상세 조회 시 로그인 사용자의 첫 조회만 조회수를 증가시키고 응답으로 매핑한다")
+    void should_increase_view_count_once_when_authenticated_user_views_post_for_first_time() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User viewer = TestFixtures.createUser(2L, "viewer@cubinghub.com", "Viewer", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(postRepository.findWithUserById(post.getId())).thenReturn(Optional.of(post));
+        when(userRepository.findByEmail(viewer.getEmail())).thenReturn(Optional.of(viewer));
+        when(postViewRepository.existsByPostIdAndUserId(post.getId(), viewer.getId())).thenReturn(false);
+
+        PostDetailResponse response = postService.getPost(post.getId(), viewer.getEmail());
+
+        assertThat(post.getViewCount()).isEqualTo(1);
+        assertThat(response.getId()).isEqualTo(post.getId());
+        assertThat(response.getTitle()).isEqualTo("제목");
+        assertThat(response.getAuthorNickname()).isEqualTo("Author");
+        assertThat(response.getViewCount()).isEqualTo(1);
+        verify(postViewRepository).save(any(PostView.class));
+    }
+
+    @Test
+    @DisplayName("게시글 상세 조회 시 비로그인 사용자는 조회수를 증가시키지 않는다")
+    void should_not_increase_view_count_when_anonymous_user_views_post() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
         Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
 
@@ -162,11 +215,9 @@ class PostServiceTest {
 
         PostDetailResponse response = postService.getPost(post.getId());
 
-        assertThat(post.getViewCount()).isEqualTo(1);
-        assertThat(response.getId()).isEqualTo(post.getId());
-        assertThat(response.getTitle()).isEqualTo("제목");
-        assertThat(response.getAuthorNickname()).isEqualTo("Author");
-        assertThat(response.getViewCount()).isEqualTo(1);
+        assertThat(post.getViewCount()).isZero();
+        assertThat(response.getViewCount()).isZero();
+        verify(postViewRepository, never()).save(any(PostView.class));
     }
 
     @Test

@@ -5,6 +5,8 @@ import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
 import com.cubinghub.domain.post.entity.Post;
 import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.post.repository.PostRepository;
+import com.cubinghub.domain.post.storage.PostImageStorageService;
+import com.cubinghub.domain.post.storage.StoredPostImage;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.domain.user.entity.UserRole;
@@ -16,17 +18,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.delete;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
+import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.multipart;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.post;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.put;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
@@ -34,7 +41,9 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.requestF
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.pathParameters;
+import static org.springframework.restdocs.request.RequestDocumentation.partWithName;
 import static org.springframework.restdocs.request.RequestDocumentation.queryParameters;
+import static org.springframework.restdocs.request.RequestDocumentation.requestParts;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +60,9 @@ class PostDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
+    private PostImageStorageService postImageStorageService;
 
     private User authorUser;
     private User otherUser;
@@ -85,6 +97,49 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("category").description("게시판 카테고리 (`NOTICE`, `FREE`, NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("게시글 제목"),
                                 fieldWithPath("content").description("게시글 본문")
+                        ),
+                        responseFields(
+                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
+                                fieldWithPath("data.id").description("생성된 게시글 ID")
+                        )
+                ));
+    }
+
+    @Test
+    @DisplayName("인증된 사용자는 multipart 요청으로 이미지 첨부 게시글을 생성할 수 있다")
+    void should_create_post_with_images_when_authenticated_user_submits_valid_multipart_request() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "이미지 게시글", "게시글 본문입니다.");
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request",
+                "",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(request)
+        );
+        MockMultipartFile imagePart = new MockMultipartFile("images", "cube.jpg", MediaType.IMAGE_JPEG_VALUE, "cube-image".getBytes());
+
+        when(postImageStorageService.upload(any())).thenReturn(
+                new StoredPostImage(
+                        "community/posts/cube.jpg",
+                        "https://cdn.example.com/community/posts/cube.jpg",
+                        "cube.jpg",
+                        MediaType.IMAGE_JPEG_VALUE,
+                        (long) imagePart.getBytes().length
+                )
+        );
+
+        mockMvc.perform(multipart("/api/posts")
+                        .file(requestPart)
+                        .file(imagePart)
+                        .header("Authorization", "Bearer " + authorAccessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("게시글이 생성되었습니다."))
+                .andDo(document("post/create-multipart",
+                        requestParts(
+                                partWithName("request").description("게시글 생성 JSON 데이터"),
+                                partWithName("images").description("첨부 이미지 파일 배열 (jpg/jpeg/png/webp, 최대 5장)").optional()
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
@@ -203,8 +258,8 @@ class PostDocsTest extends RestDocsIntegrationTest {
     }
 
     @Test
-    @DisplayName("게시글 상세 조회는 공개되며 조회 시 조회수가 증가한다")
-    void should_increase_view_count_when_post_detail_is_requested() throws Exception {
+    @DisplayName("게시글 상세 조회는 공개되며 첨부 이미지 목록을 함께 반환한다")
+    void should_return_attachments_when_post_detail_is_requested() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "상세 제목", "상세 본문");
 
         ResultActions result = mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
@@ -217,7 +272,9 @@ class PostDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data.title").value("상세 제목"))
                 .andExpect(jsonPath("$.data.content").value("상세 본문"))
                 .andExpect(jsonPath("$.data.authorNickname").value("Author"))
-                .andExpect(jsonPath("$.data.viewCount").value(1))
+                .andExpect(jsonPath("$.data.viewCount").value(0))
+                .andExpect(jsonPath("$.data.attachments").isArray())
+                .andExpect(jsonPath("$.data.attachments.length()").value(0))
                 .andDo(document("post/detail",
                         pathParameters(
                                 parameterWithName("postId").description("조회할 게시글 ID")
@@ -232,6 +289,11 @@ class PostDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data.content").description("게시글 본문"),
                                 fieldWithPath("data.authorNickname").description("작성자 닉네임"),
                                 fieldWithPath("data.viewCount").description("조회수"),
+                                fieldWithPath("data.attachments").type(JsonFieldType.ARRAY).description("첨부 이미지 목록"),
+                                fieldWithPath("data.attachments[].id").type(JsonFieldType.NUMBER).description("첨부 이미지 ID").optional(),
+                                fieldWithPath("data.attachments[].imageUrl").type(JsonFieldType.STRING).description("첨부 이미지 URL").optional(),
+                                fieldWithPath("data.attachments[].originalFileName").type(JsonFieldType.STRING).description("원본 파일명").optional(),
+                                fieldWithPath("data.attachments[].displayOrder").type(JsonFieldType.NUMBER).description("표시 순서").optional(),
                                 fieldWithPath("data.createdAt").description("작성 시각"),
                                 fieldWithPath("data.updatedAt").description("수정 시각")
                         )
@@ -280,7 +342,9 @@ class PostDocsTest extends RestDocsIntegrationTest {
                         requestFields(
                                 fieldWithPath("category").description("수정할 게시판 카테고리 (NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("수정할 게시글 제목"),
-                                fieldWithPath("content").description("수정할 게시글 본문")
+                                fieldWithPath("content").description("수정할 게시글 본문"),
+                                fieldWithPath("retainedAttachmentIds").type(JsonFieldType.ARRAY).description("유지할 기존 첨부 이미지 ID 목록").optional(),
+                                fieldWithPath("retainedAttachmentIds[]").type(JsonFieldType.NUMBER).description("유지할 첨부 이미지 ID").optional()
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
@@ -311,7 +375,9 @@ class PostDocsTest extends RestDocsIntegrationTest {
                         requestFields(
                                 fieldWithPath("category").description("수정할 게시판 카테고리 (NOTICE는 관리자만 작성/수정 가능)"),
                                 fieldWithPath("title").description("수정할 게시글 제목"),
-                                fieldWithPath("content").description("수정할 게시글 본문")
+                                fieldWithPath("content").description("수정할 게시글 본문"),
+                                fieldWithPath("retainedAttachmentIds").type(JsonFieldType.ARRAY).description("유지할 기존 첨부 이미지 ID 목록").optional(),
+                                fieldWithPath("retainedAttachmentIds[]").type(JsonFieldType.NUMBER).description("유지할 첨부 이미지 ID").optional()
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),

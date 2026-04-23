@@ -4,16 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.cubinghub.domain.post.dto.request.PostCreateRequest;
 import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
 import com.cubinghub.domain.post.entity.Post;
+import com.cubinghub.domain.post.entity.PostAttachment;
 import com.cubinghub.domain.post.entity.PostCategory;
+import com.cubinghub.domain.post.repository.PostAttachmentRepository;
 import com.cubinghub.domain.post.repository.PostRepository;
+import com.cubinghub.domain.post.repository.PostViewRepository;
+import com.cubinghub.domain.post.storage.PostImageStorageService;
+import com.cubinghub.domain.post.storage.StoredPostImage;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
@@ -28,8 +36,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 
 @AutoConfigureMockMvc
 @DisplayName("PostController 통합 테스트")
@@ -48,10 +58,19 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     private PostRepository postRepository;
 
     @Autowired
+    private PostAttachmentRepository postAttachmentRepository;
+
+    @Autowired
+    private PostViewRepository postViewRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     private EntityManager entityManager;
+
+    @MockBean
+    private PostImageStorageService postImageStorageService;
 
     private User authorUser;
     private User otherUser;
@@ -231,21 +250,54 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
-    @DisplayName("게시글 상세 조회 요청을 보내면 조회수가 증가한다")
-    void should_increase_view_count_when_post_detail_is_requested() throws Exception {
+    @DisplayName("비로그인 사용자가 게시글 상세를 조회해도 조회수는 증가하지 않는다")
+    void should_not_increase_view_count_when_post_detail_is_requested_without_authentication() throws Exception {
         Post savedPost = savePost(authorUser, PostCategory.FREE, "상세 제목", "상세 본문");
 
         mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("게시글을 조회했습니다."))
-                .andExpect(jsonPath("$.data.viewCount").value(1));
+                .andExpect(jsonPath("$.data.viewCount").value(0))
+                .andExpect(jsonPath("$.data.attachments.length()").value(0));
 
         entityManager.flush();
         entityManager.clear();
 
         Post foundPost = postRepository.findById(savedPost.getId()).orElseThrow();
-        assertThat(foundPost.getViewCount()).isEqualTo(1);
+        assertThat(foundPost.getViewCount()).isZero();
+        assertThat(postViewRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("로그인 사용자의 게시글 조회수는 계정당 한 번만 증가한다")
+    void should_count_unique_post_views_once_per_authenticated_user() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "상세 제목", "상세 본문");
+
+        mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewCount").value(1));
+
+        mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewCount").value(1));
+
+        mockMvc.perform(get("/api/posts/{postId}", savedPost.getId())
+                        .header("Authorization", "Bearer " + otherAccessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewCount").value(2));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Post foundPost = postRepository.findById(savedPost.getId()).orElseThrow();
+        assertThat(foundPost.getViewCount()).isEqualTo(2);
+        assertThat(postViewRepository.findAll()).hasSize(2);
     }
 
     @Test
@@ -278,6 +330,115 @@ class PostControllerIntegrationTest extends JpaIntegrationTest {
         assertThat(updatedPost.getCategory()).isEqualTo(PostCategory.FREE);
         assertThat(updatedPost.getTitle()).isEqualTo("수정 후 제목");
         assertThat(updatedPost.getContent()).isEqualTo("수정 후 본문");
+    }
+
+    @Test
+    @DisplayName("인증된 사용자가 다중 이미지를 포함한 multipart 게시글 생성 요청을 보내면 첨부 이미지를 함께 저장한다")
+    void should_create_post_with_attachments_when_authenticated_user_submits_multipart_request() throws Exception {
+        PostCreateRequest request = new PostCreateRequest(PostCategory.FREE, "이미지 게시글", "이미지가 포함된 본문");
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request",
+                "",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(request)
+        );
+        MockMultipartFile firstImage = new MockMultipartFile("images", "first.jpg", MediaType.IMAGE_JPEG_VALUE, "first-image".getBytes());
+        MockMultipartFile secondImage = new MockMultipartFile("images", "second.png", MediaType.IMAGE_PNG_VALUE, "second-image".getBytes());
+
+        when(postImageStorageService.upload(any())).thenReturn(
+                new StoredPostImage("community/posts/first.jpg", "https://cdn.example.com/community/posts/first.jpg", "first.jpg", MediaType.IMAGE_JPEG_VALUE, (long) firstImage.getBytes().length),
+                new StoredPostImage("community/posts/second.png", "https://cdn.example.com/community/posts/second.png", "second.png", MediaType.IMAGE_PNG_VALUE, (long) secondImage.getBytes().length)
+        );
+
+        mockMvc.perform(multipart("/api/posts")
+                        .file(requestPart)
+                        .file(firstImage)
+                        .file(secondImage)
+                        .header("Authorization", "Bearer " + authorAccessToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("게시글이 생성되었습니다."))
+                .andExpect(jsonPath("$.data.id").exists());
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Post savedPost = postRepository.findAll().stream()
+                .filter(post -> post.getTitle().equals("이미지 게시글"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(savedPost.getId()))
+                .extracting(PostAttachment::getOriginalFileName, PostAttachment::getDisplayOrder)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("first.jpg", 0),
+                        org.assertj.core.groups.Tuple.tuple("second.png", 1)
+                );
+    }
+
+    @Test
+    @DisplayName("작성자가 multipart 수정 요청으로 기존 이미지 일부를 유지하고 새 이미지를 추가할 수 있다")
+    void should_update_post_with_retained_and_new_attachments_when_author_submits_multipart_request() throws Exception {
+        Post savedPost = savePost(authorUser, PostCategory.FREE, "수정 전 제목", "수정 전 본문");
+        PostAttachment removedAttachment = postAttachmentRepository.save(PostAttachment.builder()
+                .post(savedPost)
+                .objectKey("community/posts/old-remove.jpg")
+                .imageUrl("https://cdn.example.com/community/posts/old-remove.jpg")
+                .originalFileName("old-remove.jpg")
+                .contentType(MediaType.IMAGE_JPEG_VALUE)
+                .fileSizeBytes(10L)
+                .displayOrder(0)
+                .build());
+        PostAttachment retainedAttachment = postAttachmentRepository.save(PostAttachment.builder()
+                .post(savedPost)
+                .objectKey("community/posts/old-keep.png")
+                .imageUrl("https://cdn.example.com/community/posts/old-keep.png")
+                .originalFileName("old-keep.png")
+                .contentType(MediaType.IMAGE_PNG_VALUE)
+                .fileSizeBytes(12L)
+                .displayOrder(1)
+                .build());
+        entityManager.flush();
+        entityManager.clear();
+
+        PostUpdateRequest request = new PostUpdateRequest(
+                PostCategory.FREE,
+                "수정 후 제목",
+                "수정 후 본문",
+                java.util.List.of(retainedAttachment.getId())
+        );
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request",
+                "",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(request)
+        );
+        MockMultipartFile newImage = new MockMultipartFile("images", "new.webp", "image/webp", "new-image".getBytes());
+
+        when(postImageStorageService.upload(any())).thenReturn(
+                new StoredPostImage("community/posts/new.webp", "https://cdn.example.com/community/posts/new.webp", "new.webp", "image/webp", (long) newImage.getBytes().length)
+        );
+
+        mockMvc.perform(multipart("/api/posts/{postId}", savedPost.getId())
+                        .file(requestPart)
+                        .file(newImage)
+                        .header("Authorization", "Bearer " + authorAccessToken)
+                        .with(httpServletRequest -> {
+                            httpServletRequest.setMethod("PUT");
+                            return httpServletRequest;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("게시글이 수정되었습니다."));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Post updatedPost = postRepository.findById(savedPost.getId()).orElseThrow();
+        assertThat(updatedPost.getTitle()).isEqualTo("수정 후 제목");
+        assertThat(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(savedPost.getId()))
+                .extracting(PostAttachment::getOriginalFileName, PostAttachment::getDisplayOrder)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("old-keep.png", 0),
+                        org.assertj.core.groups.Tuple.tuple("new.webp", 1)
+                );
     }
 
     @Test

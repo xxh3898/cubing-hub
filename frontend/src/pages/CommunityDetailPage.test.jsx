@@ -47,6 +47,7 @@ function createPostDetailResponse(overrides = {}) {
       content: '첫 줄\n둘째 줄',
       authorNickname: 'Tester',
       viewCount: 12,
+      attachments: [],
       createdAt: '2026-04-15T10:00:00',
       updatedAt: '2026-04-15T10:00:00',
       ...overrides,
@@ -268,5 +269,36 @@ describe('CommunityDetailPage', () => {
 
     expect(await screen.findByText('둘째 페이지 댓글')).toBeInTheDocument()
     expect(getComments).toHaveBeenLastCalledWith(5, { page: 2, size: 5 })
+  })
+
+  it('should_render_attachment_gallery_when_post_has_attachments', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+    vi.mocked(getPost).mockResolvedValue(createPostDetailResponse({
+      attachments: [
+        {
+          id: 10,
+          imageUrl: 'https://cdn.example.com/community/posts/cube.jpg',
+          originalFileName: 'cube.jpg',
+          displayOrder: 0,
+        },
+      ],
+    }))
+    vi.mocked(getComments).mockResolvedValue(
+      createCommentsPageResponse({
+        items: [],
+        totalElements: 0,
+        totalPages: 0,
+      }),
+    )
+
+    renderCommunityDetailPage()
+
+    expect(await screen.findByAltText('cube.jpg')).toHaveAttribute('src', 'https://cdn.example.com/community/posts/cube.jpg')
+    expect(screen.getByText('cube.jpg')).toBeInTheDocument()
   })
 })

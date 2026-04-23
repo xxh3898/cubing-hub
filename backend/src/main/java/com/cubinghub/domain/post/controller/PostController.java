@@ -10,8 +10,10 @@ import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.post.service.PostService;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,9 +23,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -32,12 +36,23 @@ public class PostController {
 
     private final PostService postService;
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<IdResponse>> createPost(
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<IdResponse>> createPostJson(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid PostCreateRequest request
     ) {
-        Long postId = postService.createPost(userDetails.getUsername(), request);
+        Long postId = postService.createPost(userDetails.getUsername(), request, null);
+        return ResponseEntity.created(URI.create("/api/posts/" + postId))
+                .body(ApiResponse.success(HttpStatus.CREATED, "게시글이 생성되었습니다.", new IdResponse(postId)));
+    }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<IdResponse>> createPostMultipart(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestPart("request") @Valid PostCreateRequest request,
+            @RequestPart(name = "images", required = false) List<MultipartFile> images
+    ) {
+        Long postId = postService.createPost(userDetails.getUsername(), request, images);
         return ResponseEntity.created(URI.create("/api/posts/" + postId))
                 .body(ApiResponse.success(HttpStatus.CREATED, "게시글이 생성되었습니다.", new IdResponse(postId)));
     }
@@ -56,19 +71,33 @@ public class PostController {
     }
 
     @GetMapping("/{postId}")
-    public ResponseEntity<ApiResponse<PostDetailResponse>> getPost(@PathVariable Long postId) {
+    public ResponseEntity<ApiResponse<PostDetailResponse>> getPost(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
         return ResponseEntity.ok(
-                ApiResponse.success(HttpStatus.OK, "게시글을 조회했습니다.", postService.getPost(postId))
+                ApiResponse.success(HttpStatus.OK, "게시글을 조회했습니다.", postService.getPost(postId, userDetails != null ? userDetails.getUsername() : null))
         );
     }
 
-    @PutMapping("/{postId}")
-    public ResponseEntity<ApiResponse<Void>> updatePost(
+    @PutMapping(value = "/{postId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Void>> updatePostJson(
             @PathVariable Long postId,
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid PostUpdateRequest request
     ) {
-        postService.updatePost(postId, userDetails.getUsername(), request);
+        postService.updatePost(postId, userDetails.getUsername(), request, null);
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "게시글이 수정되었습니다."));
+    }
+
+    @PutMapping(value = "/{postId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> updatePostMultipart(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestPart("request") @Valid PostUpdateRequest request,
+            @RequestPart(name = "images", required = false) List<MultipartFile> images
+    ) {
+        postService.updatePost(postId, userDetails.getUsername(), request, images);
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, "게시글이 수정되었습니다."));
     }
 

@@ -9,8 +9,12 @@ public final class InputConstraints {
     public static final int POST_SEARCH_AUTHOR_MAX_LENGTH = 50;
     public static final int POST_TITLE_MAX_LENGTH = 100;
     public static final int POST_CONTENT_MAX_LENGTH = 2000;
+    public static final int POST_IMAGE_MAX_COUNT = 5;
     public static final int FEEDBACK_TITLE_MAX_LENGTH = 100;
     public static final int FEEDBACK_CONTENT_MAX_LENGTH = 2000;
+    public static final int FEEDBACK_ANSWER_MAX_LENGTH = 2000;
+    public static final int ADMIN_MEMO_QUESTION_MAX_LENGTH = 500;
+    public static final int ADMIN_MEMO_ANSWER_MAX_LENGTH = 2000;
     public static final int PASSWORD_MAX_LENGTH = 64;
     public static final int PASSWORD_MAX_BYTES = 72;
 

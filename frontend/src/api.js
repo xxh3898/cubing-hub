@@ -15,6 +15,34 @@ function toRequestError(error) {
   return requestError
 }
 
+function shouldUsePostMultipart(payload = {}) {
+  return Array.isArray(payload.images) || Array.isArray(payload.retainedAttachmentIds)
+}
+
+function buildPostMultipartPayload(payload) {
+  const formData = new FormData()
+  const requestPayload = {
+    category: payload.category,
+    title: payload.title,
+    content: payload.content,
+  }
+
+  if (Array.isArray(payload.retainedAttachmentIds)) {
+    requestPayload.retainedAttachmentIds = payload.retainedAttachmentIds
+  }
+
+  formData.append(
+    'request',
+    new Blob([JSON.stringify(requestPayload)], { type: 'application/json' }),
+  )
+
+  for (const image of payload.images ?? []) {
+    formData.append('images', image)
+  }
+
+  return formData
+}
+
 export async function signUp(payload) {
   try {
     const response = await apiClient.post('/api/auth/signup', payload, {
@@ -214,7 +242,10 @@ export async function getPosts(params) {
 
 export async function createPost(payload) {
   try {
-    const response = await apiClient.post('/api/posts', payload)
+    const response = await apiClient.post(
+      '/api/posts',
+      shouldUsePostMultipart(payload) ? buildPostMultipartPayload(payload) : payload,
+    )
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
@@ -223,7 +254,10 @@ export async function createPost(payload) {
 
 export async function updatePost(postId, payload) {
   try {
-    const response = await apiClient.put(`/api/posts/${postId}`, payload)
+    const response = await apiClient.put(
+      `/api/posts/${postId}`,
+      shouldUsePostMultipart(payload) ? buildPostMultipartPayload(payload) : payload,
+    )
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
@@ -245,6 +279,111 @@ export async function deletePost(postId) {
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getQna(params) {
+  try {
+    const response = await apiClient.get('/api/qna', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getQnaDetail(feedbackId) {
+  try {
+    const response = await apiClient.get(`/api/qna/${feedbackId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getAdminFeedbacks(params) {
+  try {
+    const response = await apiClient.get('/api/admin/feedbacks', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function getAdminFeedback(feedbackId) {
+  try {
+    const response = await apiClient.get(`/api/admin/feedbacks/${feedbackId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function updateAdminFeedbackAnswer(feedbackId, payload) {
+  try {
+    const response = await apiClient.patch(`/api/admin/feedbacks/${feedbackId}/answer`, payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function updateAdminFeedbackVisibility(feedbackId, payload) {
+  try {
+    const response = await apiClient.patch(`/api/admin/feedbacks/${feedbackId}/visibility`, payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function getAdminMemos(params) {
+  try {
+    const response = await apiClient.get('/api/admin/memos', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function getAdminMemo(memoId) {
+  try {
+    const response = await apiClient.get(`/api/admin/memos/${memoId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function createAdminMemo(payload) {
+  try {
+    const response = await apiClient.post('/api/admin/memos', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function updateAdminMemo(memoId, payload) {
+  try {
+    const response = await apiClient.patch(`/api/admin/memos/${memoId}`, payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
+  }
+}
+
+export async function deleteAdminMemo(memoId) {
+  try {
+    const response = await apiClient.delete(`/api/admin/memos/${memoId}`)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw toRequestError(error)
   }
 }
 

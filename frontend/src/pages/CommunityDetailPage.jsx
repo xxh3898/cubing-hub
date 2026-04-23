@@ -257,6 +257,22 @@ export default function CommunityDetailPage() {
 
       <div className="panel community-detail-content-panel">
         {deleteErrorMessage ? <p className="message error auth-message">{deleteErrorMessage}</p> : null}
+        {post.attachments?.length ? (
+          <div className="community-attachment-gallery">
+            {post.attachments.map((attachment) => (
+              <a
+                key={attachment.id}
+                href={attachment.imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="community-attachment-card"
+              >
+                <img src={attachment.imageUrl} alt={attachment.originalFileName} className="community-attachment-image" />
+                <span className="community-attachment-name">{attachment.originalFileName}</span>
+              </a>
+            ))}
+          </div>
+        ) : null}
         <div className="community-detail-content">
           {post.content.split('\n').map((line, index) => (
             <span key={`${post.id}-${index}`}>

@@ -67,6 +67,8 @@ describe('CommunityWritePage', () => {
         category: 'NOTICE',
         title: '공지 제목',
         content: '공지 본문',
+        retainedAttachmentIds: [],
+        images: [],
       })
     })
 
@@ -100,6 +102,7 @@ describe('CommunityWritePage', () => {
         title: '기존 제목',
         content: '기존 본문',
         authorNickname: 'Tester',
+        attachments: [],
       },
     })
     vi.mocked(updatePost).mockResolvedValue({
@@ -120,6 +123,8 @@ describe('CommunityWritePage', () => {
         category: 'FREE',
         title: '수정 제목',
         content: '수정 본문',
+        retainedAttachmentIds: [],
+        images: [],
       })
     })
     expect(mockNavigate).toHaveBeenCalledWith('/community/33', { replace: true })
@@ -139,6 +144,7 @@ describe('CommunityWritePage', () => {
         title: '기존 제목',
         content: '기존 본문',
         authorNickname: 'AnotherUser',
+        attachments: [],
       },
     })
 
@@ -193,5 +199,38 @@ describe('CommunityWritePage', () => {
 
     expect(screen.getByLabelText('제목')).toHaveAttribute('maxLength', '100')
     expect(screen.getByLabelText('내용')).toHaveAttribute('maxLength', '2000')
+  })
+
+  it('should_include_selected_images_when_creating_post', async () => {
+    const imageFile = new File(['image-data'], 'cube.jpg', { type: 'image/jpeg' })
+
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: {
+        nickname: 'Tester',
+        role: 'ROLE_USER',
+      },
+    })
+    vi.mocked(createPost).mockResolvedValue({
+      data: {
+        id: 55,
+      },
+    })
+
+    renderCommunityWritePage()
+
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '이미지 글' } })
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '이미지 본문' } })
+    fireEvent.change(screen.getByLabelText('이미지 첨부'), { target: { files: [imageFile] } })
+    fireEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => {
+      expect(createPost).toHaveBeenCalledWith({
+        category: 'FREE',
+        title: '이미지 글',
+        content: '이미지 본문',
+        retainedAttachmentIds: [],
+        images: [imageFile],
+      })
+    })
   })
 })

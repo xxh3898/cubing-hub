@@ -64,3 +64,13 @@ monitoring:
 feedback:
   discord:
     webhook-url: ${FEEDBACK_DISCORD_WEBHOOK_URL:}
+
+post:
+  images:
+    bucket: ${POST_IMAGES_BUCKET:}
+    region: ${POST_IMAGES_REGION:}
+    key-prefix: ${POST_IMAGES_KEY_PREFIX:community/posts}
+    public-base-url: ${POST_IMAGES_PUBLIC_BASE_URL:}
+    max-file-count: 5
+    max-file-size-bytes: 10485760
+    max-total-size-bytes: 31457280
