@@ -1,0 +1,161 @@
+.qna-page,
+.qna-detail-page,
+.admin-page,
+.admin-detail-page {
+  align-items: start;
+}
+
+.qna-header-panel,
+.admin-header-panel,
+.admin-detail-header-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.qna-board-panel,
+.admin-board-panel,
+.admin-detail-content-panel,
+.admin-memo-create-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.qna-card-list,
+.admin-card-list {
+  display: grid;
+  gap: 16px;
+}
+
+.qna-card,
+.admin-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 246, 240, 0.86)),
+    radial-gradient(circle at top right, rgba(224, 122, 95, 0.12), transparent 35%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qna-card:hover,
+.admin-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(18, 32, 43, 0.1);
+}
+
+.qna-card h3,
+.admin-card h3 {
+  margin: 0;
+}
+
+.qna-card-header,
+.admin-card-header,
+.admin-detail-meta,
+.qna-detail-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.qna-type-chip,
+.admin-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.qna-type-chip {
+  background: rgba(255, 209, 102, 0.38);
+  color: #6a4f13;
+}
+
+.admin-card-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-status-chip.is-success {
+  background: rgba(216, 243, 220, 0.92);
+  color: #24513c;
+}
+
+.admin-status-chip.is-pending {
+  background: rgba(253, 226, 228, 0.92);
+  color: #822727;
+}
+
+.admin-status-chip.is-public {
+  background: rgba(238, 247, 255, 0.96);
+  color: #23486a;
+}
+
+.admin-status-chip.is-private {
+  background: rgba(18, 32, 43, 0.08);
+  color: #385b73;
+}
+
+.qna-card-question,
+.admin-card-question,
+.admin-card-answer,
+.qna-card-answer p {
+  margin: 0;
+  color: #31424f;
+  line-height: 1.6;
+}
+
+.qna-card-answer {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.qna-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #53626d;
+  font-size: 0.9rem;
+}
+
+.qna-detail-panel,
+.admin-detail-section,
+.admin-detail-form {
+  display: grid;
+  gap: 16px;
+}
+
+.qna-detail-block {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.qna-detail-content {
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.admin-tab-row,
+.admin-filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-filter-field {
+  min-width: 160px;
+}

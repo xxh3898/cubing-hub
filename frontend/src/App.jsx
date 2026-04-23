@@ -8,6 +8,11 @@ import RankingsPage from './pages/RankingsPage.jsx'
 import CommunityDetailPage from './pages/CommunityDetailPage.jsx'
 import CommunityWritePage from './pages/CommunityWritePage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
+import QnaPage from './pages/QnaPage.jsx'
+import QnaDetailPage from './pages/QnaDetailPage.jsx'
+import AdminPage from './pages/AdminPage.jsx'
+import AdminFeedbackDetailPage from './pages/AdminFeedbackDetailPage.jsx'
+import AdminMemoDetailPage from './pages/AdminMemoDetailPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
@@ -67,9 +72,30 @@ function GuestOnlyRoute({ children }) {
   return children
 }
 
+function AdminRoute({ children }) {
+  const { hasAuthToken, isAuthenticated, isAuthLoading, currentUser } = useAuth()
+  const location = useLocation()
+  const returnTo = getReturnPath(location)
+
+  if (isAuthLoading) {
+    return <AuthLoadingPage />
+  }
+
+  if (!hasAuthToken || !isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: returnTo }} />
+  }
+
+  if (currentUser?.role !== 'ROLE_ADMIN') {
+    return <Navigate to="/" replace />
+  }
+
+  return children
+}
+
 function AppLayout() {
   const { currentUser, hasAuthToken, isAuthLoading } = useAuth()
   const accountLabel = isAuthLoading ? '계정 확인 중' : (currentUser?.nickname ?? '로그인')
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN'
 
   return (
     <div className="app-shell">
@@ -86,6 +112,8 @@ function AppLayout() {
             <NavLink to="/rankings">랭킹</NavLink>
             <NavLink to="/learning">학습</NavLink>
             <NavLink to="/community">커뮤니티</NavLink>
+            <NavLink to="/qna">Q&A</NavLink>
+            {isAdmin ? <NavLink to="/admin">관리자</NavLink> : null}
           </nav>
           <NavLink className={`status-chip ${hasAuthToken ? 'is-authenticated' : 'is-guest'}`} to={hasAuthToken ? '/mypage' : '/login'}>
             {accountLabel}
@@ -117,6 +145,8 @@ function AppLayout() {
             )}
           />
           <Route path="/community/:id" element={<CommunityDetailPage />} />
+          <Route path="/qna" element={<QnaPage />} />
+          <Route path="/qna/:id" element={<QnaDetailPage />} />
           <Route
             path="/login"
             element={(
@@ -148,6 +178,30 @@ function AppLayout() {
               <ProtectedRoute>
                 <FeedbackPage />
               </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/admin"
+            element={(
+              <AdminRoute>
+                <AdminPage />
+              </AdminRoute>
+            )}
+          />
+          <Route
+            path="/admin/feedbacks/:id"
+            element={(
+              <AdminRoute>
+                <AdminFeedbackDetailPage />
+              </AdminRoute>
+            )}
+          />
+          <Route
+            path="/admin/memos/:id"
+            element={(
+              <AdminRoute>
+                <AdminMemoDetailPage />
+              </AdminRoute>
             )}
           />
           <Route path="/auth" element={<Navigate to="/login" replace />} />

@@ -60,6 +60,22 @@ describe('App auth routes', () => {
     expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 
+  it('should_redirect_to_home_when_admin_route_is_requested_by_non_admin_user', () => {
+    vi.mocked(useAuth).mockReturnValue(buildAuthState({
+      accessToken: 'fresh-token',
+      currentUser: {
+        nickname: 'CubeMaster',
+        role: 'ROLE_USER',
+      },
+      hasAuthToken: true,
+      isAuthenticated: true,
+    }))
+
+    renderApp('/admin')
+
+    expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
+  })
+
   it('should_redirect_to_home_when_guest_only_route_is_requested_by_authenticated_user', () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState({
       accessToken: 'fresh-token',
