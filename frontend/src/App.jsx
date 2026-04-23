@@ -1,23 +1,25 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import { useAuth } from './context/useAuth.js'
-import CommunityPage from './pages/CommunityPage.jsx'
-import HomePage from './pages/HomePage.jsx'
-import LearningPage from './pages/LearningPage.jsx'
-import RankingsPage from './pages/RankingsPage.jsx'
-import CommunityDetailPage from './pages/CommunityDetailPage.jsx'
-import CommunityWritePage from './pages/CommunityWritePage.jsx'
-import FeedbackPage from './pages/FeedbackPage.jsx'
-import QnaPage from './pages/QnaPage.jsx'
-import QnaDetailPage from './pages/QnaDetailPage.jsx'
-import AdminPage from './pages/AdminPage.jsx'
-import AdminFeedbackDetailPage from './pages/AdminFeedbackDetailPage.jsx'
-import AdminMemoDetailPage from './pages/AdminMemoDetailPage.jsx'
-import TimerPage from './pages/TimerPage.jsx'
-import LoginPage from './pages/LoginPage.jsx'
-import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
-import SignupPage from './pages/SignupPage.jsx'
-import MyPage from './pages/MyPage.jsx'
+
+const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'))
+const HomePage = lazy(() => import('./pages/HomePage.jsx'))
+const LearningPage = lazy(() => import('./pages/LearningPage.jsx'))
+const RankingsPage = lazy(() => import('./pages/RankingsPage.jsx'))
+const CommunityDetailPage = lazy(() => import('./pages/CommunityDetailPage.jsx'))
+const CommunityWritePage = lazy(() => import('./pages/CommunityWritePage.jsx'))
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage.jsx'))
+const QnaPage = lazy(() => import('./pages/QnaPage.jsx'))
+const QnaDetailPage = lazy(() => import('./pages/QnaDetailPage.jsx'))
+const AdminPage = lazy(() => import('./pages/AdminPage.jsx'))
+const AdminFeedbackDetailPage = lazy(() => import('./pages/AdminFeedbackDetailPage.jsx'))
+const AdminMemoDetailPage = lazy(() => import('./pages/AdminMemoDetailPage.jsx'))
+const TimerPage = lazy(() => import('./pages/TimerPage.jsx'))
+const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'))
+const SignupPage = lazy(() => import('./pages/SignupPage.jsx'))
+const MyPage = lazy(() => import('./pages/MyPage.jsx'))
 
 function getReturnPath(location) {
   return `${location.pathname}${location.search}${location.hash}`
@@ -30,6 +32,19 @@ function AuthLoadingPage() {
         <div className="auth-header">
           <h2>인증 확인 중</h2>
           <p className="helper-text">현재 로그인 상태를 확인하고 있습니다.</p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function RouteLoadingPage() {
+  return (
+    <section className="page-grid auth-page">
+      <div className="panel auth-panel auth-status-panel">
+        <div className="auth-header">
+          <h2>페이지 준비 중</h2>
+          <p className="helper-text">페이지를 불러오는 중입니다.</p>
         </div>
       </div>
     </section>
@@ -122,90 +137,92 @@ function AppLayout() {
       </header>
 
       <main className="page-shell">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/timer" element={<TimerPage />} />
-          <Route path="/rankings" element={<RankingsPage />} />
-          <Route path="/learning" element={<LearningPage />} />
-          <Route path="/community" element={<CommunityPage />} />
-          <Route
-            path="/community/write"
-            element={(
-              <ProtectedRoute>
-                <CommunityWritePage />
-              </ProtectedRoute>
-            )}
-          />
-          <Route
-            path="/community/:id/edit"
-            element={(
-              <ProtectedRoute>
-                <CommunityWritePage />
-              </ProtectedRoute>
-            )}
-          />
-          <Route path="/community/:id" element={<CommunityDetailPage />} />
-          <Route path="/qna" element={<QnaPage />} />
-          <Route path="/qna/:id" element={<QnaDetailPage />} />
-          <Route
-            path="/login"
-            element={(
-              <GuestOnlyRoute>
-                <LoginPage />
-              </GuestOnlyRoute>
-            )}
-          />
-          <Route
-            path="/signup"
-            element={(
-              <GuestOnlyRoute>
-                <SignupPage />
-              </GuestOnlyRoute>
-            )}
-          />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="/mypage"
-            element={(
-              <ProtectedRoute>
-                <MyPage />
-              </ProtectedRoute>
-            )}
-          />
-          <Route
-            path="/feedback"
-            element={(
-              <ProtectedRoute>
-                <FeedbackPage />
-              </ProtectedRoute>
-            )}
-          />
-          <Route
-            path="/admin"
-            element={(
-              <AdminRoute>
-                <AdminPage />
-              </AdminRoute>
-            )}
-          />
-          <Route
-            path="/admin/feedbacks/:id"
-            element={(
-              <AdminRoute>
-                <AdminFeedbackDetailPage />
-              </AdminRoute>
-            )}
-          />
-          <Route
-            path="/admin/memos/:id"
-            element={(
-              <AdminRoute>
-                <AdminMemoDetailPage />
-              </AdminRoute>
-            )}
-          />
-          <Route path="/auth" element={<Navigate to="/login" replace />} />
-        </Routes>
+        <Suspense fallback={<RouteLoadingPage />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/timer" element={<TimerPage />} />
+            <Route path="/rankings" element={<RankingsPage />} />
+            <Route path="/learning" element={<LearningPage />} />
+            <Route path="/community" element={<CommunityPage />} />
+            <Route
+              path="/community/write"
+              element={(
+                <ProtectedRoute>
+                  <CommunityWritePage />
+                </ProtectedRoute>
+              )}
+            />
+            <Route
+              path="/community/:id/edit"
+              element={(
+                <ProtectedRoute>
+                  <CommunityWritePage />
+                </ProtectedRoute>
+              )}
+            />
+            <Route path="/community/:id" element={<CommunityDetailPage />} />
+            <Route path="/qna" element={<QnaPage />} />
+            <Route path="/qna/:id" element={<QnaDetailPage />} />
+            <Route
+              path="/login"
+              element={(
+                <GuestOnlyRoute>
+                  <LoginPage />
+                </GuestOnlyRoute>
+              )}
+            />
+            <Route
+              path="/signup"
+              element={(
+                <GuestOnlyRoute>
+                  <SignupPage />
+                </GuestOnlyRoute>
+              )}
+            />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route
+              path="/mypage"
+              element={(
+                <ProtectedRoute>
+                  <MyPage />
+                </ProtectedRoute>
+              )}
+            />
+            <Route
+              path="/feedback"
+              element={(
+                <ProtectedRoute>
+                  <FeedbackPage />
+                </ProtectedRoute>
+              )}
+            />
+            <Route
+              path="/admin"
+              element={(
+                <AdminRoute>
+                  <AdminPage />
+                </AdminRoute>
+              )}
+            />
+            <Route
+              path="/admin/feedbacks/:id"
+              element={(
+                <AdminRoute>
+                  <AdminFeedbackDetailPage />
+                </AdminRoute>
+              )}
+            />
+            <Route
+              path="/admin/memos/:id"
+              element={(
+                <AdminRoute>
+                  <AdminMemoDetailPage />
+                </AdminRoute>
+              )}
+            />
+            <Route path="/auth" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       </main>
 
       <footer className="app-footer">

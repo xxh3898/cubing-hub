@@ -44,23 +44,23 @@ describe('App auth routes', () => {
     expect(screen.getByRole('heading', { name: '인증 확인 중' })).toBeInTheDocument()
   })
 
-  it('should_redirect_to_login_when_protected_route_is_requested_without_authenticated_user', () => {
+  it('should_redirect_to_login_when_protected_route_is_requested_without_authenticated_user', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState())
 
     renderApp('/mypage')
 
-    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 
-  it('should_redirect_to_login_when_feedback_route_is_requested_without_authenticated_user', () => {
+  it('should_redirect_to_login_when_feedback_route_is_requested_without_authenticated_user', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState())
 
     renderApp('/feedback')
 
-    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 
-  it('should_redirect_to_home_when_admin_route_is_requested_by_non_admin_user', () => {
+  it('should_redirect_to_home_when_admin_route_is_requested_by_non_admin_user', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState({
       accessToken: 'fresh-token',
       currentUser: {
@@ -73,10 +73,10 @@ describe('App auth routes', () => {
 
     renderApp('/admin')
 
-    expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
+    expect(await screen.findByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
   })
 
-  it('should_redirect_to_home_when_guest_only_route_is_requested_by_authenticated_user', () => {
+  it('should_redirect_to_home_when_guest_only_route_is_requested_by_authenticated_user', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState({
       accessToken: 'fresh-token',
       currentUser: {
@@ -89,7 +89,7 @@ describe('App auth routes', () => {
     renderApp('/login')
 
     expect(screen.queryByRole('heading', { name: '로그인' })).not.toBeInTheDocument()
-    expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
+    expect(await screen.findByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
   })
 
   it('should_render_refined_product_copy_in_topbar', () => {
@@ -100,11 +100,11 @@ describe('App auth routes', () => {
     expect(screen.getByText('기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.')).toBeInTheDocument()
   })
 
-  it('should_render_reset_password_page_for_public_route', () => {
+  it('should_render_reset_password_page_for_public_route', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState())
 
     renderApp('/reset-password')
 
-    expect(screen.getByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument()
   })
 })

@@ -26,7 +26,7 @@ describe('App community edit route', () => {
     vi.clearAllMocks()
   })
 
-  it('should_redirect_to_login_when_edit_route_is_requested_without_authenticated_user', () => {
+  it('should_redirect_to_login_when_edit_route_is_requested_without_authenticated_user', async () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState())
 
     render(
@@ -35,6 +35,6 @@ describe('App community edit route', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 })
