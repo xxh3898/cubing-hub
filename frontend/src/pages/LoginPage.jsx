@@ -104,6 +104,8 @@ export default function LoginPage() {
           </div>
         </form>
         <div className="auth-footer">
+          <p className="helper-text">비밀번호를 잊으셨나요?</p>
+          <Link to="/reset-password" className="ghost-button">비밀번호 재설정</Link>
           <p className="helper-text">아직 계정이 없으신가요?</p>
           <Link to="/signup" state={{ from: returnTo }} className="ghost-button">회원가입</Link>
         </div>

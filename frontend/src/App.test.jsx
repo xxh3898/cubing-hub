@@ -83,4 +83,12 @@ describe('App auth routes', () => {
 
     expect(screen.getByText('기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.')).toBeInTheDocument()
   })
+
+  it('should_render_reset_password_page_for_public_route', () => {
+    vi.mocked(useAuth).mockReturnValue(buildAuthState())
+
+    renderApp('/reset-password')
+
+    expect(screen.getByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument()
+  })
 })

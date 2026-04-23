@@ -10,6 +10,7 @@ import CommunityWritePage from './pages/CommunityWritePage.jsx'
 import FeedbackPage from './pages/FeedbackPage.jsx'
 import TimerPage from './pages/TimerPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
 import MyPage from './pages/MyPage.jsx'
 
@@ -107,6 +108,14 @@ function AppLayout() {
               </ProtectedRoute>
             )}
           />
+          <Route
+            path="/community/:id/edit"
+            element={(
+              <ProtectedRoute>
+                <CommunityWritePage />
+              </ProtectedRoute>
+            )}
+          />
           <Route path="/community/:id" element={<CommunityDetailPage />} />
           <Route
             path="/login"
@@ -124,6 +133,7 @@ function AppLayout() {
               </GuestOnlyRoute>
             )}
           />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/mypage"
             element={(

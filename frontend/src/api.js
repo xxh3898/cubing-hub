@@ -37,9 +37,31 @@ export async function requestEmailVerification(payload) {
   }
 }
 
+export async function requestPasswordReset(payload) {
+  try {
+    const response = await apiClient.post('/api/auth/password-reset/request', payload, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function confirmEmailVerification(payload) {
   try {
     const response = await apiClient.post('/api/auth/email-verification/confirm', payload, {
+      _skipAuthRefresh: true,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function confirmPasswordReset(payload) {
+  try {
+    const response = await apiClient.post('/api/auth/password-reset/confirm', payload, {
       _skipAuthRefresh: true,
     })
     return unwrapResponse(response)
@@ -112,11 +134,29 @@ export async function getMyProfile() {
   }
 }
 
+export async function updateMyProfile(payload) {
+  try {
+    const response = await apiClient.patch('/api/users/me/profile', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function getMyRecords(params) {
   try {
     const response = await apiClient.get('/api/users/me/records', {
       params,
     })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function changeMyPassword(payload) {
+  try {
+    const response = await apiClient.patch('/api/users/me/password', payload)
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))
@@ -175,6 +215,15 @@ export async function getPosts(params) {
 export async function createPost(payload) {
   try {
     const response = await apiClient.post('/api/posts', payload)
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function updatePost(postId, payload) {
+  try {
+    const response = await apiClient.put(`/api/posts/${postId}`, payload)
     return unwrapResponse(response)
   } catch (error) {
     throw new Error(toErrorMessage(error))

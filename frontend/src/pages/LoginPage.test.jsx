@@ -26,9 +26,9 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-function renderLoginPage() {
+function renderLoginPage(initialEntry = '/login') {
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <LoginPage />
     </MemoryRouter>,
   )
@@ -86,5 +86,22 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('이메일')).toHaveAttribute('maxLength', '255')
     expect(screen.getByLabelText('비밀번호')).toHaveAttribute('maxLength', '64')
     expect(screen.getByLabelText('비밀번호')).toHaveAttribute('minLength', '8')
+  })
+
+  it('should_prefill_email_and_render_password_reset_link_when_redirect_state_exists', async () => {
+    renderLoginPage({
+      pathname: '/login',
+      state: {
+        notice: '비밀번호를 변경했습니다. 다시 로그인해주세요.',
+        email: 'member@cubinghub.com',
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('이메일')).toHaveValue('member@cubinghub.com')
+    })
+
+    expect(screen.getByText('비밀번호를 변경했습니다. 다시 로그인해주세요.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '비밀번호 재설정' })).toHaveAttribute('href', '/reset-password')
   })
 })
