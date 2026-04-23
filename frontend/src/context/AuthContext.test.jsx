@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearStoredAccessToken } from '../authStorage.js'
 import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
@@ -12,7 +12,7 @@ vi.mock('../api.js', () => ({
 }))
 
 function AuthStateProbe() {
-  const { currentUser, hasAuthToken, isAuthenticated, isAuthLoading } = useAuth()
+  const { currentUser, hasAuthToken, isAuthenticated, isAuthLoading, updateCurrentUser } = useAuth()
 
   return (
     <div>
@@ -21,6 +21,9 @@ function AuthStateProbe() {
       <span data-testid="is-auth-loading">{String(isAuthLoading)}</span>
       <span data-testid="nickname">{currentUser?.nickname ?? 'none'}</span>
       <span data-testid="role">{currentUser?.role ?? 'none'}</span>
+      <button type="button" onClick={() => updateCurrentUser({ nickname: 'SpeedMaster' })}>
+        닉네임 갱신
+      </button>
     </div>
   )
 }
@@ -61,6 +64,35 @@ describe('AuthProvider', () => {
     })
 
     expect(refreshSession).toHaveBeenCalledTimes(1)
+    expect(getMe).toHaveBeenCalledTimes(1)
+  })
+
+  it('should_merge_current_user_without_refetch_when_update_current_user_is_called', async () => {
+    vi.mocked(refreshSession).mockResolvedValue({
+      data: {
+        accessToken: 'bootstrap-token',
+      },
+    })
+    vi.mocked(getMe).mockResolvedValue({
+      data: {
+        nickname: 'CubeMaster',
+        role: 'ROLE_ADMIN',
+      },
+    })
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('CubeMaster')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '닉네임 갱신' }))
+
+    expect(screen.getByTestId('nickname')).toHaveTextContent('SpeedMaster')
     expect(getMe).toHaveBeenCalledTimes(1)
   })
 

@@ -54,6 +54,21 @@ function formatDateTime(value) {
   return value.replace('T', ' ').slice(0, 16)
 }
 
+function buildFirstPageFromRecentRecords(sourcePage) {
+  const totalElements = sourcePage?.totalElements ?? 0
+  const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / RECORDS_PAGE_SIZE)
+
+  return {
+    items: sourcePage?.items?.slice(0, RECORDS_PAGE_SIZE) ?? [],
+    page: 1,
+    size: RECORDS_PAGE_SIZE,
+    totalElements,
+    totalPages,
+    hasNext: totalPages > 1,
+    hasPrevious: false,
+  }
+}
+
 export default function MyPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
@@ -83,9 +98,12 @@ export default function MyPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
+  const [recentRecordsSource, setRecentRecordsSource] = useState(null)
+  const [recentRecordsSourceError, setRecentRecordsSourceError] = useState(null)
+  const [isLoadingRecentRecordsSource, setIsLoadingRecentRecordsSource] = useState(true)
   const [profileReloadKey, setProfileReloadKey] = useState(0)
   const [recordsReloadKey, setRecordsReloadKey] = useState(0)
-  const { accessToken, clearAccessToken, currentUser, setAccessToken } = useAuth()
+  const { clearAccessToken, currentUser, updateCurrentUser } = useAuth()
   const navigate = useNavigate()
   const mainEventRecordType = useMemo(
     () => resolveEventType(profileData?.mainEvent),
@@ -144,12 +162,69 @@ export default function MyPage() {
   useEffect(() => {
     let isCancelled = false
 
-    const loadRecords = async () => {
-      setIsLoadingRecords(true)
+    const loadRecentRecordsSource = async () => {
+      setIsLoadingRecentRecordsSource(true)
+      setRecentRecordsSourceError(null)
 
       try {
-        setRecordsError(null)
+        const response = await getMyRecords({ page: 1, size: TREND_FETCH_SIZE })
 
+        if (isCancelled) {
+          return
+        }
+
+        setRecentRecordsSource(response.data)
+        setRecentRecordsSourceError(null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setRecentRecordsSource(null)
+        setRecentRecordsSourceError(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingRecentRecordsSource(false)
+        }
+      }
+    }
+
+    loadRecentRecordsSource()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [recordsReloadKey])
+
+  useEffect(() => {
+    if (currentPage === 1) {
+      setIsLoadingRecords(isLoadingRecentRecordsSource)
+
+      if (isLoadingRecentRecordsSource) {
+        return
+      }
+
+      if (recentRecordsSourceError) {
+        setRecordsPage(null)
+        setRecordsError(recentRecordsSourceError)
+        return
+      }
+
+      if (recentRecordsSource) {
+        setRecordsPage(buildFirstPageFromRecentRecords(recentRecordsSource))
+        setRecordsError(null)
+      }
+
+      return
+    }
+
+    let isCancelled = false
+
+    const loadRecordsPage = async () => {
+      setIsLoadingRecords(true)
+      setRecordsError(null)
+
+      try {
         const response = await getMyRecords({ page: currentPage, size: RECORDS_PAGE_SIZE })
 
         if (isCancelled) {
@@ -179,12 +254,12 @@ export default function MyPage() {
       }
     }
 
-    loadRecords()
+    loadRecordsPage()
 
     return () => {
       isCancelled = true
     }
-  }, [currentPage, recordsReloadKey])
+  }, [currentPage, isLoadingRecentRecordsSource, recentRecordsSource, recentRecordsSourceError])
 
   useEffect(() => {
     if (!mainEventRecordType) {
@@ -194,43 +269,31 @@ export default function MyPage() {
       return
     }
 
-    let isCancelled = false
+    setIsLoadingTrend(isLoadingRecentRecordsSource)
 
-    const loadTrendRecords = async () => {
-      setIsLoadingTrend(true)
+    if (isLoadingRecentRecordsSource) {
+      return
+    }
+
+    if (recentRecordsSourceError) {
+      setTrendRecords([])
+      setTrendError(recentRecordsSourceError)
+      return
+    }
+
+    if (!recentRecordsSource) {
+      setTrendRecords([])
       setTrendError(null)
-
-      try {
-        const response = await getMyRecords({ page: 1, size: TREND_FETCH_SIZE })
-
-        if (isCancelled) {
-          return
-        }
-
-        setTrendRecords(
-          filterLatestRecordsByEvent(response.data.items, mainEventRecordType, TREND_RECORD_LIMIT),
-        )
-        setTrendError(null)
-      } catch (error) {
-        if (isCancelled) {
-          return
-        }
-
-        setTrendRecords([])
-        setTrendError(error.message)
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingTrend(false)
-        }
-      }
+      setIsLoadingTrend(false)
+      return
     }
 
-    loadTrendRecords()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [mainEventRecordType, recordsReloadKey])
+    setTrendRecords(
+      filterLatestRecordsByEvent(recentRecordsSource.items, mainEventRecordType, TREND_RECORD_LIMIT),
+    )
+    setTrendError(null)
+    setIsLoadingTrend(false)
+  }, [mainEventRecordType, recentRecordsSource, recentRecordsSourceError, isLoadingRecentRecordsSource])
 
   const handleLogout = async () => {
     if (!window.confirm('로그아웃 하시겠습니까?')) {
@@ -251,19 +314,22 @@ export default function MyPage() {
   }
 
   const syncProfileAndRecords = async (page) => {
-    const [profileResponse, recordsResponse, trendResponse] = await Promise.all([
+    const [profileResponse, recentRecordsResponse, recordsResponse] = await Promise.all([
       getMyProfile(),
-      getMyRecords({ page, size: RECORDS_PAGE_SIZE }),
       getMyRecords({ page: 1, size: TREND_FETCH_SIZE }),
+      page > 1 ? getMyRecords({ page, size: RECORDS_PAGE_SIZE }) : Promise.resolve(null),
     ])
-    const nextRecordsPage = recordsResponse.data
+    const nextRecentRecordsSource = recentRecordsResponse.data
+    const nextRecordsPage = page > 1 ? recordsResponse.data : buildFirstPageFromRecentRecords(nextRecentRecordsSource)
     const nextProfileData = profileResponse.data
     const nextMainEventRecordType = resolveEventType(nextProfileData.mainEvent)
 
     setProfileData(nextProfileData)
     setProfileError(null)
+    setRecentRecordsSource(nextRecentRecordsSource)
+    setRecentRecordsSourceError(null)
     setTrendRecords(
-      filterLatestRecordsByEvent(trendResponse.data.items, nextMainEventRecordType, TREND_RECORD_LIMIT),
+      filterLatestRecordsByEvent(nextRecentRecordsSource.items, nextMainEventRecordType, TREND_RECORD_LIMIT),
     )
     setTrendError(null)
 
@@ -272,12 +338,13 @@ export default function MyPage() {
 
       if (normalizedPage !== page) {
         setCurrentPage(normalizedPage)
-        return
+        return nextProfileData
       }
     }
 
     setRecordsPage(nextRecordsPage)
     setRecordsError(null)
+    return nextProfileData
   }
 
   const handleUpdateRecordPenalty = async (recordId, penalty) => {
@@ -367,11 +434,8 @@ export default function MyPage() {
         nickname,
         mainEvent: profileForm.mainEvent,
       })
-      await syncProfileAndRecords(currentPage)
-
-      if (accessToken) {
-        await setAccessToken(accessToken)
-      }
+      const nextProfileData = await syncProfileAndRecords(currentPage)
+      updateCurrentUser({ nickname: nextProfileData.nickname })
 
       handleCloseAccountModal()
       toast.success(response.message)

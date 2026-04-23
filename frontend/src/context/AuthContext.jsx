@@ -131,6 +131,23 @@ export function AuthProvider({ children }) {
     clearStoredAccessToken()
   }
 
+  const updateCurrentUser = (updates) => {
+    if (!updates) {
+      return
+    }
+
+    setCurrentUser((current) => {
+      if (!current) {
+        return current
+      }
+
+      return {
+        ...current,
+        ...updates,
+      }
+    })
+  }
+
   const isAuthLoading = isBootstrapping || isSessionSyncing
 
   const value = {
@@ -140,6 +157,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: Boolean(accessToken && currentUser),
     isAuthLoading,
     setAccessToken,
+    updateCurrentUser,
     clearAccessToken,
   }
 

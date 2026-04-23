@@ -15,7 +15,7 @@ import MyPage from './MyPage.jsx'
 
 const mockNavigate = vi.fn()
 const mockClearAccessToken = vi.fn()
-const mockSetAccessToken = vi.fn()
+const mockUpdateCurrentUser = vi.fn()
 
 vi.mock('../api.js', () => ({
   changeMyPassword: vi.fn(),
@@ -81,13 +81,12 @@ describe('MyPage', () => {
     vi.stubGlobal('confirm', vi.fn(() => true))
 
     vi.mocked(useAuth).mockReturnValue({
-      accessToken: 'fresh-token',
       clearAccessToken: mockClearAccessToken,
       currentUser: {
         email: 'member@cubinghub.com',
         nickname: 'Tester',
       },
-      setAccessToken: mockSetAccessToken,
+      updateCurrentUser: mockUpdateCurrentUser,
     })
     vi.mocked(logout).mockResolvedValue({ message: '로그아웃되었습니다.' })
   })
@@ -120,9 +119,7 @@ describe('MyPage', () => {
       })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
       .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
     vi.mocked(updateMyProfile).mockResolvedValue({
       message: '내 정보를 수정했습니다.',
       data: null,
@@ -150,7 +147,7 @@ describe('MyPage', () => {
     })
 
     await waitFor(() => {
-      expect(mockSetAccessToken).toHaveBeenCalledWith('fresh-token')
+      expect(mockUpdateCurrentUser).toHaveBeenCalledWith({ nickname: 'SpeedMaster' })
       expect(toast.success).toHaveBeenCalledWith('내 정보를 수정했습니다.')
       expect(screen.queryByRole('dialog', { name: '계정 관리' })).not.toBeInTheDocument()
     })
@@ -172,7 +169,6 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
     vi.mocked(changeMyPassword).mockResolvedValue({
       message: '비밀번호를 변경했습니다. 다시 로그인해주세요.',
       data: null,
@@ -236,9 +232,7 @@ describe('MyPage', () => {
       })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
       .mockResolvedValueOnce(createRecordsResponse([createRecord({ effectiveTimeMs: 11344, penalty: 'PLUS_TWO' })]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord({ effectiveTimeMs: 11344, penalty: 'PLUS_TWO' })], { size: 100 }))
     vi.mocked(updateRecordPenalty).mockResolvedValue({
       message: '기록 페널티가 수정되었습니다.',
       data: {
@@ -262,7 +256,7 @@ describe('MyPage', () => {
     expect((await screen.findAllByText('11.344')).length).toBeGreaterThan(0)
     expect(toast.success).toHaveBeenCalledWith('기록 페널티가 수정되었습니다.')
     expect(getMyProfile).toHaveBeenCalledTimes(2)
-    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
+    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 100 })
   })
 
   it('should_request_next_page_when_next_button_is_clicked', async () => {
@@ -280,7 +274,6 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord()], { totalElements: 11, totalPages: 2, hasNext: true }))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
       .mockResolvedValueOnce(createRecordsResponse([createRecord({
         id: 11,
         timeMs: 11111,
@@ -327,9 +320,7 @@ describe('MyPage', () => {
       })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()], { size: 100 }))
       .mockResolvedValueOnce(createRecordsResponse([]))
-      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
     vi.mocked(deleteRecord).mockResolvedValue({
       message: '기록이 삭제되었습니다.',
       data: null,
@@ -401,18 +392,16 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockRejectedValueOnce(new Error('기록 조회 실패'))
-      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
       .mockResolvedValueOnce(createRecordsResponse([]))
-      .mockResolvedValueOnce(createRecordsResponse([], { size: 100 }))
 
     render(<MyPage />)
 
-    expect(await screen.findByText('기록 조회 실패')).toBeInTheDocument()
+    expect(await screen.findAllByText('기록 조회 실패')).toHaveLength(2)
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
     expect(await screen.findByText('아직 작성된 기록이 없습니다.')).toBeInTheDocument()
-    expect(getMyRecords).toHaveBeenCalledTimes(4)
+    expect(getMyRecords).toHaveBeenCalledTimes(2)
   })
 
   it('should_show_error_message_when_record_penalty_update_fails', async () => {
@@ -508,7 +497,6 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord({ eventType: 'WCA_222', timeMs: 2444, effectiveTimeMs: 2444 })]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord({ eventType: 'WCA_222', timeMs: 2444, effectiveTimeMs: 2444 })], { size: 100 }))
 
     render(<MyPage />)
 
