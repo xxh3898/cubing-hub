@@ -101,6 +101,7 @@ export function useCubeTimer({ enabled }) {
   }, [clearHoldTimeout, startAnimation])
 
   const transitionToStopped = useCallback(() => {
+    /* v8 ignore next -- transitionToStopped is only reached after a running start timestamp exists */
     if (startTimeRef.current == null) {
       return
     }

@@ -181,4 +181,39 @@ describe('FeedbackPage', () => {
     expect(screen.getByLabelText('제목')).toHaveAttribute('maxLength', '100')
     expect(screen.getByLabelText('내용')).toHaveAttribute('maxLength', '2000')
   })
+
+  it('should_navigate_back_when_previous_button_is_clicked', () => {
+    renderFeedbackPage()
+
+    fireEvent.click(screen.getByRole('button', { name: '이전으로' }))
+
+    expect(mockNavigate).toHaveBeenCalledWith(-1)
+  })
+
+  it('should_start_with_empty_reply_email_and_reset_to_empty_when_current_user_is_missing', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      currentUser: null,
+    })
+    vi.mocked(createFeedback).mockResolvedValue({
+      message: '피드백이 접수되었습니다. 감사합니다!',
+      data: {
+        id: 9,
+      },
+    })
+
+    renderFeedbackPage()
+
+    expect(screen.getByLabelText('회신 이메일')).toHaveValue('')
+
+    fireEvent.change(screen.getByLabelText('회신 이메일'), { target: { value: 'reply@cubinghub.com' } })
+    fireEvent.change(screen.getByLabelText('제목'), { target: { value: '버그 제보' } })
+    fireEvent.change(screen.getByLabelText('내용'), { target: { value: '재현 경로입니다.' } })
+    fireEvent.click(screen.getByRole('button', { name: '제출하기' }))
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('피드백이 접수되었습니다. 감사합니다!')
+    })
+
+    expect(screen.getByLabelText('회신 이메일')).toHaveValue('')
+  })
 })

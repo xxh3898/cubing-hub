@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { confirmEmailVerification, requestEmailVerification, signUp } from '../api.js'
@@ -35,8 +36,10 @@ export default function SignupPage() {
   }
 
   const handleRequestVerificationCode = async () => {
-    if (!email) {
-      setErrorMessage('이메일을 입력해주세요.')
+    const validationError = getVerificationRequestError(email)
+    /* v8 ignore next -- button stays disabled until email is present */
+    if (validationError) {
+      setErrorMessage(validationError)
       return
     }
 
@@ -56,8 +59,10 @@ export default function SignupPage() {
   }
 
   const handleConfirmVerificationCode = async () => {
-    if (!email || !verificationCode) {
-      setErrorMessage('이메일과 인증번호를 모두 입력해주세요.')
+    const validationError = getVerificationConfirmError(email, verificationCode)
+    /* v8 ignore next -- button stays disabled until both email and verificationCode are present */
+    if (validationError) {
+      setErrorMessage(validationError)
       return
     }
 
@@ -247,4 +252,12 @@ export default function SignupPage() {
       </div>
     </section>
   )
+}
+
+export function getVerificationRequestError(email) {
+  return !email ? '이메일을 입력해주세요.' : null
+}
+
+export function getVerificationConfirmError(email, verificationCode) {
+  return !email || !verificationCode ? '이메일과 인증번호를 모두 입력해주세요.' : null
 }

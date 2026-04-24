@@ -1,9 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import LearningPage from './LearningPage.jsx'
+import LearningPage, { getActiveTabLabel, getLearningCases } from './LearningPage.jsx'
 
 describe('LearningPage', () => {
+  it('should_return_learning_fallback_data_when_tab_key_is_unknown', () => {
+    expect(getLearningCases('UNKNOWN', false)).toEqual([])
+    expect(getActiveTabLabel('UNKNOWN')).toBe('UNKNOWN')
+  })
+
   it('should_render_wca_notation_tab_by_default', () => {
     render(
       <MemoryRouter>

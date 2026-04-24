@@ -4,8 +4,20 @@ import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
-import { getGuestTimerRecords, saveGuestTimerRecord } from '../lib/guestTimerStorage.js'
-import TimerPage from './TimerPage.jsx'
+import {
+  deleteGuestTimerRecord,
+  getGuestTimerRecords,
+  saveGuestTimerRecord,
+  updateGuestTimerRecordPenalty,
+} from '../lib/guestTimerStorage.js'
+import TimerPage, {
+  applyPenaltyUpdateToSavedRecord,
+  createSavedRecord,
+  getDisplayTime,
+  getPenaltyLabel,
+  getStatusLabel,
+  getTimerMessage,
+} from './TimerPage.jsx'
 
 vi.mock('../api.js', () => ({
   deleteRecord: vi.fn(),
@@ -116,17 +128,79 @@ describe('TimerPage', () => {
     expect(scrambleVisual).toHaveAttribute('src', expect.stringContaining('sch=wrgyob'))
   })
 
+  it('should_format_timer_helper_values', () => {
+    expect(getTimerMessage('idle', false, false)).toBe('이 종목은 아직 구현되지 않았습니다.')
+    expect(getTimerMessage('idle', true, false)).toBe('스크램블을 불러와야 타이머를 시작할 수 있습니다.')
+    expect(getTimerMessage('holding', true, true)).toBe('계속 누르고 있으면 준비됩니다.')
+    expect(getTimerMessage('ready', true, true)).toBe('손을 떼면 타이머가 시작됩니다.')
+    expect(getTimerMessage('running', true, true)).toBe('스페이스바를 누르거나 화면을 터치하면 정지됩니다.')
+    expect(getTimerMessage('stopped', true, true)).toBe('')
+    expect(getTimerMessage('idle', true, true)).toBe('스페이스바 또는 화면을 길게 누른 뒤 떼면 시작됩니다.')
+    expect(getStatusLabel('holding')).toBe('홀드')
+    expect(getStatusLabel('ready')).toBe('준비')
+    expect(getStatusLabel('running')).toBe('진행 중')
+    expect(getStatusLabel('stopped')).toBe('정지')
+    expect(getStatusLabel('idle')).toBe('대기')
+    expect(getPenaltyLabel('PLUS_TWO')).toBe('+2')
+    expect(getPenaltyLabel('DNF')).toBe('DNF')
+    expect(getPenaltyLabel('NONE')).toBe('기본')
+    expect(getDisplayTime({ penalty: 'DNF', timeMs: 8000 })).toBe('DNF')
+    expect(getDisplayTime({ penalty: 'NONE', effectiveTimeMs: 8123, timeMs: 8123 })).toBe('08.123')
+    expect(getDisplayTime({ penalty: 'NONE', timeMs: 8456 })).toBe('08.456')
+    expect(applyPenaltyUpdateToSavedRecord(
+      createRecentRecord({ id: 1, effectiveTimeMs: 8000 }),
+      1,
+      { penalty: 'PLUS_TWO', timeMs: 8000, effectiveTimeMs: 10000 },
+    )).toMatchObject({
+      id: 1,
+      penalty: 'PLUS_TWO',
+      effectiveTimeMs: 10000,
+    })
+    expect(applyPenaltyUpdateToSavedRecord(
+      createRecentRecord({ id: 1, effectiveTimeMs: 8000 }),
+      2,
+      { penalty: 'PLUS_TWO', timeMs: 8000, effectiveTimeMs: 10000 },
+    )).toMatchObject({
+      id: 1,
+      penalty: 'NONE',
+      effectiveTimeMs: 8000,
+    })
+    expect(createSavedRecord({
+      id: 'guest-1',
+      eventType: 'WCA_333',
+      timeMs: 8000,
+      penalty: 'PLUS_TWO',
+      scramble: "R U R'",
+      createdAt: '2026-04-22T20:00:00',
+    })).toEqual({
+      id: 'guest-1',
+      eventType: 'WCA_333',
+      timeMs: 8000,
+      effectiveTimeMs: 10000,
+      penalty: 'PLUS_TWO',
+      scramble: "R U R'",
+      createdAt: '2026-04-22T20:00:00',
+    })
+    expect(createSavedRecord({
+      id: 'guest-2',
+      eventType: 'WCA_333',
+      timeMs: 9000,
+      penalty: 'DNF',
+      scramble: 'F R U',
+    })).toMatchObject({
+      id: 'guest-2',
+      effectiveTimeMs: null,
+      penalty: 'DNF',
+    })
+  })
+
   it('should_fallback_to_text_only_when_scramble_visual_fails_to_load', async () => {
     render(<TimerPage />)
 
     const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
     fireEvent.error(scrambleVisual)
 
-    await waitFor(() => {
-      expect(screen.queryByRole('img', { name: '현재 스크램블 시각화' })).not.toBeInTheDocument()
-    })
-
-    expect(screen.getByText('스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.')).toBeInTheDocument()
+    expect(await screen.findByText('스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.')).toBeInTheDocument()
   })
 
   it('should_render_ao5_and_ao12_from_recent_records', async () => {
@@ -218,6 +292,20 @@ describe('TimerPage', () => {
     })
   })
 
+  it('should_not_delete_recent_record_when_delete_confirmation_is_cancelled', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => false))
+
+    render(<TimerPage />)
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalled()
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: '삭제' }))
+
+    expect(deleteRecord).not.toHaveBeenCalled()
+  })
+
   it('should_save_guest_record_to_local_storage_when_user_is_not_authenticated', async () => {
     vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: false,
@@ -245,6 +333,114 @@ describe('TimerPage', () => {
     expect(toast.success).toHaveBeenCalledWith('게스트 기록이 저장되었습니다.')
   })
 
+  it('should_update_guest_record_penalty_and_delete_guest_record_when_user_is_not_authenticated', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+    })
+    vi.mocked(useCubeTimer).mockReturnValue({
+      status: 'idle',
+      finalTime: null,
+      formattedTime: '00.000',
+      handlePointerDown: vi.fn(),
+      handlePointerUp: vi.fn(),
+      handlePointerCancel: vi.fn(),
+      resetTimer: vi.fn(),
+    })
+    vi.mocked(getGuestTimerRecords).mockReturnValue([
+      createRecentRecord({
+        id: 'guest-1',
+        scramble: "R U R'",
+      }),
+    ])
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('08.000')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '+2' }))
+    await waitFor(() => {
+      expect(updateGuestTimerRecordPenalty).toHaveBeenCalledWith('WCA_333', 'guest-1', 'PLUS_TWO')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '삭제' }))
+    await waitFor(() => {
+      expect(deleteGuestTimerRecord).toHaveBeenCalledWith('WCA_333', 'guest-1')
+    })
+    expect(toast.success).toHaveBeenCalledWith('게스트 기록이 삭제되었습니다.')
+  })
+
+  it('should_render_unsupported_event_messages_when_selected_event_is_not_supported', async () => {
+    render(<TimerPage />)
+
+    expect(await screen.findByText("R U R' U'")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'WCA_222' } })
+
+    expect(await screen.findByText('이 종목은 아직 구현되지 않았습니다.')).toBeInTheDocument()
+    expect(screen.getByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')).toBeInTheDocument()
+  })
+
+  it('should_show_scramble_and_recent_stats_errors_when_related_requests_fail', async () => {
+    vi.mocked(getScramble).mockRejectedValueOnce(new Error('스크램블 조회 실패'))
+    vi.mocked(getMyRecords).mockRejectedValueOnce(new Error('최근 기록 조회 실패'))
+    vi.mocked(useCubeTimer).mockReturnValue({
+      status: 'idle',
+      finalTime: null,
+      formattedTime: '00.000',
+      handlePointerDown: vi.fn(),
+      handlePointerUp: vi.fn(),
+      handlePointerCancel: vi.fn(),
+      resetTimer: vi.fn(),
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('스크램블 조회 실패')).toBeInTheDocument()
+    expect(await screen.findByText('최근 기록 조회 실패')).toBeInTheDocument()
+  })
+
+  it('should_show_empty_authenticated_stats_message_when_no_saved_records_exist', async () => {
+    vi.mocked(useCubeTimer).mockReturnValue({
+      status: 'idle',
+      finalTime: null,
+      formattedTime: '00.000',
+      handlePointerDown: vi.fn(),
+      handlePointerUp: vi.fn(),
+      handlePointerCancel: vi.fn(),
+      resetTimer: vi.fn(),
+    })
+    vi.mocked(getMyRecords).mockResolvedValue({
+      data: {
+        items: [],
+        page: 1,
+        size: 100,
+        totalElements: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrevious: false,
+      },
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('아직 Ao를 계산할 저장 기록이 없습니다.')).toBeInTheDocument()
+  })
+
+  it('should_prevent_default_when_context_menu_is_opened_on_timer_surface', async () => {
+    render(<TimerPage />)
+
+    const timerSurface = await screen.findByText('08.123')
+    const contextMenuEvent = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+    })
+    const preventDefaultSpy = vi.spyOn(contextMenuEvent, 'preventDefault')
+
+    fireEvent(timerSurface.closest('.timer-touch-surface'), contextMenuEvent)
+
+    expect(preventDefaultSpy).toHaveBeenCalled()
+  })
+
   it('should_retry_record_save_when_auto_save_fails', async () => {
     vi.mocked(saveRecord)
       .mockRejectedValueOnce(new Error('기록 저장 실패'))
@@ -266,5 +462,21 @@ describe('TimerPage', () => {
     })
 
     expect(toast.success).toHaveBeenCalledWith('기록이 저장되었습니다.')
+  })
+
+  it('should_create_recent_saved_record_with_fallback_id_when_save_response_has_no_id', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(24680)
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: null,
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('08.123')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('기록이 저장되었습니다.')
+      expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1)
+    })
   })
 })

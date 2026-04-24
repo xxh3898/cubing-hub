@@ -197,6 +197,7 @@ sketch
 build/
 .gradle/
 frontend/dist/
+frontend/coverage/
 
 # Local environment files
 .env

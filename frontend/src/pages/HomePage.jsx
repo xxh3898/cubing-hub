@@ -1,10 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { getHome } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import { formatTimeMs } from '../utils/formatTime.js'
 
-function formatEventLabel(eventType) {
+export function formatEventLabel(eventType) {
   if (eventType === 'WCA_333') {
     return '3x3x3'
   }
@@ -12,7 +13,7 @@ function formatEventLabel(eventType) {
   return eventType
 }
 
-function formatPostCategoryLabel(category) {
+export function formatPostCategoryLabel(category) {
   if (category === 'NOTICE') {
     return '공지'
   }
@@ -24,7 +25,7 @@ function formatPostCategoryLabel(category) {
   return category
 }
 
-function DashboardCard({ label, value, detail }) {
+export function DashboardCard({ label, value, detail }) {
   return (
     <article className="dashboard-card">
       <p className="dashboard-card-label">{label}</p>
@@ -34,7 +35,7 @@ function DashboardCard({ label, value, detail }) {
   )
 }
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   if (!value) {
     return '-'
   }
@@ -50,7 +51,7 @@ function formatDateTime(value) {
   return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일 ${period} ${displayHour}시 ${minute}분`
 }
 
-function formatDateOnly(value) {
+export function formatDateOnly(value) {
   if (!value) {
     return '-'
   }
@@ -61,7 +62,7 @@ function formatDateOnly(value) {
   return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일`
 }
 
-function formatNullableTime(timeMs) {
+export function formatNullableTime(timeMs) {
   if (typeof timeMs !== 'number') {
     return '-'
   }
@@ -69,7 +70,7 @@ function formatNullableTime(timeMs) {
   return formatTimeMs(timeMs)
 }
 
-function formatRecordTime(record) {
+export function formatRecordTime(record) {
   if (!record) {
     return '-'
   }

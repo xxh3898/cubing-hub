@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
@@ -12,7 +13,7 @@ const RECENT_STATS_FETCH_SIZE = 100
 const RECENT_STATS_LIMIT = 12
 const RECENT_SAVED_LIMIT = 5
 
-function getTimerMessage(status, isSupported, hasScramble) {
+export function getTimerMessage(status, isSupported, hasScramble) {
   if (!isSupported) {
     return '이 종목은 아직 구현되지 않았습니다.'
   }
@@ -40,7 +41,7 @@ function getTimerMessage(status, isSupported, hasScramble) {
   return '스페이스바 또는 화면을 길게 누른 뒤 떼면 시작됩니다.'
 }
 
-function getStatusLabel(status) {
+export function getStatusLabel(status) {
   if (status === 'holding') {
     return '홀드'
   }
@@ -60,7 +61,7 @@ function getStatusLabel(status) {
   return '대기'
 }
 
-function getPenaltyLabel(penalty) {
+export function getPenaltyLabel(penalty) {
   if (penalty === 'PLUS_TWO') {
     return '+2'
   }
@@ -72,7 +73,7 @@ function getPenaltyLabel(penalty) {
   return '기본'
 }
 
-function getDisplayTime(record) {
+export function getDisplayTime(record) {
   if (record.penalty === 'DNF') {
     return 'DNF'
   }
@@ -80,7 +81,7 @@ function getDisplayTime(record) {
   return formatRecordTime(record.effectiveTimeMs ?? record.timeMs, { padSeconds: true })
 }
 
-function createSavedRecord({ id, eventType, timeMs, penalty, scramble, createdAt = new Date().toISOString() }) {
+export function createSavedRecord({ id, eventType, timeMs, penalty, scramble, createdAt = new Date().toISOString() }) {
   return {
     id,
     eventType,
@@ -90,6 +91,17 @@ function createSavedRecord({ id, eventType, timeMs, penalty, scramble, createdAt
     scramble,
     createdAt,
   }
+}
+
+export function applyPenaltyUpdateToSavedRecord(record, recordId, nextRecord) {
+  return record.id === recordId
+    ? {
+        ...record,
+        penalty: nextRecord.penalty,
+        timeMs: nextRecord.timeMs,
+        effectiveTimeMs: nextRecord.effectiveTimeMs,
+      }
+    : record
 }
 
 export default function TimerPage() {
@@ -141,6 +153,7 @@ export default function TimerPage() {
   })
 
   const loadRecentStatistics = useCallback(async (eventType) => {
+    /* v8 ignore next -- callers only invoke this on authenticated supported-event paths */
     if (!isAuthenticated || !eventType) {
       setRecentStatsRecords([])
       setRecentStatsError(null)
@@ -264,14 +277,7 @@ export default function TimerPage() {
         const response = await updateRecordPenalty(recordId, { penalty })
         setRecentSavedRecords((current) =>
           current.map((record) =>
-            record.id === recordId
-              ? {
-                  ...record,
-                  penalty: response.data.penalty,
-                  timeMs: response.data.timeMs,
-                  effectiveTimeMs: response.data.effectiveTimeMs,
-                }
-              : record,
+            applyPenaltyUpdateToSavedRecord(record, recordId, response.data),
           ),
         )
         await loadRecentStatistics(selectedEvent)
@@ -308,6 +314,7 @@ export default function TimerPage() {
   }, [finalTime, isSupported, scrambleData?.scramble, selectedEvent, status, stoppedSolveSnapshot])
 
   const persistStoppedSolve = useCallback(async (snapshot) => {
+    /* v8 ignore next -- saveStatus prevents duplicate in-flight calls for the same snapshot */
     if (!snapshot || activePersistKeyRef.current === snapshot.key) {
       return
     }

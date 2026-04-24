@@ -33,7 +33,7 @@ const apiClient = axios.create({
 
 let refreshPromise = null
 
-function clearContentTypeHeader(headers) {
+export function clearContentTypeHeader(headers) {
   if (!headers) {
     return
   }
@@ -48,7 +48,7 @@ function clearContentTypeHeader(headers) {
   delete headers['content-type']
 }
 
-function shouldSkipRefresh(config) {
+export function shouldSkipRefresh(config) {
   const requestUrl = config?.url ?? ''
 
   return (

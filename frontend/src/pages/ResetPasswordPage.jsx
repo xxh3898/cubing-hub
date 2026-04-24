@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { confirmPasswordReset, requestPasswordReset } from '../api.js'
@@ -16,8 +17,10 @@ export default function ResetPasswordPage() {
   const isBusy = isRequestingCode || isSubmitting
 
   const handleRequestResetCode = async () => {
-    if (!email) {
-      setErrorMessage('이메일을 입력해주세요.')
+    const validationError = getResetCodeRequestError(email)
+    /* v8 ignore next -- button stays disabled until email is present */
+    if (validationError) {
+      setErrorMessage(validationError)
       return
     }
 
@@ -170,4 +173,8 @@ export default function ResetPasswordPage() {
       </div>
     </section>
   )
+}
+
+export function getResetCodeRequestError(email) {
+  return !email ? '이메일을 입력해주세요.' : null
 }

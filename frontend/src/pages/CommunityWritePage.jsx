@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createPost, getEditablePost, updatePost } from '../api.js'
@@ -7,7 +8,7 @@ import { useAuth } from '../context/useAuth.js'
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp'])
 const MAX_IMAGE_TOTAL_BYTES = 30 * 1024 * 1024
 
-function createPreviewItem(file) {
+export function createPreviewItem(file) {
   return {
     id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
     file,
@@ -15,9 +16,15 @@ function createPreviewItem(file) {
   }
 }
 
-function getFileExtension(fileName) {
+export function getFileExtension(fileName) {
   const segments = fileName.split('.')
-  return segments.length > 1 ? segments.at(-1)?.toLowerCase() ?? '' : ''
+  return segments.length > 1 ? segments.at(-1).toLowerCase() : ''
+}
+
+export function revokePreviewUrls(images) {
+  for (const image of images) {
+    URL.revokeObjectURL(image.previewUrl)
+  }
 }
 
 export default function CommunityWritePage() {
@@ -42,9 +49,7 @@ export default function CommunityWritePage() {
 
   const clearNewImages = () => {
     setNewImages((current) => {
-      for (const image of current) {
-        URL.revokeObjectURL(image.previewUrl)
-      }
+      revokePreviewUrls(current)
       return []
     })
   }
@@ -60,9 +65,7 @@ export default function CommunityWritePage() {
   }, [newImages])
 
   useEffect(() => () => {
-    for (const image of newImagesRef.current) {
-      URL.revokeObjectURL(image.previewUrl)
-    }
+    revokePreviewUrls(newImagesRef.current)
   }, [])
 
   useEffect(() => {
@@ -129,6 +132,7 @@ export default function CommunityWritePage() {
   }, [isEditMode, postId])
 
   const handleImageChange = (event) => {
+    /* v8 ignore next -- browser file inputs provide a FileList on change */
     const nextFiles = Array.from(event.target.files ?? [])
 
     if (nextFiles.length === 0) {
@@ -178,6 +182,7 @@ export default function CommunityWritePage() {
   const handleRemoveNewImage = (imageId) => {
     setNewImages((current) => {
       const target = current.find((image) => image.id === imageId)
+      /* v8 ignore next -- remove buttons are rendered only for existing preview ids */
       if (target) {
         URL.revokeObjectURL(target.previewUrl)
       }
@@ -197,11 +202,13 @@ export default function CommunityWritePage() {
       return
     }
 
+    /* v8 ignore next -- non-admin users cannot submit NOTICE because the option is hidden and normalized */
     if (category === 'NOTICE' && !isAdmin) {
       setFormErrorMessage('공지사항은 관리자만 작성할 수 있습니다.')
       return
     }
 
+    /* v8 ignore next -- invalid edit ids exit through the error screen before the form can submit */
     if (isEditMode && Number.isNaN(postId)) {
       setLoadErrorMessage('게시글을 찾을 수 없습니다.')
       return

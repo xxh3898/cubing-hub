@@ -228,4 +228,163 @@ describe('RankingsPage', () => {
       expect(getRankings).toHaveBeenCalledTimes(2)
     })
   })
+
+  it('should_normalize_page_when_loaded_page_exceeds_total_pages', async () => {
+    vi.mocked(getRankings)
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 }],
+          totalElements: 30,
+          totalPages: 2,
+          hasNext: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 26, nickname: 'Beta', eventType: 'CLOCK', timeMs: 10100 }],
+          page: 2,
+          totalElements: 26,
+          totalPages: 1,
+          hasPrevious: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Normalized', eventType: 'CLOCK', timeMs: 10050 }],
+          page: 1,
+          totalElements: 1,
+          totalPages: 1,
+        }),
+      )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '다음' }))
+
+    expect(await screen.findByText('Normalized')).toBeInTheDocument()
+    expect(screen.getByText('CLOCK')).toBeInTheDocument()
+  })
+
+  it('should_fallback_to_pagination_flags_when_server_omits_has_previous_and_has_next', async () => {
+    vi.mocked(getRankings)
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 }],
+          totalElements: 30,
+          totalPages: 2,
+          hasNext: true,
+        }),
+      )
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ rank: 26, nickname: 'Beta', eventType: 'WCA_333', timeMs: 10100 }],
+          page: 2,
+          size: 25,
+          totalElements: 30,
+          totalPages: 2,
+        },
+      })
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '다음' }))
+
+    expect(await screen.findByText('Beta')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '이전' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
+  })
+
+  it('should_ignore_pending_ranking_request_when_component_is_unmounted', async () => {
+    let resolveRequest
+    vi.mocked(getRankings).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+
+    const { unmount } = render(<RankingsPage />)
+
+    unmount()
+    resolveRequest(createRankingPageResponse({
+      items: [{ rank: 1, nickname: 'LateResult', eventType: 'WCA_333', timeMs: 9800 }],
+    }))
+
+    await waitFor(() => {
+      expect(getRankings).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('should_ignore_pending_ranking_error_when_component_is_unmounted', async () => {
+    let rejectRequest
+    vi.mocked(getRankings).mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject
+        }),
+    )
+
+    const { unmount } = render(<RankingsPage />)
+
+    unmount()
+    rejectRequest(new Error('late ranking failure'))
+
+    await waitFor(() => {
+      expect(getRankings).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('should_reset_page_to_first_when_search_query_changes_while_current_page_is_not_first', async () => {
+    vi.mocked(getRankings)
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 }],
+          totalElements: 30,
+          totalPages: 2,
+          hasNext: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 26, nickname: 'Beta', eventType: 'WCA_333', timeMs: 10100 }],
+          page: 2,
+          totalElements: 30,
+          totalPages: 2,
+          hasPrevious: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'SearchReset', eventType: 'WCA_333', timeMs: 9750 }],
+          page: 1,
+          totalElements: 1,
+          totalPages: 1,
+        }),
+      )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '다음' }))
+    expect(await screen.findByText('Beta')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('닉네임 검색'), { target: { value: 'reset' } })
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350)
+    })
+
+    expect(await screen.findByText('SearchReset')).toBeInTheDocument()
+    expect(getRankings).toHaveBeenLastCalledWith({
+      eventType: 'WCA_333',
+      nickname: 'reset',
+      page: 1,
+      size: 25,
+    })
+  })
 })

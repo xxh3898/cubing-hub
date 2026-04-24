@@ -294,4 +294,110 @@ describe('CommunityPage', () => {
       expect(getPosts).toHaveBeenCalledTimes(2)
     })
   })
+
+  it('should_navigate_when_post_row_is_activated_with_supported_keys_only', async () => {
+    vi.mocked(getPosts).mockResolvedValue(
+      createPostPageResponse({
+        items: [
+          { id: 3, category: 'FREE', title: '키보드 이동 글', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' },
+        ],
+      }),
+    )
+
+    renderCommunityPage()
+
+    const rowLink = await screen.findByRole('link', { name: '키보드 이동 글 상세 보기' })
+
+    fireEvent.keyDown(rowLink, { key: 'ArrowDown' })
+    expect(screen.queryByText('상세 페이지 3')).not.toBeInTheDocument()
+
+    fireEvent.keyDown(rowLink, { key: ' ' })
+    expect(await screen.findByText('상세 페이지 3')).toBeInTheDocument()
+  })
+
+  it('should_normalize_page_when_loaded_page_exceeds_total_pages', async () => {
+    vi.mocked(getPosts)
+      .mockResolvedValueOnce(
+        createPostPageResponse({
+          items: [{ id: 1, category: 'FREE', title: '첫 페이지 글', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' }],
+          totalElements: 9,
+          totalPages: 2,
+          hasNext: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createPostPageResponse({
+          items: [{ id: 9, category: 'NOTICE', title: '보정 전 글', authorNickname: 'Admin', viewCount: 15, createdAt: '2026-04-15T11:00:00' }],
+          page: 2,
+          totalElements: 9,
+          totalPages: 1,
+          hasPrevious: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createPostPageResponse({
+          items: [{ id: 7, category: 'NOTICE', title: '보정된 글', authorNickname: 'Admin', viewCount: 18, createdAt: '2026-04-15T12:00:00' }],
+          page: 1,
+          totalElements: 1,
+          totalPages: 1,
+        }),
+      )
+
+    renderCommunityPage()
+
+    expect(await screen.findByText('첫 페이지 글')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '다음' }))
+
+    expect(await screen.findByText('보정된 글')).toBeInTheDocument()
+    expect(screen.getAllByText('공지').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('should_ignore_pending_post_request_when_component_is_unmounted', async () => {
+    let resolveRequest
+    vi.mocked(getPosts).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/community']}>
+        <CommunityPage />
+      </MemoryRouter>,
+    )
+
+    unmount()
+    resolveRequest(createPostPageResponse({
+      items: [{ id: 4, category: 'FREE', title: '늦게 온 글', authorNickname: 'Alpha', viewCount: 12, createdAt: '2026-04-15T10:00:00' }],
+    }))
+
+    await waitFor(() => {
+      expect(getPosts).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('should_ignore_failed_post_request_when_component_is_unmounted', async () => {
+    let rejectRequest
+    vi.mocked(getPosts).mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject
+        }),
+    )
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/community']}>
+        <CommunityPage />
+      </MemoryRouter>,
+    )
+
+    unmount()
+    rejectRequest(new Error('늦게 온 실패'))
+
+    await waitFor(() => {
+      expect(getPosts).toHaveBeenCalledTimes(1)
+    })
+  })
 })

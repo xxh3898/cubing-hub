@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { createComment, deleteComment, deletePost, getComments, getPost } from '../api.js'
@@ -6,13 +7,13 @@ import { useAuth } from '../context/useAuth.js'
 
 const COMMENT_PAGE_SIZE = 5
 
-function formatCommunityDate(value) {
+export function formatCommunityDate(value) {
   const date = new Date(value)
 
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function formatCategoryLabel(category) {
+export function formatCategoryLabel(category) {
   return category === 'NOTICE' ? '공지' : '자유'
 }
 

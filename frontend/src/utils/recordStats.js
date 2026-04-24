@@ -68,6 +68,7 @@ export function calculateAverageOf(records, count) {
     .sort((left, right) => compareSolveValues(left, right))
     .slice(1, values.length - 1)
 
+  /* v8 ignore next -- two or more null solves return early before the trimmed set can contain null */
   if (trimmedValues.some((value) => value == null)) {
     return AVERAGE_DNF
   }
@@ -98,6 +99,7 @@ export function buildTrendChartData(records) {
 }
 
 function compareSolveValues(left, right) {
+  /* v8 ignore next -- calculateAverageOf returns before sorting when both values can be null */
   if (left == null && right == null) {
     return 0
   }

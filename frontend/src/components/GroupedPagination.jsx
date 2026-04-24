@@ -1,10 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 const PAGE_GROUP_SIZE = 10
 
 function joinClassNames(...classNames) {
   return classNames.filter(Boolean).join(' ')
 }
 
-function buildVisiblePageNumbers(currentPage, totalPages, groupSize) {
+export function buildVisiblePageNumbers(currentPage, totalPages, groupSize) {
   if (totalPages < 1) {
     return []
   }

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import GroupedPagination from './GroupedPagination.jsx'
+import GroupedPagination, { buildVisiblePageNumbers } from './GroupedPagination.jsx'
 
 describe('GroupedPagination', () => {
   it('should_render_only_current_page_group_when_total_pages_exceed_group_size', () => {
@@ -52,5 +52,27 @@ describe('GroupedPagination', () => {
     )
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('should_return_empty_page_numbers_when_total_pages_is_less_than_one', () => {
+    expect(buildVisiblePageNumbers(1, 0, 10)).toEqual([])
+  })
+
+  it('should_move_to_previous_page_when_previous_button_is_clicked', () => {
+    const handlePageChange = vi.fn()
+
+    render(
+      <GroupedPagination
+        currentPage={3}
+        totalPages={5}
+        hasPrevious
+        hasNext
+        onPageChange={handlePageChange}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '이전' }))
+
+    expect(handlePageChange).toHaveBeenCalledWith(2)
   })
 })

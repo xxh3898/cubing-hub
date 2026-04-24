@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useMemo, useState } from 'react'
 import { mockLearningCases, mockLearningTabs } from '../constants/mockLearning.js'
 import { buildVisualCubeUrl } from '../utils/visualCube.js'
@@ -39,17 +40,21 @@ const notationGuides = notationFaces.flatMap((face) => [
   },
 ])
 
+export function getLearningCases(activeTab, isNotationTab) {
+  return isNotationTab ? notationGuides : mockLearningCases[activeTab] ?? []
+}
+
+export function getActiveTabLabel(activeTab) {
+  return learningTabs.find((tab) => tab.key === activeTab)?.label ?? activeTab
+}
+
 export default function LearningPage() {
   const [activeTab, setActiveTab] = useState(NOTATION_TAB_KEY)
   const isNotationTab = activeTab === NOTATION_TAB_KEY
 
   const activeCases = useMemo(
-    () => (isNotationTab ? notationGuides : mockLearningCases[activeTab] ?? []),
+    () => getLearningCases(activeTab, isNotationTab),
     [activeTab, isNotationTab],
-  )
-  const activeTabMeta = useMemo(
-    () => learningTabs.find((tab) => tab.key === activeTab),
-    [activeTab],
   )
 
   return (
@@ -80,7 +85,7 @@ export default function LearningPage() {
 
         <div className="learning-section-heading">
           <div>
-            <h3>{activeTabMeta?.label ?? activeTab}</h3>
+            <h3>{getActiveTabLabel(activeTab)}</h3>
             <p className="helper-text">
               {isNotationTab
                 ? 'WCA 3x3x3 스크램블에서 실제로 보는 기본 표기만 VisualCube로 정리했습니다.'

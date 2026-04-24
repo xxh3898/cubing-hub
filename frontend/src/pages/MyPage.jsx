@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -20,13 +21,13 @@ import { buildTrendChartData, filterLatestRecordsByEvent, formatRecordTime } fro
 const RECORDS_PAGE_SIZE = 10
 const TREND_FETCH_SIZE = 100
 const TREND_RECORD_LIMIT = 30
-const DEFAULT_MAIN_EVENT = eventOptions[0]?.value ?? ''
+const DEFAULT_MAIN_EVENT = eventOptions[0].value
 const ACCOUNT_TABS = [
   { key: 'profile', label: '프로필 수정' },
   { key: 'password', label: '비밀번호 변경' },
 ]
 
-function getPenaltyLabel(penalty) {
+export function getPenaltyLabel(penalty) {
   if (penalty === 'PLUS_TWO') {
     return '+2'
   }
@@ -38,7 +39,7 @@ function getPenaltyLabel(penalty) {
   return '-'
 }
 
-function getDisplayRecordTime(record) {
+export function getDisplayRecordTime(record) {
   if (record.penalty === 'DNF') {
     return 'DNF'
   }
@@ -46,7 +47,7 @@ function getDisplayRecordTime(record) {
   return formatRecordTime(record.effectiveTimeMs ?? record.timeMs)
 }
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   if (!value) {
     return '-'
   }
@@ -54,7 +55,11 @@ function formatDateTime(value) {
   return value.replace('T', ' ').slice(0, 16)
 }
 
-function buildFirstPageFromRecentRecords(sourcePage) {
+export function formatTrendAxisTick(value) {
+  return formatRecordTime(value)
+}
+
+export function buildFirstPageFromRecentRecords(sourcePage) {
   const totalElements = sourcePage?.totalElements ?? 0
   const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / RECORDS_PAGE_SIZE)
 
@@ -579,7 +584,7 @@ export default function MyPage() {
                 <LineChart data={trendChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(18, 32, 43, 0.12)" />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                  <YAxis tickFormatter={(value) => formatRecordTime(value)} tickLine={false} axisLine={false} width={64} />
+                  <YAxis tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
                   <Tooltip content={<RecordTrendTooltip />} />
                   <Line
                     type="monotone"
@@ -848,7 +853,7 @@ export default function MyPage() {
   )
 }
 
-function resolveEventType(mainEvent) {
+export function resolveEventType(mainEvent) {
   if (!mainEvent) {
     return null
   }
@@ -860,7 +865,7 @@ function resolveEventType(mainEvent) {
   return matchedOption?.value ?? mainEvent
 }
 
-function getEventLabel(mainEvent) {
+export function getEventLabel(mainEvent) {
   if (!mainEvent) {
     return '-'
   }
@@ -872,7 +877,7 @@ function getEventLabel(mainEvent) {
   return matchedOption?.label ?? mainEvent
 }
 
-function RecordTrendTooltip({ active, payload }) {
+export function RecordTrendTooltip({ active, payload }) {
   if (!active || !payload?.length) {
     return null
   }
