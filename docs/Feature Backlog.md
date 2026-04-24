@@ -46,7 +46,7 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 회전기호 설명 페이지 | done | 완료 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 학습 화면 상단 첫 탭에 WCA `3x3x3` 스크램블 기준 `U/D/L/R/F/B`의 기본, prime, double turn VisualCube 가이드를 배치했다. |
+| 회전기호 설명 페이지 | done | 완료 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 학습 화면 첫 번째 탭에 WCA `3x3x3` 스크램블 기준 `U/D/L/R/F/B`의 기본, prime, double turn VisualCube 가이드를 배치했다. |
 
 ## Feedback & Integration
 
@@ -58,7 +58,7 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 정보 변경 기능 (`닉네임`, `비밀번호` 등) | done | 완료 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 마이페이지 `계정 관리` 모달에서 닉네임/주 종목 수정과 현재 비밀번호 기반 비밀번호 변경을 처리할 수 있다. |
+| 정보 변경 기능 (`닉네임`, `비밀번호` 등) | done | 완료 | 회원가입 이후에도 계정 정보를 직접 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | 마이페이지 `계정 관리` 모달에서 닉네임/주 종목 수정과 현재 비밀번호 확인 후 비밀번호 변경을 처리할 수 있다. |
 | 비밀번호 재설정 기능 | done | 완료 | 비밀번호 분실 시 계정 회복 경로를 제공할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md) | 이메일 6자리 인증번호와 Redis TTL을 재사용해 로그인 전 비밀번호 재설정 흐름을 제공한다. |
 | 관리자 피드백/Q&A/메모 운영 | done | 완료 | 운영 질문, 답변, 공개 여부, 내부 메모를 한곳에서 관리할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [API Specification](./API%20Specification.md) | `/admin`, `/api/admin/feedbacks`, `/api/admin/memos`, `/qna` 흐름을 반영했다. |
 
@@ -66,13 +66,13 @@
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 게시글 사진첨부 기능 | done | 완료 | 글 작성 시 이미지로 설명과 기록 공유를 더 쉽게 할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md) | 게시글 create/update에서 다중 이미지 첨부, S3 + DB metadata 저장, production env wiring까지 반영했다. |
+| 게시글 사진첨부 기능 | done | 완료 | 글 작성 시 이미지로 설명과 기록 공유를 더 쉽게 할 수 있다. | [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20&%20Infrastructure%20Design.md) | 게시글 create/update에서 다중 이미지 첨부, S3 + DB 메타데이터 저장, 운영 환경 변수 전달까지 반영했다. |
 
 ## Mobile UX
 
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 모바일 반응형 구현 | done | 완료 | 모바일 브라우저에서도 주요 흐름을 무리 없이 사용할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 상단 nav와 주요 액션 영역을 모바일 grid/stack 기준으로 재배치하고, 홈/랭킹/커뮤니티/마이페이지 표형 데이터를 stacked card row로 정리했다. |
+| 모바일 반응형 구현 | done | 완료 | 모바일 브라우저에서도 주요 흐름을 무리 없이 사용할 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 상단 nav와 주요 액션 영역을 모바일 grid/세로 배치 기준으로 재배치하고, 홈/랭킹/커뮤니티/마이페이지 표형 데이터를 카드형 행으로 정리했다. |
 | 모바일용 터치 타이머 구현 | done | 완료 | 모바일 환경에서도 실제 타이머 사용 경험을 제공할 수 있다. | [Screen Specification](./Screen%20Specification.md) | `touch`/`pen` pointer 입력이 keyboard `Space`와 같은 상태 머신을 공유하도록 반영해 hold, ready, start, stop 흐름을 모바일에서도 지원한다. |
 
 ## Reference Notes

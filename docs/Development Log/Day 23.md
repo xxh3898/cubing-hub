@@ -11,15 +11,15 @@
 - frontend build 시 `VITE_API_BASE_URL` 누락 문제를 확인하고 `https://api.cubing-hub.com` 기준으로 다시 빌드
 - backend image의 `linux/amd64` manifest mismatch를 확인하고 Docker Hub 이미지를 재빌드/재푸시
 - EC2 Nginx가 `options-ssl-nginx.conf`, `ssl-dhparams.pem` 누락으로 재시작하는 문제를 해결
-- first deploy 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
+- 최초 배포 플래그(`ddl-auto=update`, `rebuild-on-startup=true`) 적용 후 정상 기동을 확인하고 운영 안전값(`validate`, `false`)으로 원복
 - apex(`https://cubing-hub.com`) origin의 CORS preflight가 `403`으로 차단되는 운영 설정 누락을 확인하고 `CORS_ALLOWED_ORIGINS` 기본값을 apex + www 동시 허용으로 보정
 - `Backend CI`, `Frontend CI` 성공 뒤에 이어지는 분리 deploy workflow를 추가
 - malformed `refresh_token`가 login/bootstrap 자체를 막는 운영 증상을 재현하고 `POST /api/session/clear-refresh-cookie` 기반 복구 흐름을 추가
 - 홈 오늘의 스크램블을 `Asia/Seoul` 날짜 기준으로 고정하고, 랭킹/커뮤니티/댓글/마이페이지에 grouped 페이지네이션과 상단 안내 문구를 공통 적용
 - 랭킹/커뮤니티 검색 debounce, 커뮤니티 반복 호출 루프 수정, 브라우저 자동 번역 오인 방지 설정으로 화면 안정성을 보강
-- MyPage summary를 `aggregate query`로 최적화하고 benchmark/Grafana 자산을 추가
+- MyPage 요약을 `aggregate query`로 최적화하고 벤치마크/Grafana 자산을 추가
 - 피드백 Discord 알림 상태/재시도 UX, 타이머 스크램블 이미지 미리보기, 마이페이지 기록 그래프와 `Ao5`, `Ao12` 통계를 추가
-- 배포, 스크램블 정책, 페이지네이션, benchmark, Discord 운영, 기록 그래프 관련 문서를 같은 날짜 상태로 동기화
+- 배포, 스크램블 정책, 페이지네이션, 벤치마크, Discord 운영, 기록 그래프 관련 문서를 같은 날짜 상태로 동기화
 
 ---
 
@@ -51,9 +51,9 @@
 
 #### 결과
 - `cubing_hub_app` 컨테이너가 EC2에서 정상 기동했다.
-- RDS 연결과 Redis startup rebuild까지 로그로 확인했다.
+- RDS 연결과 Redis 시작 시 재구축까지 로그로 확인했다.
 
-### 3. RDS schema 확인과 first deploy 부팅
+### 3. RDS schema 확인과 최초 배포 부팅
 
 #### 문제 상황
 - RDS 인스턴스 식별자와 실제 schema 이름이 다를 수 있어 `.env`의 `DB_NAME`을 확인할 필요가 있었다.
@@ -62,10 +62,10 @@
 #### 해결 방법
 - EC2에서 RDS MySQL에 직접 접속해 `SHOW DATABASES;`를 실행했다.
 - 실제 schema 이름이 `cubinghub`임을 확인했다.
-- first deploy에서는 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`, `RANKING_REDIS_REBUILD_ON_STARTUP=true`로 기동했다.
+- 최초 배포에서는 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`, `RANKING_REDIS_REBUILD_ON_STARTUP=true`로 기동했다.
 
 #### 결과
-- 앱이 RDS에 연결되고 Redis ready marker까지 생성했다.
+- 앱이 RDS에 연결되고 Redis 준비 상태 키까지 생성했다.
 - 정상 기동 확인 후 `.env`를 `validate`, `false`로 원복했다.
 
 ### 4. Nginx HTTPS 기동 문제 해결
@@ -141,13 +141,13 @@
 
 #### 해결 방법
 - `count/min/avg aggregate query` 기반으로 summary 조회를 교체했다.
-- `10 users x 10,000 records` 기준 benchmark와 Grafana 자산을 함께 남겨 baseline과 optimized를 비교할 수 있게 했다.
+- `10 users x 10,000 records` 기준 벤치마크와 Grafana 자산을 함께 남겨 기준선과 개선 후 결과를 비교할 수 있게 했다.
 
 #### 결과
 - 같은 시나리오 기준 `avg 451.04 ms -> 77.86 ms`, `p95 790.68 ms -> 137.39 ms`, `70.62 req/s -> 407.21 req/s`를 확인했다.
 - 캐시를 먼저 붙이지 않고도 summary hot path를 구조적으로 줄였다는 설명 근거를 확보했다.
 
-### 9. 운영 UX와 시각 피드백도 같은 날 같이 닫았다
+### 9. 운영 UX와 시각 피드백도 같은 날 함께 정리했다
 
 #### 구현
 - 피드백 전송 후 Discord 알림 상태를 응답에 포함하고 실패 시 재시도 UX를 붙였다.

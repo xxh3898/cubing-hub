@@ -77,12 +77,12 @@
 | `POST` | `/api/records` | Auth | 기록 저장 | 구현됨 |
 | `PATCH` | `/api/records/{recordId}` | Auth | 기록 penalty 수정 | 구현됨 |
 | `DELETE` | `/api/records/{recordId}` | Auth | 기록 삭제 | 구현됨 |
-| `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V2 hybrid) |
+| `GET` | `/api/rankings` | Public | 글로벌 랭킹 조회 | 구현됨 (V2) |
 | `GET` | `/api/scramble` | Public | 스크램블 조회 | 구현됨 |
 | `POST` | `/api/posts` | Auth | 게시글 생성 | 구현됨 |
 | `GET` | `/api/posts` | Public | 게시글 목록 조회 | 구현됨 |
 | `GET` | `/api/posts/{postId}` | Public | 게시글 상세 조회 | 구현됨 |
-| `GET` | `/api/posts/{postId}/edit` | Auth | 게시글 수정 preload 조회 | 구현됨 |
+| `GET` | `/api/posts/{postId}/edit` | Auth | 게시글 수정 화면 사전 조회 | 구현됨 |
 | `PUT` | `/api/posts/{postId}` | Auth | 게시글 수정 | 구현됨 |
 | `DELETE` | `/api/posts/{postId}` | Auth | 게시글 삭제 | 구현됨 |
 | `GET` | `/api/posts/{postId}/comments` | Public | 댓글 목록 조회 | 구현됨 |
@@ -119,7 +119,7 @@
 
 - `400 Bad Request`
   - 이미 가입된 이메일이면 응답 메시지는 `이미 사용 중인 이메일입니다.`
-  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
+  - 재요청 제한 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
 - `503 Service Unavailable`
   - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
 
@@ -172,7 +172,7 @@
 #### 에러 계약
 
 - `400 Bad Request`
-  - 재요청 cooldown 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
+  - 재요청 제한 중이면 응답 메시지는 `인증번호 재요청은 약 1분 뒤에 가능합니다.`
 - `503 Service Unavailable`
   - SMTP 발송 실패 또는 설정 누락이면 응답 메시지는 `메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.`
 
@@ -467,7 +467,7 @@
 
 ### `POST /api/records`
 
-- 설명: 사용자의 solve 기록을 저장하고, PB가 바뀌면 `user_pbs`와 Redis 랭킹 read model을 함께 갱신한다.
+- 설명: 사용자의 solve 기록을 저장하고, PB가 바뀌면 `user_pbs`와 Redis 랭킹 읽기 모델을 함께 갱신한다.
 - 인증: Access Token 필요
 - 멱등성: 비멱등
 
@@ -490,7 +490,7 @@
 
 ### `PATCH /api/records/{recordId}`
 
-- 설명: 본인 기록의 penalty를 수정하고, 변경 후 `user_pbs`를 다시 계산하며 PB 변경 시 Redis 랭킹 read model을 동기화한다.
+- 설명: 본인 기록의 penalty를 수정하고, 변경 후 `user_pbs`를 다시 계산하며 PB 변경 시 Redis 랭킹 읽기 모델을 동기화한다.
 - 인증: Access Token 필요
 - 인가: 기록 소유자 본인
 - 멱등성: 약한 멱등
@@ -519,7 +519,7 @@
 
 ### `DELETE /api/records/{recordId}`
 
-- 설명: 본인 기록을 삭제하고, 삭제 대상이 PB면 `user_pbs`를 다시 계산하며 Redis 랭킹 read model을 갱신하거나 제거한다.
+- 설명: 본인 기록을 삭제하고, 삭제 대상이 PB면 `user_pbs`를 다시 계산하며 Redis 랭킹 읽기 모델을 갱신하거나 제거한다.
 - 인증: Access Token 필요
 - 인가: 기록 소유자 본인
 - 멱등성: 멱등
@@ -569,14 +569,14 @@
 
 #### 상태 메모
 
-- 상태: V2 hybrid
-- `nickname`이 비어 있고 Redis ready marker가 있으면 Redis ZSET read model을 사용한다.
-- `nickname` 검색 요청 또는 Redis 미준비 상태는 MySQL `user_pbs` QueryDSL 경로로 fallback 한다.
-- `nickname` 검색 fallback 경로는 MySQL 8 window function(`ROW_NUMBER() OVER (...)`)을 전제로 한다.
+- 상태: V2
+- `nickname`이 비어 있고 Redis 준비 상태 키가 있으면 Redis ZSET 읽기 모델을 사용한다.
+- `nickname` 검색 요청 또는 Redis 미준비 상태는 MySQL `user_pbs` QueryDSL 대체 경로를 사용한다.
+- `nickname` 검색 대체 경로는 MySQL 8 window function(`ROW_NUMBER() OVER (...)`)을 전제로 한다.
 - 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`를 유지한다.
 - `nickname` 검색 결과는 필터된 집합 안의 재계산 순위가 아니라 전체 랭킹 기준 순위를 유지한다.
 - 응답 형식, 검색 계약, 서버 페이지네이션은 V1과 동일하게 유지한다.
-- MySQL `records` / `user_pbs`는 source of truth이고 Redis는 읽기 최적화를 위한 보조 read model이다.
+- MySQL `records` / `user_pbs`는 기준 데이터이고 Redis는 읽기 최적화를 위한 보조 읽기 모델이다.
 
 ## 10. 스크램블 API
 
@@ -713,7 +713,7 @@
 
 ### `GET /api/posts/{postId}/edit`
 
-- 설명: 게시글 수정 화면 preload용 상세 정보를 조회한다.
+- 설명: 게시글 수정 화면에 필요한 상세 정보를 조회한다.
 - 인증: Access Token 필요
 - 멱등성: 멱등
 - 추가 동작: 조회수는 증가하지 않는다. 작성자 본인 또는 관리자만 접근할 수 있다.
@@ -736,7 +736,7 @@
 #### Response
 
 - 상태 코드: `200 OK`
-- `data`: 게시글 수정 preload 정보
+- `data`: 게시글 수정 화면 사전 조회 정보
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -958,7 +958,7 @@
 
 - 상태 코드: `201 Created`
 - `data.id`: 생성된 피드백 ID
-- `replyEmail`은 제출 시점의 회신용 이메일 주소를 snapshot으로 저장한다.
+- `replyEmail`은 제출 시점의 회신용 이메일 주소로 저장한다.
 - Discord 운영 알림 시도 결과는 서버 내부 상태와 관리자 화면에서 추적하고, 일반 사용자 응답에는 노출하지 않는다.
 - 응답 메시지는 일반 사용자 기준 `피드백이 접수되었습니다. 감사합니다!`를 사용한다.
 

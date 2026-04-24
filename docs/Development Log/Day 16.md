@@ -11,7 +11,7 @@
 - `MissingRequestCookieException`를 `400 Bad Request`로 매핑하고 `refresh_token` 누락 계약과 관련 문서 동기화
 - Rotation 이후 이전 Refresh Token 재사용 `401` HTTP 계약과 REST Docs 대표 예시 추가, `docs/` 문서 동기화
 - root `.env.example`, `application-local.yaml`, `docker-compose.yml` 기준으로 local secret/env 분리와 README/배포 문서 동기화
-- React에 `Vitest`, `Testing Library`, `jsdom`, `axios-mock-adapter`, 공통 setup, smoke 테스트 추가
+- React에 `Vitest`, `Testing Library`, `jsdom`, `axios-mock-adapter`, 공통 setup, 스모크 테스트 추가
 - GitHub Actions에서 generated REST Docs HTML을 `restdocs-site` artifact로 다운로드 가능하게 정리
 - 랭킹 V1 조회 원본을 `records`에서 `user_pbs` 기반 PB 조회로 전환하고 검색/페이지네이션 계약을 추가
 - `PATCH` / `DELETE /api/records/{recordId}`, `GET /api/users/me/profile`, `GET /api/users/me/records`를 추가하고 PB 재계산 규칙을 정리
@@ -245,7 +245,7 @@
 - `frontend/package.json`에 `vitest` 실행 스크립트와 테스트 관련 dev dependency를 추가했다.
 - `frontend/vite.config.js`에 `jsdom`, `setupFiles` 기준 테스트 설정을 추가했다.
 - `frontend/src/test/setup.js`에 `@testing-library/jest-dom/vitest`, cleanup 공통 setup을 추가했다.
-- `frontend/src/test/smoke.test.jsx`로 최소 smoke 테스트를 추가해 환경이 실제로 실행되는지 확인했다.
+- `frontend/src/test/smoke.test.jsx`로 최소 스모크 테스트를 추가해 환경이 실제로 실행되는지 확인했다.
 
 #### 선택 이유
 - 현재 React 앱은 `Vite` 기반이라 `Vitest`가 설정 마찰이 가장 적다.
@@ -261,7 +261,7 @@
 
 #### 결과
 - React auth 테스트 작성 전제 조건이 준비됐다.
-- 현재는 smoke 테스트만 있고, 실제 `AuthContext`, `apiClient`, route 회귀 테스트는 다음 단계 범위로 남아 있다.
+- 현재는 스모크 테스트만 있고, 실제 `AuthContext`, `apiClient`, 라우트 회귀 테스트는 다음 단계 범위로 남아 있다.
 
 #### 문서 반영
 - 반영한 문서:
@@ -279,13 +279,13 @@
 ### React auth 회귀 테스트 추가
 
 #### 문제 상황
-- 메모리 access token 전환까지 끝난 뒤에도 `AuthContext` 초기 세션 복구, `apiClient` refresh queue, 보호/guest-only route 분기는 자동 회귀로 고정되지 않은 상태였다.
+- 메모리 access token 전환까지 끝난 뒤에도 `AuthContext` 초기 세션 복구, `apiClient` refresh queue, 보호/비로그인 전용 라우트 분기는 자동 회귀로 고정되지 않은 상태였다.
 - 저장 전략과 route 판단 순서가 바뀐 직후라, 이후 JaCoCo나 다른 기능 작업 전에 핵심 auth 흐름을 먼저 테스트로 묶어둘 필요가 있었다.
 
 #### 해결 방법
 - `frontend/src/context/AuthContext.test.jsx`에 앱 초기 `refresh -> /api/me` 세션 복구 성공/실패 시나리오를 추가했다.
 - `frontend/src/lib/apiClient.test.js`에 `axios-mock-adapter` 기반 `401 -> refresh -> retry` 동시 요청 queue와 refresh 실패 시 토큰 정리 시나리오를 추가했다.
-- `frontend/src/App.test.jsx`에 보호 route loading 분기, 비로그인 보호 route 차단, 로그인 사용자 guest-only route 차단 시나리오를 추가했다.
+- `frontend/src/App.test.jsx`에 보호 라우트 loading 분기, 비로그인 보호 라우트 차단, 로그인 사용자 비로그인 전용 라우트 차단 시나리오를 추가했다.
 
 #### 선택 이유
 - `AuthContext`는 React 상태와 `authStorage` 메모리 store를 함께 다루므로 provider 단위 테스트가 가장 직접적이다.
@@ -297,11 +297,11 @@
 - `cd frontend && npm run lint`도 통과해 새 테스트 파일이 기존 lint 규칙과 충돌하지 않았다.
 
 #### 트레이드오프
-- React auth 테스트가 늘어나면서 실행 시간이 smoke-only 상태보다 길어졌다.
+- React auth 테스트가 늘어나면서 실행 시간이 스모크 테스트만 있던 때보다 길어졌다.
 - 대신 저장 전략, refresh queue, route 분기를 다음 작업에서도 바로 회귀 검증할 수 있게 됐다.
 
 #### 결과
-- `2026-04-14` 기준 React auth 최소 회귀 테스트 범위가 닫혔다.
+- `2026-04-14` 기준 React auth 최소 회귀 테스트 범위가 정리됐다.
 - backend auth 계약은 기존 테스트 3종을 다시 실행해 이번 저장 전략 전환에서 추가 수정이 필요 없음을 확인했다.
 
 #### 문서 반영
@@ -320,7 +320,7 @@
 - 왜 route 테스트를 component export 추가 대신 `App` 통합 렌더로 검증했는가
 
 #### 한 줄 요약
-- 메모리 세션 복구, refresh queue, 보호 route 분기를 React 테스트로 고정해 `2026-04-14` auth 회귀 범위를 닫았다.
+- 메모리 세션 복구, refresh queue, 보호 라우트 분기를 React 테스트로 고정해 `2026-04-14` auth 회귀 범위를 정리했다.
 
 ### JaCoCo 기준선 추가
 
@@ -429,7 +429,7 @@
 
 #### 결과
 - JaCoCo 리포트가 “generated class 왜곡”보다 “실제 production logic 검증 상태”를 더 직접 반영하게 됐다.
-- `ScrambleGenerator`, `GlobalExceptionHandler`, `Post` 생성자 분기는 테스트로 고정됐고, `handleAuthenticationException` 계약도 같이 닫혔다.
+- `ScrambleGenerator`, `GlobalExceptionHandler`, `Post` 생성자 분기는 테스트로 고정됐고, `handleAuthenticationException` 계약도 함께 정리됐다.
 
 #### 문서 반영
 - 반영한 문서:
@@ -469,7 +469,7 @@
 - 대신 운영 중 문제 발생 시 어떤 요청에서 어떤 계층 예외가 났는지 최소 단서가 남는다.
 
 #### 결과
-- `2026-04-14` 비수동 체크리스트 기준에서 `예외 체계 정리`, `외부 응답 메시지와 내부 로그 메시지 분리`, `React가 처리할 auth 에러 계약 확정`을 닫을 수 있는 상태가 됐다.
+- `2026-04-14` 자동 검증 체크리스트 기준에서 `예외 체계 정리`, `외부 응답 메시지와 내부 로그 메시지 분리`, `React가 처리할 auth 에러 계약 확정`을 완료할 수 있는 상태가 됐다.
 - 수동 검증 항목만 별도로 남겼다.
 
 #### 문서 반영
@@ -484,7 +484,7 @@
 - 왜 요청 헤더 전체 대신 method/path만 로그에 남겼는가
 
 #### 한 줄 요약
-- 외부 응답 계약은 유지하고 내부 예외 로그만 보강해 `2026-04-14` 비수동 체크리스트를 마감 가능한 상태로 만들었다.
+- 외부 응답 계약은 유지하고 내부 예외 로그만 보강해 `2026-04-14` 자동 검증 체크리스트를 마감 가능한 상태로 만들었다.
 
 ### 수동 검증 완료
 
@@ -505,7 +505,7 @@
 - 다른 사용자의 게시글 수정 시 `403`과 `게시글 수정/삭제 권한이 없습니다.` 메시지를 확인했다.
 
 #### 결과
-- `2026-04-14` 체크리스트의 수동 검증 항목까지 모두 닫혔다.
+- `2026-04-14` 체크리스트의 수동 검증 항목까지 모두 완료했다.
 - 수동 기준으로도 auth 저장 전략 전환, refresh 실패 정리, 보호 route 차단, 권한 부족 응답 처리 흐름이 문제 없이 동작했다.
 
 #### 문서 반영
@@ -595,7 +595,7 @@ public ResponseEntity<ApiResponse<Void>> handleMissingRequestCookieException(Mis
   - `RankingsPage.test.jsx`, `TimerPage.test.jsx`, `MyPage.test.jsx`를 추가/보강했다.
 - 결과:
 - `2026-04-14` 기준 랭킹 V1 정합성은 백엔드 계약, 프런트 화면, 테스트까지 같은 기준으로 맞춰졌다.
-  - 브라우저 수동 검증 전 기준선까지 닫았다.
+  - 브라우저 수동 검증 전 기준선까지 정리했다.
 
 ### 브라우저 수동 검증 마감
 

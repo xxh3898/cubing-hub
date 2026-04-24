@@ -14,7 +14,7 @@
 - 백엔드 인증 영역에 `GET /api/me`를 추가하고 현재 로그인 사용자 컨텍스트를 조회할 수 있게 구현
 - `refresh_token` cookie의 `Secure` 속성을 환경 설정 기반으로 분기하도록 정리
 - 프런트 `AuthContext`, `authStorage`, `apiClient`를 실제 인증 흐름에 맞게 개편
-- 로그인/회원가입/로그아웃, 보호 라우트, guest-only 라우트, 로그인 후 복귀, `401 -> refresh -> retry` 흐름을 실제 동작 기반으로 연동
+- 로그인/회원가입/로그아웃, 보호 라우트, 비로그인 전용 라우트, 로그인 후 복귀, `401 -> refresh -> retry` 흐름을 실제 동작 기반으로 연동
 - REST Docs, 일정표, 작업 허브, 리뷰 문서를 `2026-04-13` 결과에 맞게 갱신
 
 ---
@@ -38,16 +38,16 @@
 
 #### 결과
 - 헤더와 보호 라우트 판단이 더 이상 mock 데이터에 의존하지 않게 되었다.
-- `/api/me` 실패 시 세션 정리 fallback을 적용할 수 있는 기반이 마련됐다.
+- `/api/me` 실패 시 세션 정리 대체 처리를 적용할 수 있는 기반이 마련됐다.
 
-### refresh 재발급과 same-tab 인증 상태 동기화 정리
+### refresh 재발급과 같은 탭 안의 인증 상태 동기화 정리
 
 #### 문제 상황
 - 기존 프런트는 `localStorage`에 토큰만 저장하고 있었고, 만료 token에서 자동 refresh/retry가 없었다.
 - interceptor에서 토큰이 바뀌더라도 React 상태가 즉시 따라오지 않으면 UI와 실제 인증 상태가 어긋날 수 있었다.
 
 #### 해결 방법
-- `authStorage`에 same-tab 구독 메커니즘을 추가해 토큰 변경을 `AuthContext`가 즉시 구독하도록 만들었다.
+- `authStorage`에 같은 탭 안의 구독 메커니즘을 추가해 토큰 변경을 `AuthContext`가 즉시 구독하도록 만들었다.
 - `apiClient`에 Authorization 자동 부착, `401 -> refresh -> retry`, 단일 in-flight refresh 공유 로직을 넣었다.
 - refresh 성공 후 저장된 access token을 갱신하고, `AuthContext`가 `/api/me`를 다시 조회해 사용자 컨텍스트를 맞추도록 구성했다.
 
@@ -59,7 +59,7 @@
 - `2026-04-13` 범위의 토큰 만료 UX 핵심 경로 구현이 완료되었다.
 - 세션 복구 실패 시 로컬 인증 상태를 정리하는 정책도 함께 확정되었다.
 
-### 보호 라우트, guest-only 라우트, 인증 화면 실제 연동
+### 보호 라우트, 비로그인 전용 라우트, 인증 화면 실제 연동
 
 #### 문제 상황
 - `LoginPage`, `SignupPage`, `MyPage`는 모두 목업 동작이었고 `/mypage`, `/community/write`는 누구나 진입 가능한 상태였다.
@@ -67,13 +67,13 @@
 
 #### 해결 방법
 - `LoginPage`와 `SignupPage`를 실제 `/api/auth/*` 호출로 전환하고, 로딩/오류 메시지와 리다이렉트 state를 추가했다.
-- `App.jsx`에 보호 라우트와 guest-only 라우트를 넣어 `/mypage`, `/community/write`, `/login`, `/signup` 흐름을 정리했다.
+- `App.jsx`에 보호 라우트와 비로그인 전용 라우트를 넣어 `/mypage`, `/community/write`, `/login`, `/signup` 흐름을 정리했다.
 - `MyPage` 로그아웃은 `/api/auth/logout`을 호출하되, 실패 여부와 무관하게 `finally`에서 로컬 인증 상태를 정리하도록 바꿨다.
 - `CommunityDetailPage`에는 비로그인 댓글 작성 CTA를 추가하고 댓글 입력 폼을 인증 상태에 따라 분기했다.
 
 #### 결과
 - 인증 화면이 실제 백엔드 계약과 연동되었다.
-- 보호 경로 직접 진입, 로그인 후 복귀, guest-only 경로 차단의 기본 UX가 정립되었다.
+- 보호 경로 직접 진입, 로그인 후 복귀, 비로그인 전용 경로 차단의 기본 UX가 정립되었다.
 
 ### `Secure` cookie 설정 분기와 문서화
 
@@ -115,7 +115,7 @@
 ### 사용자 수동 검증 결과
 
 - 회원가입 -> 로그인 -> 보호 route 접근 -> 원래 경로 복귀 흐름 확인 완료
-- `401` 상황의 refresh -> retry -> 실패 fallback 흐름 확인 완료
+- `401` 상황의 refresh -> retry -> 실패 대체 처리 흐름 확인 완료
 - 로그인 후 `/timer` 기록 저장, 로그아웃, 비로그인 상태 보호 route 직접 접근 차단 동작 확인
 - local `http://localhost` 환경에서 `refresh_token` cookie 저장과 `Secure` 설정 분기 동작 확인 완료
 

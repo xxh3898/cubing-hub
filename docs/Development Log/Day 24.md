@@ -8,9 +8,9 @@
 
 - 기록 저장/삭제와 피드백 전송 결과를 blocking alert 대신 toast 알림으로 전환했다
 - 회원가입 전에 이메일 인증번호 request/confirm 단계를 추가
-- `Redis TTL` 기반 인증번호, resend cooldown, verified marker 저장소 구현
+- `Redis TTL` 기반 인증번호, 재요청 제한 상태, 인증 완료 상태 저장소 구현
 - `SMTP` 기반 인증 메일 발송 경계를 추가하고 환경 변수/배포 설정을 정리
-- `POST /api/auth/signup`이 이메일 인증 완료 marker가 있을 때만 계정을 생성하도록 변경
+- `POST /api/auth/signup`이 이메일 인증 완료 상태가 있을 때만 계정을 생성하도록 변경
 - 프런트 `/signup`을 이메일 인증 2단계 UI로 전환
 - auth 단위 테스트, 통합 테스트, REST Docs, 프런트 테스트를 함께 갱신
 - 공식 설계 문서와 개발 로그 인덱스를 현재 구현 계약에 맞게 동기화
@@ -42,26 +42,26 @@
   - `auth:email-verification:verified:{email}`
 - TTL은 다음 기준으로 뒀다.
   - 인증번호 `10분`
-  - resend cooldown `1분`
-  - verified marker `30분`
+  - 재요청 제한 `1분`
+  - 인증 완료 상태 `30분`
 
 #### 이유
-- 인증번호와 verified marker는 영속 source of truth가 아니라 임시 상태라 Redis TTL과 잘 맞는다.
+- 인증번호와 인증 완료 상태는 영속 기준 데이터가 아니라 임시 상태라 Redis TTL과 잘 맞는다.
 - 기존 refresh token / blacklist / ranking과 같은 Redis 활용 패턴을 재사용할 수 있다.
 
 #### 결과
 - 가입 미완료 상태 정리용 별도 배치나 테이블이 필요 없어졌다.
-- signup 성공 시 verified marker를 바로 소비하도록 맞췄다.
+- signup 성공 시 인증 완료 상태를 바로 소비하도록 맞췄다.
 
 ### 3. SMTP 발송 경계와 실패 롤백
 
 #### 구현
 - `spring-boot-starter-mail` 의존성을 추가했다.
 - SMTP host가 없으면 unavailable sender가 명시적으로 실패하도록 뒀다.
-- 인증번호 요청 시 Redis에 code/cooldown을 저장한 뒤 메일 발송을 시도하고, 발송 실패 시 Redis 상태를 롤백한다.
+- 인증번호 요청 시 Redis에 인증번호/재요청 제한 상태를 저장한 뒤 메일 발송을 시도하고, 발송 실패 시 Redis 상태를 롤백한다.
 
 #### 이유
-- 메일 발송 실패 후 Redis 상태만 남으면 사용자는 메일을 못 받았는데 cooldown과 code만 걸린 상태가 된다.
+- 메일 발송 실패 후 Redis 상태만 남으면 사용자는 메일을 못 받았는데 재요청 제한과 인증번호만 걸린 상태가 된다.
 - 반대로 메일만 보내고 Redis 저장이 실패하면 받은 인증번호가 서버에 없는 상태가 된다.
 
 #### 결과
@@ -133,6 +133,7 @@
 
 ## 남은 리스크
 
-- 실제 SMTP 자격 증명을 연결한 상태의 실메일 발송은 아직 수동 검증하지 않았다.
-- abuse 방어는 현재 이메일 단위 resend cooldown만 있고, IP rate limit이나 CAPTCHA는 포함하지 않았다.
+- 당시에는 실제 SMTP 자격 증명을 연결한 상태의 실메일 발송을 아직 수동 검증하지 않았다.
+  - 후속 확인: `2026-04-24` 최종 품질 검증에서 사용자 수동 확인 기준 실제 SMTP 송수신이 통과했다. 자세한 상태는 [Day 29](./Day%2029.md)를 기준으로 본다.
+- abuse 방어는 현재 이메일 단위 재요청 제한만 있고, IP rate limit이나 CAPTCHA는 포함하지 않았다.
 - frontend build는 기존과 동일하게 500kB 초과 chunk warning을 출력한다.

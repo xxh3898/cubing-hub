@@ -1,6 +1,6 @@
-# 성능 benchmark 실행 문서
+# 성능 벤치마크 실행 문서
 
-## 랭킹 benchmark
+## 랭킹 벤치마크
 
 ### 범위
 
@@ -124,7 +124,7 @@ V1, V2 결과는 같은 대시보드, 같은 시간 범위, 같은 패널 레이
 - `docs/performance/grafana/rankings-redis-v2.png`
 - 필요 시 비교 캡처를 추가한다.
 
-## MyPage summary benchmark
+## MyPage summary 벤치마크
 
 ### 범위
 
@@ -133,9 +133,9 @@ V1, V2 결과는 같은 대시보드, 같은 시간 범위, 같은 패널 레이
 - 본측정 권장 데이터셋: `10 users x 50,000 records`
 - 사용자 계정: `mypage-benchmark-userN@test.com` / `pass1234!`
 
-### 1. baseline worktree 준비
+### 1. 기준선 worktree 준비
 
-현재 최적화 커밋을 유지한 채 직전 커밋 기준 baseline을 별도 worktree로 분리한다.
+현재 최적화 커밋을 유지한 채 직전 커밋 기준선을 별도 worktree로 분리한다.
 
 ```bash
 git worktree add ../cubing-hub-mypage-baseline 1dcc04e
@@ -143,7 +143,7 @@ git worktree add ../cubing-hub-mypage-baseline 1dcc04e
 
 ### 2. DB 초기화
 
-로컬 MySQL volume에 이전 benchmark 데이터가 남아 있을 수 있으므로 database를 직접 drop/create 한다.
+로컬 MySQL volume에 이전 벤치마크 데이터가 남아 있을 수 있으므로 database를 직접 drop/create 한다.
 
 ```bash
 docker exec -i cubing_hub_mysql mysql -uroot -p"${LOCAL_DB_PASSWORD}" <<'SQL'
@@ -152,9 +152,9 @@ CREATE DATABASE cubing_hub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SQL
 ```
 
-### 3. benchmark backend 실행
+### 3. 벤치마크용 backend 실행
 
-fresh database에서 backend를 먼저 올려 schema를 생성한다.
+빈 database에서 backend를 먼저 올려 schema를 생성한다.
 
 ```bash
 cd backend
@@ -199,7 +199,7 @@ docker run --rm \
   /workspace/k6/mypage-summary-profile.js
 ```
 
-짧은 smoke 검증은 duration과 VU를 줄여서 실행한다.
+짧은 스모크 검증은 duration과 VU를 줄여서 실행한다.
 
 ```bash
 docker run --rm \
@@ -219,7 +219,7 @@ docker run --rm \
 
 ### 6. 전/후 비교 리포트 생성
 
-baseline summary와 current summary를 같은 format으로 생성한 뒤 기존 report generator를 그대로 사용한다.
+기준선 summary와 current summary를 같은 형식으로 생성한 뒤 기존 report generator를 그대로 사용한다.
 
 ```bash
 node k6/generate-performance-report.mjs \
@@ -233,19 +233,19 @@ node k6/generate-performance-report.mjs \
 
 ### 7. 참고
 
-- 이 benchmark는 전체 테이블 row 수보다 `요청 대상 사용자당 records 수`에 더 민감하다.
-- 첫 단계는 `GET /api/users/me/profile`만 benchmark 대상으로 두고, 필요하면 이후 `GET /api/home`를 별도 시나리오로 확장한다.
-- 로컬에서 이미 `8080` 포트를 사용 중이면 benchmark backend는 별도 포트(`18080`)로 고정하는 편이 안전하다.
+- 이 벤치마크는 전체 테이블 row 수보다 `요청 대상 사용자당 records 수`에 더 민감하다.
+- 첫 단계는 `GET /api/users/me/profile`만 벤치마크 대상으로 두고, 필요하면 이후 `GET /api/home`를 별도 시나리오로 확장한다.
+- 로컬에서 이미 `8080` 포트를 사용 중이면 벤치마크용 backend는 별도 포트(`18080`)로 고정하는 편이 안전하다.
 
 ### Grafana 시각화
 
-랭킹 benchmark와 같은 방식으로 `k6 -> Prometheus -> Grafana` 경로를 재사용할 수 있다.
+랭킹 벤치마크와 같은 방식으로 `k6 -> Prometheus -> Grafana` 경로를 재사용할 수 있다.
 
 기본 전제:
 
-- benchmark backend는 `8080` 포트에서 실행한다.
+- 벤치마크용 backend는 `8080` 포트에서 실행한다.
 - Prometheus scrape target은 기본값 `host.docker.internal:8080`을 그대로 사용한다.
-- 사용자가 이미 `8080`을 점유 중이면 이 절차 대신 위의 `18080` fallback만 사용한다.
+- 사용자가 이미 `8080`을 점유 중이면 이 절차 대신 위의 `18080` 대체 경로만 사용한다.
 
 #### 1. Grafana 대시보드
 
@@ -255,7 +255,7 @@ node k6/generate-performance-report.mjs \
   - `run`
   - `storage`
 
-#### 2. baseline remote write 실행
+#### 2. 기준선 remote write 실행
 
 ```bash
 K6_PROMETHEUS_RW_TREND_STATS=avg,p(95),max \

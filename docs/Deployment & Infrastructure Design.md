@@ -2,9 +2,9 @@
 
 ## 1. 배포 개요
 
-- 목표는 Frontend와 Backend를 역할에 맞게 분리 배포하는 것이다.
-- Frontend는 `S3 + CloudFront`, Backend는 `EC2 + Docker Compose`, 영속 데이터는 `RDS`를 기준으로 둔다.
-- Local, Test, Production을 같은 구조로 복제하지 않고, 목적에 맞는 격리 수준으로 나눈다.
+- 목표는 프런트엔드와 백엔드를 역할에 맞게 분리 배포하는 것이다.
+- 프런트엔드는 `S3 + CloudFront`, 백엔드는 `EC2 + Docker Compose`, 영속 데이터는 `RDS`를 기준으로 둔다.
+- 로컬, 테스트, 운영 환경을 같은 구조로 복제하지 않고, 목적에 맞는 격리 수준으로 나눈다.
 
 ## 2. 인프라 구성
 
@@ -34,7 +34,7 @@
   - 모니터링 환경 로컬 재현
   - Redis 리팩토링 전/후 성능 기준선 재현
 - 제약
-  - 랭킹 `nickname` 검색 fallback 구현은 MySQL 8 window function을 사용하므로 Local/Test/Production DB 기준은 MySQL 8을 유지한다.
+  - 랭킹 `nickname` 검색 대체 경로는 MySQL 8 window function을 사용하므로 로컬, 테스트, 운영 DB 기준은 MySQL 8을 유지한다.
 
 ### Test
 
@@ -55,7 +55,7 @@
 - Performance Benchmark
   - `workflow_dispatch` 기반 수동 실행
   - MySQL / Redis service container 준비
-  - schema reset 후 baseline seed SQL 적재
+  - schema reset 후 기준선 seed SQL 적재
   - `k6` summary JSON과 Markdown 비교 리포트 artifact 업로드
 - 목적
   - 실제 DB/Redis와 가까운 통합 테스트
@@ -142,15 +142,15 @@
 - `JWT_REFRESH_EXPIRATION`
   - 프로덕션 Refresh Token 만료 시간, 기본 7일
 - `SPRING_JPA_HIBERNATE_DDL_AUTO`
-  - 기본값 `validate`, first deploy 1회만 `update` 권장
+  - 기본값 `validate`, 최초 배포 1회만 `update` 권장
 - `AUTH_REFRESH_COOKIE_SECURE`
   - 기본값 `true`
 - `AUTH_EMAIL_VERIFICATION_CODE_EXPIRATION_MS`
   - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 만료 시간, 기본 `600000`
 - `AUTH_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS`
-  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 재요청 cooldown, 기본 `60000`
+  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 재요청 제한 시간, 기본 `60000`
 - `AUTH_EMAIL_VERIFICATION_VERIFIED_EXPIRATION_MS`
-  - 이메일 인증 완료 marker 유지 시간, 기본 `1800000`
+  - 이메일 인증 완료 상태 유지 시간, 기본 `1800000`
 - `AUTH_EMAIL_VERIFICATION_SUBJECT`
   - 회원가입 인증 메일 제목
 - `SMTP_HOST`
@@ -170,7 +170,7 @@
   - 기본값 `false`, local scraping 재현이 필요할 때만 제한적으로 사용
 - `RANKING_REDIS_REBUILD_MODE`
   - 기본값 `disabled`
-  - `startup`: local startup 재구축
+  - `startup`: 로컬 시작 시 재구축
   - `oneshot`: 수동 Redis 랭킹 재구축 workflow 전용
 - `BACKEND_IMAGE`
   - Docker Hub backend image 경로
@@ -196,17 +196,17 @@
 
 ### 피드백 Discord 알림 반영 절차
 
-- production은 `infra/docker/.env`에 `FEEDBACK_DISCORD_WEBHOOK_URL`을 추가한 뒤 backend container를 재기동한다.
-- 이번 기능처럼 `feedbacks` 테이블에 새 컬럼이 추가되는 변경은 production에서 schema 반영 절차가 먼저 필요하다.
-- 현재 production 기본값이 `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`이므로, 새 컬럼 반영 시에는 아래 둘 중 하나를 선택한다.
+- 운영 환경은 `infra/docker/.env`에 `FEEDBACK_DISCORD_WEBHOOK_URL`을 추가한 뒤 backend container를 재기동한다.
+- `feedbacks` 테이블에 새 컬럼이 추가되는 변경은 운영 DB schema 반영 절차가 먼저 필요하다.
+- 현재 운영 기본값이 `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`이므로, 새 컬럼 반영 시에는 아래 둘 중 하나를 선택한다.
   - 운영 DB에 `ALTER TABLE feedbacks ...`를 수동 적용
   - 또는 1회 배포 동안만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 올린 뒤 반영 확인 후 다시 `validate`로 원복
-- 게시글 이미지 업로드를 사용하려면 backend runtime에 아래 환경 변수가 추가되어야 한다.
+- 게시글 이미지 업로드를 사용하려면 백엔드 런타임에 아래 환경 변수가 추가되어야 한다.
   - `POST_IMAGES_BUCKET`
   - `POST_IMAGES_REGION`
   - `POST_IMAGES_KEY_PREFIX`
   - `POST_IMAGES_PUBLIC_BASE_URL`
-- 이번 범위처럼 `post_attachments`, `post_views`, `admin_memos` 테이블이 추가되는 변경도 production에서 schema 반영 절차가 먼저 필요하다.
+- `post_attachments`, `post_views`, `admin_memos` 테이블이 추가되는 변경도 운영 DB schema 반영 절차가 먼저 필요하다.
 
 ## 5. CI/CD 파이프라인
 
@@ -221,13 +221,15 @@
 7. Frontend 변경 시 `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build` 수행
 8. Frontend 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
 9. 필요 시 `Performance Benchmark`를 수동 실행
-10. benchmark workflow에서 schema reset, seed 적재, `k6` baseline 실행
+10. benchmark workflow에서 schema reset, seed 적재, `k6` 기준선 실행
 11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
 12. `deploy-backend.yml`은 `Backend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 Docker Hub push, EC2 deploy, health check를 수행한다.
 13. `deploy-frontend.yml`은 `Frontend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 production `VITE_API_BASE_URL` 검증, S3 sync, CloudFront invalidation을 수행한다.
-14. backend는 Docker Hub image push 후 EC2에서 unused Docker artifact를 정리한 뒤 `docker compose pull app && up -d`로 반영한다.
-15. frontend는 `VITE_API_BASE_URL`을 주입해 build 후 S3/CloudFront에 반영한다.
+14. backend는 Docker Hub image 푸시 후 EC2에서 사용하지 않는 Docker 산출물을 정리한 뒤 `docker compose pull app && up -d`로 반영한다.
+15. frontend는 `VITE_API_BASE_URL`을 주입해 빌드한 뒤 S3/CloudFront에 반영한다.
 16. backend/frontend CI와 deploy workflow의 운영 반영을 확인했고, 배포환경 수동 검증까지 완료했다.
+17. `2026-04-24` 최종 로컬 품질 게이트에서 backend `./gradlew test jacocoTestReport --no-daemon` JaCoCo instruction/branch 100%, frontend `npx vitest run --coverage` statements/branches/functions/lines 100%를 확인했다. 현재 Frontend CI의 강제 단계는 `lint`, `test`, `build`이며 커버리지 기준 강제는 별도 CI 단계로 두지 않았다.
+18. 사용자 수동 확인 기준 실제 SMTP 서버 송수신, 실제 AWS S3 업로드/삭제, 최종 브라우저 QA가 통과했다. 이 항목은 자동 CI가 아니라 배포 환경 스모크 검증으로 분리한다.
 
 ### 운영 적용 흐름
 
@@ -278,12 +280,12 @@
 
 - 1차 운영 반영에서는 `GET /actuator/health`를 먼저 확인하고, 이후 핵심 사용자 기능과 관리자 기능까지 수동 검증한다.
 - `prometheus`, `grafana`는 local 관찰 기준선으로 유지하고 production 범위에서는 제외한다.
-- RDS는 first deploy 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
-- Redis ready marker가 필요할 때는 일반 deploy startup 경로가 아니라 수동 Redis 재구축 workflow를 사용한다.
-- 운영 Redis read model이 비어 복구가 필요하면 `RANKING_REDIS_REBUILD_MODE=oneshot`으로 one-shot 컨테이너를 실행해 재구축한다.
-- 일반 backend deploy는 startup rebuild를 사용하지 않고 health check와 분리한다.
+- RDS는 최초 배포 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
+- Redis 준비 상태 키가 필요할 때는 일반 배포 시작 경로가 아니라 수동 Redis 재구축 workflow를 사용한다.
+- 운영 Redis 읽기 모델이 비어 복구가 필요하면 `RANKING_REDIS_REBUILD_MODE=oneshot`으로 one-shot 컨테이너를 실행해 재구축한다.
+- 일반 backend deploy는 시작 시 재구축을 사용하지 않고 health check와 분리한다.
 - AWS Billing Alarm 설정으로 과도한 비용 사용을 방지한다.
-- 실제 first deploy / redeploy 절차와 운영 후처리 체크리스트는 [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md)에 정리한다.
+- 실제 최초 배포 / 재배포 절차와 운영 후처리 체크리스트는 [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md)에 정리한다.
 
 ## 8. 장애 대응 초안
 

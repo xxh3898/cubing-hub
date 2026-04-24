@@ -47,7 +47,7 @@
 #### 결과
 - public API는 단순화됐고, 관리자 화면과 운영 데이터 추적은 그대로 유지됐다.
 
-### 3. REST Docs와 current-state 문서를 같은 기준으로 다시 맞췄다
+### 3. REST Docs와 현재 상태 문서를 같은 기준으로 다시 맞췄다
 
 #### 구현
 - `FeedbackDocsTest`에서 removed response fields와 retry 문서를 제거했다.
@@ -59,7 +59,7 @@
 - historical `Day 23`, `Day 27` 로그는 당시 사실을 기록한 원본이므로 직접 고치지 않는 편이 저장소 규칙과 맞았다.
 
 #### 결과
-- current-state 문서는 public retry 제거 상태를 일관되게 설명한다.
+- 현재 상태 문서는 public retry 제거 상태를 일관되게 설명한다.
 - historical day log는 보존하고, 상태 변화는 새 로그와 허브 문서에서 따라가게 됐다.
 
 ---

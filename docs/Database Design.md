@@ -6,7 +6,7 @@
 - 기록 도메인은 원본 solve 로그(`records`)와 사용자 대표 기록(`user_pbs`)을 분리해 관리한다.
 - 홈/마이페이지 통계는 원본 로그 기준 조회를 사용하며 별도 집계 테이블이나 집계 컬럼은 두지 않는다.
 - 게시판은 `posts`, `comments`, `post_attachments`, `post_views` 중심 구조로 설계하고, 피드백과 관리자 메모를 운영 데이터로 함께 둔다.
-- 랭킹 최적화는 Redis ZSET read model을 사용하지만, source of truth는 여전히 MySQL의 `records` / `user_pbs` 조합이다.
+- 랭킹 최적화는 Redis ZSET 읽기 모델을 사용하지만, 기준 데이터는 여전히 MySQL의 `records` / `user_pbs` 조합이다.
 - 인덱스는 조회 패턴 기준의 최소 구성을 유지한다.
 
 ## 2. 엔티티 / 테이블 목록
@@ -18,7 +18,7 @@
 | `user_pbs` | 사용자별 대표 PB 저장 | JPA 엔티티 구현됨 |
 | `posts` | 게시글 저장 | JPA 엔티티 구현됨 |
 | `comments` | 댓글 저장 | JPA 엔티티 구현됨 / API 구현됨 |
-| `post_attachments` | 게시글 첨부 이미지 metadata 저장 | JPA 엔티티 구현됨 / API 구현됨 |
+| `post_attachments` | 게시글 첨부 이미지 메타데이터 저장 | JPA 엔티티 구현됨 / API 구현됨 |
 | `post_views` | 로그인 사용자 기준 고유 조회 이력 저장 | JPA 엔티티 구현됨 / API 구현됨 |
 | `feedbacks` | 피드백 저장 또는 아카이브 | JPA 엔티티 구현됨 / API 구현됨 |
 | `admin_memos` | 관리자 내부 질문/답변 메모 저장 | JPA 엔티티 구현됨 / API 구현됨 |
@@ -127,12 +127,12 @@ Records 1:1 (또는 1:0) User_PBs
 - 반드시 원본 `records` 한 건을 참조한다.
 - `best_time_ms`는 `records.time_ms` 원값이 아니라 penalty를 반영한 유효 시간이다.
 
-### Redis ranking read model
+### Redis ranking 읽기 모델
 
 - 목적:
-  - 기본 랭킹 조회의 읽기 hot path를 MySQL에서 Redis로 분리한다.
+  - 기본 랭킹 조회의 읽기 병목 구간을 MySQL에서 Redis로 분리한다.
 - 설명:
-  - 비영속 read model이며, MySQL `user_pbs`를 기준으로 재구축하거나 PB 변경 시 증분 동기화한다.
+  - 비영속 읽기 모델이며, MySQL `user_pbs`를 기준으로 재구축하거나 PB 변경 시 증분 동기화한다.
 
 | Key | 타입 | 설명 |
 | --- | --- | --- |
@@ -145,46 +145,46 @@ Records 1:1 (또는 1:0) User_PBs
 
 - score는 `best_time_ms`를 사용한다.
 - 동률 tie-break는 member 문자열의 사전순 정렬로 `created_at asc -> record.id asc`를 유지한다.
-- `nickname` 부분 검색은 현재 Redis에 secondary index가 없어서 MySQL fallback을 사용한다.
-- Redis가 비어 있거나 ready marker가 없으면 기본 조회도 MySQL fallback을 사용한다.
+- `nickname` 부분 검색은 현재 Redis에 secondary index가 없어서 MySQL 대체 경로를 사용한다.
+- Redis가 비어 있거나 준비 상태 키가 없으면 기본 조회도 MySQL 대체 경로를 사용한다.
 
 ### Redis auth email verification state
 
 - 목적:
   - 회원가입 전 이메일 인증 상태를 임시 저장한다.
 - 설명:
-  - 영속 source of truth는 아니고, 이메일 인증번호·재요청 cooldown·회원가입 가능 marker를 TTL로 관리하는 임시 모델이다.
+  - 영속 기준 데이터는 아니고, 이메일 인증번호·재요청 제한 상태·회원가입 가능 상태를 TTL로 관리하는 임시 모델이다.
 
 | Key | 타입 | 설명 |
 | --- | --- | --- |
 | `auth:email-verification:code:{email}` | String | 6자리 인증번호 |
-| `auth:email-verification:cooldown:{email}` | String | 재요청 제한 marker |
-| `auth:email-verification:verified:{email}` | String | signup 가능 여부 marker |
+| `auth:email-verification:cooldown:{email}` | String | 재요청 제한 상태 |
+| `auth:email-verification:verified:{email}` | String | 회원가입 가능 상태 |
 
 #### 비즈니스 규칙
 
 - 인증번호 TTL은 `10분`이다.
-- resend cooldown TTL은 `1분`이다.
-- verified marker TTL은 `30분`이다.
-- 회원가입 성공 시 verified marker는 즉시 삭제한다.
+- 재요청 제한 TTL은 `1분`이다.
+- 인증 완료 상태 TTL은 `30분`이다.
+- 회원가입 성공 시 인증 완료 상태는 즉시 삭제한다.
 
 ### Redis auth password reset state
 
 - 목적:
   - 로그인 전 비밀번호 재설정 인증 상태를 임시 저장한다.
 - 설명:
-  - 별도 영속 테이블 없이 password reset 인증번호와 재요청 cooldown만 TTL로 관리하는 임시 모델이다.
+  - 별도 영속 테이블 없이 비밀번호 재설정 인증번호와 재요청 제한 상태만 TTL로 관리하는 임시 모델이다.
 
 | Key | 타입 | 설명 |
 | --- | --- | --- |
 | `auth:password-reset:code:{email}` | String | 6자리 인증번호 |
-| `auth:password-reset:cooldown:{email}` | String | 재요청 제한 marker |
+| `auth:password-reset:cooldown:{email}` | String | 재요청 제한 상태 |
 
 #### 비즈니스 규칙
 
 - 인증번호 TTL은 회원가입 이메일 인증과 같은 `10분` 설정을 재사용한다.
-- resend cooldown TTL은 회원가입 이메일 인증과 같은 `1분` 설정을 재사용한다.
-- 비밀번호 재설정 성공 시 code와 cooldown key를 즉시 삭제한다.
+- 재요청 제한 TTL은 회원가입 이메일 인증과 같은 `1분` 설정을 재사용한다.
+- 비밀번호 재설정 성공 시 인증번호와 재요청 제한 key를 즉시 삭제한다.
 
 ### `posts`
 
@@ -215,14 +215,14 @@ Records 1:1 (또는 1:0) User_PBs
 #### 제약 / 비즈니스 규칙
 
 - 게시글 수정/삭제는 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
-- 첨부 이미지는 S3 object storage를 source로 두고 DB에는 metadata만 저장한다.
+- 첨부 이미지는 S3 object storage를 원본 저장소로 두고 DB에는 메타데이터만 저장한다.
 - 상세 조회는 로그인 사용자 기준 `post_views(post_id, user_id)` 고유 행이 처음 생성될 때만 `view_count`를 증가시킨다.
 - 비로그인 사용자는 조회수에 반영하지 않는다.
 
 ### `post_attachments`
 
 - 목적:
-  - 게시글에 연결된 다중 이미지 metadata를 저장한다.
+  - 게시글에 연결된 다중 이미지 메타데이터를 저장한다.
 - 설명:
   - 실제 바이너리는 S3에 저장하고, DB에는 URL/파일명/순서 정보만 둔다.
 
@@ -300,7 +300,7 @@ Records 1:1 (또는 1:0) User_PBs
 - 목적:
   - 피드백을 저장하거나 아카이브하는 선택 저장 모델이다.
 - 설명:
-  - 로그인 사용자 기준 DB 저장을 source of truth로 사용하고, Discord 운영 알림 상태와 재시도 이력을 함께 관리한다.
+  - 로그인 사용자 기준 DB 저장을 기준 데이터로 사용하고, Discord 운영 알림 상태와 재시도 이력을 함께 관리한다.
   - 제출 시점의 회신용 이메일 주소를 `reply_email`에 함께 보관한다.
 
 | Field | Type | Description |
@@ -309,7 +309,7 @@ Records 1:1 (또는 1:0) User_PBs
 | `user_id` | `bigint` | 제보자 ID (FK -> `users.id`) |
 | `type` | `varchar(20)` | 피드백 종류 (`BUG`, `FEATURE`, `UX`, `OTHER`) |
 | `title` | `varchar(100)` | 피드백 제목 |
-| `reply_email` | `varchar(255)` | 제출 시점 회신용 이메일 snapshot |
+| `reply_email` | `varchar(255)` | 제출 시점 회신용 이메일 |
 | `content` | `text` | 피드백 상세 내용 |
 | `answer` | `text` | 관리자 답변 |
 | `answered_by_user_id` | `bigint` | 답변 관리자 ID (FK -> `users.id`) |
@@ -384,12 +384,12 @@ Records 1:1 (또는 1:0) User_PBs
   - 마이페이지 전체 기록: `records.created_at desc`
   - 게시글: 생성일/ID 내림차순
 - 구조 현황
-  - 기본 랭킹 조회는 Redis ZSET read model을 사용한다.
-  - `nickname` 부분 검색은 `containsIgnoreCase` 계약을 유지하기 위해 MySQL fallback을 사용한다.
-  - MySQL `user_pbs`는 source of truth이고 Redis는 보조 읽기 모델이다.
+  - 기본 랭킹 조회는 Redis ZSET 읽기 모델을 사용한다.
+  - `nickname` 부분 검색은 `containsIgnoreCase` 계약을 유지하기 위해 MySQL 대체 경로를 사용한다.
+  - MySQL `user_pbs`는 기준 데이터이고 Redis는 보조 읽기 모델이다.
 - 운영 리스크
-  - local `300,000` PB 기준 startup 재구축에 약 9분이 걸렸다.
-  - 운영에서 startup 재구축을 항상 켜면 부팅 시간 증가와 Redis 메모리 사용량을 고려해야 한다.
+  - 로컬 `300,000` PB 기준 시작 시 재구축에 약 9분이 걸렸다.
+  - 운영에서 시작 시 재구축을 항상 켜면 부팅 시간 증가와 Redis 메모리 사용량을 고려해야 한다.
 - 후속 최적화 방향
   - `nickname` 검색용 Redis secondary index
   - 운영 재구축 트리거/수동 명령 정리

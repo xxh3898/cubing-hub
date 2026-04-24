@@ -6,22 +6,22 @@
 
 ## 오늘 작업
 
-- `k6/sql/seed-rankings-v1-baseline.sql`로 `users`, `records`, `user_pbs` 각 `300,000`건 baseline 데이터셋 생성 경로를 추가
+- `k6/sql/seed-rankings-v1-baseline.sql`로 `users`, `records`, `user_pbs` 각 `300,000`건 기준선 데이터셋 생성 경로를 추가
 - `k6/rankings-v1-baseline.js`로 `GET /api/rankings?eventType=WCA_333&page=1&size=25` 고정 시나리오를 추가
 - `k6/generate-performance-report.mjs`와 `docs/performance/runbook.md`로 V1, V2 공통 리포트/실행 절차를 추가
 - `docker-compose.yml`, `backend/src/main/resources/prometheus.yml`, `infra/grafana/**`를 갱신해 `k6 -> Prometheus -> Grafana` 최소 시각화 경로를 구성
-- `.github/workflows/performance-benchmark.yml`로 수동 `workflow_dispatch` benchmark workflow를 추가
-- V1 baseline을 실제 실행하고 `docs/performance/rankings-v1-*` 산출물을 생성
+- `.github/workflows/performance-benchmark.yml`로 수동 `workflow_dispatch` 벤치마크 workflow를 추가
+- V1 기준선을 실제 실행하고 `docs/performance/rankings-v1-*` 산출물을 생성
 
 ---
 
 ## 핵심 정리 상세
 
-### 30만 PB 기준 baseline 데이터셋 고정
+### 30만 PB 기준 기준선 데이터셋 고정
 
 #### 문제 상황
 - Redis 리팩토링 전후 비교를 하려면 V1과 V2가 같은 랭킹 후보 수를 봐야 했다.
-- 랭킹 V1 hot path는 `records` 총량보다 같은 종목 `user_pbs` 후보 수의 영향을 크게 받으므로, baseline 데이터는 `user_pbs`를 최대한 명확하게 고정할 필요가 있었다.
+- 랭킹 V1 병목 구간은 `records` 총량보다 같은 종목 `user_pbs` 후보 수의 영향을 크게 받으므로, 기준선 데이터는 `user_pbs`를 최대한 명확하게 고정할 필요가 있었다.
 
 #### 해결 방법
 - `seed-rankings-v1-baseline.sql` 하나로 `users`, `records`, `user_pbs`를 각각 `300,000`건씩 생성하도록 고정했다.
@@ -42,13 +42,13 @@
 - Prometheus에 `--web.enable-remote-write-receiver`를 추가해 `k6 experimental-prometheus-rw` 출력을 받을 수 있게 했다.
 - Grafana provisioning과 `Rankings Baseline` 대시보드를 추가해 `run`, `storage` 변수로 같은 패널을 재사용하도록 맞췄다.
 - 패널은 `Requests/s`, `Response Time avg`, `Response Time p95`, `Error Rate`, `Virtual Users`, `JVM Heap Used`, `GC Pause Rate`로 구성했다.
-- 별도 `performance-benchmark.yml`을 추가해 GitHub Actions에서도 수동 benchmark와 `summary.json`, `comparison.md` artifact 업로드를 재현할 수 있게 했다.
+- 별도 `performance-benchmark.yml`을 추가해 GitHub Actions에서도 수동 벤치마크와 `summary.json`, `comparison.md` artifact 업로드를 재현할 수 있게 했다.
 
 #### 결과
 - 스모크 실행 기준으로 `k6_http_reqs_total`, `k6_http_req_duration_avg`, `k6_http_req_duration_p95`, `k6_http_req_failed_rate`, `k6_vus`가 Prometheus에 적재되는 것을 확인했다.
 - Grafana API에서 `Rankings Baseline` 대시보드 provisioning 인식도 확인했다.
 
-### V1 baseline 실행 결과
+### V1 기준선 실행 결과
 
 #### 실행 조건
 - API: `GET /api/rankings?eventType=WCA_333&page=1&size=25`
@@ -66,7 +66,7 @@
 - `checks`: `100.00%`
 
 #### 해석
-- V1 baseline은 기능 오류 없이 끝났지만, `p(95)<1500ms` 임계값은 실패했다.
+- V1 기준선 실행은 기능 오류 없이 끝났지만, `p(95)<1500ms` 임계값은 실패했다.
 - 즉 현재 MySQL `user_pbs` 기반 랭킹 조회는 `300,000` PB 후보 기준에서 읽기 지연이 크고, Redis ZSET 전환 후 비교 이득이 선명하게 드러날 조건이다.
 - 산출물은 `docs/performance/rankings-v1-summary.json`, `docs/performance/rankings-v1-report.md`, `docs/performance/rankings-v1-report.html`에 남겼다.
 - `report.html`은 그래프 리포트가 아니라 `summary.json` 기반 요약표다.
@@ -97,4 +97,4 @@
 - `curl 'http://127.0.0.1:9090/api/v1/query?query=k6_http_req_duration_p95'`
 - `curl -u admin:*** 'http://127.0.0.1:3000/api/search?query=Rankings%20Baseline'`
 
-`k6` baseline 자체는 `http_req_duration p95 < 1500ms` threshold 때문에 종료 코드 `99`를 반환했다. 이는 실행 실패가 아니라 `2026-04-20` 기준선 측정 결과로 기록한다.
+`k6` 기준선 실행 자체는 `http_req_duration p95 < 1500ms` threshold 때문에 종료 코드 `99`를 반환했다. 이는 실행 실패가 아니라 `2026-04-20` 기준선 측정 결과로 기록한다.

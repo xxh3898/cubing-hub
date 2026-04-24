@@ -20,19 +20,19 @@
 | 랭킹 | `/rankings` | 종목 필터, 닉네임 검색, 25개 단위 페이지네이션 | `GET /api/rankings` 연동 완료 |
 | 학습 | `/learning` | F2L/OLL/PLL 119 케이스 조회, 회전기호 가이드 | 정적 학습 데이터 렌더링 구현 |
 | 커뮤니티 목록 | `/community` | 카테고리 필터, 검색, 8개 단위 페이지네이션 | `GET /api/posts` 연동 완료 |
-| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성, 다중 이미지 첨부 | 보호 route + `POST /api/posts` 연동 완료 |
-| 커뮤니티 수정 | `/community/:id/edit` | 기존 게시글 preload, 제목/본문 수정, 기존/신규 이미지 관리 | 보호 route + `GET`, `PUT /api/posts/{postId}` 연동 완료 |
+| 커뮤니티 작성 | `/community/write` | 카테고리 선택, 제목/본문 작성, 다중 이미지 첨부 | 보호 라우트 + `POST /api/posts` 연동 완료 |
+| 커뮤니티 수정 | `/community/:id/edit` | 기존 게시글 사전 조회, 제목/본문 수정, 기존/신규 이미지 관리 | 보호 라우트 + `GET`, `PUT /api/posts/{postId}` 연동 완료 |
 | 커뮤니티 상세 | `/community/:id` | 게시글 상세, 첨부 이미지, 댓글 목록, 댓글 작성/삭제, 수정 이동 | 게시글 상세/댓글/수정/삭제 연동 완료 |
 | 공개 Q&A 목록 | `/qna` | 공개 질문/답변 목록, 8개 단위 페이지네이션 | `GET /api/qna` 연동 완료 |
 | 공개 Q&A 상세 | `/qna/:id` | 공개 질문/답변 상세 | `GET /api/qna/{feedbackId}` 연동 완료 |
-| 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, guest-only route 연동 완료 |
-| 비밀번호 재설정 | `/reset-password` | 이메일 인증번호 확인 후 새 비밀번호 설정 | password reset request/confirm 연동 완료 |
-| 회원가입 | `/signup` | 이메일 인증번호 확인 후 비밀번호/닉네임/주 종목 입력 | 이메일 인증 request/confirm + `POST /api/auth/signup`, 로그인 이동, guest-only route 연동 완료 |
-| 마이페이지 | `/mypage` | 프로필, 계정 정보 수정, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 route, 로그아웃, 프로필/기록/계정 관리 API 연동 완료 |
-| 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 route + `POST /api/feedbacks` 연동 완료 |
-| 관리자 메인 | `/admin` | 피드백 목록 필터, 내부 메모 목록/생성 | 관리자 route + `/api/admin/**` 연동 완료 |
-| 관리자 피드백 상세 | `/admin/feedbacks/:id` | 질문 상세, 답변 저장, 공개 여부 변경 | 관리자 route + `GET`, `PATCH /api/admin/feedbacks/**` 연동 완료 |
-| 관리자 메모 상세 | `/admin/memos/:id` | 내부 질문/답변 수정, 삭제 | 관리자 route + `GET`, `PATCH`, `DELETE /api/admin/memos/{memoId}` 연동 완료 |
+| 로그인 | `/login` | 이메일/비밀번호 입력 | `POST /api/auth/login`, 로그인 후 복귀, 비로그인 전용 라우트 연동 완료 |
+| 비밀번호 재설정 | `/reset-password` | 이메일 인증번호 확인 후 새 비밀번호 설정 | 비밀번호 재설정 request/confirm 연동 완료 |
+| 회원가입 | `/signup` | 이메일 인증번호 요청/확인 후 비밀번호/닉네임/주 종목 입력 | 이메일 인증 request/confirm + `POST /api/auth/signup`, 로그인 이동, 비로그인 전용 라우트 연동 완료 |
+| 마이페이지 | `/mypage` | 프로필, 계정 정보 수정, 기록 요약, 주 종목 그래프, 전체 기록 | 보호 라우트, 로그아웃, 프로필/기록/계정 관리 API 연동 완료 |
+| 피드백 | `/feedback` | 버그/기능 제안 전달 폼 | 보호 라우트 + `POST /api/feedbacks` 연동 완료 |
+| 관리자 메인 | `/admin` | 피드백 목록 필터, 내부 메모 목록/생성 | 관리자 라우트 + `/api/admin/**` 연동 완료 |
+| 관리자 피드백 상세 | `/admin/feedbacks/:id` | 질문 상세, 답변 저장, 공개 여부 변경 | 관리자 라우트 + `GET`, `PATCH /api/admin/feedbacks/**` 연동 완료 |
+| 관리자 메모 상세 | `/admin/memos/:id` | 내부 질문/답변 수정, 삭제 | 관리자 라우트 + `GET`, `PATCH`, `DELETE /api/admin/memos/{memoId}` 연동 완료 |
 | 인증 리다이렉트 | `/auth` | `/login`으로 이동 | 라우팅 리다이렉트 구현 |
 
 ## 3. 사용자 시나리오
@@ -53,7 +53,7 @@
 
 1. 사용자는 랭킹 화면에서 종목과 닉네임으로 결과를 좁히고 `1~10` 단위 그룹 페이지네이션으로 이동한다.
 2. 커뮤니티 목록에서 검색/필터 후 grouped 페이지네이션으로 상세 화면까지 이동한다.
-3. 랭킹 화면은 기본 조회 Redis, `nickname` 검색 MySQL fallback 구조의 실제 API를 사용하고, 커뮤니티는 목록/작성/상세/삭제가 실제 API 기준으로 동작한다.
+3. 랭킹 화면은 기본 조회 Redis, `nickname` 검색 MySQL 대체 경로 구조의 실제 API를 사용하고, 커뮤니티는 목록/작성/상세/삭제가 실제 API 기준으로 동작한다.
 
 ### 시나리오 4. 회원가입 후 개인화
 
@@ -106,7 +106,7 @@
   - `todayScramble`은 `Asia/Seoul` 날짜 기준으로 고정되어 같은 날에는 동일한 값을 반환한다.
   - guest 홈은 `오늘의 스크램블 + 소개/CTA + 최신 게시글 3건`으로 구성된다.
   - 로그인 홈은 `오늘의 스크램블 + 요약 카드 4종 + 최근 기록 5건`으로 구성된다.
-  - 모바일 폭에서는 최근 기록과 최신 게시글 목록이 stacked card row로 재배치된다.
+  - 모바일 폭에서는 최근 기록과 최신 게시글 목록이 카드형 행으로 재배치된다.
 
 ### 타이머
 
@@ -142,10 +142,10 @@
   - 로그인 사용자는 서버 기록, 비로그인 사용자는 게스트 로컬 기록 기준으로 선택 종목 최근 12개 `Ao5`, `Ao12`를 확인할 수 있다.
   - 이미지 로드 실패 시에는 텍스트 스크램블만 유지한다.
   - 지원하지 않는 종목은 안내 메시지와 함께 차단된다.
-  - 타이머 시작/정지는 keyboard `Space`와 모바일 `touch`/`pen` pointer 입력이 같은 상태 머신을 공유한다.
-  - 기록 정지 후에는 solve snapshot 기준으로 한 번만 저장 또는 게스트 캐시를 수행하고, 성공 시 다음 스크램블과 타이머를 자동 초기화한다.
+  - 타이머 시작/정지는 키보드 `Space`와 모바일 `touch`/`pen` pointer 입력이 같은 상태 머신을 공유한다.
+  - 기록 정지 후에는 측정 완료 시점에 고정한 solve 정보를 기준으로 한 번만 저장 또는 게스트 캐시를 수행하고, 성공 시 다음 스크램블과 타이머를 자동 초기화한다.
   - 저장 실패 시에는 멈춘 기록을 유지하고 같은 화면에서 재시도 버튼을 제공한다.
-  - 모바일 폭에서는 종목/액션 툴바가 세로 stack으로 재배치된다.
+  - 모바일 폭에서는 종목/액션 툴바가 세로 배치로 재배치된다.
 
 ### 랭킹
 
@@ -174,12 +174,12 @@
   - 오류 시 재시도
 - 구현 상태
   - `/api/rankings` 실연동이 구현되어 있다.
-  - `nickname` 미입력 기본 조회는 Redis ZSET read model을 사용한다.
-  - `nickname` 검색 또는 Redis 미준비 상태는 MySQL fallback을 사용한다.
+  - `nickname` 미입력 기본 조회는 Redis ZSET 읽기 모델을 사용한다.
+  - `nickname` 검색 또는 Redis 미준비 상태는 MySQL 대체 경로를 사용한다.
   - `nickname` 검색 결과도 필터된 집합 재순위가 아니라 전체 랭킹 기준 순위를 유지한다.
   - 페이지네이션은 `1~10` 단위 그룹과 `이전`, `다음`, `<<`, `>>` 이동으로 동작한다.
   - 서버 검색, 서버 페이지네이션, `loading`, `empty`, `error`, 재시도 상태가 반영되어 있다.
-  - 모바일 폭에서는 검색/종목 툴바가 세로 stack으로, 랭킹 데이터는 stacked card row로 재배치된다.
+  - 모바일 폭에서는 검색/종목 툴바가 세로 배치로, 랭킹 데이터는 카드형 행으로 재배치된다.
 
 ### 학습
 
@@ -236,7 +236,7 @@
   - 카테고리, 제목/본문, 작성자 검색과 8개 단위 페이지네이션이 서버 기준으로 동작한다.
   - 페이지네이션은 `1~10` 단위 그룹과 `이전`, `다음`, `<<`, `>>` 이동으로 동작한다.
   - `loading`, `empty`, `error`, `다시 시도` 상태가 반영되어 있다.
-  - 모바일 폭에서는 카테고리/검색/작성 액션이 stack 또는 grid로 재배치되고 게시글 목록은 stacked card row로 노출된다.
+  - 모바일 폭에서는 카테고리/검색/작성 액션이 세로 배치 또는 grid로 재배치되고 게시글 목록은 카드형 행으로 노출된다.
 
 ### 커뮤니티 작성 / 수정
 
@@ -255,26 +255,26 @@
   - 로그인 사용자 권한
   - 작성 권한
   - 게시글 생성 API
-  - 수정 모드일 때 게시글 상세 preload
+  - 수정 모드일 때 게시글 상세 사전 조회
   - 게시글 수정 API
 - 상태 및 예외
   - 인증 필요
   - 공지사항 작성은 권한 제한이 필요하다.
-  - 최종 연동 시 validation error 표시가 필요하다.
+  - 최종 연동 시 검증 오류 표시가 필요하다.
 - 사용자 액션
   - 카테고리 변경
   - 제목/본문 입력
   - 제출
   - 수정 취소 후 상세 또는 목록 복귀
 - 구현 상태
-  - 보호 route가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
+  - 보호 라우트가 적용되어 비로그인 사용자는 로그인 후 복귀 흐름을 탄다.
   - `POST /api/posts`는 multipart 첨부 이미지 업로드를 지원한다.
-  - `/community/:id/edit`에서 `GET /api/posts/{postId}/edit`로 기존 글을 preload하고 `PUT /api/posts/{postId}`로 수정한다.
+  - `/community/:id/edit`에서 `GET /api/posts/{postId}/edit`로 기존 글을 사전 조회하고 `PUT /api/posts/{postId}`로 수정한다.
   - 수정 화면은 기존 첨부 이미지 유지/제외와 신규 이미지 추가를 함께 처리한다.
   - 관리자 로그인 시에만 `NOTICE` 카테고리를 노출한다.
   - 생성 성공 시 생성된 게시글 상세 화면으로 이동한다.
   - 수정 버튼은 작성자 본인 또는 관리자만 진입할 수 있다.
-  - validation 및 서버 오류 메시지를 화면에 표시한다.
+  - 검증 오류와 서버 오류 메시지를 화면에 표시한다.
 
 ### 커뮤니티 상세
 
@@ -331,7 +331,7 @@
   - 인증 상태 업데이트
   - 로그인 성공 후 이동 경로
 - 상태 및 예외
-  - validation error
+  - 검증 오류
   - `401` 인증 실패
   - 재로그인 필요 상태
 - 사용자 액션
@@ -361,8 +361,8 @@
   - `POST /api/auth/password-reset/request`
   - `POST /api/auth/password-reset/confirm`
 - 상태 및 예외
-  - validation error
-  - 인증번호 재요청 cooldown
+  - 검증 오류
+  - 인증번호 재요청 제한 상태
   - 인증번호 불일치 / 만료
   - 비밀번호 변경 후 로그인 화면 복귀 안내
 - 사용자 액션
@@ -394,8 +394,8 @@
   - `POST /api/auth/signup`
   - 인증번호 요청/확인, 중복, validation 에러 처리
 - 상태 및 예외
-  - validation error
-  - 인증번호 재요청 cooldown
+  - 검증 오류
+  - 인증번호 재요청 제한 상태
   - 인증번호 불일치 / 만료
   - 이메일/닉네임 중복 처리
   - 가입 후 로그인 화면 이동 및 안내 메시지 처리
@@ -452,7 +452,7 @@
   - 기록 penalty 수정
   - 기록 삭제
 - 구현 상태
-  - 보호 route와 `/api/auth/logout` 연동이 구현되어 있다.
+  - 보호 라우트와 `/api/auth/logout` 연동이 구현되어 있다.
   - 헤더 닉네임은 `/api/me` 기준으로 표시된다.
   - `/api/users/me/profile`로 프로필/요약을 조회한다.
   - `/api/users/me/records?page&size`로 전체 기록을 서버 페이지네이션으로 조회한다.
@@ -462,7 +462,7 @@
   - 같은 records API를 재사용해 주 종목 기준 최근 기록 추세 그래프를 렌더링한다.
   - 전체 기록 페이지네이션은 `1~10` 단위 그룹과 `이전`, `다음`, `<<`, `>>` 이동으로 동작한다.
   - 기록 penalty 수정과 삭제 후 프로필/기록을 다시 조회해 화면을 갱신한다.
-  - 모바일 폭에서는 프로필/기록 헤더가 세로 stack으로 바뀌고 전체 기록은 stacked card row로 전환된다.
+  - 모바일 폭에서는 프로필/기록 헤더가 세로 배치로 바뀌고 전체 기록은 카드형 행으로 전환된다.
 
 ### 피드백
 
@@ -480,7 +480,7 @@
   - `POST /api/feedbacks`
   - 현재 로그인 사용자 컨텍스트
 - 상태 및 예외
-  - validation error
+  - 검증 오류
   - 제출 성공/실패 메시지
   - auth failure 시 로그인 이동
 - 사용자 액션
@@ -490,9 +490,9 @@
   - 제출
 - 구현 상태
   - `POST /api/feedbacks` 실연동이 구현되어 있다.
-  - 보호 route로 로그인 사용자만 접근할 수 있다.
+  - 보호 라우트로 로그인 사용자만 접근할 수 있다.
   - 회신 이메일 input은 현재 로그인 사용자 이메일을 기본값으로 채우고 수정 가능하다.
-  - 서버는 제출자를 현재 로그인 사용자와 연결하고 `reply_email` snapshot을 함께 저장한다.
+  - 서버는 제출자를 현재 로그인 사용자와 연결하고 제출 시점의 `reply_email`을 함께 저장한다.
   - 제출 후에는 일반 사용자용 접수 완료 toast만 노출한다.
   - Discord 운영 알림 상태는 사용자 화면이 아니라 내부 운영 경로에서 추적한다.
 
@@ -530,7 +530,7 @@
   - 관리자 권한이 없으면 접근할 수 없다.
   - 피드백 목록에는 검색 없이 `답변 여부`, `공개 여부` 필터만 사용한다.
 - 구현 상태
-  - `/admin`은 관리자 전용 route다.
+  - `/admin`은 관리자 전용 라우트다.
   - 피드백 목록은 최신순, 관리자 메모 목록은 `updatedAt desc` 최신순으로 정렬된다.
   - 피드백 답변 저장과 공개 여부 전환은 상세 화면에서 처리한다.
   - 관리자 메모는 질문/답변 한 세트의 list/detail CRUD로 동작한다.
@@ -562,7 +562,7 @@
 | 랭킹 | `GET /api/rankings` | 종목별 랭킹 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 목록 | `GET /api/posts` | 게시글 목록 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `GET /api/posts/{postId}` | 게시글 상세 조회 | 백엔드 구현 / 프런트 연동 |
-| 커뮤니티 수정 | `GET /api/posts/{postId}/edit` | 게시글 수정 preload 조회 | 백엔드 구현 / 프런트 연동 |
+| 커뮤니티 수정 | `GET /api/posts/{postId}/edit` | 게시글 수정 화면 사전 조회 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 작성 | `POST /api/posts` | 게시글 생성 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 수정 | `PUT /api/posts/{postId}` | 게시글 수정 | 백엔드 구현 / 프런트 연동 |
 | 커뮤니티 상세 | `DELETE /api/posts/{postId}` | 게시글 삭제 | 백엔드 구현 / 프런트 연동 |
@@ -601,7 +601,7 @@
 - 라우트 기준: `frontend/src/App.jsx`
 - 인증 상태:
   - 구현 기준: `frontend/src/context/AuthContext.jsx`, `frontend/src/authStorage.js` 기반 메모리 access token과 앱 초기 `refresh -> /api/me` 부트스트랩
-  - 검증 기준: `AuthContext`, `apiClient` refresh queue, 보호/guest-only route 회귀 테스트 추가
+  - 검증 기준: `AuthContext`, `apiClient` refresh queue, 보호/비로그인 전용 라우트 회귀 테스트 추가
 - 공통 API 클라이언트: `frontend/src/lib/apiClient.js`
 - 타이머 핵심 로직: `frontend/src/hooks/useCubeTimer.js`
 

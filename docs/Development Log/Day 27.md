@@ -9,14 +9,14 @@
 ## 오늘 작업
 
 - 게시글 create/update에 다중 이미지 첨부를 붙이고, 로그인 사용자 기준 고유 조회수 집계를 `post_views(post_id, user_id)`로 추가했다
-- 관리자 피드백 API, 공개 Q&A, 관리자 페이지, 관리자 메모를 구현해 `/admin`, `/qna` 흐름을 닫았다
+- 관리자 피드백 API, 공개 Q&A, 관리자 페이지, 관리자 메모를 구현해 `/admin`, `/qna` 흐름을 정리했다
 - 외부 인프라 장애를 `400` 입력 오류가 아니라 `503 Service Unavailable`로 분리하고 validation 문구를 사용자용 메시지로 정리했다
-- production에서 빠져 있던 `POST_IMAGES_*` runtime env 전달을 `docker-compose.prod.yml`에 추가했다
+- 운영 환경에서 빠져 있던 `POST_IMAGES_*` 런타임 환경 변수 전달을 `docker-compose.prod.yml`에 추가했다
 - multipart 요청의 `Content-Type` 헤더가 파일 업로드를 깨뜨리던 문제를 정리하고, 게시글 상세 조회와 조회수 기록을 best-effort로 분리했다
-- 운영 DB 연결에 TLS를 강제하고, Flyway migration을 도입해 production schema 적용 경로를 명시적으로 고정했다
+- 운영 DB 연결에 TLS를 강제하고, Flyway migration을 도입해 운영 schema 적용 경로를 명시적으로 고정했다
 - frontend API URL 배포 검증, EC2 backend 배포 디스크 정리 절차, Redis 랭킹 재구축 수동 workflow를 추가해 배포 후속 작업을 보강했다
 - 기록 조회 인덱스/검색 쿼리 비용 최적화, MyPage 중복 API 호출 제거, Discord 알림 개인정보 노출 제거, frontend 초기 번들 분할을 반영했다
-- 같은 날짜 후속 수정으로 커뮤니티 편집 preload와 조회수 집계를 분리하고, 게시글 이미지 업로드 request body 한도를 Nginx와 Spring 기준으로 다시 맞췄다
+- 같은 날짜 후속 수정으로 커뮤니티 편집 사전 조회와 조회수 집계를 분리하고, 게시글 이미지 업로드 request body 한도를 Nginx와 Spring 기준으로 다시 맞췄다
 - `README.md`, 핵심 설계 문서, 일정/허브 로그, `portfolio.internal.md`를 실제 구현/운영 상태 기준으로 마감 동기화했다
 - 이후 마감 단계에서 사용자가 확인한 `모든 CI/CD 정상 동작`, `배포환경 전체 기능 수동 검증 완료` 사실을 운영 상태 근거로 반영했다
 
@@ -34,7 +34,7 @@
 
 #### 이유
 - 피드백을 단순 수집으로만 두면 운영 후속 대응을 설명하기 어렵다.
-- 답변 공개 여부와 내부 메모는 성격이 달라서 같은 필드에 억지로 넣기보다 책임을 분리하는 편이 설명 가능했다.
+- 답변 공개 여부와 내부 메모는 성격이 달라서 같은 필드에 억지로 넣기보다 책임을 분리하는 편이 적절했다.
 
 #### 결과
 - 사용자 피드백 수집, 관리자 응답, 공개 Q&A, 내부 메모까지 서비스 운영 흐름 하나로 설명할 수 있게 됐다.
@@ -42,7 +42,7 @@
 ### 2. 게시글 이미지 첨부와 고유 조회수 정책을 같이 고정했다
 
 #### 구현
-- 게시글 create/update에서 다중 이미지 첨부를 지원하고, S3 + DB metadata로 첨부 정보를 관리했다.
+- 게시글 create/update에서 다중 이미지 첨부를 지원하고, S3 + DB 메타데이터로 첨부 정보를 관리했다.
 - 조회수는 `post_views(post_id, user_id)` 고유 기록을 두고, 로그인 사용자의 첫 조회만 `view_count`에 반영하도록 설계했다.
 - 비로그인 사용자는 조회수 집계에서 제외했다.
 
@@ -69,7 +69,7 @@
 - 사용자 입력 실수와 인프라 장애를 다른 계약으로 설명할 수 있게 됐다.
 - 포트폴리오와 면접에서 “왜 400이 아니라 503인가”를 HTTP 의미 기준으로 방어할 수 있게 됐다.
 
-### 4. production 게시글 이미지 경로는 env 전달, multipart, 공개 읽기 점검을 분리해서 봤다
+### 4. 운영 게시글 이미지 경로는 환경 변수 전달, multipart, 공개 읽기 점검을 분리해서 봤다
 
 #### 문제 상황
 - prod backend는 `application-prod.yaml`에서 `POST_IMAGES_*`를 읽도록 되어 있었지만, compose가 해당 값을 컨테이너에 넘기지 않아 EC2 `.env` 설정이 runtime에 반영되지 않았다.
@@ -83,28 +83,28 @@
 
 #### 결과
 - `업로드 성공 == 화면 표시 성공`이 아니라는 운영 점검 기준을 명확히 남길 수 있게 됐다.
-- production 게시글 이미지 경로를 runtime env, HTTP 헤더, S3 공개 읽기 정책으로 나눠 설명할 수 있게 됐다.
+- 운영 게시글 이미지 경로를 런타임 환경 변수, HTTP 헤더, S3 공개 읽기 정책으로 나눠 설명할 수 있게 됐다.
 
 ### 5. 게시글 상세는 조회수 기록 실패가 있어도 읽기 가용성을 우선하도록 정리했다
 
 #### 문제 상황
 - 로그인 상태 게시글 상세 조회에서 조회수 기록이 실패하면 게시글 본문 읽기 자체가 `500`으로 깨질 수 있었다.
-- 같은 시점에 수정 화면 preload가 상세 조회를 재사용하면 조회수 정책까지 흔들릴 여지가 있었다.
+- 같은 시점에 수정 화면 사전 조회가 상세 조회를 재사용하면 조회수 정책까지 흔들릴 여지가 있었다.
 
 #### 해결 방법
 - `getPost()` 트랜잭션 경계를 override하고, 조회수 기록은 best-effort로 분리했다.
-- `GET /api/posts/{postId}/edit` preload endpoint를 별도로 두어 수정 화면 진입은 조회수를 증가시키지 않게 했다.
+- `GET /api/posts/{postId}/edit` 사전 조회 endpoint를 별도로 두어 수정 화면 진입은 조회수를 증가시키지 않게 했다.
 - 게시글 이미지 업로드 request body 한도는 Nginx, Spring multipart, 비즈니스 validation 기준을 다시 맞췄다.
 
 #### 결과
 - 조회수 집계 실패가 상세 페이지 전체 장애로 번지는 경로를 줄였다.
-- 읽기용 상세 조회와 수정 preload, 업로드 한도 정책까지 각각 역할을 분리할 수 있게 됐다.
+- 읽기용 상세 조회와 수정 사전 조회, 업로드 한도 정책까지 각각 역할을 분리할 수 있게 됐다.
 
-### 6. production runtime hardening도 같은 날짜에 같이 마감했다
+### 6. 운영 런타임 보강도 같은 날짜에 함께 마감했다
 
 #### 구현
 - 운영 DB 연결에 TLS를 강제했다.
-- Flyway migration을 도입해 production schema 적용 경로를 명시적으로 고정했다.
+- Flyway migration을 도입해 운영 schema 적용 경로를 명시적으로 고정했다.
 - frontend API URL 배포 검증을 추가해 잘못된 env로 재배포되는 실수를 줄였다.
 - EC2 backend 배포 전에 디스크 정리 절차를 넣어 이미지 누적으로 인한 배포 실패를 막도록 했다.
 - Redis 랭킹 재구축은 startup 상시 옵션이 아니라 수동 workflow로도 실행할 수 있게 분리했다.
@@ -165,12 +165,12 @@
 
 ### 기능/계약 검증
 
-- backend 관련 integration/unit test와 REST Docs를 관리자 기능, 게시글 이미지, 조회수, 예외 계약, preload 경로 기준으로 갱신
+- backend 관련 integration/unit test와 REST Docs를 관리자 기능, 게시글 이미지, 조회수, 예외 계약, 사전 조회 경로 기준으로 갱신
 - frontend `lint`, `test`, `build` 기준으로 관리자 화면, 게시글 이미지, 계정 복구, 커뮤니티 수정, 번들 분할 이후 회귀를 확인
 
 ### 운영/배포 검증
 
-- 배포 설정, workflow, runtime env, body size, DB TLS, Flyway 경로를 production 기준으로 점검
+- 배포 설정, workflow, 런타임 환경 변수, body size, DB TLS, Flyway 경로를 운영 기준으로 점검
 - 마감 단계에서 사용자가 확인한 backend/frontend CI, deploy workflow, 배포환경 전체 기능 수동 검증 완료 사실을 문서 근거로 반영
 
 ### 문서 정합성 점검

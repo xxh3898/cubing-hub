@@ -9,7 +9,7 @@
 
 ### Frontend
 
-- `VITE_API_BASE_URL=https://api.cubing-hub.com`를 주입해 build했는지 확인
+- `VITE_API_BASE_URL=https://api.cubing-hub.com`를 주입해 빌드했는지 확인
 - `frontend/dist`가 최신 빌드인지 확인
 - S3 업로드 후 CloudFront invalidation을 수행했는지 확인
 - 브라우저 개발자도구에서 API 요청이 `localhost:8080`이 아니라 `https://api.cubing-hub.com`으로 향하는지 확인
@@ -17,7 +17,7 @@
 ### Backend Image
 
 - backend jar를 다시 빌드했는지 확인
-- Docker Hub image를 `linux/amd64` 또는 multi-arch로 push했는지 확인
+- Docker Hub image를 `linux/amd64` 또는 multi-arch로 푸시했는지 확인
 - EC2에서 `docker compose pull`이 manifest mismatch 없이 통과하는지 확인
 
 ### EC2 `.env`
@@ -26,7 +26,7 @@
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` 확인
 - `DB_NAME`이 RDS 인스턴스 식별자가 아니라 실제 schema 이름인지 확인
 - `JWT_SECRET`이 placeholder가 아닌 실제 값인지 확인
-- first deploy 시점에는 아래 값을 사용
+- 최초 배포 시점에는 아래 값을 사용
   - `SPRING_JPA_HIBERNATE_DDL_AUTO=update`
 
 ### HTTPS / Nginx
@@ -89,8 +89,8 @@
 | `api.cubing-hub.com` 연결 거부 | Nginx 컨테이너 재시작 반복 | Nginx 로그 확인 후 SSL 보조 파일 생성 |
 | `options-ssl-nginx.conf` 누락 | Let's Encrypt 보조 파일 미생성 | `/etc/letsencrypt/options-ssl-nginx.conf` 생성 |
 | `ssl-dhparams.pem` 누락 | dhparams 파일 미생성 | `openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048` 실행 |
-| Redis 랭킹 read model이 비어 있음 | Redis 재구축이 아직 수행되지 않음 | GitHub Actions `Rebuild Ranking Redis` workflow 또는 `RANKING_REDIS_REBUILD_MODE=oneshot` one-shot 실행 |
-| 앱은 떴는데 배포 후 운영 위험 남음 | first deploy 플래그 원복 누락 | `validate`로 바꾸고 compose 재기동 |
+| Redis 랭킹 읽기 모델이 비어 있음 | Redis 재구축이 아직 수행되지 않음 | GitHub Actions `Rebuild Ranking Redis` workflow 또는 `RANKING_REDIS_REBUILD_MODE=oneshot` one-shot 실행 |
+| 앱은 떴는데 배포 후 운영 위험 남음 | 최초 배포 플래그 원복 누락 | `validate`로 바꾸고 compose 재기동 |
 
 ## 운영 보안 후처리 권장
 

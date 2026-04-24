@@ -53,7 +53,7 @@
   - `POST /api/posts/{postId}/comments`
   - `DELETE /api/posts/{postId}/comments/{commentId}`
   - `POST /api/feedbacks`
-- `POST /api/feedbacks`는 인증 사용자 기준으로 `user_id`와 회신 이메일 snapshot을 함께 저장한다.
+- `POST /api/feedbacks`는 인증 사용자 기준으로 `user_id`와 제출 시점의 회신 이메일을 함께 저장한다.
 
 ### 관리자 전용 경로
 
@@ -87,9 +87,9 @@
 
 1. 사용자가 회원가입용 이메일을 전달한다.
 2. 이미 가입된 이메일인지 확인한다.
-3. 같은 이메일의 재요청 cooldown을 확인한다.
+3. 같은 이메일의 재요청 제한 시간을 확인한다.
 4. 6자리 인증번호를 생성한다.
-5. Redis에 인증번호와 resend cooldown을 TTL과 함께 저장한다.
+5. Redis에 인증번호와 재요청 제한 상태를 TTL과 함께 저장한다.
 6. SMTP로 인증번호 메일을 발송한다.
 7. SMTP 또는 메일 설정 문제로 발송에 실패하면 사용자에게는 `503 Service Unavailable`과 일반화된 재시도 문구만 반환한다.
 
@@ -97,32 +97,32 @@
 
 1. 사용자가 이메일과 6자리 인증번호를 전달한다.
 2. Redis에 저장된 인증번호와 비교한다.
-3. 일치하면 인증번호 key를 삭제하고 verified marker를 TTL과 함께 저장한다.
+3. 일치하면 인증번호 key를 삭제하고 인증 완료 상태를 TTL과 함께 저장한다.
 
 ### 3. 회원가입
 
 1. 사용자가 이메일, 비밀번호, 닉네임, 주 종목을 전달한다.
-2. Redis verified marker가 있는지 확인한다.
+2. Redis 인증 완료 상태가 있는지 확인한다.
 3. 이메일/닉네임 중복을 검사한다.
 4. 비밀번호를 암호화해 `users`에 저장한다.
-5. 회원가입 성공 후 verified marker를 삭제한다.
+5. 회원가입 성공 후 인증 완료 상태를 삭제한다.
 6. 기본 권한은 `ROLE_USER`, 기본 상태는 `ACTIVE`다.
 
 ### 4. 비밀번호 재설정 인증번호 요청
 
 1. 사용자가 비밀번호를 재설정할 이메일을 전달한다.
-2. 같은 이메일의 재요청 cooldown을 확인한다.
+2. 같은 이메일의 재요청 제한 시간을 확인한다.
 3. 6자리 인증번호를 생성한다.
-4. Redis에 password reset 인증번호와 resend cooldown을 TTL과 함께 저장한다.
+4. Redis에 비밀번호 재설정 인증번호와 재요청 제한 상태를 TTL과 함께 저장한다.
 5. 계정 존재 여부는 외부에 노출하지 않고, 가입된 이메일인 경우에만 SMTP로 인증번호 메일을 발송한다.
 6. SMTP 또는 메일 설정 문제로 발송에 실패하면 사용자에게는 `503 Service Unavailable`과 일반화된 재시도 문구만 반환한다.
 
 ### 5. 비밀번호 재설정 확인
 
 1. 사용자가 이메일, 6자리 인증번호, 새 비밀번호를 전달한다.
-2. Redis에 저장된 password reset 인증번호와 비교한다.
+2. Redis에 저장된 비밀번호 재설정 인증번호와 비교한다.
 3. 일치하면 사용자의 비밀번호를 암호화해 갱신한다.
-4. 관련 password reset key를 삭제한다.
+4. 관련 비밀번호 재설정 key를 삭제한다.
 5. 해당 사용자의 Refresh Token을 모두 제거해 재로그인을 강제한다.
 
 ### 6. 로그인
@@ -183,7 +183,7 @@
 
 ### 구현 상태
 
-- 백엔드 인증 API는 구현되어 있다.
+- 백엔드 인증 API를 제공한다.
   - `POST /api/auth/email-verification/request`
   - `POST /api/auth/email-verification/confirm`
   - `POST /api/auth/password-reset/request`
@@ -193,25 +193,25 @@
   - `POST /api/auth/refresh`
   - `POST /api/auth/logout`
   - `POST /api/session/clear-refresh-cookie`
-- 로그인 사용자 컨텍스트 조회용 `GET /api/me`가 구현되어 있다.
+- 로그인 사용자 컨텍스트 조회용 `GET /api/me`를 제공한다.
 - `GET /api/home`는 공개 경로지만, Access Token이 있으면 개인화 데이터를 함께 반환한다.
   - 응답 최소 필드: `userId`, `email`, `nickname`, `role`
   - 이 API는 헤더/전역 사용자 컨텍스트용이며 상세 프로필 API와 분리한다.
-- 마이페이지 상세 조회 API가 구현되어 있다.
+- 마이페이지 상세 조회 API를 제공한다.
   - `GET /api/users/me/profile`
   - `GET /api/users/me/records`
-- 로그인 사용자 계정 관리 API가 구현되어 있다.
+- 로그인 사용자 계정 관리 API를 제공한다.
   - `PATCH /api/users/me/profile`
   - `PATCH /api/users/me/password`
-- 기록 관리 API가 구현되어 있다.
+- 기록 관리 API를 제공한다.
   - `PATCH /api/records/{recordId}`
   - `DELETE /api/records/{recordId}`
 - 백엔드는 Access Token을 응답 body로, Refresh Token을 `HttpOnly` cookie로 전달한다.
 - React는 `AuthContext` + `authStorage.js` 기반 메모리 보관 구조를 사용한다.
 - React는 앱 초기 `refresh -> /api/me` 순서로 사용자 컨텍스트를 동기화한다.
 - `apiClient`는 `withCredentials: true`와 `401 -> refresh -> retry`를 사용한다.
-- React 로그인/회원가입/로그아웃, 비밀번호 재설정, 회원가입 이메일 인증 단계, 보호 라우트, guest-only 라우트, `/api/me` 기반 헤더 연동이 구현되어 있다.
-- React는 malformed refresh token, token reuse, 브라우저 레벨 request rejection처럼 `refresh_token`이 비정상 상태로 판단되면 세션 복구용 cookie clear endpoint를 best-effort로 호출한다.
+- React 로그인/회원가입/로그아웃, 비밀번호 재설정, 회원가입 이메일 인증 단계, 보호 라우트, 비로그인 전용 라우트, `/api/me` 기반 헤더 연동을 제공한다.
+- React는 malformed refresh token, token reuse, 브라우저 레벨 request rejection처럼 `refresh_token`이 비정상 상태로 판단되면 세션 복구용 cookie clear endpoint를 가능한 범위에서 호출한다.
 
 ### React 구조
 
@@ -236,7 +236,7 @@
   - API 인증 헤더 `Authorization: Bearer <token>`
   - `GET /api/me` 같은 로그인 사용자 컨텍스트 조회
 - 세션 복구
-  - 구현 상태: 앱 초기 cold start에서 `refresh_token` cookie로 Access Token을 재발급받은 뒤 메모리에 다시 적재하고 `/api/me`를 조회한다.
+  - 구현 상태: 앱 초기 진입에서 `refresh_token` cookie로 Access Token을 재발급받은 뒤 메모리에 다시 적재하고 `/api/me`를 조회한다.
   - 구현 상태: refresh 또는 `/api/me`가 실패하면 메모리 token과 사용자 컨텍스트를 함께 정리한다.
 - 만료 시간
   - 로컬 설정: `86400000` (1일)
@@ -270,37 +270,37 @@
 
 #### 회원가입 이메일 인증 상태
 
-- 인증번호와 verified marker는 Redis에 저장된다.
+- 인증번호와 인증 완료 상태는 Redis에 저장된다.
 - Key 전략
   - `auth:email-verification:code:{email}`
   - `auth:email-verification:cooldown:{email}`
   - `auth:email-verification:verified:{email}`
 - TTL 정책
   - 인증번호: `10분`
-  - resend cooldown: `1분`
-  - verified marker: `30분`
+  - 재요청 제한: `1분`
+  - 인증 완료 상태: `30분`
 - 메일 발송은 SMTP 기반이다.
-- cooldown 안내 문구는 Redis 남은 TTL을 별도 조회하지 않고 `인증번호 재요청은 약 1분 뒤에 가능합니다.`처럼 근사값으로 안내한다.
+- 재요청 제한 안내 문구는 Redis 남은 TTL을 별도 조회하지 않고 `인증번호 재요청은 약 1분 뒤에 가능합니다.`처럼 근사값으로 안내한다.
 
 #### 비밀번호 재설정 인증 상태
 
-- 인증번호와 cooldown은 Redis에 저장된다.
+- 인증번호와 재요청 제한 상태는 Redis에 저장된다.
 - Key 전략
   - `auth:password-reset:code:{email}`
   - `auth:password-reset:cooldown:{email}`
 - TTL 정책
   - 인증번호: `10분`
-  - resend cooldown: `1분`
+  - 재요청 제한: `1분`
 - 가입되지 않은 이메일은 인증번호를 저장하지 않고 동일 성공 응답만 반환한다.
-- cooldown 안내 문구는 Redis 남은 TTL을 별도 조회하지 않고 `인증번호 재요청은 약 1분 뒤에 가능합니다.`처럼 근사값으로 안내한다.
+- 재요청 제한 안내 문구는 Redis 남은 TTL을 별도 조회하지 않고 `인증번호 재요청은 약 1분 뒤에 가능합니다.`처럼 근사값으로 안내한다.
 
 ## 7. 예외 처리 정책
 
 | 상황 | HTTP Status | 백엔드 처리 | 프런트 처리 |
 | --- | --- | --- | --- |
-| 이메일 인증번호 재요청 cooldown | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
+| 이메일 인증번호 재요청 제한 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
 | 잘못되거나 만료된 이메일 인증번호 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 인증번호 재입력 또는 재요청 유도 |
-| 비밀번호 재설정 인증번호 재요청 cooldown | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
+| 비밀번호 재설정 인증번호 재요청 제한 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 안내 메시지 노출 후 잠시 뒤 재시도 |
 | 잘못되거나 만료된 비밀번호 재설정 인증번호 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 인증번호 재입력 또는 재요청 유도 |
 | 이메일 인증 미완료 회원가입 | `400` | `AuthService`의 `IllegalArgumentException` 처리 | 이메일 인증 단계 재진행 유도 |
 | 현재 비밀번호 불일치 또는 동일 비밀번호 변경 시도 | `400` | `UserProfileService`의 `IllegalArgumentException` 처리 | 비밀번호 입력 재확인 유도 |
@@ -319,7 +319,7 @@
 
 - 보호 라우트 처리:
   - `mypage`, `community/write`, `community/:id/edit`에 명시적 보호 라우트가 적용되어 있다.
-  - `login`, `signup`에는 guest-only route가 적용되어 있다.
+  - `login`, `signup`에는 비로그인 전용 라우트가 적용되어 있다.
 - 비밀번호 재설정 처리:
   - `/reset-password`는 이메일 입력 -> 인증번호 요청 -> 새 비밀번호 입력 -> 로그인 화면 복귀 순서로 동작한다.
   - 비밀번호 재설정 성공 시 로그인 화면으로 이동하고 안내 메시지와 이메일 prefill 상태를 전달한다.
