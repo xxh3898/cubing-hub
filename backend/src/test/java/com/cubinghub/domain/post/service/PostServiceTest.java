@@ -16,6 +16,7 @@ import com.cubinghub.domain.post.dto.request.PostUpdateRequest;
 import com.cubinghub.domain.post.dto.response.PostDetailResponse;
 import com.cubinghub.domain.post.dto.response.PostListItemResponse;
 import com.cubinghub.domain.post.dto.response.PostPageResponse;
+import com.cubinghub.domain.post.entity.PostAttachment;
 import com.cubinghub.domain.post.entity.Post;
 import com.cubinghub.domain.post.entity.PostCategory;
 import com.cubinghub.domain.post.entity.PostView;
@@ -25,13 +26,16 @@ import com.cubinghub.domain.post.repository.PostRepository;
 import com.cubinghub.domain.post.repository.PostSearchResult;
 import com.cubinghub.domain.post.repository.PostViewRepository;
 import com.cubinghub.domain.post.storage.PostImageStorageService;
+import com.cubinghub.domain.post.storage.StoredPostImage;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.support.TestFixtures;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +44,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PostService 단위 테스트")
@@ -63,11 +71,12 @@ class PostServiceTest {
     @Mock
     private PostImageStorageService postImageStorageService;
 
+    private PostImageStorageProperties properties;
     private PostService postService;
 
     @BeforeEach
     void setUp() {
-        PostImageStorageProperties properties = new PostImageStorageProperties();
+        properties = new PostImageStorageProperties();
         postService = new PostService(
                 postRepository,
                 commentRepository,
@@ -162,6 +171,18 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("게시글 목록 조회 결과가 비어 있으면 totalPages는 0이다")
+    void should_return_zero_total_pages_when_post_search_result_is_empty() {
+        when(postRepository.search(null, null, null, 0, 10))
+                .thenReturn(new PostSearchResult(List.of(), 0L));
+
+        PostPageResponse result = postService.getPosts(null, null, null, 1, 10);
+
+        assertThat(result.getTotalPages()).isZero();
+        assertThat(result.isHasNext()).isFalse();
+    }
+
+    @Test
     @DisplayName("게시글 목록 조회 시 page가 1보다 작으면 실패한다")
     void should_throw_illegal_argument_exception_when_page_is_less_than_one() {
         Throwable thrown = catchThrowable(() -> postService.getPosts(null, null, null, 0, 8));
@@ -169,6 +190,57 @@ class PostServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("잘못된 페이지 번호입니다.");
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 size가 허용 범위를 벗어나면 실패한다")
+    void should_throw_illegal_argument_exception_when_size_is_out_of_range() {
+        Throwable thrown = catchThrowable(() -> postService.getPosts(null, null, null, 1, 101));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 size가 1보다 작으면 실패한다")
+    void should_throw_illegal_argument_exception_when_size_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> postService.getPosts(null, null, null, 1, 0));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 작성자 검색어가 너무 길면 실패한다")
+    void should_throw_illegal_argument_exception_when_author_keyword_is_too_long() {
+        Throwable thrown = catchThrowable(() -> postService.getPosts(null, null, "a".repeat(51), 1, 10));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("작성자 검색어는 50자 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 작성자 검색어가 공백이면 정상적으로 검색을 위임한다")
+    void should_delegate_post_search_when_author_keyword_is_blank() {
+        when(postRepository.search(null, null, " ", 0, 10))
+                .thenReturn(new PostSearchResult(List.of(), 0L));
+
+        postService.getPosts(null, null, " ", 1, 10);
+
+        verify(postRepository).search(null, null, " ", 0, 10);
+    }
+
+    @Test
+    @DisplayName("게시글 목록 조회 시 키워드가 너무 길면 실패한다")
+    void should_throw_illegal_argument_exception_when_search_keyword_is_too_long() {
+        Throwable thrown = catchThrowable(() -> postService.getPosts(null, "a".repeat(101), null, 1, 10));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 검색어는 100자 이하여야 합니다.");
     }
 
     @Test
@@ -225,6 +297,24 @@ class PostServiceTest {
         assertThat(response.getAuthorNickname()).isEqualTo("Author");
         assertThat(response.getViewCount()).isZero();
         verify(postViewRepository).save(any(PostView.class));
+    }
+
+    @Test
+    @DisplayName("게시글 상세 조회 시 조회수 저장이 중복 제약으로 실패해도 응답은 반환한다")
+    void should_return_post_detail_when_view_tracking_throws_data_integrity_violation_exception() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        User viewer = TestFixtures.createUser(2L, "viewer@cubinghub.com", "Viewer", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(postRepository.findWithUserById(post.getId())).thenReturn(Optional.of(post));
+        when(userRepository.findByEmail(viewer.getEmail())).thenReturn(Optional.of(viewer));
+        when(postViewRepository.existsByPostIdAndUserId(post.getId(), viewer.getId())).thenReturn(false);
+        when(postViewRepository.save(any(PostView.class))).thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate"));
+
+        PostDetailResponse response = postService.getPost(post.getId(), viewer.getEmail());
+
+        assertThat(response.getId()).isEqualTo(post.getId());
+        assertThat(post.getViewCount()).isZero();
     }
 
     @Test
@@ -402,6 +492,299 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("이미지 목록에 null과 empty 파일이 섞여 있어도 유효한 파일만 업로드한다")
+    void should_upload_only_valid_images_when_image_list_contains_null_and_empty_files() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post savedPost = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        MockMultipartFile emptyFile = new MockMultipartFile("images", "empty.png", "image/png", new byte[0]);
+        MockMultipartFile validFile = new MockMultipartFile("images", "cube.png", "image/png", "image-data".getBytes());
+        StoredPostImage storedImage = new StoredPostImage("object-key", "https://cdn/object-key", "cube.png", "image/png", validFile.getSize());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+        when(postImageStorageService.upload(validFile)).thenReturn(storedImage);
+
+        postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                Arrays.asList(null, emptyFile, validFile)
+        );
+
+        verify(postImageStorageService).upload(validFile);
+        verify(postAttachmentRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("빈 이미지 목록이면 업로드 없이 게시글만 생성한다")
+    void should_create_post_without_upload_when_image_list_is_empty() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post savedPost = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+
+        Long postId = postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of()
+        );
+
+        assertThat(postId).isEqualTo(savedPost.getId());
+        verify(postImageStorageService, never()).upload(any());
+    }
+
+    @Test
+    @DisplayName("첨부 이미지 개수가 최대 개수를 넘으면 게시글 생성은 실패한다")
+    void should_throw_illegal_argument_exception_when_attachment_count_exceeds_limit() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        properties.setMaxFileCount(1);
+        MockMultipartFile firstFile = new MockMultipartFile("images", "cube-1.png", "image/png", "image-1".getBytes());
+        MockMultipartFile secondFile = new MockMultipartFile("images", "cube-2.png", "image/png", "image-2".getBytes());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() -> postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of(firstFile, secondFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 이미지는 최대 1장까지 첨부할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("이미지 확장자가 없으면 게시글 생성은 실패한다")
+    void should_throw_illegal_argument_exception_when_image_extension_is_missing() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        MockMultipartFile invalidFile = new MockMultipartFile("images", "cube", "image/png", "image".getBytes());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() -> postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of(invalidFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 이미지는 jpg, jpeg, png, webp 형식만 업로드할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("지원하지 않는 이미지 확장자면 게시글 생성은 실패한다")
+    void should_throw_illegal_argument_exception_when_image_extension_is_not_supported() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        MockMultipartFile invalidFile = new MockMultipartFile("images", "cube.gif", "image/gif", "image".getBytes());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() -> postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of(invalidFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 이미지는 jpg, jpeg, png, webp 형식만 업로드할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("원본 파일명이 null이면 게시글 생성은 실패한다")
+    void should_throw_illegal_argument_exception_when_image_original_filename_is_null() throws Exception {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        org.springframework.web.multipart.MultipartFile invalidFile = org.mockito.Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+        when(invalidFile.isEmpty()).thenReturn(false);
+        when(invalidFile.getOriginalFilename()).thenReturn(null);
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() -> postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of(invalidFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 이미지는 jpg, jpeg, png, webp 형식만 업로드할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("개별 이미지 크기가 최대 용량을 넘으면 게시글 생성은 실패한다")
+    void should_throw_illegal_argument_exception_when_image_size_exceeds_limit() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        properties.setMaxFileSizeBytes(3L);
+        MockMultipartFile largeFile = new MockMultipartFile("images", "cube.png", "image/png", "1234".getBytes());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+
+        Throwable thrown = catchThrowable(() -> postService.createPost(
+                author.getEmail(),
+                new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                List.of(largeFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미지 파일은 10MB 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("기존 첨부와 새 첨부를 합친 전체 용량이 최대치를 넘으면 게시글 수정은 실패한다")
+    void should_throw_illegal_argument_exception_when_total_attachment_size_exceeds_limit() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostAttachment attachment = createAttachment(1L, post, "old-key");
+        ReflectionTestUtils.setField(attachment, "fileSizeBytes", 4L);
+        properties.setMaxTotalSizeBytes(5L);
+        MockMultipartFile newFile = new MockMultipartFile("images", "cube.png", "image/png", "12".getBytes());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId())).thenReturn(List.of(attachment));
+
+        Throwable thrown = catchThrowable(() -> postService.updatePost(
+                post.getId(),
+                author.getEmail(),
+                new PostUpdateRequest(PostCategory.FREE, "수정 제목", "수정 본문", List.of(1L)),
+                List.of(newFile)
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("게시글 이미지 전체 용량은 30MB 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("중복 retained attachment id가 있으면 게시글 수정은 실패한다")
+    void should_throw_illegal_argument_exception_when_retained_attachment_ids_are_duplicated() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostAttachment attachment = createAttachment(1L, post, "object-key-1");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId())).thenReturn(List.of(attachment));
+
+        Throwable thrown = catchThrowable(() -> postService.updatePost(
+                post.getId(),
+                author.getEmail(),
+                new PostUpdateRequest(PostCategory.FREE, "수정 제목", "수정 본문", List.of(1L, 1L))
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("기존 첨부 이미지 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.");
+    }
+
+    @Test
+    @DisplayName("롤백되면 업로드한 이미지를 best effort로 삭제한다")
+    void should_delete_uploaded_images_when_transaction_is_rolled_back() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post savedPost = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        MockMultipartFile validFile = new MockMultipartFile("images", "cube.png", "image/png", "image-data".getBytes());
+        StoredPostImage storedImage = new StoredPostImage("object-key", "https://cdn/object-key", "cube.png", "image/png", validFile.getSize());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+        when(postImageStorageService.upload(validFile)).thenReturn(storedImage);
+
+        withTransactionSynchronization(
+                () -> postService.createPost(
+                        author.getEmail(),
+                        new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                        List.of(validFile)
+                ),
+                synchronizations -> synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK))
+        );
+
+        verify(postImageStorageService).delete("object-key");
+    }
+
+    @Test
+    @DisplayName("롤백 cleanup 삭제가 실패해도 예외를 전파하지 않는다")
+    void should_ignore_storage_delete_failure_when_rollback_cleanup_fails() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post savedPost = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        MockMultipartFile validFile = new MockMultipartFile("images", "cube.png", "image/png", "image-data".getBytes());
+        StoredPostImage storedImage = new StoredPostImage("object-key", "https://cdn/object-key", "cube.png", "image/png", validFile.getSize());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+        when(postImageStorageService.upload(validFile)).thenReturn(storedImage);
+        org.mockito.Mockito.doThrow(new RuntimeException("delete failed"))
+                .when(postImageStorageService).delete("object-key");
+
+        withTransactionSynchronization(
+                () -> postService.createPost(
+                        author.getEmail(),
+                        new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                        List.of(validFile)
+                ),
+                synchronizations -> synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK))
+        );
+
+        verify(postImageStorageService).delete("object-key");
+    }
+
+    @Test
+    @DisplayName("커밋되면 롤백 cleanup은 실행하지 않는다")
+    void should_skip_uploaded_image_cleanup_when_transaction_is_committed() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post savedPost = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        MockMultipartFile validFile = new MockMultipartFile("images", "cube.png", "image/png", "image-data".getBytes());
+        StoredPostImage storedImage = new StoredPostImage("object-key", "https://cdn/object-key", "cube.png", "image/png", validFile.getSize());
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+        when(postImageStorageService.upload(validFile)).thenReturn(storedImage);
+
+        withTransactionSynchronization(
+                () -> postService.createPost(
+                        author.getEmail(),
+                        new PostCreateRequest(PostCategory.FREE, "제목", "본문"),
+                        List.of(validFile)
+                ),
+                synchronizations -> synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED))
+        );
+
+        verify(postImageStorageService, never()).delete("object-key");
+    }
+
+    @Test
+    @DisplayName("커밋 후 삭제 대상 첨부 이미지는 best effort로 삭제한다")
+    void should_delete_removed_attachments_after_commit_and_ignore_storage_failures() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostAttachment firstAttachment = createAttachment(1L, post, "old-key-1");
+        PostAttachment secondAttachment = createAttachment(2L, post, "old-key-2");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId()))
+                .thenReturn(List.of(firstAttachment, secondAttachment));
+        org.mockito.Mockito.doThrow(new RuntimeException("delete failed"))
+                .when(postImageStorageService).delete("old-key-1");
+
+        withTransactionSynchronization(
+                () -> postService.updatePost(
+                        post.getId(),
+                        author.getEmail(),
+                        new PostUpdateRequest(PostCategory.FREE, "수정 제목", "수정 본문", List.of())
+                ),
+                synchronizations -> synchronizations.forEach(TransactionSynchronization::afterCommit)
+        );
+
+        verify(postAttachmentRepository).deleteAll(List.of(firstAttachment, secondAttachment));
+        verify(postImageStorageService).delete("old-key-1");
+        verify(postImageStorageService).delete("old-key-2");
+    }
+
+    @Test
     @DisplayName("작성자는 자신의 게시글을 삭제할 수 있다")
     void should_delete_post_when_author_deletes_own_post() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -431,6 +814,63 @@ class PostServiceTest {
     }
 
     @Test
+    @DisplayName("첨부 이미지가 있는 게시글 삭제는 커밋 후 원격 이미지를 삭제한다")
+    void should_delete_post_attachments_after_commit_when_post_has_attachments() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostAttachment attachment = createAttachment(1L, post, "attachment-key");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId())).thenReturn(List.of(attachment));
+
+        withTransactionSynchronization(
+                () -> postService.deletePost(post.getId(), author.getEmail()),
+                synchronizations -> synchronizations.forEach(TransactionSynchronization::afterCommit)
+        );
+
+        verify(postAttachmentRepository).deleteAll(List.of(attachment));
+        verify(postImageStorageService).delete("attachment-key");
+        verify(postRepository).delete(post);
+    }
+
+    @Test
+    @DisplayName("트랜잭션 동기화가 없으면 삭제 대상 첨부 이미지는 afterCommit 삭제를 등록하지 않는다")
+    void should_not_register_after_commit_deletion_when_transaction_synchronization_is_inactive() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+        PostAttachment attachment = createAttachment(1L, post, "attachment-key");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId())).thenReturn(List.of(attachment));
+
+        postService.deletePost(post.getId(), author.getEmail());
+
+        verify(postAttachmentRepository).deleteAll(List.of(attachment));
+        verify(postImageStorageService, never()).delete("attachment-key");
+    }
+
+    @Test
+    @DisplayName("삭제할 첨부 이미지가 없으면 afterCommit 삭제를 등록하지 않는다")
+    void should_not_register_after_commit_deletion_when_no_attachments_exist() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(10L, author, PostCategory.FREE, "제목", "본문");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(postRepository.findById(post.getId())).thenReturn(Optional.of(post));
+        when(postAttachmentRepository.findAllByPostIdOrderByDisplayOrderAscIdAsc(post.getId())).thenReturn(List.of());
+
+        withTransactionSynchronization(
+                () -> postService.deletePost(post.getId(), author.getEmail()),
+                synchronizations -> assertThat(synchronizations).isEmpty()
+        );
+
+        verify(postRepository).delete(post);
+        verify(postImageStorageService, never()).delete(any());
+    }
+
+    @Test
     @DisplayName("게시글 삭제 시 사용자가 없으면 401 예외를 반환한다")
     void should_throw_unauthorized_exception_when_user_does_not_exist_on_delete() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
@@ -457,5 +897,29 @@ class PostServiceTest {
         CustomApiException exception = (CustomApiException) thrown;
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(exception.getMessage()).isEqualTo("게시글을 찾을 수 없습니다.");
+    }
+
+    private PostAttachment createAttachment(Long id, Post post, String objectKey) {
+        PostAttachment attachment = PostAttachment.builder()
+                .post(post)
+                .objectKey(objectKey)
+                .imageUrl("https://cdn/" + objectKey)
+                .originalFileName(objectKey + ".png")
+                .contentType("image/png")
+                .fileSizeBytes(100L)
+                .displayOrder(0)
+                .build();
+        ReflectionTestUtils.setField(attachment, "id", id);
+        return attachment;
+    }
+
+    private void withTransactionSynchronization(Runnable action, Consumer<List<TransactionSynchronization>> assertions) {
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            action.run();
+            assertions.accept(List.copyOf(TransactionSynchronizationManager.getSynchronizations()));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

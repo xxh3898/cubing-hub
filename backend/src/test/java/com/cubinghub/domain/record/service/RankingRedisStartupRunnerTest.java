@@ -1,5 +1,6 @@
 package com.cubinghub.domain.record.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,5 +65,26 @@ class RankingRedisStartupRunnerTest {
         assertThatThrownBy(() -> RankingRedisStartupRunner.normalizeMode("unexpected"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported ranking.redis.rebuild-mode");
+    }
+
+    @Test
+    @DisplayName("rebuild mode가 null이면 disabled로 정규화한다")
+    void should_return_disabled_when_mode_is_null() {
+        assertThat(RankingRedisStartupRunner.normalizeMode(null))
+                .isEqualTo(RankingRedisStartupRunner.REBUILD_MODE_DISABLED);
+    }
+
+    @Test
+    @DisplayName("rebuild mode가 공백이면 disabled로 정규화한다")
+    void should_return_disabled_when_mode_is_blank() {
+        assertThat(RankingRedisStartupRunner.normalizeMode("   "))
+                .isEqualTo(RankingRedisStartupRunner.REBUILD_MODE_DISABLED);
+    }
+
+    @Test
+    @DisplayName("지원하는 모드는 공백과 대소문자를 정규화한다")
+    void should_normalize_supported_mode_when_whitespace_and_case_are_mixed() {
+        assertThat(RankingRedisStartupRunner.normalizeMode(" STARTUP "))
+                .isEqualTo(RankingRedisStartupRunner.REBUILD_MODE_STARTUP);
     }
 }

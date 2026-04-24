@@ -451,6 +451,31 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("PB 삭제 직후 조회에 이전 PB가 남아 있어도 랭킹 제거를 수행한다")
+    void should_remove_ranking_when_deleted_pb_is_still_returned_during_recalculation() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record currentBestRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 10000, Penalty.NONE, "best");
+        UserPB existingPb = UserPB.builder()
+                .id(21L)
+                .user(user)
+                .eventType(EventType.WCA_333)
+                .bestTimeMs(10000)
+                .record(currentBestRecord)
+                .build();
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(currentBestRecord.getId())).thenReturn(Optional.of(currentBestRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333))
+                .thenReturn(Optional.of(existingPb), Optional.of(existingPb));
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.empty());
+
+        recordService.deleteRecord(currentBestRecord.getId(), user.getEmail());
+
+        verify(userPBRepository, org.mockito.Mockito.times(2)).delete(existingPb);
+        verify(rankingRedisService).remove(EventType.WCA_333, user.getId());
+    }
+
+    @Test
     @DisplayName("현재 PB가 아닌 DNF 기록 삭제는 PB 삭제와 재계산을 수행하지 않는다")
     void should_skip_pb_delete_and_recalculation_when_deleted_record_is_not_rankable_and_not_current_pb() {
         User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -467,6 +492,27 @@ class RecordServiceTest {
         verify(recordRepository).flush();
         verify(rankingRedisService, never()).remove(any(), any());
         verify(recordRepository, never()).findBestRecordByUserIdAndEventType(any(), any());
+    }
+
+    @Test
+    @DisplayName("현재 PB가 아닌 랭커블 기록 삭제 후 PB 변화가 없으면 랭킹 동기화를 건너뛴다")
+    void should_skip_ranking_sync_when_deleted_rankable_record_does_not_change_pb() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Record deletedRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 13000, Penalty.NONE, "slow");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findById(deletedRecord.getId())).thenReturn(Optional.of(deletedRecord));
+        when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
+        when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.empty());
+
+        recordService.deleteRecord(deletedRecord.getId(), user.getEmail());
+
+        verify(recordRepository).delete(deletedRecord);
+        verify(recordRepository).flush();
+        verify(rankingRedisService, never()).remove(any(), any());
+        verify(rankingRedisService, never()).sync(any());
+        verify(userPBRepository, never()).delete(any());
+        verify(userPBRepository, never()).save(any());
     }
 
     @Test

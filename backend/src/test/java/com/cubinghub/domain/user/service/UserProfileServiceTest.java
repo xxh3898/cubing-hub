@@ -2,6 +2,7 @@ package com.cubinghub.domain.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -215,6 +216,24 @@ class UserProfileServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("현재 비밀번호가 일치하지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("새 비밀번호가 현재 비밀번호와 같으면 비밀번호 변경은 예외를 던진다")
+    void should_throw_illegal_argument_exception_when_new_password_matches_current_password() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        ChangePasswordRequest request = new ChangePasswordRequest("currentPassword!", "currentPassword!");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())).thenReturn(true);
+        when(passwordEncoder.matches(request.getNewPassword(), user.getPassword())).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> userProfileService.changePassword(user.getEmail(), request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+        verify(refreshTokenService, never()).deleteAllByUser(user.getEmail());
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.cubinghub.domain.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -137,6 +138,36 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("쿨다운이 1분을 초과하면 분 단위 재요청 메시지를 반환한다")
+    void should_return_multi_minute_cooldown_message_when_resend_cooldown_exceeds_one_minute() {
+        AuthEmailVerificationProperties properties = new AuthEmailVerificationProperties();
+        properties.setResendCooldownMs(120000L);
+        AuthService customAuthService = new AuthService(
+                userRepository,
+                passwordEncoder,
+                authenticationManager,
+                jwtTokenProvider,
+                refreshTokenService,
+                redisBlackListService,
+                emailVerificationStore,
+                passwordResetStore,
+                emailVerificationCodeGenerator,
+                verificationEmailSender,
+                properties
+        );
+        EmailVerificationRequest request = new EmailVerificationRequest("member@cubinghub.com");
+
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(emailVerificationStore.isOnCooldown(request.getEmail())).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> customAuthService.requestEmailVerification(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("인증번호 재요청은 약 2분 뒤에 가능합니다.");
+    }
+
+    @Test
     @DisplayName("인증번호 요청에 성공하면 Redis에 저장하고 메일을 발송한다")
     void should_store_code_and_send_email_when_email_verification_request_succeeds() {
         EmailVerificationRequest request = new EmailVerificationRequest("member@cubinghub.com");
@@ -201,6 +232,42 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("비밀번호 재설정 재요청 쿨다운 중이면 요청에 실패한다")
+    void should_throw_illegal_argument_exception_when_request_password_reset_during_cooldown() {
+        EmailVerificationRequest request = new EmailVerificationRequest("member@cubinghub.com");
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+        when(passwordResetStore.isOnCooldown(request.getEmail())).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> authService.requestPasswordReset(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("인증번호 재요청은 약 1분 뒤에 가능합니다.");
+        verify(emailVerificationCodeGenerator, never()).generate();
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 메일 발송에 실패하면 저장한 인증 상태를 롤백한다")
+    void should_rollback_password_reset_state_when_reset_email_send_fails() {
+        EmailVerificationRequest request = new EmailVerificationRequest("member@cubinghub.com");
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+        when(passwordResetStore.isOnCooldown(request.getEmail())).thenReturn(false);
+        when(emailVerificationCodeGenerator.generate()).thenReturn("654321");
+        org.mockito.Mockito.doThrow(new IllegalStateException("smtp error"))
+                .when(verificationEmailSender)
+                .sendPasswordResetCode(request.getEmail(), "654321");
+
+        Throwable thrown = catchThrowable(() -> authService.requestPasswordReset(request));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(exception.getMessage()).isEqualTo("메일 전송 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.");
+        verify(passwordResetStore).deleteCode(request.getEmail());
+        verify(passwordResetStore).deleteCooldown(request.getEmail());
+    }
+
+    @Test
     @DisplayName("비밀번호 재설정 인증번호가 일치하면 비밀번호를 변경하고 리프레시 토큰을 모두 삭제한다")
     void should_reset_password_and_delete_all_refresh_tokens_when_reset_code_matches() {
         PasswordResetConfirmRequest request = new PasswordResetConfirmRequest(
@@ -240,6 +307,41 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("비밀번호 재설정 인증번호가 일치하지 않으면 실패한다")
+    void should_throw_illegal_argument_exception_when_password_reset_code_does_not_match() {
+        PasswordResetConfirmRequest request = new PasswordResetConfirmRequest(
+                "member@cubinghub.com",
+                "654321",
+                "newPassword123!"
+        );
+        when(passwordResetStore.getCode(request.getEmail())).thenReturn("123456");
+
+        Throwable thrown = catchThrowable(() -> authService.confirmPasswordReset(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("인증번호가 일치하지 않습니다.");
+    }
+
+    @Test
+    @DisplayName("비밀번호 재설정 대상 사용자가 없으면 실패한다")
+    void should_throw_illegal_argument_exception_when_password_reset_user_is_missing_after_code_verification() {
+        PasswordResetConfirmRequest request = new PasswordResetConfirmRequest(
+                "member@cubinghub.com",
+                "123456",
+                "newPassword123!"
+        );
+        when(passwordResetStore.getCode(request.getEmail())).thenReturn("123456");
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> authService.confirmPasswordReset(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("인증번호가 만료되었거나 요청되지 않았습니다.");
+    }
+
+    @Test
     @DisplayName("인증번호가 일치하면 이메일 인증을 완료한다")
     void should_mark_email_verified_when_email_verification_code_matches() {
         EmailVerificationConfirmRequest request = new EmailVerificationConfirmRequest("member@cubinghub.com", "123456");
@@ -250,6 +352,19 @@ class AuthServiceTest {
 
         verify(emailVerificationStore).deleteCode(request.getEmail());
         verify(emailVerificationStore).markVerified(request.getEmail(), 1800000L);
+    }
+
+    @Test
+    @DisplayName("이미 사용 중인 이메일이면 이메일 인증 확인은 실패한다")
+    void should_throw_illegal_argument_exception_when_confirm_email_verification_with_duplicate_email() {
+        EmailVerificationConfirmRequest request = new EmailVerificationConfirmRequest("member@cubinghub.com", "123456");
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> authService.confirmEmailVerification(request));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 사용 중인 이메일입니다.");
     }
 
     @Test
@@ -463,6 +578,41 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("비활성 사용자 계정은 토큰 재발급에 실패한다")
+    void should_throw_illegal_state_exception_when_refresh_user_is_inactive() {
+        String email = "inactive@cubinghub.com";
+        String refreshToken = jwtTokenProvider.generateRefreshToken(email);
+        String jti = jwtTokenProvider.getJti(refreshToken);
+        User user = TestFixtures.createUser(1L, email, "Inactive", UserRole.ROLE_USER, UserStatus.DELETED);
+
+        when(refreshTokenService.isValid(email, jti, refreshToken)).thenReturn(true);
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(refreshToken));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("활성화된 계정이 아닙니다.");
+    }
+
+    @Test
+    @DisplayName("토큰 재발급 중 사용자가 없으면 실패한다")
+    void should_throw_illegal_argument_exception_when_refresh_user_does_not_exist() {
+        String email = "missing@cubinghub.com";
+        String refreshToken = jwtTokenProvider.generateRefreshToken(email);
+        String jti = jwtTokenProvider.getJti(refreshToken);
+
+        when(refreshTokenService.isValid(email, jti, refreshToken)).thenReturn(true);
+        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(refreshToken));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("사용자를 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("유효하지 않은 refresh token이면 토큰 재발급에 실패한다")
     void should_throw_illegal_argument_exception_when_refresh_token_is_invalid() {
         Throwable thrown = catchThrowable(() -> authService.refresh("invalid.refresh.token"));
@@ -528,6 +678,19 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("현재 로그인 사용자가 없으면 401 예외를 반환한다")
+    void should_throw_unauthorized_exception_when_current_user_does_not_exist() {
+        when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> authService.getCurrentUser("missing@cubinghub.com"));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("로그아웃 시 refresh token과 access token blacklist를 정리한다")
     void should_delete_refresh_token_and_blacklist_access_token_when_logout_succeeds() {
         String email = "member@cubinghub.com";
@@ -540,5 +703,27 @@ class AuthServiceTest {
 
         verify(refreshTokenService).delete(email, jti);
         verify(redisBlackListService).setBlackList(eq(accessToken), eq(ACCESS_EXPIRATION));
+    }
+
+    @Test
+    @DisplayName("로그아웃 시 refresh token 파싱이 실패하면 삭제를 건너뛴다")
+    void should_ignore_refresh_token_cleanup_when_logout_refresh_token_is_invalid() {
+        authService.logout("invalid.refresh.token", null);
+
+        verify(refreshTokenService, never()).delete(any(), any());
+        verify(redisBlackListService, never()).setBlackList(any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("로그아웃 시 access token blackList 등록이 실패해도 예외를 전파하지 않는다")
+    void should_ignore_access_token_blacklist_when_logout_access_token_is_invalid() {
+        String email = "member@cubinghub.com";
+        String refreshToken = jwtTokenProvider.generateRefreshToken(email);
+        String jti = jwtTokenProvider.getJti(refreshToken);
+
+        authService.logout(refreshToken, "invalid.access.token");
+
+        verify(refreshTokenService).delete(email, jti);
+        verify(redisBlackListService, never()).setBlackList(any(), anyLong());
     }
 }

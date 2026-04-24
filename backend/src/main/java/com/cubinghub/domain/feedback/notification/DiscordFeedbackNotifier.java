@@ -129,13 +129,16 @@ public class DiscordFeedbackNotifier {
             return header + content;
         }
 
-        int availableContentLength = MAX_DISCORD_CONTENT_LENGTH - header.length() - TRUNCATED_CONTENT_SUFFIX.length();
+        int maxHeaderLength = MAX_DISCORD_CONTENT_LENGTH - TRUNCATED_CONTENT_SUFFIX.length();
+        String truncatedHeader = header.substring(0, Math.min(header.length(), maxHeaderLength));
+        int availableContentLength = Math.max(
+                0,
+                MAX_DISCORD_CONTENT_LENGTH - truncatedHeader.length() - TRUNCATED_CONTENT_SUFFIX.length()
+        );
 
-        if (availableContentLength <= 0) {
-            return header.substring(0, MAX_DISCORD_CONTENT_LENGTH - TRUNCATED_CONTENT_SUFFIX.length()) + TRUNCATED_CONTENT_SUFFIX;
-        }
-
-        return header + content.substring(0, availableContentLength) + TRUNCATED_CONTENT_SUFFIX;
+        return truncatedHeader
+                + content.substring(0, Math.min(content.length(), availableContentLength))
+                + TRUNCATED_CONTENT_SUFFIX;
     }
 
     private String abbreviate(String value, int maxLength) {

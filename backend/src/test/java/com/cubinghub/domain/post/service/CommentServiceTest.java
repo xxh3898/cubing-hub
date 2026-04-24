@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +135,21 @@ class CommentServiceTest {
     }
 
     @Test
+    @DisplayName("댓글 생성 시 게시글이 없으면 404 예외를 반환한다")
+    void should_throw_not_found_exception_when_post_does_not_exist_on_create_comment() {
+        when(postRepository.findById(999L)).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() ->
+                commentService.createComment(999L, "author@cubinghub.com", new CommentCreateRequest("댓글 본문"))
+        );
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(exception.getMessage()).isEqualTo("게시글을 찾을 수 없습니다.");
+    }
+
+    @Test
     @DisplayName("댓글 삭제 시 작성자는 자신의 댓글을 삭제할 수 있다")
     void should_delete_comment_when_author_deletes_own_comment() {
         User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
@@ -184,6 +200,41 @@ class CommentServiceTest {
     }
 
     @Test
+    @DisplayName("댓글 삭제 시 댓글이 없으면 404 예외를 반환한다")
+    void should_throw_not_found_exception_when_comment_does_not_exist_on_delete_comment() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(commentRepository.findWithPostAndUserById(30L)).thenReturn(Optional.empty());
+
+        Throwable thrown = catchThrowable(() -> commentService.deleteComment(10L, 30L, author.getEmail()));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(exception.getMessage()).isEqualTo("댓글을 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("댓글 삭제 시 게시글 ID가 맞지 않으면 404 예외를 반환한다")
+    void should_throw_not_found_exception_when_comment_post_id_does_not_match() {
+        User author = TestFixtures.createUser(1L, "author@cubinghub.com", "Author", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        Post post = TestFixtures.createPost(11L, author, PostCategory.FREE, "제목", "본문");
+        Comment comment = createComment(30L, post, author, "댓글 본문");
+
+        when(userRepository.findByEmail(author.getEmail())).thenReturn(Optional.of(author));
+        when(commentRepository.findWithPostAndUserById(comment.getId())).thenReturn(Optional.of(comment));
+
+        Throwable thrown = catchThrowable(() -> commentService.deleteComment(10L, comment.getId(), author.getEmail()));
+
+        assertThat(thrown).isInstanceOf(CustomApiException.class);
+        CustomApiException exception = (CustomApiException) thrown;
+        assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(exception.getMessage()).isEqualTo("댓글을 찾을 수 없습니다.");
+        verify(commentRepository, never()).delete(any(Comment.class));
+    }
+
+    @Test
     @DisplayName("댓글 삭제 시 사용자가 없으면 401 예외를 반환한다")
     void should_throw_unauthorized_exception_when_user_does_not_exist_on_delete_comment() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
@@ -206,6 +257,26 @@ class CommentServiceTest {
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("잘못된 페이지 번호입니다.");
+    }
+
+    @Test
+    @DisplayName("댓글 목록 조회 시 size가 1보다 작으면 실패한다")
+    void should_throw_illegal_argument_exception_when_comment_size_is_less_than_one() {
+        Throwable thrown = catchThrowable(() -> commentService.getComments(10L, 1, 0));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("댓글 목록 조회 시 size가 범위를 벗어나면 실패한다")
+    void should_throw_illegal_argument_exception_when_comment_size_is_out_of_range() {
+        Throwable thrown = catchThrowable(() -> commentService.getComments(10L, 1, 101));
+
+        assertThat(thrown)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("한 번에 조회할 수 있는 개수는 1개 이상 100개 이하여야 합니다.");
     }
 
     private Comment createComment(Long id, Post post, User user, String content) {

@@ -80,6 +80,16 @@ class RecordRepositoryPbIntegrationTest extends JpaIntegrationTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    @DisplayName("대표 기록 조회는 유효한 기록이 하나도 없으면 비어 있다")
+    void should_return_empty_when_user_has_no_records() {
+        User user = saveUser("empty@test.com", "Empty");
+
+        Optional<Record> result = recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333);
+
+        assertThat(result).isEmpty();
+    }
+
     private User saveUser(String email, String nickname) {
         return userRepository.save(User.builder()
                 .email(email)

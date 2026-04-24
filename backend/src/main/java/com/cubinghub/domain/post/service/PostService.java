@@ -395,7 +395,7 @@ public class PostService {
     }
 
     private void registerAfterCommitDeletion(List<String> objectKeys) {
-        if (objectKeys.isEmpty() || !TransactionSynchronizationManager.isSynchronizationActive()) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
 
