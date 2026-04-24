@@ -1,9 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { deleteAdminMemo, getAdminMemo, updateAdminMemo } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   if (!value) {
     return '-'
   }

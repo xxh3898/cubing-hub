@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getQna } from '../api.js'
@@ -5,12 +6,12 @@ import GroupedPagination from '../components/GroupedPagination.jsx'
 
 const QNA_PAGE_SIZE = 8
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   const date = new Date(value)
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function toPreview(text, maxLength = 120) {
+export function toPreview(text, maxLength = 120) {
   if (!text) {
     return ''
   }
@@ -18,7 +19,7 @@ function toPreview(text, maxLength = 120) {
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
 }
 
-function formatFeedbackType(type) {
+export function formatFeedbackType(type) {
   switch (type) {
     case 'BUG':
       return '버그'

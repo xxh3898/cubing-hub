@@ -1,9 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getAdminFeedback, updateAdminFeedbackAnswer, updateAdminFeedbackVisibility } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   if (!value) {
     return '-'
   }
@@ -12,7 +13,7 @@ function formatDateTime(value) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function formatFeedbackType(type) {
+export function formatFeedbackType(type) {
   switch (type) {
     case 'BUG':
       return '버그'
@@ -86,10 +87,6 @@ export default function AdminFeedbackDetailPage() {
     if (!trimmedAnswer) {
       setSaveMessage(null)
       setErrorMessage('답변을 입력해주세요.')
-      return
-    }
-
-    if (!detail) {
       return
     }
 

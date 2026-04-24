@@ -1,13 +1,14 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getQnaDetail } from '../api.js'
 
-function formatDateTime(value) {
+export function formatDateTime(value) {
   const date = new Date(value)
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function formatFeedbackType(type) {
+export function formatFeedbackType(type) {
   switch (type) {
     case 'BUG':
       return '버그'
