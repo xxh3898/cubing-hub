@@ -18,7 +18,50 @@
 
 포트폴리오 관점에서는 화면 몇 개를 만드는 데서 끝내지 않고, 인증 전략, API 계약, DB 모델, 테스트 자동화, REST Docs, 모니터링, 배포 구조, 운영 검증까지 한 저장소에서 확인할 수 있게 정리했습니다.
 
-## 2. 현재 구현 상태
+## 2. 서비스 화면
+
+아래 화면은 README용 시연 데이터 기준으로 촬영한 대표 화면입니다.
+
+### 타이머 기록 저장 흐름
+
+<img src="docs/images/readme/timer-save-flow.gif" alt="타이머 기록 저장 흐름" width="100%" />
+
+### 대표 화면
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>홈 대시보드</strong><br />
+      <img src="docs/images/readme/home-member.png" alt="로그인 사용자 홈 대시보드" width="100%" />
+    </td>
+    <td width="50%">
+      <strong>랭킹</strong><br />
+      <img src="docs/images/readme/rankings.png" alt="랭킹 화면" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>학습</strong><br />
+      <img src="docs/images/readme/learning-f2l.png" alt="CFOP F2L 학습 화면" width="100%" />
+    </td>
+    <td width="50%">
+      <strong>커뮤니티</strong><br />
+      <img src="docs/images/readme/community-list.png" alt="커뮤니티 목록 화면" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>마이페이지</strong><br />
+      <img src="docs/images/readme/mypage-dashboard.png" alt="마이페이지 대시보드" width="100%" />
+    </td>
+    <td width="50%">
+      <strong>피드백 운영</strong><br />
+      <img src="docs/images/readme/admin-feedback-list.png" alt="관리자 피드백 목록 화면" width="100%" />
+    </td>
+  </tr>
+</table>
+
+## 3. 현재 구현 상태
 
 | 영역 | 현재 구현 |
 | --- | --- |
@@ -32,7 +75,7 @@
 | 품질 | Testcontainers, REST Docs, JaCoCo instruction/branch 100%, Vitest 커버리지 100%, 분리된 GitHub Actions CI |
 | 배포 | `S3 + CloudFront` 프런트, `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드, backend/frontend deploy workflow 운영 반영 확인 |
 
-## 3. 주요 기술 결정
+## 4. 주요 기술 결정
 
 ### JWT + Redis Refresh Token Rotation
 
@@ -54,7 +97,7 @@
 - backend는 Testcontainers 기반 통합 테스트, JaCoCo 100%, REST Docs 빌드를 함께 검증합니다.
 - frontend는 lint, Vitest, build를 별도 CI로 분리하고, 최종 로컬 검증에서 Vitest 커버리지 100%를 확인했습니다.
 
-## 4. 운영 구조
+## 5. 운영 구조
 
 ### 현재 운영 기준
 
@@ -86,36 +129,43 @@
 
 배포 환경에서 핵심 사용자 기능, 관리자 기능, 실제 SMTP 송수신, 실제 S3 업로드/삭제까지 수동으로 검증했습니다.
 
-## 5. 기술 스택
+## 6. 기술 스택
 
 ### Frontend
 
-- React 19
-- Vite 8
-- React Router DOM 7
-- Axios
+![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=000000)
+![Vite 8](https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![React Router 7](https://img.shields.io/badge/React%20Router-7-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white)
+![Axios](https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white)
 
 ### Backend
 
-- Java 17
-- Spring Boot 3.5.12
-- Spring Security
-- JWT
-- Spring Data JPA
-- QueryDSL
-- Spring REST Docs
+![Java 17](https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot 3.5.12](https://img.shields.io/badge/Spring%20Boot-3.5.12-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+![Spring Data JPA](https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+![QueryDSL](https://img.shields.io/badge/QueryDSL-0769AD?style=for-the-badge)
+![Spring REST Docs](https://img.shields.io/badge/Spring%20REST%20Docs-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
 
-### Database / Cache / Infra
+### Database / Cache
 
-- MySQL 8.0
-- Redis 7.x
-- Docker / Docker Compose
-- GitHub Actions
-- AWS EC2, RDS, S3, CloudFront
-- Prometheus / Grafana
-- k6
+![MySQL 8.0](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![Redis 7.x](https://img.shields.io/badge/Redis-7.x-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 
-## 6. 로컬 실행
+### Infra / DevOps
+
+![Docker Compose](https://img.shields.io/badge/Docker%20%2F%20Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20RDS%20%7C%20S3%20%7C%20CloudFront-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)
+
+### Observability / Performance
+
+![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white)
+![k6](https://img.shields.io/badge/k6-7D64FF?style=for-the-badge&logo=k6&logoColor=white)
+
+## 7. 로컬 실행
 
 ### 1) 환경 변수 준비
 
@@ -169,7 +219,7 @@ npm run dev
 
 `VITE_API_BASE_URL`을 따로 주지 않으면 기본값은 `http://localhost:8080`입니다.
 
-## 7. 검증 / 문서화
+## 8. 검증 / 문서화
 
 ### 백엔드
 
@@ -195,7 +245,7 @@ npx vitest run --coverage
 npm run build
 ```
 
-## 8. 문서 구조
+## 9. 문서 구조
 
 ### 핵심 설계 문서
 
@@ -216,7 +266,7 @@ npm run build
 - [Portfolio](docs/portfolio.internal.md)
 - [Trouble Shooting](docs/Trouble%20Shooting/)
 
-## 9. 후속 확장 후보
+## 10. 후속 확장 후보
 
 - 랭킹 `nickname` 검색용 Redis secondary index 확장 여부 판단
 - 운영 Redis rebuild trigger와 장애 복구 정책 고도화
