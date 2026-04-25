@@ -72,7 +72,7 @@
 | 학습 | `CFOP` 기준 `F2L 41 + OLL 57 + PLL 21 = 119` 케이스, VisualCube 기반 회전기호 가이드 |
 | 커뮤니티 | 게시글 CRUD, 검색, 댓글, 다중 이미지 첨부, 로그인 사용자 기준 고유 조회수, 수정 화면 사전 조회 분리 |
 | 피드백 / 운영 | 로그인 사용자 피드백 제출, Discord 운영 알림 상태 내부 추적, 공개 Q&A, 관리자 답변/공개 전환, 관리자 메모 |
-| 품질 | Testcontainers, REST Docs, JaCoCo instruction/branch 100%, Vitest 커버리지 100%, 분리된 GitHub Actions CI |
+| 품질 | JUnit 5/MockMvc API 검증, Testcontainers, REST Docs, JaCoCo instruction/branch 100%, Vitest 커버리지 100%, 분리된 GitHub Actions CI |
 | 배포 | `S3 + CloudFront` 프런트, `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드, backend/frontend deploy workflow 운영 반영 확인 |
 
 ## 4. 주요 기술 결정
@@ -92,9 +92,9 @@
 - MySQL `user_pbs` 기반 V1 기준선을 먼저 고정한 뒤, 기본 조회는 Redis ZSET으로 처리하고 `nickname` 검색은 MySQL 대체 경로를 유지하는 V2 구조로 전환했습니다.
 - `300,000` PB 기준 같은 `k6` 시나리오에서 `avg 7,245.23 ms -> 21.10 ms`, `4.21 req/s -> 1,502.77 req/s`를 확인했습니다.
 
-### Testcontainers + REST Docs + GitHub Actions 연결
+### JUnit 5/MockMvc + Testcontainers + REST Docs + GitHub Actions 연결
 
-- backend는 Testcontainers 기반 통합 테스트, JaCoCo 100%, REST Docs 빌드를 함께 검증합니다.
+- backend는 JUnit 5/MockMvc API 검증, Testcontainers 기반 통합 테스트, JaCoCo 100%, REST Docs 빌드를 함께 검증합니다.
 - frontend는 lint, Vitest, build를 별도 CI로 분리하고, 최종 로컬 검증에서 Vitest 커버리지 100%를 확인했습니다.
 
 ## 5. 운영 구조
@@ -131,39 +131,16 @@
 
 ## 6. 기술 스택
 
-### Frontend
-
-![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=000000)
-![Vite 8](https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![React Router 7](https://img.shields.io/badge/React%20Router-7-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white)
-![Axios](https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white)
-
-### Backend
-
-![Java 17](https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=openjdk&logoColor=white)
-![Spring Boot 3.5.12](https://img.shields.io/badge/Spring%20Boot-3.5.12-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
-![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
-![Spring Data JPA](https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
-![QueryDSL](https://img.shields.io/badge/QueryDSL-0769AD?style=for-the-badge)
-![Spring REST Docs](https://img.shields.io/badge/Spring%20REST%20Docs-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
-
-### Database / Cache
-
-![MySQL 8.0](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
-![Redis 7.x](https://img.shields.io/badge/Redis-7.x-DC382D?style=for-the-badge&logo=redis&logoColor=white)
-
-### Infra / DevOps
-
-![Docker Compose](https://img.shields.io/badge/Docker%20%2F%20Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20RDS%20%7C%20S3%20%7C%20CloudFront-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)
-
-### Observability / Performance
-
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white)
-![k6](https://img.shields.io/badge/k6-7D64FF?style=for-the-badge&logo=k6&logoColor=white)
+| 분류 | 기술 |
+| --- | --- |
+| **Core Backend** | ![Java 17](https://img.shields.io/badge/Java_17-ED8B00?style=flat&logo=openjdk&logoColor=white) ![Spring Boot 3.5.12](https://img.shields.io/badge/Spring_Boot_3.5.12-6DB33F?style=flat&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat&logo=springsecurity&logoColor=white) ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=flat&logo=spring&logoColor=white) ![QueryDSL 5.0.0](https://img.shields.io/badge/QueryDSL_5.0.0-0769AD?style=flat) ![JJWT 0.12.x](https://img.shields.io/badge/JJWT_0.12.x-000000?style=flat&logo=jsonwebtokens&logoColor=white) |
+| **Backend Experience** | ![Spring REST Docs](https://img.shields.io/badge/Spring_REST_Docs-6DB33F?style=flat&logo=spring&logoColor=white) ![Gradle 8.14.4](https://img.shields.io/badge/Gradle_8.14.4-02303A?style=flat&logo=gradle&logoColor=white) |
+| **Database / Cache** | ![MySQL 8.0](https://img.shields.io/badge/MySQL_8.0-4479A1?style=flat&logo=mysql&logoColor=white) ![Redis 7.2](https://img.shields.io/badge/Redis_7.2-DC382D?style=flat&logo=redis&logoColor=white) |
+| **Infra / DevOps** | ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat&logo=amazonwebservices&logoColor=white) ![EC2](https://img.shields.io/badge/EC2-FF9900?style=flat&logo=amazonec2&logoColor=white) ![RDS](https://img.shields.io/badge/RDS-527FFF?style=flat&logo=amazonrds&logoColor=white) ![S3](https://img.shields.io/badge/S3-569A31?style=flat&logo=amazons3&logoColor=white) ![CloudFront](https://img.shields.io/badge/CloudFront-FF9900?style=flat&logo=amazonwebservices&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat&logo=docker&logoColor=white) ![Nginx 1.27](https://img.shields.io/badge/Nginx_1.27-009639?style=flat&logo=nginx&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white) |
+| **Frontend** | ![React 19.2.4](https://img.shields.io/badge/React_19.2.4-20232A?style=flat&logo=react&logoColor=61DAFB) ![Vite 8.0.1](https://img.shields.io/badge/Vite_8.0.1-646CFF?style=flat&logo=vite&logoColor=white) ![React Router 7.14.0](https://img.shields.io/badge/React_Router_7.14.0-CA4245?style=flat&logo=reactrouter&logoColor=white) ![Axios 1.15.0](https://img.shields.io/badge/Axios_1.15.0-5A29E4?style=flat&logo=axios&logoColor=white) ![Recharts 3.8.1](https://img.shields.io/badge/Recharts_3.8.1-22b5bf?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black) ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white) |
+| **Testing / Quality** | ![JUnit 5](https://img.shields.io/badge/JUnit_5-25A162?style=flat&logo=junit5&logoColor=white) ![MockMvc](https://img.shields.io/badge/MockMvc-6DB33F?style=flat&logo=spring&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=flat&logo=docker&logoColor=white) ![Spring REST Docs](https://img.shields.io/badge/Spring_REST_Docs-6DB33F?style=flat&logo=spring&logoColor=white) ![JaCoCo](https://img.shields.io/badge/JaCoCo-25A162?style=flat) ![Vitest 4.1.4](https://img.shields.io/badge/Vitest_4.1.4-6E9F18?style=flat&logo=vitest&logoColor=white) |
+| **Observability / Performance** | ![Spring Boot Actuator 3.5.12](https://img.shields.io/badge/Spring_Boot_Actuator_3.5.12-6DB33F?style=flat&logo=springboot&logoColor=white) ![Prometheus 2.54.1](https://img.shields.io/badge/Prometheus_2.54.1-E6522C?style=flat&logo=prometheus&logoColor=white) ![Grafana 11.2.0](https://img.shields.io/badge/Grafana_11.2.0-F46800?style=flat&logo=grafana&logoColor=white) ![k6](https://img.shields.io/badge/k6-7D64FF?style=flat&logo=k6&logoColor=white) |
+| **External / Ops** | ![AWS SDK S3 2.32.18](https://img.shields.io/badge/AWS_SDK_S3_2.32.18-569A31?style=flat&logo=amazons3&logoColor=white) ![SMTP](https://img.shields.io/badge/SMTP-111827?style=flat) ![Discord Webhook](https://img.shields.io/badge/Discord_Webhook-5865F2?style=flat&logo=discord&logoColor=white) |
 
 ## 7. 로컬 실행
 
