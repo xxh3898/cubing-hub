@@ -230,9 +230,9 @@ export const beginnerCases = {
     { id: 'beginner-4-02', name: '케이스 2', title: '왼쪽 2층 삽입', algorithm: "U' L' U L F' L F L'", stage: 'F2L', description: '윗층 엣지를 왼쪽 2층 슬롯으로 넣습니다.' },
   ],
   BEGINNER_STEP_5: [
-    { id: 'beginner-5-01', name: '케이스 1', title: '뒤집힌 ㄴ자에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_L_FACELETS, stage: 'OLL', description: '공식을 한 번 사용해 윗면 십자를 만듭니다.' },
-    { id: 'beginner-5-02', name: '케이스 2', title: '일자에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_LINE_FACELETS, stage: 'OLL', description: '같은 공식을 두 번까지 사용해 십자 상태로 보정합니다.' },
-    { id: 'beginner-5-03', name: '케이스 3', title: '점에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_DOT_FACELETS, stage: 'OLL', description: '같은 공식을 세 번까지 사용해 윗면 십자를 만듭니다.' },
+    { id: 'beginner-5-01', name: '케이스 1', title: '뒤집힌 ㄴ자에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_L_FACELETS, stage: 'OLL', description: '' },
+    { id: 'beginner-5-02', name: '케이스 2', title: '일자에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_LINE_FACELETS, stage: 'OLL', description: '' },
+    { id: 'beginner-5-03', name: '케이스 3', title: '점에서 십자 만들기', algorithm: BEGINNER_STEP_5_ALGORITHM, visualFaceletColors: BEGINNER_STEP_5_DOT_FACELETS, stage: 'OLL', description: '' },
   ],
   BEGINNER_STEP_6: [
     { id: 'beginner-6-01', name: '케이스 1', title: '3회 반복 - 노란 코너 0개 A', algorithm: BEGINNER_STEP_6_ALGORITHM, algorithms: BEGINNER_STEP_6_NO_CORNER_A_ALGORITHMS, visualFaceletColors: BEGINNER_STEP_6_NO_CORNER_A_FACELETS, stage: '', description: '표시된 순서대로 공식 후 필요한 U 조정까지 따라 하면 윗면이 완성됩니다.' },
