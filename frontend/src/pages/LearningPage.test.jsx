@@ -113,6 +113,12 @@ describe('LearningPage', () => {
     expect(getActiveTabLabel('UNKNOWN')).toBe('UNKNOWN')
   })
 
+  it('should_define_case_arrays_for_every_beginner_step', () => {
+    beginnerSteps.forEach((step) => {
+      expect(Array.isArray(beginnerCases[step.key])).toBe(true)
+    })
+  })
+
   it('should_render_wca_notation_tab_by_default', () => {
     render(
       <MemoryRouter>

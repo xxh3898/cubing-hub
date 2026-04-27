@@ -177,7 +177,7 @@ function BeginnerLearningSection({ selectedStepKey, onSelectStep, onBackToSteps 
   const selectedStepIndex = beginnerSteps.findIndex((step) => step.key === selectedStepKey)
   const selectedStep = selectedStepIndex >= 0 ? beginnerSteps[selectedStepIndex] : null
   const nextStep = selectedStepIndex >= 0 ? beginnerSteps[selectedStepIndex + 1] : null
-  const selectedCases = selectedStep ? beginnerCases[selectedStep.key] ?? [] : []
+  const selectedCases = selectedStep ? beginnerCases[selectedStep.key] : []
   const selectedCompletion = selectedStep ? beginnerStepCompletions[selectedStep.key] : null
   const selectedGuides = selectedStep ? beginnerStepGuides[selectedStep.key] ?? [] : []
 
