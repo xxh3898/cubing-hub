@@ -56,6 +56,7 @@
 }
 
 .learning-case-visual {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 180px;
@@ -64,9 +65,22 @@
 }
 
 .learning-case-visual img {
+  display: block;
   width: 100%;
   max-width: 180px;
   height: auto;
+}
+
+.learning-third-layer-edge-mask {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 180px;
+  height: 180px;
+  fill: #404040;
+  overflow: visible;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 .learning-notation-card {
@@ -94,6 +108,158 @@
   font-size: 0.84rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.learning-step-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.learning-step-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 180px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(18, 32, 43, 0.08);
+  background: rgba(255, 255, 255, 0.68);
+  color: #12202b;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.learning-step-card:hover,
+.learning-step-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 62, 0, 0.32);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.learning-step-label,
+.learning-step-meta {
+  color: #53626d;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.learning-step-title {
+  font-size: 1.14rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.learning-beginner-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.learning-beginner-detail-header {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+  padding-bottom: 2px;
+}
+
+.learning-beginner-detail-header h4 {
+  margin: 4px 0 8px;
+  font-size: 1.25rem;
+}
+
+.learning-step-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.learning-step-back-button,
+.learning-step-next-button {
+  flex: none;
+}
+
+.learning-step-summary {
+  min-width: 0;
+}
+
+.learning-step-guide {
+  margin: 10px 0 0;
+  color: #12202b;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.learning-guide-section {
+  display: grid;
+  gap: 12px;
+}
+
+.learning-guide-item {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(18, 32, 43, 0.08);
+}
+
+.learning-guide-item:last-child {
+  border-bottom: 0;
+}
+
+.learning-guide-media {
+  display: grid;
+  place-items: center;
+  min-height: 132px;
+}
+
+.learning-guide-media img {
+  width: min(132px, 100%);
+  height: auto;
+  display: block;
+}
+
+.learning-guide-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-guide-copy h4 {
+  margin: 0;
+  font-size: 1.04rem;
+}
+
+.learning-completion-section {
+  display: grid;
+}
+
+.learning-completion-card {
+  grid-template-columns: 260px minmax(0, 1fr);
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(46, 125, 89, 0.22);
+}
+
+.learning-completion-card .learning-case-visual {
+  min-height: 210px;
+}
+
+.learning-algorithm-list {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-algorithm-item {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.learning-algorithm-label {
+  color: #53626d;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .learning-algorithm {

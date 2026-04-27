@@ -14,8 +14,16 @@
     grid-template-columns: 1fr;
   }
 
+  .learning-step-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .learning-case-card {
     grid-template-columns: 1fr;
+  }
+
+  .learning-guide-item {
+    grid-template-columns: 110px minmax(0, 1fr);
   }
 
   .timer-toolbar {
@@ -103,6 +111,29 @@
 
   .status-chip {
     justify-self: start;
+  }
+
+  .learning-step-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-guide-item {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .learning-guide-media {
+    justify-items: start;
+  }
+
+  .learning-step-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .learning-step-back-button,
+  .learning-step-next-button {
+    width: 100%;
   }
 
   .footer-feedback-link,

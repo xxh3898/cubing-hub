@@ -45,4 +45,28 @@ describe('visualCube', () => {
     expect(url.searchParams.get('stage')).toBe('cross')
     expect(url.searchParams.get('view')).toBeNull()
   })
+
+  it('should_prefer_facelet_colors_over_algorithm_when_facelet_colors_are_provided', () => {
+    const url = new URL(buildVisualCubeUrl({
+      algorithm: "F R U R' U' F'",
+      faceletColors: 'llllyllllrrrrrrrrrbbbbbbbbbwwwwwwwwwoooooooooggggggggg',
+      stage: 'OLL',
+    }))
+
+    expect(url.searchParams.get('case')).toBeNull()
+    expect(url.searchParams.get('fc')).toBe('llllyllllrrrrrrrrrbbbbbbbbbwwwwwwwwwoooooooooggggggggg')
+    expect(url.searchParams.get('stage')).toBe('oll')
+    expect(url.searchParams.get('view')).toBe('plan')
+  })
+
+  it('should_include_explicit_view_when_view_is_requested_without_stage', () => {
+    const url = new URL(buildVisualCubeUrl({
+      faceletColors: 'llllwllwlrrrrrrrrrbbbbbbbbbyyyyyyyyyoooooooooggggggggg',
+      view: 'plan',
+    }))
+
+    expect(url.searchParams.get('fc')).toBe('llllwllwlrrrrrrrrrbbbbbbbbbyyyyyyyyyoooooooooggggggggg')
+    expect(url.searchParams.get('stage')).toBeNull()
+    expect(url.searchParams.get('view')).toBe('plan')
+  })
 })

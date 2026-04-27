@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | 시간 응답 계약 UTC instant 고정 |
-| 상태 | 백엔드 시간 필드를 `Instant` 기준으로 통일하고, 프런트 시간 표시를 `Asia/Seoul` 공통 포맷터와 오전/오후 표기로 정리했다. backend test와 frontend lint/test/build를 통과했다 |
-| 범위 | `backend` 감사 필드/피드백/관리자 메모/랭킹 Redis 시간 처리, `frontend` 시간 표시 헬퍼와 관련 화면, `API Specification`, `Database Design`, `Screen Specification`, `Deployment & Infrastructure Design`, `docs/Development Log/Day 30.md` |
-| 핵심 리스크 | 기존 운영 DB 값은 별도 보정하지 않기로 결정했다. 기존 값의 실제 의미가 UTC가 아니었던 행은 과거 화면 표시가 새 계약과 다르게 보일 수 있다 |
-| 참조 문서 | [API Specification](./API%20Specification.md), [Database Design](./Database%20Design.md), [Screen Specification](./Screen%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [2026-04-27 시간 계약 로그](./Development%20Log/Day%2030.md) |
-| 다음 로그 대상 | 다음 의미 있는 기능/운영 변경이나 후속 API 계약 조정이 열릴 때만 별도 로그를 추가한다 |
+| 작업명 | 초보자용 공식 학습 탭 추가 |
+| 상태 | 학습 화면에 초보자 8단계 목록, 단계별 완료 모습, 케이스·해법 카드, 단계 상세의 다음 단계 이동 버튼을 추가하고, 1단계는 케이스 카드 없이 흰색 외 면색을 회색으로 단순화한 세로형 가이드와 완료 모습만 보이도록 보정했다 |
+| 범위 | `frontend/src/constants/mockLearning.js`, `frontend/src/pages/LearningPage.jsx`, `frontend/src/pages/LearningPage.test.jsx`, `frontend/src/styles/learning.css`, `frontend/src/styles/responsive.css`, `Project Overview`, `Screen Specification`, `docs/Development Log/Day 31.md` |
+| 핵심 리스크 | 초보자 케이스별 이미지는 VisualCube 그림용 상태값으로 구분하지만, 블로그 원본 그림을 복제한 전용 다이어그램은 아니다. CFOP 일부 중복 공식은 이번 작업에서 수정하지 않고 후속 TODO로 남겼다 |
+| 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md) |
+| 다음 로그 대상 | 초보자 학습 화면에 전용 단계 다이어그램이나 추가 초급 설명을 붙이거나, CFOP 중복 공식 검증을 다시 열 때 별도 로그를 추가한다 |
 
 ## 로그 파일 목록
 
@@ -31,13 +31,13 @@
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
 | 보조 유지보수 로그 | [2026-04-10 로그](./Development%20Log/Day%2014.md), [2026-04-19 로그](./Development%20Log/Day%2020.md) | 주요 기능 작업일 사이에 들어간 저장소 규칙 정리와 backlog 기준선 추가 |
-| 최신 로그 | [2026-04-22 배포 로그](./Development%20Log/Day%2023.md), [2026-04-23 이메일 인증](./Development%20Log/Day%2024.md), [2026-04-23 모바일/타이머](./Development%20Log/Day%2025.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md), [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md), [2026-04-24 피드백 계약 정리](./Development%20Log/Day%2028.md), [2026-04-24 최종 품질 검증](./Development%20Log/Day%2029.md), [2026-04-27 시간 계약 정리](./Development%20Log/Day%2030.md) | AWS 배포, 이메일 인증, 모바일/타이머/입력 검증, 계정 복구/관리, 관리자/운영 안정화, 공개 피드백 계약 정리, 최종 커버리지/문서 마감, UTC instant 시간 계약 정리 |
+| 최신 로그 | [2026-04-22 배포 로그](./Development%20Log/Day%2023.md), [2026-04-23 이메일 인증](./Development%20Log/Day%2024.md), [2026-04-23 모바일/타이머](./Development%20Log/Day%2025.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md), [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md), [2026-04-24 피드백 계약 정리](./Development%20Log/Day%2028.md), [2026-04-24 최종 품질 검증](./Development%20Log/Day%2029.md), [2026-04-27 시간 계약 정리](./Development%20Log/Day%2030.md), [2026-04-27 초보자 학습 탭](./Development%20Log/Day%2031.md) | AWS 배포, 이메일 인증, 모바일/타이머/입력 검증, 계정 복구/관리, 관리자/운영 안정화, 공개 피드백 계약 정리, 최종 커버리지/문서 마감, UTC instant 시간 계약 정리, 초보자 학습 탭 추가 |
 
 ## 주요 설계 결정 추적
 
 - 인증/인가 구조: [Authentication & Authorization Design](./Authentication%20%26%20Authorization%20Design.md), [API Specification](./API%20Specification.md), [2026-04-13 인증 실연동](./Development%20Log/Day%2015.md), [2026-04-14 auth 계약/랭킹](./Development%20Log/Day%2016.md), [2026-04-23 이메일 인증](./Development%20Log/Day%2024.md)
 - 랭킹 V1 -> V2 전략: [Project Overview](./Project%20Overview.md), [API Specification](./API%20Specification.md), [2026-04-20 기준선 측정](./Development%20Log/Day%2021.md), [2026-04-21 Redis V2 재측정](./Development%20Log/Day%2022.md), [Internal Schedule](./Internal%20Schedule.internal.md)
-- 프런트 mock -> 실연동 전환: [Screen Specification](./Screen%20Specification.md), [2026-04-15 핵심 기능 구현](./Development%20Log/Day%2017.md), [2026-04-17 안정화](./Development%20Log/Day%2018.md), [2026-04-17 CSS/문서 정리](./Development%20Log/Day%2019.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md)
+- 프런트 mock -> 실연동 전환: [Screen Specification](./Screen%20Specification.md), [2026-04-15 핵심 기능 구현](./Development%20Log/Day%2017.md), [2026-04-17 안정화](./Development%20Log/Day%2018.md), [2026-04-17 CSS/문서 정리](./Development%20Log/Day%2019.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md), [2026-04-27 초보자 학습 탭](./Development%20Log/Day%2031.md)
 - 운영/배포와 마감: [System Architecture](./System%20Architecture.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [2026-04-22 AWS 1차 배포](./Development%20Log/Day%2023.md), [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md), [Portfolio](./portfolio.internal.md)
 - 피드백 public 계약 정리: [API Specification](./API%20Specification.md), [Screen Specification](./Screen%20Specification.md), [Database Design](./Database%20Design.md), [2026-04-24 피드백 계약 로그](./Development%20Log/Day%2028.md)
 - 시간 응답 계약: [API Specification](./API%20Specification.md), [Database Design](./Database%20Design.md), [Screen Specification](./Screen%20Specification.md), [2026-04-27 시간 계약 로그](./Development%20Log/Day%2030.md)
@@ -45,7 +45,9 @@
 
 ## 최근 정리 문서
 
-- 최근 정리 로그: [2026-04-24 최종 품질 검증 로그](./Development%20Log/Day%2029.md)
+- 최근 정리 로그: [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md)
+- 이전 시간 계약 로그: [2026-04-27 시간 계약 로그](./Development%20Log/Day%2030.md)
+- 이전 품질 검증 로그: [2026-04-24 최종 품질 검증 로그](./Development%20Log/Day%2029.md)
 - 이전 계약 정리 로그: [2026-04-24 피드백 계약 로그](./Development%20Log/Day%2028.md)
 - 이전 마감 로그: [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md)
 - 현재 내부 일정: [Internal Schedule](./Internal%20Schedule.internal.md)
