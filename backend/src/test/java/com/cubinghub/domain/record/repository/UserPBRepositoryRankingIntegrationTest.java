@@ -13,7 +13,7 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -109,9 +109,9 @@ class UserPBRepositoryRankingIntegrationTest extends JpaIntegrationTest {
         Record secondRecord = saveRecord(second, EventType.WCA_333, 12000, Penalty.NONE, "scramble-2");
         Record thirdRecord = saveRecord(third, EventType.WCA_333, 12000, Penalty.NONE, "scramble-3");
 
-        LocalDateTime baseTime = LocalDateTime.of(2026, 4, 13, 11, 0, 0);
+        Instant baseTime = Instant.parse("2026-04-13T11:00:00Z");
         updateRecordTimestamps(firstRecord.getId(), baseTime);
-        updateRecordTimestamps(secondRecord.getId(), baseTime.plusMinutes(1));
+        updateRecordTimestamps(secondRecord.getId(), baseTime.plusSeconds(60));
         updateRecordTimestamps(thirdRecord.getId(), baseTime);
 
         saveUserPb(first, EventType.WCA_333, 12000, firstRecord);
@@ -154,12 +154,12 @@ class UserPBRepositoryRankingIntegrationTest extends JpaIntegrationTest {
                 .build());
     }
 
-    private void updateRecordTimestamps(Long recordId, LocalDateTime createdAt) {
+    private void updateRecordTimestamps(Long recordId, Instant createdAt) {
         entityManager.flush();
         jdbcTemplate.update(
                 "UPDATE records SET created_at = ?, updated_at = ? WHERE id = ?",
-                Timestamp.valueOf(createdAt),
-                Timestamp.valueOf(createdAt),
+                Timestamp.from(createdAt),
+                Timestamp.from(createdAt),
                 recordId
         );
         entityManager.clear();

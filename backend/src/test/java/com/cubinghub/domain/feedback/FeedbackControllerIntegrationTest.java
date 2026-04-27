@@ -23,7 +23,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,7 +73,7 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .build());
         accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, savedUser);
         when(discordFeedbackNotifier.send(any(Feedback.class)))
-                .thenReturn(FeedbackNotificationAttemptResult.success(LocalDateTime.of(2026, 4, 22, 21, 0, 15)));
+                .thenReturn(FeedbackNotificationAttemptResult.success(Instant.parse("2026-04-22T21:00:15Z")));
     }
 
     @Test
@@ -181,7 +181,7 @@ class FeedbackControllerIntegrationTest extends JpaIntegrationTest {
         FeedbackCreateRequest request = new FeedbackCreateRequest(FeedbackType.BUG, "버그 제보", "reply@cubinghub.com", "내용");
         when(discordFeedbackNotifier.send(any(Feedback.class)))
                 .thenReturn(FeedbackNotificationAttemptResult.failure(
-                        LocalDateTime.of(2026, 4, 22, 21, 5, 20),
+                        Instant.parse("2026-04-22T21:05:20Z"),
                         "Discord webhook 응답 실패 (500)"
                 ));
 

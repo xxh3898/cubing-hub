@@ -15,7 +15,7 @@ import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
 import jakarta.persistence.EntityManager;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,8 +51,8 @@ class PublicFeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("공개 질문 내용")
                 .build());
-        publicFeedback.updateAnswer(adminUser, "공개 답변", LocalDateTime.of(2026, 4, 23, 11, 5, 20));
-        publicFeedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 11, 10, 35));
+        publicFeedback.updateAnswer(adminUser, "공개 답변", Instant.parse("2026-04-23T11:05:20Z"));
+        publicFeedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T11:10:35Z"));
 
         Feedback privateFeedback = feedbackRepository.save(Feedback.builder()
                 .user(submitter)
@@ -61,7 +61,7 @@ class PublicFeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("비공개 질문 내용")
                 .build());
-        privateFeedback.updateAnswer(adminUser, "비공개 답변", LocalDateTime.of(2026, 4, 23, 11, 15, 20));
+        privateFeedback.updateAnswer(adminUser, "비공개 답변", Instant.parse("2026-04-23T11:15:20Z"));
 
         entityManager.flush();
         entityManager.clear();
@@ -90,8 +90,8 @@ class PublicFeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("상세 공개 질문 내용")
                 .build());
-        feedback.updateAnswer(adminUser, "상세 공개 답변", LocalDateTime.of(2026, 4, 23, 11, 20, 10));
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 11, 25, 45));
+        feedback.updateAnswer(adminUser, "상세 공개 답변", Instant.parse("2026-04-23T11:20:10Z"));
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T11:25:45Z"));
         entityManager.flush();
         entityManager.clear();
 

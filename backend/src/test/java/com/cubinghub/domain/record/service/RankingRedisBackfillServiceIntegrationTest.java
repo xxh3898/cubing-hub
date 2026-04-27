@@ -15,7 +15,7 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,8 +65,8 @@ class RankingRedisBackfillServiceIntegrationTest extends JpaIntegrationTest {
 
         Record alphaRecord = saveRecord(alpha, EventType.WCA_333, 9800, Penalty.NONE, "alpha");
         Record betaRecord = saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "beta");
-        updateRecordCreatedAt(alphaRecord.getId(), LocalDateTime.of(2026, 4, 21, 10, 0, 0));
-        updateRecordCreatedAt(betaRecord.getId(), LocalDateTime.of(2026, 4, 21, 10, 1, 0));
+        updateRecordCreatedAt(alphaRecord.getId(), Instant.parse("2026-04-21T10:00:00Z"));
+        updateRecordCreatedAt(betaRecord.getId(), Instant.parse("2026-04-21T10:01:00Z"));
 
         saveUserPb(alpha, EventType.WCA_333, 9800, alphaRecord);
         saveUserPb(beta, EventType.WCA_333, 9800, betaRecord);
@@ -123,11 +123,11 @@ class RankingRedisBackfillServiceIntegrationTest extends JpaIntegrationTest {
                 .build());
     }
 
-    private void updateRecordCreatedAt(Long recordId, LocalDateTime createdAt) {
+    private void updateRecordCreatedAt(Long recordId, Instant createdAt) {
         jdbcTemplate.update(
                 "UPDATE records SET created_at = ?, updated_at = ? WHERE id = ?",
-                createdAt,
-                createdAt,
+                java.sql.Timestamp.from(createdAt),
+                java.sql.Timestamp.from(createdAt),
                 recordId
         );
     }

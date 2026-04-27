@@ -26,7 +26,7 @@ import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +62,7 @@ class FeedbackDocsTest extends RestDocsIntegrationTest {
         String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, savedUser);
         FeedbackCreateRequest request = new FeedbackCreateRequest(FeedbackType.BUG, "버그 제보", "reply@cubinghub.com", "상세 내용");
         when(discordFeedbackNotifier.send(any(Feedback.class)))
-                .thenReturn(FeedbackNotificationAttemptResult.success(LocalDateTime.of(2026, 4, 22, 21, 15, 10)));
+                .thenReturn(FeedbackNotificationAttemptResult.success(Instant.parse("2026-04-22T21:15:10Z")));
 
         mockMvc.perform(post("/api/feedbacks")
                         .header("Authorization", "Bearer " + accessToken)

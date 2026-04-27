@@ -8,8 +8,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -22,17 +24,21 @@ public class DiscordFeedbackNotifier {
 
     private static final int MAX_DISCORD_CONTENT_LENGTH = 2000;
     private static final String TRUNCATED_CONTENT_SUFFIX = "\n\n본문이 길어 일부만 표시했습니다. 전체 내용은 DB에서 feedbackId 기준으로 확인하세요.";
-    private static final DateTimeFormatter CREATED_AT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter CREATED_AT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'KST'")
+            .withZone(ZoneId.of("Asia/Seoul"));
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String webhookUrl;
+    private final Clock clock;
 
     public DiscordFeedbackNotifier(
             ObjectMapper objectMapper,
+            Clock clock,
             @Value("${feedback.discord.webhook-url:}") String webhookUrl
     ) {
         this.objectMapper = objectMapper;
+        this.clock = clock;
         this.webhookUrl = webhookUrl;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
@@ -40,7 +46,7 @@ public class DiscordFeedbackNotifier {
     }
 
     public FeedbackNotificationAttemptResult send(Feedback feedback) {
-        LocalDateTime attemptedAt = LocalDateTime.now();
+        Instant attemptedAt = Instant.now(clock);
 
         if (!StringUtils.hasText(webhookUrl)) {
             return FeedbackNotificationAttemptResult.failure(attemptedAt, "Discord 운영 알림 webhook URL이 설정되지 않았습니다.");
@@ -103,7 +109,7 @@ public class DiscordFeedbackNotifier {
     private String buildDiscordMessage(Feedback feedback) {
         String title = abbreviate(feedback.getTitle(), 100);
         String authorNickname = abbreviate(feedback.getUser().getNickname(), 120);
-        String createdAt = feedback.getCreatedAt() == null ? "-" : feedback.getCreatedAt().format(CREATED_AT_FORMATTER);
+        String createdAt = feedback.getCreatedAt() == null ? "-" : CREATED_AT_FORMATTER.format(feedback.getCreatedAt());
 
         String header = """
                 [새 피드백]

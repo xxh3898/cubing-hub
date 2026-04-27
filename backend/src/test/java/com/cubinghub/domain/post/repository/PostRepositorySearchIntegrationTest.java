@@ -12,7 +12,7 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,11 +64,11 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
         Post sameTimestampHighId = savePost(user, PostCategory.FREE, "Same Timestamp High", "content-3");
         Post newest = savePost(user, PostCategory.FREE, "Newest", "content-4");
 
-        LocalDateTime baseTime = LocalDateTime.of(2026, 4, 13, 10, 0, 0);
-        updatePostTimestamps(oldest.getId(), baseTime.minusMinutes(5));
+        Instant baseTime = Instant.parse("2026-04-13T10:00:00Z");
+        updatePostTimestamps(oldest.getId(), baseTime.minusSeconds(300));
         updatePostTimestamps(sameTimestampLowId.getId(), baseTime);
         updatePostTimestamps(sameTimestampHighId.getId(), baseTime);
-        updatePostTimestamps(newest.getId(), baseTime.plusMinutes(5));
+        updatePostTimestamps(newest.getId(), baseTime.plusSeconds(300));
 
         PostSearchResult result = postRepository.search(null, null, null, 0, 10);
 
@@ -149,12 +149,12 @@ class PostRepositorySearchIntegrationTest extends JpaIntegrationTest {
                 .build());
     }
 
-    private void updatePostTimestamps(Long postId, LocalDateTime createdAt) {
+    private void updatePostTimestamps(Long postId, Instant createdAt) {
         entityManager.flush();
         jdbcTemplate.update(
                 "UPDATE posts SET created_at = ?, updated_at = ? WHERE id = ?",
-                Timestamp.valueOf(createdAt),
-                Timestamp.valueOf(createdAt),
+                Timestamp.from(createdAt),
+                Timestamp.from(createdAt),
                 postId
         );
         entityManager.clear();

@@ -14,8 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.cubinghub.domain.record.dto.internal.RankingRedisEntry;
 import com.cubinghub.domain.record.entity.EventType;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -85,7 +84,7 @@ class RankingRedisRepositoryTest {
                 EventType.WCA_333,
                 9123,
                 44L,
-                LocalDateTime.of(2026, 4, 24, 13, 0, 0)
+                Instant.parse("2026-04-24T13:00:00Z")
         );
         when(hashOperations.get(anyString(), anyString())).thenReturn("old-member");
 
@@ -105,10 +104,10 @@ class RankingRedisRepositoryTest {
                 EventType.WCA_333,
                 9123,
                 44L,
-                LocalDateTime.of(2026, 4, 24, 13, 0, 0)
+                Instant.parse("2026-04-24T13:00:00Z")
         );
         String currentMember = "%013d:%019d:%019d".formatted(
-                entry.getRecordCreatedAt().toInstant(ZoneOffset.UTC).toEpochMilli(),
+                entry.getRecordCreatedAt().toEpochMilli(),
                 entry.getRecordId(),
                 entry.getUserId()
         );

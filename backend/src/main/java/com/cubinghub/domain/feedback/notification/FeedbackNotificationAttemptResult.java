@@ -1,18 +1,18 @@
 package com.cubinghub.domain.feedback.notification;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record FeedbackNotificationAttemptResult(
         boolean success,
-        LocalDateTime attemptedAt,
+        Instant attemptedAt,
         String errorMessage
 ) {
 
-    public static FeedbackNotificationAttemptResult success(LocalDateTime attemptedAt) {
+    public static FeedbackNotificationAttemptResult success(Instant attemptedAt) {
         return new FeedbackNotificationAttemptResult(true, attemptedAt, null);
     }
 
-    public static FeedbackNotificationAttemptResult failure(LocalDateTime attemptedAt, String errorMessage) {
+    public static FeedbackNotificationAttemptResult failure(Instant attemptedAt, String errorMessage) {
         return new FeedbackNotificationAttemptResult(false, attemptedAt, errorMessage);
     }
 }

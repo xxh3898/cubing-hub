@@ -22,7 +22,7 @@ import com.cubinghub.domain.user.dto.response.MyProfileSummaryResponse;
 import com.cubinghub.domain.user.service.UserProfileService;
 import com.cubinghub.support.TestFixtures;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,7 +62,7 @@ class HomeServiceTest {
     @DisplayName("게스트 홈 조회는 스크램블과 최신 게시글만 반환한다")
     void should_return_guest_home_when_email_is_missing() {
         List<PostListItemResponse> recentPosts = List.of(
-                new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, LocalDateTime.now())
+                new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, Instant.now())
         );
 
         when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
@@ -84,13 +84,13 @@ class HomeServiceTest {
                 com.cubinghub.domain.user.entity.UserStatus.ACTIVE);
         var firstRecord = TestFixtures.createRecord(10L, user, EventType.WCA_333, 9344, Penalty.NONE, "first scramble");
         var secondRecord = TestFixtures.createRecord(11L, user, EventType.WCA_333, 10021, Penalty.PLUS_TWO, "second scramble");
-        ReflectionTestUtils.setField(firstRecord, "createdAt", LocalDateTime.of(2026, 4, 15, 10, 0));
-        ReflectionTestUtils.setField(secondRecord, "createdAt", LocalDateTime.of(2026, 4, 15, 9, 30));
+        ReflectionTestUtils.setField(firstRecord, "createdAt", Instant.parse("2026-04-15T10:00:00Z"));
+        ReflectionTestUtils.setField(secondRecord, "createdAt", Instant.parse("2026-04-15T09:30:00Z"));
 
         when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));
         when(postRepository.findRecent(3)).thenReturn(List.of(
                 new PostListItemResponse(3L, com.cubinghub.domain.post.entity.PostCategory.FREE, "최신 글", "Writer", 7,
-                        LocalDateTime.of(2026, 4, 15, 11, 0))
+                        Instant.parse("2026-04-15T11:00:00Z"))
         ));
         when(userProfileService.getMyProfile(user.getEmail())).thenReturn(new MyProfileResponse(
                 user.getId(),
@@ -116,7 +116,7 @@ class HomeServiceTest {
     @DisplayName("인증 이메일이 있지만 사용자 조회가 401이면 게스트 홈으로 fallback 한다")
     void should_fallback_to_guest_home_when_authenticated_user_is_missing() {
         List<PostListItemResponse> recentPosts = List.of(
-                new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, LocalDateTime.now())
+                new PostListItemResponse(1L, com.cubinghub.domain.post.entity.PostCategory.FREE, "첫 글", "Writer", 3, Instant.now())
         );
 
         when(scrambleService.generateDaily(eq(EventType.WCA_333), any(LocalDate.class))).thenReturn(new ScrambleResponse("WCA_333", "R U R'"));

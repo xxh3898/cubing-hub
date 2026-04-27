@@ -1,7 +1,7 @@
 package com.cubinghub.domain.record.dto.internal;
 
 import com.cubinghub.domain.record.entity.EventType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -12,7 +12,7 @@ public class RankingRedisEntry {
     private final EventType eventType;
     private final Integer timeMs;
     private final Long recordId;
-    private final LocalDateTime recordCreatedAt;
+    private final Instant recordCreatedAt;
 
     public RankingRedisEntry(
             Long userId,
@@ -20,7 +20,7 @@ public class RankingRedisEntry {
             EventType eventType,
             Integer timeMs,
             Long recordId,
-            LocalDateTime recordCreatedAt
+            Instant recordCreatedAt
     ) {
         this.userId = userId;
         this.nickname = nickname;

@@ -31,7 +31,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,8 +67,8 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
         User adminUser = saveUser("docs-feedback-admin@cubinghub.com", "DocsFeedbackAdmin", UserRole.ROLE_ADMIN);
         String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, adminUser);
         Feedback feedback = saveFeedback(submitter, "문서화용 피드백");
-        feedback.updateAnswer(adminUser, "관리자 답변", LocalDateTime.of(2026, 4, 23, 12, 5, 30));
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 12, 10, 20));
+        feedback.updateAnswer(adminUser, "관리자 답변", Instant.parse("2026-04-23T12:05:30Z"));
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T12:10:20Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -123,8 +123,8 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
         User adminUser = saveUser("docs-feedback-detail-admin@cubinghub.com", "DocsFeedbackDetailAdmin", UserRole.ROLE_ADMIN);
         String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, adminUser);
         Feedback feedback = saveFeedback(submitter, "상세 문서화 피드백");
-        feedback.updateAnswer(adminUser, "상세 답변", LocalDateTime.of(2026, 4, 23, 12, 12, 10));
-        feedback.updateVisibility(FeedbackVisibility.PRIVATE, LocalDateTime.of(2026, 4, 23, 12, 13, 55));
+        feedback.updateAnswer(adminUser, "상세 답변", Instant.parse("2026-04-23T12:12:10Z"));
+        feedback.updateVisibility(FeedbackVisibility.PRIVATE, Instant.parse("2026-04-23T12:13:55Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -217,7 +217,7 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
         User adminUser = saveUser("docs-feedback-visibility-admin@cubinghub.com", "DocsFeedbackVisibilityAdmin", UserRole.ROLE_ADMIN);
         String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, adminUser);
         Feedback feedback = saveFeedback(submitter, "공개 문서화 피드백");
-        feedback.updateAnswer(adminUser, "공개 답변", LocalDateTime.of(2026, 4, 23, 12, 20, 10));
+        feedback.updateAnswer(adminUser, "공개 답변", Instant.parse("2026-04-23T12:20:10Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -265,8 +265,8 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
         User submitter = saveUser("docs-public-qna-user@cubinghub.com", "DocsPublicQnaUser", UserRole.ROLE_USER);
         User adminUser = saveUser("docs-public-qna-admin@cubinghub.com", "DocsPublicQnaAdmin", UserRole.ROLE_ADMIN);
         Feedback feedback = saveFeedback(submitter, "공개 질문");
-        feedback.updateAnswer(adminUser, "공개 답변", LocalDateTime.of(2026, 4, 23, 12, 22, 30));
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 12, 24, 45));
+        feedback.updateAnswer(adminUser, "공개 답변", Instant.parse("2026-04-23T12:22:30Z"));
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T12:24:45Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -310,8 +310,8 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
         User submitter = saveUser("docs-public-qna-detail-user@cubinghub.com", "DocsPublicQnaDetailUser", UserRole.ROLE_USER);
         User adminUser = saveUser("docs-public-qna-detail-admin@cubinghub.com", "DocsPublicQnaDetailAdmin", UserRole.ROLE_ADMIN);
         Feedback feedback = saveFeedback(submitter, "공개 질문 상세");
-        feedback.updateAnswer(adminUser, "공개 질문 상세 답변", LocalDateTime.of(2026, 4, 23, 12, 30, 20));
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 12, 31, 55));
+        feedback.updateAnswer(adminUser, "공개 질문 상세 답변", Instant.parse("2026-04-23T12:30:20Z"));
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T12:31:55Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -358,7 +358,7 @@ class FeedbackManagementDocsTest extends RestDocsIntegrationTest {
                 .replyEmail("reply@cubinghub.com")
                 .content(title + " 본문")
                 .build());
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 23, 12, 0, 10));
+        feedback.markNotificationSuccess(Instant.parse("2026-04-23T12:00:10Z"));
         return feedback;
     }
 }

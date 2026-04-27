@@ -3,7 +3,7 @@ package com.cubinghub.domain.home.dto.response;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -15,7 +15,7 @@ public class HomeRecentRecordResponse {
     private final Integer effectiveTimeMs;
     private final Penalty penalty;
     private final String scramble;
-    private final LocalDateTime createdAt;
+    private final Instant createdAt;
 
     public HomeRecentRecordResponse(
             Long id,
@@ -24,7 +24,7 @@ public class HomeRecentRecordResponse {
             Integer effectiveTimeMs,
             Penalty penalty,
             String scramble,
-            LocalDateTime createdAt
+            Instant createdAt
     ) {
         this.id = id;
         this.eventType = eventType;

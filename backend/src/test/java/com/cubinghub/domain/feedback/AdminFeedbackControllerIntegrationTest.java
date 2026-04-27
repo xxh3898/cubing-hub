@@ -20,7 +20,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -73,8 +73,8 @@ class AdminFeedbackControllerIntegrationTest extends JpaIntegrationTest {
     void should_return_admin_feedback_page_when_admin_filters_feedbacks() throws Exception {
         saveFeedback(submitter, FeedbackType.BUG, "비공개 미답변");
         Feedback publishedFeedback = saveFeedback(submitter, FeedbackType.FEATURE, "공개 답변 완료");
-        publishedFeedback.updateAnswer(adminUser, "답변 완료", LocalDateTime.of(2026, 4, 23, 10, 15, 25));
-        publishedFeedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 23, 10, 20, 40));
+        publishedFeedback.updateAnswer(adminUser, "답변 완료", Instant.parse("2026-04-23T10:15:25Z"));
+        publishedFeedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-23T10:20:40Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -147,7 +147,7 @@ class AdminFeedbackControllerIntegrationTest extends JpaIntegrationTest {
     @DisplayName("should_update_feedback_visibility_when_admin_publishes_answered_feedback")
     void should_update_feedback_visibility_when_admin_publishes_answered_feedback() throws Exception {
         Feedback feedback = saveFeedback(submitter, FeedbackType.OTHER, "공개 전환 대상");
-        feedback.updateAnswer(adminUser, "공개 가능한 답변", LocalDateTime.of(2026, 4, 23, 10, 30, 15));
+        feedback.updateAnswer(adminUser, "공개 가능한 답변", Instant.parse("2026-04-23T10:30:15Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -196,7 +196,7 @@ class AdminFeedbackControllerIntegrationTest extends JpaIntegrationTest {
                 .replyEmail("reply@cubinghub.com")
                 .content(title + " 내용")
                 .build());
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 23, 9, 0, 10));
+        feedback.markNotificationSuccess(Instant.parse("2026-04-23T09:00:10Z"));
         return feedback;
     }
 }

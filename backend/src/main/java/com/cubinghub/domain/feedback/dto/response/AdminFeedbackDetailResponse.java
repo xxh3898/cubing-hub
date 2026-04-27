@@ -4,7 +4,7 @@ import com.cubinghub.domain.feedback.entity.Feedback;
 import com.cubinghub.domain.feedback.entity.FeedbackNotificationStatus;
 import com.cubinghub.domain.feedback.entity.FeedbackType;
 import com.cubinghub.domain.feedback.entity.FeedbackVisibility;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -22,9 +22,9 @@ public class AdminFeedbackDetailResponse {
     private final FeedbackVisibility visibility;
     private final String answer;
     private final boolean answered;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime answeredAt;
-    private final LocalDateTime publishedAt;
+    private final Instant createdAt;
+    private final Instant answeredAt;
+    private final Instant publishedAt;
 
     public AdminFeedbackDetailResponse(
             Long id,
@@ -39,9 +39,9 @@ public class AdminFeedbackDetailResponse {
             FeedbackVisibility visibility,
             String answer,
             boolean answered,
-            LocalDateTime createdAt,
-            LocalDateTime answeredAt,
-            LocalDateTime publishedAt
+            Instant createdAt,
+            Instant answeredAt,
+            Instant publishedAt
     ) {
         this.id = id;
         this.type = type;

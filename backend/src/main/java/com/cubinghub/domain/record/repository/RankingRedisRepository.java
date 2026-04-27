@@ -2,8 +2,7 @@ package com.cubinghub.domain.record.repository;
 
 import com.cubinghub.domain.record.dto.internal.RankingRedisEntry;
 import com.cubinghub.domain.record.entity.EventType;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -128,8 +127,8 @@ public class RankingRedisRepository {
         );
     }
 
-    private long toEpochMilli(LocalDateTime createdAt) {
-        return createdAt.toInstant(ZoneOffset.UTC).toEpochMilli();
+    private long toEpochMilli(Instant createdAt) {
+        return createdAt.toEpochMilli();
     }
 
     private Long parseUserId(String member) {

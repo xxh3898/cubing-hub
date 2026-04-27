@@ -2,7 +2,7 @@ package com.cubinghub.domain.feedback.dto.response;
 
 import com.cubinghub.domain.feedback.entity.Feedback;
 import com.cubinghub.domain.feedback.entity.FeedbackType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -15,9 +15,9 @@ public class PublicFeedbackListItemResponse {
     private final String answer;
     private final String questionerLabel;
     private final String answererLabel;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime answeredAt;
-    private final LocalDateTime publishedAt;
+    private final Instant createdAt;
+    private final Instant answeredAt;
+    private final Instant publishedAt;
 
     public PublicFeedbackListItemResponse(
             Long id,
@@ -27,9 +27,9 @@ public class PublicFeedbackListItemResponse {
             String answer,
             String questionerLabel,
             String answererLabel,
-            LocalDateTime createdAt,
-            LocalDateTime answeredAt,
-            LocalDateTime publishedAt
+            Instant createdAt,
+            Instant answeredAt,
+            Instant publishedAt
     ) {
         this.id = id;
         this.type = type;

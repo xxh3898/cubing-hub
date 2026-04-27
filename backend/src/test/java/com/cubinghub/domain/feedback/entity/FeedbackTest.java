@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.support.TestFixtures;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +40,7 @@ class FeedbackTest {
                 .content("내용")
                 .build();
 
-        feedback.markNotificationFailure(LocalDateTime.of(2026, 4, 24, 12, 0, 0), "x".repeat(700));
+        feedback.markNotificationFailure(Instant.parse("2026-04-24T12:00:00Z"), "x".repeat(700));
 
         assertThat(feedback.getNotificationStatus()).isEqualTo(FeedbackNotificationStatus.FAILED);
         assertThat(feedback.getNotificationAttemptCount()).isEqualTo(1);
@@ -59,8 +59,8 @@ class FeedbackTest {
                 .content("내용")
                 .build();
 
-        feedback.markNotificationFailure(LocalDateTime.of(2026, 4, 24, 12, 5, 0), "짧은 오류");
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 24, 12, 6, 0));
+        feedback.markNotificationFailure(Instant.parse("2026-04-24T12:05:00Z"), "짧은 오류");
+        feedback.markNotificationSuccess(Instant.parse("2026-04-24T12:06:00Z"));
 
         assertThat(feedback.getNotificationLastError()).isNull();
         assertThat(feedback.getNotificationAttemptCount()).isEqualTo(2);
@@ -79,9 +79,9 @@ class FeedbackTest {
                 .build();
         org.springframework.test.util.ReflectionTestUtils.setField(feedback, "notificationAttemptCount", null);
 
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 24, 12, 7, 0));
+        feedback.markNotificationSuccess(Instant.parse("2026-04-24T12:07:00Z"));
         org.springframework.test.util.ReflectionTestUtils.setField(feedback, "notificationAttemptCount", null);
-        feedback.markNotificationFailure(LocalDateTime.of(2026, 4, 24, 12, 8, 0), null);
+        feedback.markNotificationFailure(Instant.parse("2026-04-24T12:08:00Z"), null);
 
         assertThat(feedback.getNotificationAttemptCount()).isEqualTo(1);
         assertThat(feedback.getNotificationLastError()).isNull();
@@ -97,8 +97,8 @@ class FeedbackTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("내용")
                 .build();
-        LocalDateTime answeredAt = LocalDateTime.of(2026, 4, 24, 12, 10, 0);
-        LocalDateTime publishedAt = LocalDateTime.of(2026, 4, 24, 12, 11, 0);
+        Instant answeredAt = Instant.parse("2026-04-24T12:10:00Z");
+        Instant publishedAt = Instant.parse("2026-04-24T12:11:00Z");
 
         feedback.updateAnswer(
                 TestFixtures.createUser(2L, "admin@cubinghub.com", "Admin", UserRole.ROLE_ADMIN, UserStatus.ACTIVE),
@@ -106,7 +106,7 @@ class FeedbackTest {
                 answeredAt
         );
         feedback.updateVisibility(FeedbackVisibility.PUBLIC, publishedAt);
-        feedback.updateVisibility(FeedbackVisibility.PRIVATE, LocalDateTime.of(2026, 4, 24, 12, 12, 0));
+        feedback.updateVisibility(FeedbackVisibility.PRIVATE, Instant.parse("2026-04-24T12:12:00Z"));
 
         assertThat(feedback.isAnswered()).isTrue();
         assertThat(feedback.getAnsweredAt()).isEqualTo(answeredAt);
@@ -127,7 +127,7 @@ class FeedbackTest {
         feedback.updateAnswer(
                 TestFixtures.createUser(2L, "admin@cubinghub.com", "Admin", UserRole.ROLE_ADMIN, UserStatus.ACTIVE),
                 " ",
-                LocalDateTime.of(2026, 4, 24, 12, 15, 0)
+                Instant.parse("2026-04-24T12:15:00Z")
         );
 
         assertThat(feedback.isAnswered()).isFalse();

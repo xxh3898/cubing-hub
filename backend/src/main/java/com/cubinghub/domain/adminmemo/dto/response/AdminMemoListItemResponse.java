@@ -2,7 +2,7 @@ package com.cubinghub.domain.adminmemo.dto.response;
 
 import com.cubinghub.domain.adminmemo.entity.AdminMemo;
 import com.cubinghub.domain.adminmemo.entity.AdminMemoAnswerStatus;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -12,18 +12,18 @@ public class AdminMemoListItemResponse {
     private final String question;
     private final String answer;
     private final AdminMemoAnswerStatus answerStatus;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
-    private final LocalDateTime answeredAt;
+    private final Instant createdAt;
+    private final Instant updatedAt;
+    private final Instant answeredAt;
 
     public AdminMemoListItemResponse(
             Long id,
             String question,
             String answer,
             AdminMemoAnswerStatus answerStatus,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
-            LocalDateTime answeredAt
+            Instant createdAt,
+            Instant updatedAt,
+            Instant answeredAt
     ) {
         this.id = id;
         this.question = question;

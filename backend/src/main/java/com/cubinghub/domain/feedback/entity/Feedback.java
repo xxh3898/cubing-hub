@@ -1,6 +1,5 @@
 package com.cubinghub.domain.feedback.entity;
 
-import com.cubinghub.domain.feedback.entity.FeedbackVisibility;
 import com.cubinghub.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,7 +18,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -72,7 +71,7 @@ public class Feedback {
     private User answeredByUser;
 
     @Column(name = "answered_at")
-    private LocalDateTime answeredAt;
+    private Instant answeredAt;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -84,7 +83,7 @@ public class Feedback {
     private Integer notificationAttemptCount;
 
     @Column(name = "notification_last_attempt_at")
-    private LocalDateTime notificationLastAttemptAt;
+    private Instant notificationLastAttemptAt;
 
     @Column(name = "notification_last_error", length = 500)
     private String notificationLastError;
@@ -95,11 +94,11 @@ public class Feedback {
     private FeedbackVisibility visibility;
 
     @Column(name = "published_at")
-    private LocalDateTime publishedAt;
+    private Instant publishedAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Builder
     public Feedback(User user, FeedbackType type, String title, String replyEmail, String content) {
@@ -113,14 +112,14 @@ public class Feedback {
         this.visibility = FeedbackVisibility.PRIVATE;
     }
 
-    public void markNotificationSuccess(LocalDateTime attemptedAt) {
+    public void markNotificationSuccess(Instant attemptedAt) {
         this.notificationStatus = FeedbackNotificationStatus.SUCCESS;
         this.notificationAttemptCount = (this.notificationAttemptCount == null ? 0 : this.notificationAttemptCount) + 1;
         this.notificationLastAttemptAt = attemptedAt;
         this.notificationLastError = null;
     }
 
-    public void markNotificationFailure(LocalDateTime attemptedAt, String errorMessage) {
+    public void markNotificationFailure(Instant attemptedAt, String errorMessage) {
         this.notificationStatus = FeedbackNotificationStatus.FAILED;
         this.notificationAttemptCount = (this.notificationAttemptCount == null ? 0 : this.notificationAttemptCount) + 1;
         this.notificationLastAttemptAt = attemptedAt;
@@ -135,13 +134,13 @@ public class Feedback {
         return this.answer != null && !this.answer.isBlank();
     }
 
-    public void updateAnswer(User answeredByUser, String answer, LocalDateTime answeredAt) {
+    public void updateAnswer(User answeredByUser, String answer, Instant answeredAt) {
         this.answeredByUser = answeredByUser;
         this.answer = answer;
         this.answeredAt = answeredAt;
     }
 
-    public void updateVisibility(FeedbackVisibility visibility, LocalDateTime changedAt) {
+    public void updateVisibility(FeedbackVisibility visibility, Instant changedAt) {
         this.visibility = visibility;
         this.publishedAt = visibility == FeedbackVisibility.PUBLIC ? changedAt : null;
     }

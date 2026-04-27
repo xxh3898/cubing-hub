@@ -3,7 +3,7 @@ package com.cubinghub.domain.post.dto.response;
 import com.cubinghub.domain.post.entity.PostCategory;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 public class PostListItemResponse {
@@ -13,10 +13,10 @@ public class PostListItemResponse {
     private final String title;
     private final String authorNickname;
     private final Integer viewCount;
-    private final LocalDateTime createdAt;
+    private final Instant createdAt;
 
     public PostListItemResponse(Long id, PostCategory category, String title, String authorNickname, Integer viewCount,
-                                LocalDateTime createdAt) {
+                                Instant createdAt) {
         this.id = id;
         this.category = category;
         this.title = title;

@@ -19,6 +19,9 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.support.TestFixtures;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +38,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 @DisplayName("FeedbackService 단위 테스트")
 class FeedbackServiceTest {
 
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-04-24T09:00:00Z"), ZoneOffset.UTC);
+
     @Mock
     private FeedbackRepository feedbackRepository;
 
@@ -45,7 +50,7 @@ class FeedbackServiceTest {
 
     @BeforeEach
     void setUp() {
-        feedbackService = new FeedbackService(feedbackRepository, userRepository);
+        feedbackService = new FeedbackService(feedbackRepository, userRepository, FIXED_CLOCK);
     }
 
     @Test
@@ -188,7 +193,7 @@ class FeedbackServiceTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("내용")
                 .build();
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, java.time.LocalDateTime.now());
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, FIXED_CLOCK.instant());
         when(feedbackRepository.findById(3L)).thenReturn(Optional.of(feedback));
 
         Throwable thrown = catchThrowable(() -> feedbackService.getPublicFeedbackDetail(3L));
@@ -246,7 +251,7 @@ class FeedbackServiceTest {
         when(feedbackRepository.findById(7L)).thenReturn(Optional.empty());
 
         Throwable thrown = catchThrowable(() ->
-                feedbackService.markNotificationSuccess(7L, java.time.LocalDateTime.of(2026, 4, 24, 14, 0, 0))
+                feedbackService.markNotificationSuccess(7L, Instant.parse("2026-04-24T14:00:00Z"))
         );
 
         assertThat(thrown)

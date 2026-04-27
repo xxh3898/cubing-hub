@@ -9,7 +9,7 @@ import com.cubinghub.domain.feedback.entity.FeedbackVisibility;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.support.TestFixtures;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -50,13 +50,13 @@ class AdminFeedbackDetailResponseTest {
                 .replyEmail("reply@cubinghub.com")
                 .content("내용")
                 .build();
-        feedback.markNotificationSuccess(LocalDateTime.of(2026, 4, 24, 11, 0, 0));
+        feedback.markNotificationSuccess(Instant.parse("2026-04-24T11:00:00Z"));
         feedback.updateAnswer(
                 TestFixtures.createUser(2L, "admin@cubinghub.com", "Admin", UserRole.ROLE_ADMIN, UserStatus.ACTIVE),
                 "답변 완료",
-                LocalDateTime.of(2026, 4, 24, 11, 5, 0)
+                Instant.parse("2026-04-24T11:05:00Z")
         );
-        feedback.updateVisibility(FeedbackVisibility.PUBLIC, LocalDateTime.of(2026, 4, 24, 11, 6, 0));
+        feedback.updateVisibility(FeedbackVisibility.PUBLIC, Instant.parse("2026-04-24T11:06:00Z"));
 
         AdminFeedbackDetailResponse response = AdminFeedbackDetailResponse.from(feedback);
 

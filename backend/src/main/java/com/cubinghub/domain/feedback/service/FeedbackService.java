@@ -14,7 +14,8 @@ import com.cubinghub.domain.feedback.repository.FeedbackRepository;
 import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.repository.UserRepository;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     @Transactional
     public Feedback createFeedback(String email, FeedbackCreateRequest request) {
@@ -50,14 +52,14 @@ public class FeedbackService {
     }
 
     @Transactional
-    public Feedback markNotificationSuccess(Long feedbackId, LocalDateTime attemptedAt) {
+    public Feedback markNotificationSuccess(Long feedbackId, Instant attemptedAt) {
         Feedback feedback = findFeedbackById(feedbackId);
         feedback.markNotificationSuccess(attemptedAt);
         return feedback;
     }
 
     @Transactional
-    public Feedback markNotificationFailure(Long feedbackId, LocalDateTime attemptedAt, String errorMessage) {
+    public Feedback markNotificationFailure(Long feedbackId, Instant attemptedAt, String errorMessage) {
         Feedback feedback = findFeedbackById(feedbackId);
         feedback.markNotificationFailure(attemptedAt, errorMessage);
         return feedback;
@@ -91,7 +93,7 @@ public class FeedbackService {
     public AdminFeedbackDetailResponse updateAnswer(Long feedbackId, String adminEmail, String answer) {
         User adminUser = findAdminUser(adminEmail);
         Feedback feedback = getFeedbackWithUser(feedbackId);
-        feedback.updateAnswer(adminUser, answer, LocalDateTime.now());
+        feedback.updateAnswer(adminUser, answer, Instant.now(clock));
         return AdminFeedbackDetailResponse.from(feedback);
     }
 
@@ -104,7 +106,7 @@ public class FeedbackService {
             throw new IllegalStateException("답변이 등록된 피드백만 공개할 수 있습니다.");
         }
 
-        feedback.updateVisibility(visibility, LocalDateTime.now());
+        feedback.updateVisibility(visibility, Instant.now(clock));
         return AdminFeedbackDetailResponse.from(feedback);
     }
 

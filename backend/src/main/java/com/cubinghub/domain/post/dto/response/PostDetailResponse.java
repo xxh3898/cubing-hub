@@ -5,7 +5,7 @@ import com.cubinghub.domain.post.entity.PostCategory;
 import java.util.List;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 public class PostDetailResponse {
@@ -17,11 +17,11 @@ public class PostDetailResponse {
     private final String authorNickname;
     private final Integer viewCount;
     private final List<PostAttachmentResponse> attachments;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private final Instant updatedAt;
 
     public PostDetailResponse(Long id, PostCategory category, String title, String content, String authorNickname,
-                              Integer viewCount, List<PostAttachmentResponse> attachments, LocalDateTime createdAt, LocalDateTime updatedAt) {
+                              Integer viewCount, List<PostAttachmentResponse> attachments, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.category = category;
         this.title = title;

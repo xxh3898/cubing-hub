@@ -19,6 +19,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -94,8 +95,9 @@ class AdminMemoControllerIntegrationTest extends JpaIntegrationTest {
         AdminMemo newerMemo = adminMemoRepository.save(AdminMemo.builder()
                 .question("두 번째 질문")
                 .answer("두 번째 답변")
+                .answeredAt(Instant.parse("2026-04-24T09:00:00Z"))
                 .build());
-        olderMemo.update("첫 번째 질문", "나중에 수정된 답변");
+        olderMemo.update("첫 번째 질문", "나중에 수정된 답변", Instant.parse("2026-04-24T10:00:00Z"));
         entityManager.flush();
         entityManager.clear();
 
@@ -152,6 +154,7 @@ class AdminMemoControllerIntegrationTest extends JpaIntegrationTest {
         AdminMemo memo = adminMemoRepository.save(AdminMemo.builder()
                 .question("삭제 대상 질문")
                 .answer("삭제 대상 답변")
+                .answeredAt(Instant.parse("2026-04-24T11:00:00Z"))
                 .build());
 
         mockMvc.perform(delete("/api/admin/memos/{memoId}", memo.getId())

@@ -8,6 +8,8 @@ import com.cubinghub.domain.adminmemo.dto.response.AdminMemoListItemResponse;
 import com.cubinghub.domain.adminmemo.dto.response.AdminMemoPageResponse;
 import com.cubinghub.domain.adminmemo.entity.AdminMemo;
 import com.cubinghub.domain.adminmemo.repository.AdminMemoRepository;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminMemoService {
 
     private final AdminMemoRepository adminMemoRepository;
+    private final Clock clock;
 
     public AdminMemoPageResponse getMemos(Integer page, Integer size) {
         validatePageRequest(page, size);
@@ -54,6 +57,7 @@ public class AdminMemoService {
         AdminMemo memo = adminMemoRepository.save(AdminMemo.builder()
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
+                .answeredAt(Instant.now(clock))
                 .build());
         return memo.getId();
     }
@@ -61,7 +65,7 @@ public class AdminMemoService {
     @Transactional
     public AdminMemoDetailResponse updateMemo(Long memoId, AdminMemoUpdateRequest request) {
         AdminMemo memo = findMemoById(memoId);
-        memo.update(request.getQuestion(), request.getAnswer());
+        memo.update(request.getQuestion(), request.getAnswer(), Instant.now(clock));
         return AdminMemoDetailResponse.from(memo);
     }
 

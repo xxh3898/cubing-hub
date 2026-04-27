@@ -11,7 +11,7 @@ import com.cubinghub.domain.feedback.entity.FeedbackType;
 import com.cubinghub.domain.feedback.notification.DiscordFeedbackNotifier;
 import com.cubinghub.domain.feedback.notification.FeedbackNotificationAttemptResult;
 import com.cubinghub.support.TestFixtures;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ class FeedbackNotificationServiceTest {
     @DisplayName("피드백 생성 뒤 Discord 전송이 성공하면 성공 상태 응답을 반환한다")
     void should_return_success_response_when_notification_succeeds_after_feedback_creation() {
         Feedback feedback = createFeedback(1L);
-        LocalDateTime attemptedAt = LocalDateTime.of(2026, 4, 22, 20, 30, 15);
+        Instant attemptedAt = Instant.parse("2026-04-22T20:30:15Z");
         Feedback updatedFeedback = createFeedback(1L);
         updatedFeedback.markNotificationSuccess(attemptedAt);
         FeedbackCreateRequest request = new FeedbackCreateRequest(FeedbackType.BUG, "버그 제보", "reply@cubinghub.com", "재현 경로");

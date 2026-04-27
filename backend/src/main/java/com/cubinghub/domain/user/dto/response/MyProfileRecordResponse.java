@@ -3,7 +3,7 @@ package com.cubinghub.domain.user.dto.response;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 
 @Getter
@@ -14,7 +14,7 @@ public class MyProfileRecordResponse {
     private final Integer timeMs;
     private final Integer effectiveTimeMs;
     private final Penalty penalty;
-    private final LocalDateTime createdAt;
+    private final Instant createdAt;
 
     public MyProfileRecordResponse(
             Long id,
@@ -22,7 +22,7 @@ public class MyProfileRecordResponse {
             Integer timeMs,
             Integer effectiveTimeMs,
             Penalty penalty,
-            LocalDateTime createdAt
+            Instant createdAt
     ) {
         this.id = id;
         this.eventType = eventType;

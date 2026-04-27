@@ -7,6 +7,9 @@ import static org.mockito.Mockito.when;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.adminmemo.entity.AdminMemo;
 import com.cubinghub.domain.adminmemo.repository.AdminMemoRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +23,8 @@ import org.springframework.http.HttpStatus;
 @DisplayName("AdminMemoService 단위 테스트")
 class AdminMemoServiceTest {
 
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-04-24T09:00:00Z"), ZoneOffset.UTC);
+
     @Mock
     private AdminMemoRepository adminMemoRepository;
 
@@ -27,7 +32,7 @@ class AdminMemoServiceTest {
 
     @BeforeEach
     void setUp() {
-        adminMemoService = new AdminMemoService(adminMemoRepository);
+        adminMemoService = new AdminMemoService(adminMemoRepository, FIXED_CLOCK);
     }
 
     @Test
@@ -74,6 +79,7 @@ class AdminMemoServiceTest {
         AdminMemo memo = AdminMemo.builder()
                 .question("질문")
                 .answer("답변")
+                .answeredAt(Instant.parse("2026-04-24T09:10:00Z"))
                 .build();
         org.springframework.test.util.ReflectionTestUtils.setField(memo, "id", 10L);
         when(adminMemoRepository.findById(10L)).thenReturn(Optional.of(memo));

@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -44,20 +44,20 @@ public class AdminMemo extends BaseTimeEntity {
     private AdminMemoAnswerStatus answerStatus;
 
     @Column(name = "answered_at")
-    private LocalDateTime answeredAt;
+    private Instant answeredAt;
 
     @Builder
-    public AdminMemo(String question, String answer) {
+    public AdminMemo(String question, String answer, Instant answeredAt) {
         this.question = question;
-        applyAnswer(answer, LocalDateTime.now());
+        applyAnswer(answer, answeredAt);
     }
 
-    public void update(String question, String answer) {
+    public void update(String question, String answer, Instant answeredAt) {
         this.question = question;
-        applyAnswer(answer, LocalDateTime.now());
+        applyAnswer(answer, answeredAt);
     }
 
-    private void applyAnswer(String answer, LocalDateTime updatedAt) {
+    private void applyAnswer(String answer, Instant answeredAt) {
         if (answer == null || answer.isBlank()) {
             this.answer = null;
             this.answerStatus = AdminMemoAnswerStatus.UNANSWERED;
@@ -67,6 +67,6 @@ public class AdminMemo extends BaseTimeEntity {
 
         this.answer = answer;
         this.answerStatus = AdminMemoAnswerStatus.ANSWERED;
-        this.answeredAt = updatedAt;
+        this.answeredAt = answeredAt;
     }
 }

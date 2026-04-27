@@ -17,7 +17,9 @@ import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @DisplayName("DiscordFeedbackNotifier 단위 테스트")
 class DiscordFeedbackNotifierTest {
+
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-04-24T05:20:30Z"), ZoneOffset.UTC);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private HttpServer server;
@@ -41,13 +45,13 @@ class DiscordFeedbackNotifierTest {
     @Test
     @DisplayName("webhook URL이 비어 있으면 Discord 전송 실패 상태를 반환한다")
     void should_return_failure_result_when_webhook_url_is_blank() {
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "");
+        DiscordFeedbackNotifier notifier = createNotifier("");
 
         FeedbackNotificationAttemptResult result = notifier.send(createFeedback("짧은 피드백 내용"));
 
         assertThat(result.success()).isFalse();
         assertThat(result.errorMessage()).isEqualTo("Discord 운영 알림 webhook URL이 설정되지 않았습니다.");
-        assertThat(result.attemptedAt()).isNotNull();
+        assertThat(result.attemptedAt()).isEqualTo(FIXED_CLOCK.instant());
     }
 
     @Test
@@ -56,7 +60,7 @@ class DiscordFeedbackNotifierTest {
         AtomicReference<String> requestBodyRef = new AtomicReference<>();
         AtomicReference<String> queryRef = new AtomicReference<>();
         startServer(requestBodyRef, queryRef, 204);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "http://localhost:" + server.getAddress().getPort() + "/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("http://localhost:" + server.getAddress().getPort() + "/webhook");
 
         FeedbackNotificationAttemptResult result = notifier.send(createFeedback("가".repeat(2300)));
 
@@ -86,6 +90,7 @@ class DiscordFeedbackNotifierTest {
         startServer(requestBodyRef, queryRef, 500);
         DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(
                 objectMapper,
+                FIXED_CLOCK,
                 "http://localhost:" + server.getAddress().getPort() + "/webhook?token=abc"
         );
 
@@ -104,7 +109,7 @@ class DiscordFeedbackNotifierTest {
         HttpClient httpClient = mock(HttpClient.class);
         @SuppressWarnings("unchecked")
         HttpResponse<String> response = mock(HttpResponse.class);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "https://discord.test/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("https://discord.test/webhook");
         ReflectionTestUtils.setField(notifier, "httpClient", httpClient);
         when(response.statusCode()).thenReturn(199);
         when(httpClient.send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
@@ -119,7 +124,7 @@ class DiscordFeedbackNotifierTest {
     @DisplayName("HTTP client가 IOException을 던지면 실패 상태를 반환한다")
     void should_return_failure_result_when_http_client_throws_io_exception() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "https://discord.test/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("https://discord.test/webhook");
         ReflectionTestUtils.setField(notifier, "httpClient", httpClient);
         when(httpClient.send(any(), any(HttpResponse.BodyHandler.class))).thenThrow(new IOException("network"));
 
@@ -133,7 +138,7 @@ class DiscordFeedbackNotifierTest {
     @DisplayName("HTTP client가 InterruptedException을 던지면 interrupt flag를 복구하고 실패 상태를 반환한다")
     void should_restore_interrupt_flag_when_http_client_throws_interrupted_exception() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "https://discord.test/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("https://discord.test/webhook");
         ReflectionTestUtils.setField(notifier, "httpClient", httpClient);
         when(httpClient.send(any(), any(HttpResponse.BodyHandler.class))).thenThrow(new InterruptedException("interrupted"));
 
@@ -151,7 +156,7 @@ class DiscordFeedbackNotifierTest {
         when(failingObjectMapper.writeValueAsString(any()))
                 .thenThrow(new JsonProcessingException("boom") {
                 });
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(failingObjectMapper, "https://discord.test/webhook");
+        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(failingObjectMapper, FIXED_CLOCK, "https://discord.test/webhook");
 
         FeedbackNotificationAttemptResult result = notifier.send(createFeedback("내용"));
 
@@ -165,12 +170,12 @@ class DiscordFeedbackNotifierTest {
         AtomicReference<String> requestBodyRef = new AtomicReference<>();
         AtomicReference<String> queryRef = new AtomicReference<>();
         startServer(requestBodyRef, queryRef, 204);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "http://localhost:" + server.getAddress().getPort() + "/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("http://localhost:" + server.getAddress().getPort() + "/webhook");
 
         Feedback feedback = createFeedback("내용");
         ReflectionTestUtils.setField(feedback, "title", "T".repeat(140));
         ReflectionTestUtils.setField(feedback.getUser(), "nickname", "N".repeat(150));
-        ReflectionTestUtils.setField(feedback, "createdAt", LocalDateTime.of(2026, 4, 24, 14, 20, 30));
+        ReflectionTestUtils.setField(feedback, "createdAt", Instant.parse("2026-04-24T05:20:30Z"));
 
         FeedbackNotificationAttemptResult result = notifier.send(feedback);
 
@@ -179,7 +184,7 @@ class DiscordFeedbackNotifierTest {
         String content = payload.get("content").asText();
         assertThat(content).contains("title: " + "T".repeat(97) + "...");
         assertThat(content).contains("authorNickname: " + "N".repeat(117) + "...");
-        assertThat(content).contains("createdAt: 2026-04-24 14:20:30");
+        assertThat(content).contains("createdAt: 2026-04-24 14:20:30 KST");
     }
 
     @Test
@@ -188,7 +193,7 @@ class DiscordFeedbackNotifierTest {
         AtomicReference<String> requestBodyRef = new AtomicReference<>();
         AtomicReference<String> queryRef = new AtomicReference<>();
         startServer(requestBodyRef, queryRef, 204);
-        DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(objectMapper, "http://localhost:" + server.getAddress().getPort() + "/webhook");
+        DiscordFeedbackNotifier notifier = createNotifier("http://localhost:" + server.getAddress().getPort() + "/webhook");
 
         Feedback feedback = createFeedback("내용");
         ReflectionTestUtils.setField(feedback, "title", null);
@@ -227,5 +232,9 @@ class DiscordFeedbackNotifierTest {
                 .build();
         ReflectionTestUtils.setField(feedback, "id", 1L);
         return feedback;
+    }
+
+    private DiscordFeedbackNotifier createNotifier(String webhookUrl) {
+        return new DiscordFeedbackNotifier(objectMapper, FIXED_CLOCK, webhookUrl);
     }
 }

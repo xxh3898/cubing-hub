@@ -11,7 +11,7 @@ import com.cubinghub.domain.record.dto.internal.RankingRedisEntry;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.repository.RankingRedisRepository;
 import com.cubinghub.domain.record.repository.UserPBRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,8 +45,8 @@ class RankingRedisBackfillServiceTest {
     @DisplayName("batch size가 0 이하면 1로 보정하고 모든 페이지를 끝까지 재구축한다")
     void should_rebuild_all_pages_with_safe_batch_size_when_batch_size_is_non_positive() {
         ReflectionTestUtils.setField(rankingRedisBackfillService, "batchSize", 0);
-        RankingRedisEntry firstEntry = new RankingRedisEntry(1L, "Alpha", EventType.WCA_333, 9000, 11L, LocalDateTime.now());
-        RankingRedisEntry secondEntry = new RankingRedisEntry(2L, "Beta", EventType.WCA_333, 9100, 12L, LocalDateTime.now());
+        RankingRedisEntry firstEntry = new RankingRedisEntry(1L, "Alpha", EventType.WCA_333, 9000, 11L, Instant.now());
+        RankingRedisEntry secondEntry = new RankingRedisEntry(2L, "Beta", EventType.WCA_333, 9100, 12L, Instant.now());
         when(userPBRepository.findRankingRedisEntries(eq(EventType.WCA_333), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(firstEntry), PageRequest.of(0, 1), 2))
                 .thenReturn(new PageImpl<>(List.of(secondEntry), PageRequest.of(1, 1), 2));
