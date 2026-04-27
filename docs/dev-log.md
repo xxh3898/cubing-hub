@@ -16,8 +16,8 @@
 | 필드 | 값 |
 | --- | --- |
 | 작업명 | 초보자용 공식 학습 탭 추가 |
-| 상태 | 학습 화면에 초보자 8단계 목록, 단계별 완료 모습, 케이스·해법 카드, 단계 상세의 다음 단계 이동 버튼을 추가하고, 1단계는 케이스 카드 없이 흰색 외 면색을 회색으로 단순화한 세로형 가이드와 완료 모습만 보이도록 보정했다 |
-| 범위 | `frontend/src/constants/mockLearning.js`, `frontend/src/pages/LearningPage.jsx`, `frontend/src/pages/LearningPage.test.jsx`, `frontend/src/styles/learning.css`, `frontend/src/styles/responsive.css`, `Project Overview`, `Screen Specification`, `docs/Development Log/Day 31.md` |
+| 상태 | 학습 화면에 초보자 8단계 목록, 단계별 완료 모습, 케이스·해법 카드, 단계 상세의 다음 단계 이동 버튼을 추가하고, 1단계는 케이스 카드 없이 흰색 외 면색을 회색으로 단순화한 세로형 가이드와 완료 모습만 보이도록 보정했다. 이후 frontend coverage 100%를 다시 맞췄다 |
+| 범위 | `frontend/src/constants/mockLearning.js`, `frontend/src/pages/LearningPage.jsx`, `frontend/src/pages/LearningPage.test.jsx`, `frontend/src/styles/learning.css`, `frontend/src/styles/responsive.css`, `README`, `Project Overview`, `Screen Specification`, `Feature Backlog`, `Project Schedule`, `Internal Schedule`, `portfolio.internal.md`, `docs/Development Log/Day 31.md` |
 | 핵심 리스크 | 초보자 케이스별 이미지는 VisualCube 그림용 상태값으로 구분하지만, 블로그 원본 그림을 복제한 전용 다이어그램은 아니다. CFOP 일부 중복 공식은 이번 작업에서 수정하지 않고 후속 TODO로 남겼다 |
 | 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md) |
 | 다음 로그 대상 | 초보자 학습 화면에 전용 단계 다이어그램이나 추가 초급 설명을 붙이거나, CFOP 중복 공식 검증을 다시 열 때 별도 로그를 추가한다 |
@@ -56,7 +56,7 @@
 
 ## 문서 반영 체크
 
-- [x] 허브 문서를 최종 테스트 커버리지와 문서 마감 기준으로 최신화함
+- [x] 허브 문서를 초보자 학습 탭과 최신 frontend coverage 100% 기준으로 최신화함
 - [x] `2026-04-24` 최종 품질 검증 로그가 추가되고 최신 문서 링크가 교체됨
 - [x] backend JaCoCo 100%, frontend Vitest 커버리지 100%, SMTP/S3 운영 어댑터 테스트, 공개 Q&A/관리자 UI 테스트 결과를 설명 자산에 반영함
 - [x] CI 강제 범위와 로컬 커버리지 검증 범위를 분리해서 문서화함

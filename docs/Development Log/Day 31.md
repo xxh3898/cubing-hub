@@ -25,6 +25,7 @@
 - `윗면 맞추기`는 완성된 윗면처럼 보이던 공식 기반 그림 대신, 윗면 십자와 미완성 코너 방향 7가지 시작 패턴을 `fc` facelet으로 직접 보여주도록 보정했다.
 - `윗면 맞추기` 7가지 시작 패턴은 각 윗층 코너 조각의 노란 스티커가 윗면 또는 인접 옆면 중 한 곳에만 보이도록 다시 잡고, 보이는 옆면 코너 스티커도 노란색으로 표시해 코너 방향을 더 잘 볼 수 있게 했다.
 - `Project Overview`, `Screen Specification`, `docs/dev-log.md`를 현재 학습 화면 범위에 맞게 동기화했다.
+- 푸시 전 문서 교차검증에서 README, backlog, 공개 일정, 내부 일정, 포트폴리오 설명 자산까지 초보자 학습 탭과 최신 coverage 결과에 맞게 정리했다.
 
 ---
 
@@ -101,7 +102,11 @@
 - `cd frontend && npm test -- --run visualCube`
   - 통과: `Test Files 1 passed`, `Tests 5 passed`
 - `cd frontend && npm test -- --run`
-  - 통과: `Test Files 32 passed`, `Tests 427 passed`
+  - 통과: `Test Files 33 passed`, `Tests 432 passed`
+- `cd frontend && npx vitest run --coverage`
+  - 통과: `Test Files 33 passed`, `Tests 432 passed`
+  - coverage summary: statements/branches/functions/lines 100%
+  - 기존 Node 경고 `--localstorage-file was provided without a valid path`가 출력됐지만 테스트 실패로 이어지지는 않았다.
 - `cd frontend && npm test -- --run LearningPage -t should_render_beginner_corner_position_cases_with_muted_edge_facelets`
   - 통과: `Test Files 1 passed`, `Tests 1 passed | 20 skipped`
   - 7단계 인접/대각선 케이스의 `fc` 그림과 표시 공식 적용 결과가 완료 facelet으로 도달하는 것을 확인했다.

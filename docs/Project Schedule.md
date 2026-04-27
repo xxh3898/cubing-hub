@@ -25,9 +25,11 @@ gantt
     배포 후속 안정화                    :done, 2026-04-23, 1d
     프로젝트 마감                       :done, 2026-04-23, 1d
     최종 품질 검증 및 문서 동기화          :done, 2026-04-24, 1d
+    학습 UX 보강 및 커버리지 재확인        :done, 2026-04-28, 1d
 ```
 
 > `2026-04-24` 기준 기능 구현, CI/CD 운영 반영, 배포 환경 수동 검증, backend/frontend 최종 커버리지 검증, 공식·내부 문서 마감을 완료했다.
+> `2026-04-28` 기준 학습 화면에 초보자 8단계 해법을 추가하고, frontend coverage 100%를 다시 확인했다.
 
 ## Week 1: 인프라 기반 구축
 
@@ -165,3 +167,10 @@ gantt
 - [X] frontend `npx vitest run --coverage` 기준 statements/branches/functions/lines 100% 확인
 - [X] 사용자 수동 확인 기준 실제 SMTP 송수신, 실제 S3 업로드/삭제, 최종 브라우저 QA 통과
 - [X] 오늘 개발일지, 일정 문서, 허브 로그, `portfolio.internal.md` 최종 동기화
+
+**2026-04-28 (화): 학습 UX 보강 및 커버리지 재확인**
+
+- [X] `/learning`에 초보자 8단계 단계 선택형 해법, 단계별 완료 모습, 케이스 카드, 다음 단계 이동 버튼 추가
+- [X] CFOP 공식 중복 검증은 후속 TODO로 분리하고, 초보자 해법 범위만 마감
+- [X] frontend `npx vitest run --coverage` 기준 `33 files`, `432 tests`, statements/branches/functions/lines 100% 재확인
+- [X] README, 공식 문서, 내부 문서, 개발 로그 최신화 교차검증

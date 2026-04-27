@@ -69,7 +69,7 @@
 | 타이머 / 기록 | `GET /api/scramble`, `POST/PATCH/DELETE /api/records`, 최근 기록, `Ao5`, `Ao12`, 게스트 로컬 기록 캐시, 모바일 `touch`/`pen` 입력 상태 머신 |
 | 홈 / 마이페이지 | `GET /api/home`, 프로필/요약 조회, 전체 기록 페이지 조회, 닉네임/주 종목 수정, 현재 비밀번호 확인 후 비밀번호 변경, 최근 기록 추세 그래프 |
 | 랭킹 | `GET /api/rankings`, Redis ZSET 기반 기본 조회와 `nickname` 검색용 MySQL 대체 경로를 조합한 V2 구조 |
-| 학습 | `CFOP` 기준 `F2L 41 + OLL 57 + PLL 21 = 119` 케이스, VisualCube 기반 회전기호 가이드 |
+| 학습 | 초보자 8단계 단계 선택형 해법, `CFOP` 기준 `F2L 41 + OLL 57 + PLL 21 = 119` 케이스, VisualCube 기반 회전기호 가이드 |
 | 커뮤니티 | 게시글 CRUD, 검색, 댓글, 다중 이미지 첨부, 로그인 사용자 기준 고유 조회수, 수정 화면 사전 조회 분리 |
 | 피드백 / 운영 | 로그인 사용자 피드백 제출, Discord 운영 알림 상태 내부 추적, 공개 Q&A, 관리자 답변/공개 전환, 관리자 메모 |
 | 품질 | JUnit 5/MockMvc API 검증, Testcontainers, REST Docs, JaCoCo instruction/branch 100%, Vitest 커버리지 100%, 분리된 GitHub Actions CI |

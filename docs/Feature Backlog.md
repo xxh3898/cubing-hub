@@ -17,7 +17,7 @@
 | Category               | Count | Note                     |
 | ---------------------- | ----- | ------------------------ |
 | Timer & Records        | 5     | 기록 분석, 타이머 UX, 데이터 활용 확장 |
-| Learning & Guide       | 1     | 큐빙 학습/입문 안내 확장            |
+| Learning & Guide       | 2     | 큐빙 학습/입문 안내 확장            |
 | UI / UX Polish         | 2     | 공통 문구와 페이지네이션 사용성 개선 |
 | Feedback & Integration | 1     | 피드백 운영 알림과 확인 흐름 실사용화     |
 | Account & Admin        | 3     | 계정 관리와 운영 도구 후속 확장       |
@@ -47,6 +47,7 @@
 | Feature | Status | Priority | User Value | Related Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
 | 회전기호 설명 페이지 | done | 완료 | 큐빙 표기법이 익숙하지 않은 사용자도 학습/타이머 진입 장벽을 낮출 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md) | 학습 화면 첫 번째 탭에 WCA `3x3x3` 스크램블 기준 `U/D/L/R/F/B`의 기본, prime, double turn VisualCube 가이드를 배치했다. |
+| 초보자 8단계 학습 탭 | done | 완료 | CFOP가 어려운 신규 사용자가 단계 목록, 완료 모습, 케이스별 해법을 순서대로 따라갈 수 있다. | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [Development Log Day 31](./Development%20Log/Day%2031.md) | `/learning`의 `초보자` 탭에 8단계 목록, 단계별 완료 모습, 케이스 카드, 다음 단계 이동 버튼을 반영했다. |
 
 ## Feedback & Integration
 
