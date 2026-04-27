@@ -53,8 +53,16 @@ function getSeoulDateTimeParts(value) {
   }
 }
 
-function padTwo(value) {
-  return String(value).padStart(2, '0')
+function formatDateTimeWithPeriod(parts) {
+  const period = parts.hour < 12 ? '오전' : '오후'
+  const displayHour = parts.hour % 12 === 0 ? 12 : parts.hour % 12
+  const minute = Number(parts.minute)
+
+  if (minute === 0) {
+    return `${parts.year}년 ${parts.month}월 ${parts.day}일 ${period} ${displayHour}시`
+  }
+
+  return `${parts.year}년 ${parts.month}월 ${parts.day}일 ${period} ${displayHour}시 ${minute}분`
 }
 
 export function formatSeoulDateOnly(value) {
@@ -74,7 +82,7 @@ export function formatSeoulDateTime(value) {
     return '-'
   }
 
-  return `${parts.year}년 ${parts.month}월 ${parts.day}일 ${parts.hour}:${parts.minute}`
+  return formatDateTimeWithPeriod(parts)
 }
 
 export function formatSeoulDateTimeWithPeriod(value) {
@@ -84,18 +92,5 @@ export function formatSeoulDateTimeWithPeriod(value) {
     return '-'
   }
 
-  const period = parts.hour < 12 ? '오전' : '오후'
-  const displayHour = parts.hour % 12 === 0 ? 12 : parts.hour % 12
-
-  return `${parts.year}년 ${parts.month}월 ${parts.day}일 ${period} ${displayHour}시 ${Number(parts.minute)}분`
-}
-
-export function formatSeoulDateTimeNumeric(value) {
-  const parts = getSeoulDateTimeParts(value)
-
-  if (!parts) {
-    return '-'
-  }
-
-  return `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)} ${padTwo(parts.hour)}:${parts.minute}`
+  return formatDateTimeWithPeriod(parts)
 }

@@ -148,7 +148,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
     expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
@@ -197,7 +197,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
     fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
@@ -266,7 +266,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '+2' }))
 
@@ -304,11 +304,11 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
-    expect(await screen.findByText('2026-04-04 18:22')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 22분')).toBeInTheDocument()
     expect(getMyRecords).toHaveBeenLastCalledWith({ page: 2, size: 10 })
     expect(screen.getByRole('button', { name: '2' })).toBeDisabled()
   })
@@ -349,7 +349,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
@@ -455,7 +455,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'DNF' }))
 
@@ -494,7 +494,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
@@ -570,7 +570,7 @@ describe('MyPage', () => {
     )
 
     expect(screen.getByText('9.344')).toBeInTheDocument()
-    expect(screen.getByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(screen.getByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
   })
 
   it('should_use_current_user_fallbacks_when_profile_payload_is_missing', async () => {
@@ -864,11 +864,11 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
-    expect(await screen.findByText('2026-04-04 18:22')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 22분')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '이전' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
   })
@@ -918,10 +918,10 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
-    expect(await screen.findByText('2026-04-04 18:22')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 22분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '+2' }))
 
@@ -929,7 +929,7 @@ describe('MyPage', () => {
       expect(screen.getByRole('button', { name: '1' })).toBeDisabled()
     })
     await waitFor(() => {
-      expect(screen.queryByText('2026-04-04 18:22')).not.toBeInTheDocument()
+      expect(screen.queryByText('2026년 4월 4일 오후 6시 22분')).not.toBeInTheDocument()
     })
   })
 
@@ -951,7 +951,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
@@ -977,7 +977,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
@@ -1005,14 +1005,14 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '1' })).toBeDisabled()
     })
-    expect(screen.queryByText('2026-04-04 18:22')).not.toBeInTheDocument()
+    expect(screen.queryByText('2026년 4월 4일 오후 6시 22분')).not.toBeInTheDocument()
   })
 
   it('should_keep_current_page_when_record_penalty_update_sync_returns_same_page_count', async () => {
@@ -1084,10 +1084,10 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
-    expect(await screen.findByText('2026-04-04 18:22')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 22분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '+2' }))
 
@@ -1166,7 +1166,7 @@ describe('MyPage', () => {
 
     const { unmount } = render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     unmount()
@@ -1199,7 +1199,7 @@ describe('MyPage', () => {
 
     const { unmount } = render(<MyPage />)
 
-    expect(await screen.findByText('2026-04-04 18:11')).toBeInTheDocument()
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     unmount()

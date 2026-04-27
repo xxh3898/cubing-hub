@@ -38,7 +38,7 @@ describe('AdminMemoDetailPage', () => {
 
   it('should_format_admin_memo_detail_dates', () => {
     expect(formatDateTime(null)).toBe('-')
-    expect(formatDateTime('2026-04-24T09:00:00')).toBe('2026년 4월 24일 9:00')
+    expect(formatDateTime('2026-04-24T09:00:00')).toBe('2026년 4월 24일 오전 9시')
   })
 
   it('should_render_error_message_when_route_param_is_invalid', async () => {

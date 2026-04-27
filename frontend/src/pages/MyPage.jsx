@@ -16,7 +16,7 @@ import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { eventOptions } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
-import { formatSeoulDateTimeNumeric } from '../utils/dateTime.js'
+import { formatSeoulDateTime } from '../utils/dateTime.js'
 import { buildTrendChartData, filterLatestRecordsByEvent, formatRecordTime } from '../utils/recordStats.js'
 
 const RECORDS_PAGE_SIZE = 10
@@ -49,7 +49,7 @@ export function getDisplayRecordTime(record) {
 }
 
 export function formatDateTime(value) {
-  return formatSeoulDateTimeNumeric(value)
+  return formatSeoulDateTime(value)
 }
 
 export function formatTrendAxisTick(value) {

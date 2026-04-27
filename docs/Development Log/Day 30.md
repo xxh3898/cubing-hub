@@ -12,6 +12,7 @@
 - `Clock.systemUTC()` bean과 `hibernate.jdbc.time_zone=UTC` 설정을 추가해 저장/조회 기준을 서버 로컬 timezone에 의존하지 않게 했다.
 - 관리자 답변/공개 처리와 Discord 피드백 알림 시각은 주입된 `Clock`으로 생성하도록 바꿔 테스트 가능한 구조로 정리했다.
 - 프런트의 홈, 커뮤니티, 마이페이지, 공개 Q&A, 관리자 화면 시간 표시를 공통 `Asia/Seoul` 포맷터로 모았다.
+- 시간 표시 형식은 24시간제 숫자 표기 대신 `2026년 4월 27일 오후 7시 44분` 같은 오전/오후 표기로 통일했다.
 - 기존 운영 DB 값은 별도 보정하지 않는 결정을 유지했다.
 - API, DB, 화면, 배포 문서를 UTC instant 저장/응답 계약과 KST 표시 계약 기준으로 동기화했다.
 
@@ -55,7 +56,7 @@
 - backend 전체 테스트를 통과했다.
 - backend build를 통과했고, REST Docs `asciidoctor`와 `bootJar` 생성까지 확인했다.
 - frontend lint를 통과했다.
-- frontend 전체 Vitest를 통과했다. 결과는 `33 files`, `410 tests` 통과다. Vitest 실행 중 `--localstorage-file` 경고가 출력됐지만 테스트 실패로 이어지지는 않았다.
+- frontend 전체 Vitest를 통과했다. 마지막 표시 형식 갱신 후 결과는 `33 files`, `411 tests` 통과다. Vitest 실행 중 `--localstorage-file` 경고가 출력됐지만 테스트 실패로 이어지지는 않았다.
 - frontend production build를 통과했다.
 
 ### 남은 검증

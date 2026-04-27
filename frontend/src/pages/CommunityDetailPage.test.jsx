@@ -116,7 +116,7 @@ describe('CommunityDetailPage', () => {
   it('should_format_category_and_date_helpers', () => {
     expect(formatCategoryLabel('NOTICE')).toBe('공지')
     expect(formatCategoryLabel('FREE')).toBe('자유')
-    expect(formatCommunityDate('2026-04-15T10:05:00')).toBe('2026년 4월 15일 10:05')
+    expect(formatCommunityDate('2026-04-15T10:05:00')).toBe('2026년 4월 15일 오전 10시 5분')
   })
 
   it('should_hide_edit_button_when_current_user_cannot_edit_post', async () => {

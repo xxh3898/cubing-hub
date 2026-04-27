@@ -24,7 +24,7 @@ describe('QnaDetailPage', () => {
   })
 
   it('should_format_qna_detail_helpers', () => {
-    expect(formatDateTime('2026-04-24T12:30:00')).toBe('2026년 4월 24일 12:30')
+    expect(formatDateTime('2026-04-24T12:30:00')).toBe('2026년 4월 24일 오후 12시 30분')
     expect(formatFeedbackType('FEATURE')).toBe('기능')
     expect(formatFeedbackType('OTHER')).toBe('기타')
   })

@@ -16,7 +16,7 @@
 | 필드 | 값 |
 | --- | --- |
 | 작업명 | 시간 응답 계약 UTC instant 고정 |
-| 상태 | 백엔드 감사/도메인 시간 필드를 `Instant` 기준으로 통일하고, 프런트 시간 표시를 `Asia/Seoul` 공통 포맷터로 정리했다. backend test와 frontend lint/test/build를 통과했다 |
+| 상태 | 백엔드 시간 필드를 `Instant` 기준으로 통일하고, 프런트 시간 표시를 `Asia/Seoul` 공통 포맷터와 오전/오후 표기로 정리했다. backend test와 frontend lint/test/build를 통과했다 |
 | 범위 | `backend` 감사 필드/피드백/관리자 메모/랭킹 Redis 시간 처리, `frontend` 시간 표시 헬퍼와 관련 화면, `API Specification`, `Database Design`, `Screen Specification`, `Deployment & Infrastructure Design`, `docs/Development Log/Day 30.md` |
 | 핵심 리스크 | 기존 운영 DB 값은 별도 보정하지 않기로 결정했다. 기존 값의 실제 의미가 UTC가 아니었던 행은 과거 화면 표시가 새 계약과 다르게 보일 수 있다 |
 | 참조 문서 | [API Specification](./API%20Specification.md), [Database Design](./Database%20Design.md), [Screen Specification](./Screen%20Specification.md), [Deployment & Infrastructure Design](./Deployment%20%26%20Infrastructure%20Design.md), [2026-04-27 시간 계약 로그](./Development%20Log/Day%2030.md) |
