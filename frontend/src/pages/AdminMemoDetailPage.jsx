@@ -3,14 +3,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { deleteAdminMemo, getAdminMemo, updateAdminMemo } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
+import { formatSeoulDateTime } from '../utils/dateTime.js'
 
 export function formatDateTime(value) {
-  if (!value) {
-    return '-'
-  }
-
-  const date = new Date(value)
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+  return formatSeoulDateTime(value)
 }
 
 export default function AdminMemoDetailPage() {

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { getHome } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
+import { formatSeoulDateOnly, formatSeoulDateTimeWithPeriod } from '../utils/dateTime.js'
 import { formatTimeMs } from '../utils/formatTime.js'
 
 export function formatEventLabel(eventType) {
@@ -36,30 +37,11 @@ export function DashboardCard({ label, value, detail }) {
 }
 
 export function formatDateTime(value) {
-  if (!value) {
-    return '-'
-  }
-
-  const [date, time] = value.replace('T', ' ').split(' ')
-  const [year, month, day] = date.split('-')
-  const [rawHour, rawMinute] = time.split(':')
-  const hour = Number(rawHour)
-  const minute = Number(rawMinute)
-  const period = hour < 12 ? '오전' : '오후'
-  const displayHour = hour % 12 === 0 ? 12 : hour % 12
-
-  return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일 ${period} ${displayHour}시 ${minute}분`
+  return formatSeoulDateTimeWithPeriod(value)
 }
 
 export function formatDateOnly(value) {
-  if (!value) {
-    return '-'
-  }
-
-  const [date] = value.split('T')
-  const [year, month, day] = date.split('-')
-
-  return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일`
+  return formatSeoulDateOnly(value)
 }
 
 export function formatNullableTime(timeMs) {

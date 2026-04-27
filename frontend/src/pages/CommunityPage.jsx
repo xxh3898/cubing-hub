@@ -5,11 +5,10 @@ import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { communityCategories, communityPageSize } from '../constants/mockCommunity.js'
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
+import { formatSeoulDateOnly } from '../utils/dateTime.js'
 
 function formatCommunityDate(value) {
-  const date = new Date(value)
-
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
+  return formatSeoulDateOnly(value)
 }
 
 export default function CommunityPage() {

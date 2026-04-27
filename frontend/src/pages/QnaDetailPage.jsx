@@ -2,10 +2,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getQnaDetail } from '../api.js'
+import { formatSeoulDateTime } from '../utils/dateTime.js'
 
 export function formatDateTime(value) {
-  const date = new Date(value)
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+  return formatSeoulDateTime(value)
 }
 
 export function formatFeedbackType(type) {

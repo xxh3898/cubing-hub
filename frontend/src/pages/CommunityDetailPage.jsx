@@ -4,13 +4,12 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { createComment, deleteComment, deletePost, getComments, getPost } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { useAuth } from '../context/useAuth.js'
+import { formatSeoulDateTime } from '../utils/dateTime.js'
 
 const COMMENT_PAGE_SIZE = 5
 
 export function formatCommunityDate(value) {
-  const date = new Date(value)
-
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+  return formatSeoulDateTime(value)
 }
 
 export function formatCategoryLabel(category) {

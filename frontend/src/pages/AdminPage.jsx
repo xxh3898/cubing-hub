@@ -4,13 +4,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { createAdminMemo, getAdminFeedbacks, getAdminMemos } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
+import { formatSeoulDateTime } from '../utils/dateTime.js'
 
 const FEEDBACK_PAGE_SIZE = 8
 const MEMO_PAGE_SIZE = 8
 
 export function formatDateTime(value) {
-  const date = new Date(value)
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+  return formatSeoulDateTime(value)
 }
 
 export function toPreview(text, maxLength = 90) {
