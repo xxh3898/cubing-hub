@@ -11,6 +11,10 @@
   - 구현 상태: `apiClient`는 보호 API `401`에 대해 `refresh -> retry`를 1회 수행한다.
 - 공통 응답 포맷: `ApiResponse`
 - 공개 API와 보호 API의 경계는 `SecurityFilterChain` 기준으로 관리한다.
+- 시간 응답 필드:
+  - `createdAt`, `updatedAt`, `answeredAt`, `publishedAt`, `notificationLastAttemptAt`처럼 시각을 나타내는 API 응답 필드는 UTC 기준 ISO-8601 instant 문자열로 반환한다.
+  - 예: `2026-04-27T06:38:00Z`
+  - 화면 표시는 프런트에서 `Asia/Seoul` 기준으로 변환한다.
 
 ## 2. API 설계 원칙
 
@@ -407,7 +411,7 @@
 | `data.items[].timeMs` | Number | 원본 측정 시간(밀리초) |
 | `data.items[].effectiveTimeMs` | Number / Null | penalty 반영 유효 시간(밀리초), `DNF`면 `null` |
 | `data.items[].penalty` | String | `NONE`, `PLUS_TWO`, `DNF` |
-| `data.items[].createdAt` | String | 기록 생성 시각 |
+| `data.items[].createdAt` | String | UTC ISO-8601 기록 생성 시각 |
 | `data.page` | Number | 현재 페이지 번호 |
 | `data.size` | Number | 페이지 크기 |
 | `data.totalElements` | Number | 전체 기록 수 |
@@ -672,7 +676,7 @@
 | `data.items[].title` | String | 제목 |
 | `data.items[].authorNickname` | String | 작성자 닉네임 |
 | `data.items[].viewCount` | Number | 조회수 |
-| `data.items[].createdAt` | String | 작성 시각 |
+| `data.items[].createdAt` | String | UTC ISO-8601 작성 시각 |
 | `data.page` | Number | 현재 페이지 번호 |
 | `data.size` | Number | 페이지당 게시글 수 |
 | `data.totalElements` | Number | 전체 게시글 수 |
@@ -708,8 +712,8 @@
 | `data.attachments[].imageUrl` | String | 첨부 이미지 URL |
 | `data.attachments[].originalFileName` | String | 원본 파일명 |
 | `data.attachments[].displayOrder` | Number | 표시 순서 |
-| `data.createdAt` | String | 작성 시각 |
-| `data.updatedAt` | String | 수정 시각 |
+| `data.createdAt` | String | UTC ISO-8601 작성 시각 |
+| `data.updatedAt` | String | UTC ISO-8601 수정 시각 |
 
 ### `GET /api/posts/{postId}/edit`
 
@@ -751,8 +755,8 @@
 | `data.attachments[].imageUrl` | String | 첨부 이미지 URL |
 | `data.attachments[].originalFileName` | String | 원본 파일명 |
 | `data.attachments[].displayOrder` | Number | 표시 순서 |
-| `data.createdAt` | String | 작성 시각 |
-| `data.updatedAt` | String | 수정 시각 |
+| `data.createdAt` | String | UTC ISO-8601 작성 시각 |
+| `data.updatedAt` | String | UTC ISO-8601 수정 시각 |
 
 ### `PUT /api/posts/{postId}`
 
@@ -838,7 +842,7 @@
 | `data.items[].id` | Number | 댓글 ID |
 | `data.items[].authorNickname` | String | 작성자 닉네임 |
 | `data.items[].content` | String | 댓글 본문 |
-| `data.items[].createdAt` | String | 작성 시각 |
+| `data.items[].createdAt` | String | UTC ISO-8601 작성 시각 |
 | `data.page` | Number | 현재 페이지 번호 |
 | `data.size` | Number | 페이지당 댓글 수 |
 | `data.totalElements` | Number | 전체 댓글 수 |
@@ -923,14 +927,14 @@
 | `data.recentRecords[].effectiveTimeMs` | Number / Null | 페널티 반영 시간 |
 | `data.recentRecords[].penalty` | String | 페널티 |
 | `data.recentRecords[].scramble` | String | 기록 스크램블 |
-| `data.recentRecords[].createdAt` | String | 기록 생성 시각 |
+| `data.recentRecords[].createdAt` | String | UTC ISO-8601 기록 생성 시각 |
 | `data.recentPosts` | Array | 최신 커뮤니티 게시글 최대 3건 |
 | `data.recentPosts[].id` | Number | 게시글 ID |
 | `data.recentPosts[].category` | String | 게시글 카테고리 |
 | `data.recentPosts[].title` | String | 게시글 제목 |
 | `data.recentPosts[].authorNickname` | String | 작성자 닉네임 |
 | `data.recentPosts[].viewCount` | Number | 게시글 조회수 |
-| `data.recentPosts[].createdAt` | String | 게시글 생성 시각 |
+| `data.recentPosts[].createdAt` | String | UTC ISO-8601 게시글 생성 시각 |
 
 #### 상태 메모
 
@@ -994,9 +998,9 @@
 | `data.items[].answer` | String | 관리자 답변 |
 | `data.items[].questionerLabel` | String | 질문자 표시 라벨 (`사용자`) |
 | `data.items[].answererLabel` | String | 답변자 표시 라벨 (`관리자`) |
-| `data.items[].createdAt` | String | 질문 작성 시각 |
-| `data.items[].answeredAt` | String | 답변 시각 |
-| `data.items[].publishedAt` | String | 공개 시각 |
+| `data.items[].createdAt` | String | UTC ISO-8601 질문 작성 시각 |
+| `data.items[].answeredAt` | String | UTC ISO-8601 답변 시각 |
+| `data.items[].publishedAt` | String | UTC ISO-8601 공개 시각 |
 
 ### `GET /api/qna/{feedbackId}`
 

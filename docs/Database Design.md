@@ -8,6 +8,8 @@
 - 게시판은 `posts`, `comments`, `post_attachments`, `post_views` 중심 구조로 설계하고, 피드백과 관리자 메모를 운영 데이터로 함께 둔다.
 - 랭킹 최적화는 Redis ZSET 읽기 모델을 사용하지만, 기준 데이터는 여전히 MySQL의 `records` / `user_pbs` 조합이다.
 - 인덱스는 조회 패턴 기준의 최소 구성을 유지한다.
+- 시각 컬럼은 애플리케이션에서 `Instant`로 다루고, JDBC/Hibernate 저장 기준은 UTC로 고정한다. DB 컬럼 타입은 기존 `timestamp`를 유지한다.
+- 기존 운영 데이터는 별도 보정하지 않는다. 새로 저장하거나 조회해 API로 내려가는 시각 값은 UTC instant 기준으로 직렬화한다.
 
 ## 2. 엔티티 / 테이블 목록
 

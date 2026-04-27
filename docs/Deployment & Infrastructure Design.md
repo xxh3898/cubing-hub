@@ -143,6 +143,9 @@
   - 프로덕션 Refresh Token 만료 시간, 기본 7일
 - `SPRING_JPA_HIBERNATE_DDL_AUTO`
   - 기본값 `validate`, 최초 배포 1회만 `update` 권장
+- `spring.jpa.properties.hibernate.jdbc.time_zone`
+  - 값은 `UTC`로 고정한다.
+  - DB `timestamp` 컬럼과 API UTC instant 응답 계약이 서버 timezone에 흔들리지 않도록 유지한다.
 - `AUTH_REFRESH_COOKIE_SECURE`
   - 기본값 `true`
 - `AUTH_EMAIL_VERIFICATION_CODE_EXPIRATION_MS`
