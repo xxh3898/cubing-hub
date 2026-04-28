@@ -84,4 +84,21 @@ class RankingRedisRepositoryIntegrationTest extends RedisIntegrationTest {
                 .containsExactly("Beta");
         assertThat(rankings.getTotalElements()).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("Redis 사용자 ID 기준 랭킹 조회는 전체 순위를 반환한다")
+    void should_return_global_ranking_by_user_id() {
+        Instant baseTime = Instant.parse("2026-04-21T10:00:00Z");
+
+        rankingRedisRepository.upsert(new RankingRedisEntry(1L, "Alpha", EventType.WCA_333, 12000, 1L, baseTime));
+        rankingRedisRepository.upsert(new RankingRedisEntry(2L, "Beta", EventType.WCA_333, 9800, 2L, baseTime.plusSeconds(1)));
+        rankingRedisRepository.upsert(new RankingRedisEntry(3L, "Gamma", EventType.WCA_333, 11000, 3L, baseTime.plusSeconds(2)));
+        rankingRedisRepository.markReady(EventType.WCA_333);
+
+        RankingQueryResult ranking = rankingRedisRepository.findRankingByUserId(EventType.WCA_333, 1L).orElseThrow();
+
+        assertThat(ranking.getRank()).isEqualTo(3);
+        assertThat(ranking.getNickname()).isEqualTo("Alpha");
+        assertThat(ranking.getTimeMs()).isEqualTo(12000);
+    }
 }

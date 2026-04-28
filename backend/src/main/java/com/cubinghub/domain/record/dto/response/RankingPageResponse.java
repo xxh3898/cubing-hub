@@ -13,6 +13,7 @@ public class RankingPageResponse {
     private final Integer totalPages;
     private final boolean hasNext;
     private final boolean hasPrevious;
+    private final RankingResponse myRanking;
 
     public RankingPageResponse(
             List<RankingResponse> items,
@@ -23,6 +24,19 @@ public class RankingPageResponse {
             boolean hasNext,
             boolean hasPrevious
     ) {
+        this(items, page, size, totalElements, totalPages, hasNext, hasPrevious, null);
+    }
+
+    public RankingPageResponse(
+            List<RankingResponse> items,
+            Integer page,
+            Integer size,
+            Long totalElements,
+            Integer totalPages,
+            boolean hasNext,
+            boolean hasPrevious,
+            RankingResponse myRanking
+    ) {
         this.items = items;
         this.page = page;
         this.size = size;
@@ -30,5 +44,23 @@ public class RankingPageResponse {
         this.totalPages = totalPages;
         this.hasNext = hasNext;
         this.hasPrevious = hasPrevious;
+        this.myRanking = myRanking;
+    }
+
+    public RankingPageResponse withMyRanking(RankingResponse myRanking) {
+        if (this.myRanking == myRanking) {
+            return this;
+        }
+
+        return new RankingPageResponse(
+                items,
+                page,
+                size,
+                totalElements,
+                totalPages,
+                hasNext,
+                hasPrevious,
+                myRanking
+        );
     }
 }

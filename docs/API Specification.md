@@ -570,6 +570,11 @@
 | `data.totalPages` | Number | 전체 페이지 수 |
 | `data.hasNext` | Boolean | 다음 페이지 존재 여부 |
 | `data.hasPrevious` | Boolean | 이전 페이지 존재 여부 |
+| `data.myRanking` | Object / Null | 로그인 사용자의 선택 종목 기준 내 순위. 비로그인 또는 해당 종목 PB가 없으면 `null` |
+| `data.myRanking.rank` | Number | 로그인 사용자의 전체 랭킹 순위 |
+| `data.myRanking.nickname` | String | 로그인 사용자 닉네임 |
+| `data.myRanking.eventType` | String | WCA 종목 코드 |
+| `data.myRanking.timeMs` | Number | 로그인 사용자의 PB 기준 기록 시간(밀리초) |
 
 #### 상태 메모
 
@@ -579,6 +584,7 @@
 - `nickname` 검색 대체 경로는 MySQL 8 window function(`ROW_NUMBER() OVER (...)`)을 전제로 한다.
 - 정렬 기준은 `best_time_ms asc -> record.created_at asc -> record.id asc`를 유지한다.
 - `nickname` 검색 결과는 필터된 집합 안의 재계산 순위가 아니라 전체 랭킹 기준 순위를 유지한다.
+- `myRanking`은 검색 필터 결과가 아니라 선택 종목 기준 전체 랭킹에서 로그인 사용자의 위치를 의미한다.
 - 응답 형식, 검색 계약, 서버 페이지네이션은 V1과 동일하게 유지한다.
 - MySQL `records` / `user_pbs`는 기준 데이터이고 Redis는 읽기 최적화를 위한 보조 읽기 모델이다.
 

@@ -12,6 +12,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -63,6 +64,23 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
               AND LOWER(u.nickname) LIKE CONCAT('%', :nickname, '%')
             """;
 
+    private static final String FIND_RANKING_BY_USER_ID_QUERY = """
+            SELECT ranked.global_rank, ranked.nickname, ranked.event_type, ranked.time_ms
+            FROM (
+                SELECT
+                    ROW_NUMBER() OVER (ORDER BY up.best_time_ms ASC, r.created_at ASC, r.id ASC) AS global_rank,
+                    up.user_id AS user_id,
+                    u.nickname AS nickname,
+                    up.event_type AS event_type,
+                    up.best_time_ms AS time_ms
+                FROM user_pbs up
+                JOIN users u ON up.user_id = u.id
+                JOIN records r ON up.record_id = r.id
+                WHERE up.event_type = :eventType
+            ) ranked
+            WHERE ranked.user_id = :userId
+            """;
+
     private final JPAQueryFactory queryFactory;
     private final EntityManager entityManager;
 
@@ -81,6 +99,19 @@ public class UserPBRepositoryImpl implements UserPBRepositoryCustom {
                 .getSingleResult();
 
         return new PageImpl<>(items, pageable, total.longValue());
+    }
+
+    @Override
+    public Optional<RankingQueryResult> findRankingByUserId(EventType eventType, Long userId) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(FIND_RANKING_BY_USER_ID_QUERY)
+                .setParameter("eventType", eventType.name())
+                .setParameter("userId", userId)
+                .getResultList();
+
+        return rows.stream()
+                .findFirst()
+                .map(this::mapRankingQueryResult);
     }
 
     @Override

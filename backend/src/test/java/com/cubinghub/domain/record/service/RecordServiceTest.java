@@ -619,6 +619,54 @@ class RecordServiceTest {
     }
 
     @Test
+    @DisplayName("로그인 랭킹 조회는 MySQL fallback 경로에서 내 순위를 함께 담는다")
+    void should_return_my_ranking_from_mysql_when_authenticated_user_has_pb() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        when(rankingRedisService.isReady(EventType.WCA_333)).thenReturn(false);
+        when(userPBRepository.searchRankings(eq(EventType.WCA_333), eq(null), eq(PageRequest.of(0, 25))))
+                .thenReturn(new PageImpl<>(
+                        List.of(new RankingQueryResult(1, "Alpha", EventType.WCA_333, 9800)),
+                        PageRequest.of(0, 25),
+                        1
+                ));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userPBRepository.findRankingByUserId(EventType.WCA_333, user.getId()))
+                .thenReturn(Optional.of(new RankingQueryResult(2, "Tester", EventType.WCA_333, 10100)));
+
+        RankingPageResponse response = recordService.getRankings(EventType.WCA_333, null, 1, 25, user.getEmail());
+
+        assertThat(response.getMyRanking().getRank()).isEqualTo(2);
+        assertThat(response.getMyRanking().getNickname()).isEqualTo("Tester");
+        assertThat(response.getMyRanking().getTimeMs()).isEqualTo(10100);
+    }
+
+    @Test
+    @DisplayName("로그인 랭킹 조회는 Redis 준비 상태에서 Redis 내 순위를 함께 담는다")
+    void should_return_my_ranking_from_redis_when_redis_is_ready() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        RankingPageResponse redisResponse = new RankingPageResponse(
+                List.of(),
+                1,
+                25,
+                0L,
+                0,
+                false,
+                false
+        );
+        when(rankingRedisService.isReady(EventType.WCA_333)).thenReturn(true);
+        when(rankingRedisService.getRankings(EventType.WCA_333, 1, 25)).thenReturn(redisResponse);
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(rankingRedisService.getRanking(EventType.WCA_333, user.getId()))
+                .thenReturn(Optional.of(new RankingQueryResult(4, "Tester", EventType.WCA_333, 12000)));
+
+        RankingPageResponse response = recordService.getRankings(EventType.WCA_333, null, 1, 25, user.getEmail());
+
+        assertThat(response.getMyRanking().getRank()).isEqualTo(4);
+        assertThat(response.getMyRanking().getNickname()).isEqualTo("Tester");
+        verify(userPBRepository, never()).findRankingByUserId(any(), any());
+    }
+
+    @Test
     @DisplayName("랭킹 조회 page가 1보다 작으면 예외를 던진다")
     void should_throw_illegal_argument_exception_when_ranking_page_is_less_than_one() {
         Throwable thrown = catchThrowable(() -> recordService.getRankings(EventType.WCA_333, null, 0, 25));

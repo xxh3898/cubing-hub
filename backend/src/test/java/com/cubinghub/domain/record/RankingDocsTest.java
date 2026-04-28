@@ -1,6 +1,8 @@
 package com.cubinghub.domain.record;
 
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
+import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
+import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
 import static org.springframework.restdocs.mockmvc.RestDocumentationRequestBuilders.get;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.payload.PayloadDocumentation.responseFields;
@@ -20,6 +22,8 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
+import com.cubinghub.security.JwtTokenProvider;
+import com.cubinghub.support.TestFixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +42,9 @@ class RankingDocsTest extends RestDocsIntegrationTest {
     @Autowired
     private UserPBRepository userPBRepository;
 
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     @Test
     @DisplayName("글로벌 랭킹은 PB 기준으로 검색과 페이지 메타데이터를 함께 반환한다")
     void should_return_rankings_with_pb_search_and_pagination_metadata() throws Exception {
@@ -53,12 +60,14 @@ class RankingDocsTest extends RestDocsIntegrationTest {
         saveUserPb(alpha, EventType.WCA_333, 12000, alphaPbRecord);
         saveUserPb(beta, EventType.WCA_333, 9800, betaPbRecord);
         saveUserPb(gamma, EventType.WCA_333, 11000, gammaPbRecord);
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, alpha);
 
         ResultActions result = mockMvc.perform(get("/api/rankings")
                 .param("eventType", EventType.WCA_333.name())
                 .param("nickname", "a")
                 .param("page", "1")
                 .param("size", "2")
+                .header("Authorization", "Bearer " + accessToken)
                 .accept(MediaType.APPLICATION_JSON));
 
         result.andExpect(status().isOk())
@@ -78,7 +87,14 @@ class RankingDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.data.totalPages").value(2))
                 .andExpect(jsonPath("$.data.hasNext").value(true))
                 .andExpect(jsonPath("$.data.hasPrevious").value(false))
+                .andExpect(jsonPath("$.data.myRanking.rank").value(3))
+                .andExpect(jsonPath("$.data.myRanking.nickname").value("AlphaCube"))
+                .andExpect(jsonPath("$.data.myRanking.eventType").value(EventType.WCA_333.name()))
+                .andExpect(jsonPath("$.data.myRanking.timeMs").value(12000))
                 .andDo(document("ranking/list",
+                        requestHeaders(
+                                headerWithName("Authorization").optional().description("Access Token을 담은 Bearer 인증 헤더. 로그인 사용자는 선택 종목 기준 내 순위를 함께 받는다.")
+                        ),
                         queryParameters(
                                 parameterWithName("eventType").description("조회할 WCA 종목 코드 (e.g. WCA_333)"),
                                 parameterWithName("nickname").optional().description("닉네임 포함 검색어 (최대 50자)"),
@@ -99,7 +115,12 @@ class RankingDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data.totalElements").type(JsonFieldType.NUMBER).description("검색 조건을 반영한 전체 랭킹 수"),
                                 fieldWithPath("data.totalPages").type(JsonFieldType.NUMBER).description("전체 페이지 수"),
                                 fieldWithPath("data.hasNext").type(JsonFieldType.BOOLEAN).description("다음 페이지 존재 여부"),
-                                fieldWithPath("data.hasPrevious").type(JsonFieldType.BOOLEAN).description("이전 페이지 존재 여부")
+                                fieldWithPath("data.hasPrevious").type(JsonFieldType.BOOLEAN).description("이전 페이지 존재 여부"),
+                                fieldWithPath("data.myRanking").type(JsonFieldType.OBJECT).optional().description("로그인 사용자의 선택 종목 기준 내 순위. 비로그인 또는 해당 종목 PB가 없으면 null"),
+                                fieldWithPath("data.myRanking.rank").type(JsonFieldType.NUMBER).optional().description("로그인 사용자의 전체 랭킹 순위"),
+                                fieldWithPath("data.myRanking.nickname").type(JsonFieldType.STRING).optional().description("로그인 사용자 닉네임"),
+                                fieldWithPath("data.myRanking.eventType").type(JsonFieldType.STRING).optional().description("WCA 종목 코드"),
+                                fieldWithPath("data.myRanking.timeMs").type(JsonFieldType.NUMBER).optional().description("로그인 사용자의 PB 기준 기록 시간 (밀리초)")
                         )
                 ));
     }

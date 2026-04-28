@@ -124,6 +124,33 @@ class UserPBRepositoryRankingIntegrationTest extends JpaIntegrationTest {
                 .containsExactly("First", "Third", "Second");
     }
 
+    @Test
+    @DisplayName("사용자 ID 기준 내 순위 조회는 전체 랭킹 순위를 반환한다")
+    void should_return_global_ranking_for_user_id_when_user_pb_exists() {
+        User alpha = saveUser("alpha-rank@test.com", "Alpha");
+        User beta = saveUser("beta-rank@test.com", "Beta");
+        User gamma = saveUser("gamma-rank@test.com", "Gamma");
+
+        saveUserPb(alpha, EventType.WCA_333, 12000, saveRecord(alpha, EventType.WCA_333, 12000, Penalty.NONE, "alpha"));
+        saveUserPb(beta, EventType.WCA_333, 9800, saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "beta"));
+        saveUserPb(gamma, EventType.WCA_333, 11000, saveRecord(gamma, EventType.WCA_333, 11000, Penalty.NONE, "gamma"));
+
+        RankingQueryResult result = userPBRepository.findRankingByUserId(EventType.WCA_333, alpha.getId()).orElseThrow();
+
+        assertThat(result.getRank()).isEqualTo(3);
+        assertThat(result.getNickname()).isEqualTo("Alpha");
+        assertThat(result.getEventType()).isEqualTo(EventType.WCA_333);
+        assertThat(result.getTimeMs()).isEqualTo(12000);
+    }
+
+    @Test
+    @DisplayName("선택 종목 PB가 없으면 사용자 ID 기준 내 순위 조회는 비어 있다")
+    void should_return_empty_ranking_for_user_id_when_user_pb_does_not_exist() {
+        User alpha = saveUser("alpha-no-rank@test.com", "Alpha");
+
+        assertThat(userPBRepository.findRankingByUserId(EventType.WCA_333, alpha.getId())).isEmpty();
+    }
+
     private User saveUser(String email, String nickname) {
         return userRepository.save(User.builder()
                 .email(email)

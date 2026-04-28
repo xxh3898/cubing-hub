@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -112,6 +113,32 @@ public class RankingRedisRepository {
         }
 
         return new PageImpl<>(items, pageable, total);
+    }
+
+    public Optional<RankingQueryResult> findRankingByUserId(EventType eventType, Long userId) {
+        String userIdValue = userId.toString();
+        String member = (String) redisTemplate.opsForHash().get(memberKey(eventType), userIdValue);
+
+        if (member == null) {
+            return Optional.empty();
+        }
+
+        Long zeroBasedRank = redisTemplate.opsForZSet().rank(zsetKey(eventType), member);
+        Double score = redisTemplate.opsForZSet().score(zsetKey(eventType), member);
+
+        if (zeroBasedRank == null || score == null) {
+            return Optional.empty();
+        }
+
+        Object nicknameValue = redisTemplate.opsForHash().get(nicknameKey(eventType), userIdValue);
+        String nickname = nicknameValue == null ? "" : nicknameValue.toString();
+
+        return Optional.of(new RankingQueryResult(
+                Math.toIntExact(zeroBasedRank + 1),
+                nickname,
+                eventType,
+                score.intValue()
+        ));
     }
 
     public long totalCount(EventType eventType) {

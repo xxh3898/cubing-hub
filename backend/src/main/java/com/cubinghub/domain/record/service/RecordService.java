@@ -18,6 +18,7 @@ import com.cubinghub.domain.user.entity.User;
 import com.cubinghub.domain.user.repository.UserRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,14 +38,19 @@ public class RecordService {
     private final RankingRedisService rankingRedisService;
 
     public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size) {
+        return getRankings(eventType, nickname, page, size, null);
+    }
+
+    public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size, String currentUserEmail) {
         validateRankingPageRequest(page, size);
         validateRankingSearchRequest(nickname);
 
-        if (!StringUtils.hasText(nickname) && rankingRedisService.isReady(eventType)) {
-            return rankingRedisService.getRankings(eventType, page, size);
-        }
+        boolean isRedisReady = rankingRedisService.isReady(eventType);
+        RankingPageResponse rankingPage = !StringUtils.hasText(nickname) && isRedisReady
+                ? rankingRedisService.getRankings(eventType, page, size)
+                : getRankingsFromMySql(eventType, nickname, page, size);
 
-        return getRankingsFromMySql(eventType, nickname, page, size);
+        return rankingPage.withMyRanking(getMyRanking(eventType, currentUserEmail, isRedisReady));
     }
 
     private RankingPageResponse getRankingsFromMySql(EventType eventType, String nickname, Integer page, Integer size) {
@@ -72,6 +78,35 @@ public class RecordService {
                 rankings.getTotalPages(),
                 rankings.hasNext(),
                 rankings.hasPrevious()
+        );
+    }
+
+    private RankingResponse getMyRanking(EventType eventType, String currentUserEmail, boolean isRedisReady) {
+        if (!StringUtils.hasText(currentUserEmail)) {
+            return null;
+        }
+
+        Optional<User> currentUser = userRepository.findByEmail(currentUserEmail);
+
+        if (currentUser.isEmpty()) {
+            return null;
+        }
+
+        Optional<RankingQueryResult> ranking = isRedisReady
+                ? rankingRedisService.getRanking(eventType, currentUser.get().getId())
+                : userPBRepository.findRankingByUserId(eventType, currentUser.get().getId());
+
+        return ranking
+                .map(this::toRankingResponse)
+                .orElse(null);
+    }
+
+    private RankingResponse toRankingResponse(RankingQueryResult ranking) {
+        return new RankingResponse(
+                ranking.getRank(),
+                ranking.getNickname(),
+                ranking.getEventType(),
+                ranking.getTimeMs()
         );
     }
 

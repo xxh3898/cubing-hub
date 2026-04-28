@@ -5,9 +5,11 @@ import com.cubinghub.domain.record.dto.response.RankingPageResponse;
 import com.cubinghub.domain.record.dto.response.RankingResponse;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.UserPB;
+import com.cubinghub.domain.record.repository.RankingQueryResult;
 import com.cubinghub.domain.record.repository.RankingRedisRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -62,5 +64,9 @@ public class RankingRedisService {
 
     public void remove(EventType eventType, Long userId) {
         rankingRedisRepository.remove(eventType, userId);
+    }
+
+    public Optional<RankingQueryResult> getRanking(EventType eventType, Long userId) {
+        return rankingRedisRepository.findRankingByUserId(eventType, userId);
     }
 }

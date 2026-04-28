@@ -200,4 +200,29 @@ class RankingRedisRepositoryTest {
         assertThat(page.getContent().get(1).getNickname()).isEmpty();
         assertThat(page.getContent().get(1).getTimeMs()).isEqualTo(2345);
     }
+
+    @Test
+    @DisplayName("사용자 ID 기준 Redis 랭킹 조회는 rank와 score를 응답한다")
+    void should_return_ranking_by_user_id_when_member_exists() {
+        String member = "0000000000000:0000000000000000044:0000000000000000002";
+        when(hashOperations.get(anyString(), anyString())).thenReturn(member, "Alpha");
+        when(zSetOperations.rank(anyString(), anyString())).thenReturn(2L);
+        when(zSetOperations.score(anyString(), anyString())).thenReturn(9344.0);
+
+        RankingQueryResult result = rankingRedisRepository.findRankingByUserId(EventType.WCA_333, 2L).orElseThrow();
+
+        assertThat(result.getRank()).isEqualTo(3);
+        assertThat(result.getNickname()).isEqualTo("Alpha");
+        assertThat(result.getEventType()).isEqualTo(EventType.WCA_333);
+        assertThat(result.getTimeMs()).isEqualTo(9344);
+    }
+
+    @Test
+    @DisplayName("사용자 ID 기준 Redis member가 없으면 빈 결과를 반환한다")
+    void should_return_empty_ranking_by_user_id_when_member_is_missing() {
+        when(hashOperations.get(anyString(), anyString())).thenReturn(null);
+
+        assertThat(rankingRedisRepository.findRankingByUserId(EventType.WCA_333, 2L)).isEmpty();
+        verify(zSetOperations, never()).rank(anyString(), anyString());
+    }
 }

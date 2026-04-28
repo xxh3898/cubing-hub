@@ -1,6 +1,7 @@
 package com.cubinghub.domain.record;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,6 +18,8 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
+import com.cubinghub.security.JwtTokenProvider;
+import com.cubinghub.support.TestFixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +46,9 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
     @Autowired
     private RankingRedisBackfillService rankingRedisBackfillService;
 
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     @Test
     @DisplayName("랭킹 조회는 PB 기준으로 서버 페이지네이션 메타데이터를 반환한다")
     void should_return_paginated_pb_rankings_with_page_metadata() throws Exception {
@@ -67,7 +73,8 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data.totalElements").value(30))
                 .andExpect(jsonPath("$.data.totalPages").value(3))
                 .andExpect(jsonPath("$.data.hasNext").value(true))
-                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+                .andExpect(jsonPath("$.data.hasPrevious").value(true))
+                .andExpect(jsonPath("$.data.myRanking").value(nullValue()));
     }
 
     @Test
@@ -94,6 +101,48 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data.items[0].timeMs").value(12000))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.totalPages").value(1));
+    }
+
+    @Test
+    @DisplayName("로그인 랭킹 조회는 선택 종목 기준 내 순위를 함께 반환한다")
+    void should_return_my_ranking_when_authenticated_user_has_pb_for_event() throws Exception {
+        User alpha = saveUser("alpha-my-ranking@cubinghub.com", "Alpha");
+        User beta = saveUser("beta-my-ranking@cubinghub.com", "Beta");
+        User gamma = saveUser("gamma-my-ranking@cubinghub.com", "Gamma");
+        Record alphaRecord = saveRecord(alpha, EventType.WCA_333, 12000, Penalty.NONE, "alpha");
+        Record betaRecord = saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "beta");
+        Record gammaRecord = saveRecord(gamma, EventType.WCA_333, 11000, Penalty.NONE, "gamma");
+        saveUserPb(alpha, EventType.WCA_333, 12000, alphaRecord);
+        saveUserPb(beta, EventType.WCA_333, 9800, betaRecord);
+        saveUserPb(gamma, EventType.WCA_333, 11000, gammaRecord);
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, alpha);
+
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_333.name())
+                        .header("Authorization", "Bearer " + accessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.myRanking.rank").value(3))
+                .andExpect(jsonPath("$.data.myRanking.nickname").value("Alpha"))
+                .andExpect(jsonPath("$.data.myRanking.eventType").value(EventType.WCA_333.name()))
+                .andExpect(jsonPath("$.data.myRanking.timeMs").value(12000));
+    }
+
+    @Test
+    @DisplayName("로그인 사용자의 선택 종목 PB가 없으면 내 순위는 null이다")
+    void should_return_null_my_ranking_when_authenticated_user_has_no_pb_for_event() throws Exception {
+        User alpha = saveUser("alpha-empty-ranking@cubinghub.com", "Alpha");
+        User beta = saveUser("beta-empty-ranking@cubinghub.com", "Beta");
+        Record betaRecord = saveRecord(beta, EventType.WCA_333, 9800, Penalty.NONE, "beta");
+        saveUserPb(beta, EventType.WCA_333, 9800, betaRecord);
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, alpha);
+
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_333.name())
+                        .header("Authorization", "Bearer " + accessToken)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.myRanking").value(nullValue()));
     }
 
     @Test
@@ -126,24 +175,36 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
             Record record = saveRecord(user, EventType.WCA_333, 10000 + i, Penalty.NONE, "redis-scramble-" + i);
             saveUserPb(user, EventType.WCA_333, 10000 + i, record);
         }
+
+        String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, saveUser(
+                "redis-current@cubinghub.com",
+                "RedisCurrent"
+        ));
+        User currentUser = userRepository.findByEmail("redis-current@cubinghub.com").orElseThrow();
+        Record currentRecord = saveRecord(currentUser, EventType.WCA_333, 9995, Penalty.NONE, "redis-current");
+        saveUserPb(currentUser, EventType.WCA_333, 9995, currentRecord);
         rankingRedisBackfillService.rebuild(EventType.WCA_333);
 
         mockMvc.perform(get("/api/rankings")
                         .param("eventType", EventType.WCA_333.name())
                         .param("page", "2")
                         .param("size", "10")
+                        .header("Authorization", "Bearer " + accessToken)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(10))
                 .andExpect(jsonPath("$.data.items[0].rank").value(11))
-                .andExpect(jsonPath("$.data.items[0].nickname").value("RedisRanker10"))
+                .andExpect(jsonPath("$.data.items[0].nickname").value("RedisRanker9"))
                 .andExpect(jsonPath("$.data.items[9].rank").value(20))
                 .andExpect(jsonPath("$.data.page").value(2))
                 .andExpect(jsonPath("$.data.size").value(10))
-                .andExpect(jsonPath("$.data.totalElements").value(30))
-                .andExpect(jsonPath("$.data.totalPages").value(3))
+                .andExpect(jsonPath("$.data.totalElements").value(31))
+                .andExpect(jsonPath("$.data.totalPages").value(4))
                 .andExpect(jsonPath("$.data.hasNext").value(true))
-                .andExpect(jsonPath("$.data.hasPrevious").value(true));
+                .andExpect(jsonPath("$.data.hasPrevious").value(true))
+                .andExpect(jsonPath("$.data.myRanking.rank").value(1))
+                .andExpect(jsonPath("$.data.myRanking.nickname").value("RedisCurrent"))
+                .andExpect(jsonPath("$.data.myRanking.timeMs").value(9995));
     }
 
     private User saveUser(String email, String nickname) {
