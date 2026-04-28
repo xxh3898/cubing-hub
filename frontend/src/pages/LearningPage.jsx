@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useMemo, useState } from 'react'
+import { BookOpen, GraduationCap, Layers, RotateCcw } from 'lucide-react'
 import {
   beginnerCases,
   beginnerStepGuides,
@@ -15,6 +16,11 @@ const BEGINNER_TAB_KEY = 'BEGINNER'
 const learningTabs = [
   { key: NOTATION_TAB_KEY, label: '회전기호 가이드' },
   ...mockLearningTabs,
+]
+const learningSummaryItems = [
+  { label: '초보자', value: '8단계', icon: GraduationCap },
+  { label: 'CFOP', value: '119 케이스', icon: Layers },
+  { label: '회전기호', value: '18개', icon: RotateCcw },
 ]
 const notationFaces = [
   { symbol: 'U', label: '윗면', faceName: '상' },
@@ -192,9 +198,11 @@ function BeginnerLearningSection({ selectedStepKey, onSelectStep, onBackToSteps 
             aria-label={`${step.label} ${step.title} ${getBeginnerStepMeta(step)}`}
             onClick={() => onSelectStep(step.key)}
           >
-            <span className="learning-step-label">{step.label}</span>
+            <span className="learning-step-card-top">
+              <span className="learning-step-label">{step.label}</span>
+              <span className="learning-step-meta">{getBeginnerStepMeta(step)}</span>
+            </span>
             <span className="learning-step-title">{step.title}</span>
-            <span className="learning-step-meta">{getBeginnerStepMeta(step)}</span>
             <span className="helper-text">{step.description}</span>
           </button>
         ))}
@@ -269,10 +277,30 @@ export default function LearningPage() {
   return (
     <section className="page-grid learning-page">
       <div className="panel learning-header-panel">
+        <span className="learning-header-icon" aria-hidden="true">
+          <BookOpen size={22} />
+        </span>
         <div className="learning-header-copy">
           <p className="eyebrow">Learning</p>
           <h2>학습</h2>
           <p className="helper-text">3x3x3 초보자 해법과 CFOP 케이스를 함께 정리한 학습 라이브러리입니다.</p>
+        </div>
+        <div className="learning-header-stats" aria-label="학습 콘텐츠 요약">
+          {learningSummaryItems.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <span className="learning-stat-pill" key={item.label}>
+                <span className="learning-stat-icon" aria-hidden="true">
+                  <Icon size={16} />
+                </span>
+                <span>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </span>
+              </span>
+            )
+          })}
         </div>
       </div>
 

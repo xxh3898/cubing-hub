@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { beginnerCases, beginnerSteps } from '../constants/mockLearning.js'
@@ -127,6 +127,11 @@ describe('LearningPage', () => {
     )
 
     expect(screen.getByRole('tab', { name: '회전기호 가이드' })).toHaveAttribute('aria-selected', 'true')
+    const summary = screen.getByLabelText('학습 콘텐츠 요약')
+
+    expect(within(summary).getByText('8단계')).toBeInTheDocument()
+    expect(within(summary).getByText('119 케이스')).toBeInTheDocument()
+    expect(within(summary).getByText('18개')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '회전기호 가이드' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '상(U)' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: "상'(U')" })).toBeInTheDocument()
