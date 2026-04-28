@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Gauge, LineChart as ChartLine, LogOut, Settings, Timer, Trophy } from 'lucide-react'
+import { CartesianGrid, Line, LineChart as RechartsLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'react-toastify'
 import {
   changeMyPassword,
@@ -23,10 +24,17 @@ const RECORDS_PAGE_SIZE = 10
 const TREND_FETCH_SIZE = 100
 const TREND_RECORD_LIMIT = 30
 const DEFAULT_MAIN_EVENT = eventOptions[0].value
+const CHART_LINE_COLOR = '#005da7'
+const CHART_ACTIVE_DOT_COLOR = '#fd8b00'
+const CHART_GRID_COLOR = 'rgba(193, 199, 211, 0.56)'
 const ACCOUNT_TABS = [
   { key: 'profile', label: '프로필 수정' },
   { key: 'password', label: '비밀번호 변경' },
 ]
+
+function getProfileInitial(nickname) {
+  return nickname?.trim()?.charAt(0)?.toUpperCase() || '?'
+}
 
 export function getPenaltyLabel(penalty) {
   if (penalty === 'PLUS_TWO') {
@@ -497,9 +505,30 @@ export default function MyPage() {
 
   return (
     <section className="page-grid mypage">
+      <div className="mypage-page-header">
+        <p className="eyebrow">My Page</p>
+        <h2>마이페이지</h2>
+        <p className="helper-text">나의 큐빙 기록과 성장을 확인하세요.</p>
+      </div>
+
       <div className="panel mypage-profile-panel">
-        <div className="mypage-profile-header">
-          <h2>내 정보</h2>
+        <div className="mypage-profile-card-main">
+          <div className="mypage-profile-identity">
+            <span className="mypage-avatar" aria-hidden="true">
+              {getProfileInitial(nickname)}
+            </span>
+            <div className="mypage-info">
+              <p className="mypage-info-item">
+                <span className="mypage-info-label">닉네임</span>
+                <strong>{nickname}</strong>
+              </p>
+              <p className="mypage-info-item">
+                <span className="mypage-info-label">주 종목</span>
+                <strong>{mainEvent}</strong>
+              </p>
+            </div>
+          </div>
+
           <div className="mypage-profile-actions">
             <button
               className="secondary-button mypage-account-trigger"
@@ -507,28 +536,24 @@ export default function MyPage() {
               onClick={() => handleOpenAccountModal()}
               disabled={isLoadingProfile || isSavingProfile || isChangingPassword}
             >
+              <Settings size={16} aria-hidden="true" />
               계정 관리
             </button>
             <button className="ghost-button mypage-logout" onClick={handleLogout} disabled={isLoggingOut}>
+              <LogOut size={16} aria-hidden="true" />
               {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
             </button>
           </div>
         </div>
-
-        <div className="mypage-info">
-          <p className="mypage-info-item">
-            <span className="mypage-info-label">닉네임</span>
-            <strong>{nickname}</strong>
-          </p>
-          <p className="mypage-info-item">
-            <span className="mypage-info-label">주 종목</span>
-            <strong>{mainEvent}</strong>
-          </p>
-        </div>
       </div>
 
       <div className="panel mypage-dashboard-panel">
-        <h2>기록 요약</h2>
+        <div className="mypage-panel-heading">
+          <div>
+            <h2>기록 요약</h2>
+            <p className="helper-text">프로필 기준으로 계산한 현재 기록 상태입니다.</p>
+          </div>
+        </div>
         {profileError ? (
           <>
             <p className="message error">{profileError}</p>
@@ -541,14 +566,23 @@ export default function MyPage() {
         ) : (
           <div className="dashboard-summary-grid">
             <div className="dashboard-summary-card">
+              <span className="dashboard-summary-icon" aria-hidden="true">
+                <Timer size={18} />
+              </span>
               <span className="dashboard-summary-label">전체 기록 수</span>
               <span className="dashboard-summary-value">{summary?.totalSolveCount ?? 0} 회</span>
             </div>
             <div className="dashboard-summary-card">
+              <span className="dashboard-summary-icon accent" aria-hidden="true">
+                <Trophy size={18} />
+              </span>
               <span className="dashboard-summary-label">최고 기록 (PB)</span>
               <span className="dashboard-summary-value pb-value">{formatRecordTime(summary?.personalBestTimeMs)}</span>
             </div>
             <div className="dashboard-summary-card">
+              <span className="dashboard-summary-icon" aria-hidden="true">
+                <Gauge size={18} />
+              </span>
               <span className="dashboard-summary-label">전체 평균</span>
               <span className="dashboard-summary-value">{formatRecordTime(summary?.averageTimeMs)}</span>
             </div>
@@ -558,7 +592,10 @@ export default function MyPage() {
         <div className="mypage-trend-panel">
           <div className="mypage-trend-header">
             <div>
-              <h3>기록 추세</h3>
+              <span className="mypage-trend-title-row">
+                <ChartLine size={19} aria-hidden="true" />
+                <h3>기록 추세</h3>
+              </span>
               <p className="helper-text">{`${mainEvent} 최근 ${trendRecords.length}개 기준`}</p>
             </div>
           </div>
@@ -578,21 +615,21 @@ export default function MyPage() {
           ) : (
             <div className="mypage-trend-chart" aria-label="기록 추세 그래프">
               <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={trendChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(18, 32, 43, 0.12)" />
+                <RechartsLineChart data={trendChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} />
                   <YAxis tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
                   <Tooltip content={<RecordTrendTooltip />} />
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#ff6b35"
+                    stroke={CHART_LINE_COLOR}
                     strokeWidth={3}
-                    dot={{ r: 3, strokeWidth: 0, fill: '#ff6b35' }}
-                    activeDot={{ r: 5 }}
+                    dot={{ r: 3, strokeWidth: 0, fill: CHART_LINE_COLOR }}
+                    activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }}
                     connectNulls={false}
                   />
-                </LineChart>
+                </RechartsLineChart>
               </ResponsiveContainer>
             </div>
           )}
