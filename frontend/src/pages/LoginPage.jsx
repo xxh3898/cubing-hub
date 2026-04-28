@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { KeyRound, LogIn, Mail, UserPlus } from 'lucide-react'
 import { clearRefreshCookie, login } from '../api.js'
 import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
@@ -62,52 +63,82 @@ export default function LoginPage() {
 
   return (
     <section className="page-grid auth-page">
-      <div className="panel auth-panel">
-        <div className="auth-header">
-          <h2>로그인</h2>
-          <p className="helper-text">서비스 이용을 위해 로그인해주세요.</p>
-        </div>
-        {noticeMessage ? <p className="message success auth-message">{noticeMessage}</p> : null}
-        {errorMessage ? <p className="message error auth-message">{errorMessage}</p> : null}
-        <form onSubmit={handleLogin} className="form-grid auth-form">
-          <div className="field">
-            <label htmlFor="login-email">이메일</label>
-            <input
-              type="email"
-              id="login-email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@cubinghub.com"
-              maxLength={INPUT_LIMITS.email}
-              required
-              disabled={isSubmitting}
-            />
+      <div className="auth-shell">
+        <aside className="auth-brand-panel" aria-label="CubingHub 인증 안내">
+          <div className="auth-brand-mark" aria-hidden="true">
+            <img src="/CUBINGHUB.png" alt="" />
           </div>
-          <div className="field">
-            <label htmlFor="login-password">비밀번호</label>
-            <input
-              type="password"
-              id="login-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="비밀번호를 입력하세요"
-              minLength={PASSWORD_MIN_LENGTH}
-              maxLength={INPUT_LIMITS.password}
-              required
-              disabled={isSubmitting}
-            />
+          <div className="auth-brand-copy">
+            <p className="eyebrow">CubingHub</p>
+            <h2>오늘 기록을 바로 이어가세요.</h2>
+            <p className="helper-text">타이머, 랭킹, 커뮤니티 활동을 하나의 계정으로 연결합니다.</p>
           </div>
-          <div className="auth-actions">
-            <button type="submit" className="primary-button auth-submit" disabled={isSubmitting}>
-              {isSubmitting ? '로그인 중...' : '로그인'}
-            </button>
+        </aside>
+
+        <div className="panel auth-panel">
+          <div className="auth-header">
+            <span className="auth-header-icon" aria-hidden="true">
+              <LogIn size={20} />
+            </span>
+            <p className="eyebrow">Login</p>
+            <h2>로그인</h2>
+            <p className="helper-text">서비스 이용을 위해 로그인해주세요.</p>
           </div>
-        </form>
-        <div className="auth-footer">
-          <p className="helper-text">비밀번호를 잊으셨나요?</p>
-          <Link to="/reset-password" className="ghost-button">비밀번호 재설정</Link>
-          <p className="helper-text">아직 계정이 없으신가요?</p>
-          <Link to="/signup" state={{ from: returnTo }} className="ghost-button">회원가입</Link>
+          {noticeMessage ? <p className="message success auth-message">{noticeMessage}</p> : null}
+          {errorMessage ? <p className="message error auth-message">{errorMessage}</p> : null}
+          <form onSubmit={handleLogin} className="form-grid auth-form">
+            <div className="field">
+              <label htmlFor="login-email">이메일</label>
+              <div className="auth-field-shell">
+                <Mail size={17} aria-hidden="true" />
+                <input
+                  type="email"
+                  id="login-email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="example@cubinghub.com"
+                  maxLength={INPUT_LIMITS.email}
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="login-password">비밀번호</label>
+              <div className="auth-field-shell">
+                <KeyRound size={17} aria-hidden="true" />
+                <input
+                  type="password"
+                  id="login-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호를 입력하세요"
+                  minLength={PASSWORD_MIN_LENGTH}
+                  maxLength={INPUT_LIMITS.password}
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+            <div className="auth-actions">
+              <button type="submit" className="primary-button auth-submit" disabled={isSubmitting}>
+                {isSubmitting ? '로그인 중...' : '로그인'}
+              </button>
+            </div>
+          </form>
+          <div className="auth-footer">
+            <div className="auth-footer-item">
+              <p className="helper-text">비밀번호를 잊으셨나요?</p>
+              <Link to="/reset-password" className="ghost-button">비밀번호 재설정</Link>
+            </div>
+            <div className="auth-footer-item">
+              <p className="helper-text">아직 계정이 없으신가요?</p>
+              <Link to="/signup" state={{ from: returnTo }} className="ghost-button">
+                <UserPlus size={16} aria-hidden="true" />
+                회원가입
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </section>

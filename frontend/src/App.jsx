@@ -3,6 +3,7 @@ import {
   BookOpen,
   CircleHelp,
   Home,
+  LoaderCircle,
   MessageCircle,
   Shield,
   Timer,
@@ -38,10 +39,15 @@ function getReturnPath(location) {
 function AuthLoadingPage() {
   return (
     <section className="page-grid auth-page">
-      <div className="panel auth-panel auth-status-panel">
-        <div className="auth-header">
-          <h2>인증 확인 중</h2>
-          <p className="helper-text">현재 로그인 상태를 확인하고 있습니다.</p>
+      <div className="auth-status-shell">
+        <div className="panel auth-panel auth-status-panel">
+          <span className="auth-header-icon auth-status-icon" aria-hidden="true">
+            <LoaderCircle size={20} />
+          </span>
+          <div className="auth-header">
+            <h2>인증 확인 중</h2>
+            <p className="helper-text">현재 로그인 상태를 확인하고 있습니다.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -51,10 +57,15 @@ function AuthLoadingPage() {
 function RouteLoadingPage() {
   return (
     <section className="page-grid auth-page">
-      <div className="panel auth-panel auth-status-panel">
-        <div className="auth-header">
-          <h2>페이지 준비 중</h2>
-          <p className="helper-text">페이지를 불러오는 중입니다.</p>
+      <div className="auth-status-shell">
+        <div className="panel auth-panel auth-status-panel">
+          <span className="auth-header-icon auth-status-icon" aria-hidden="true">
+            <LoaderCircle size={20} />
+          </span>
+          <div className="auth-header">
+            <h2>페이지 준비 중</h2>
+            <p className="helper-text">페이지를 불러오는 중입니다.</p>
+          </div>
         </div>
       </div>
     </section>
