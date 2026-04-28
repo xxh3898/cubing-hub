@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Edit3, Eye, MessageCircle, Search } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getPosts } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
@@ -130,10 +131,17 @@ export default function CommunityPage() {
     <section className="page-grid community-page">
       <div className="panel community-header-panel">
         <div className="community-header-copy">
+          <span className="community-header-icon" aria-hidden="true">
+            <MessageCircle size={20} />
+          </span>
           <p className="eyebrow">Community</p>
           <h2>커뮤니티</h2>
-          <p className="helper-text">게시글을 검색하고 소통할 수 있는 커뮤니티 보드입니다.</p>
+          <p className="helper-text">큐버들과 자유롭게 이야기를 나누고 정보를 공유하세요.</p>
         </div>
+        <Link to="/community/write" className="primary-button community-write-button">
+          <Edit3 size={17} aria-hidden="true" />
+          <span>글쓰기</span>
+        </Link>
       </div>
 
       <div className="panel community-board-panel">
@@ -150,35 +158,37 @@ export default function CommunityPage() {
               </button>
             ))}
           </div>
-          
-          <Link to="/community/write" className="primary-button community-write-button">
-            글쓰기
-          </Link>
         </div>
 
         <div className="community-search-grid">
           <div className="field community-search-field">
             <label htmlFor="community-keyword-search">제목/본문 검색</label>
-            <input
-              id="community-keyword-search"
-              type="text"
-              value={keyword}
-              onChange={handleKeywordChange}
-              placeholder="제목 또는 본문으로 검색"
-              maxLength={INPUT_LIMITS.communityKeywordSearch}
-            />
+            <div className="community-input-shell">
+              <Search size={17} aria-hidden="true" />
+              <input
+                id="community-keyword-search"
+                type="text"
+                value={keyword}
+                onChange={handleKeywordChange}
+                placeholder="제목 또는 본문으로 검색"
+                maxLength={INPUT_LIMITS.communityKeywordSearch}
+              />
+            </div>
           </div>
 
           <div className="field community-search-field">
             <label htmlFor="community-author-search">작성자 검색</label>
-            <input
-              id="community-author-search"
-              type="text"
-              value={authorQuery}
-              onChange={handleAuthorQueryChange}
-              placeholder="작성자 닉네임으로 검색"
-              maxLength={INPUT_LIMITS.communityAuthorSearch}
-            />
+            <div className="community-input-shell">
+              <Search size={17} aria-hidden="true" />
+              <input
+                id="community-author-search"
+                type="text"
+                value={authorQuery}
+                onChange={handleAuthorQueryChange}
+                placeholder="작성자 닉네임으로 검색"
+                maxLength={INPUT_LIMITS.communityAuthorSearch}
+              />
+            </div>
           </div>
         </div>
 
@@ -226,13 +236,18 @@ export default function CommunityPage() {
                     onKeyDown={(event) => handlePostKeyDown(event, post.id)}
                   >
                     <td data-label="분류" className="community-post-category">
-                      {post.category === 'NOTICE' ? '공지' : '자유'}
+                      <span className={`community-category-badge ${post.category === 'NOTICE' ? 'is-notice' : 'is-free'}`}>
+                        {post.category === 'NOTICE' ? '공지' : '자유'}
+                      </span>
                     </td>
                     <td data-label="제목" className="community-title-cell record-table-cell-primary community-post-title">
                       {post.title}
                     </td>
                     <td data-label="작성자" className="community-post-author">{post.authorNickname}</td>
-                    <td data-label="조회" className="community-post-views">{`조회 ${post.viewCount}`}</td>
+                    <td data-label="조회" className="community-post-views">
+                      <Eye size={14} aria-hidden="true" />
+                      <span>{`조회 ${post.viewCount}`}</span>
+                    </td>
                     <td data-label="작성일" className="community-post-date">{formatCommunityDate(post.createdAt)}</td>
                   </tr>
                 ))}
