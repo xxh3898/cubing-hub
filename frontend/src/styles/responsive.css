@@ -99,6 +99,17 @@
     grid-template-columns: 1fr;
   }
 
+  .rankings-podium-section {
+    min-height: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .rankings-podium-card,
+  .rankings-podium-card.rank-1 {
+    min-height: 190px;
+  }
+
   .learning-case-grid {
     grid-template-columns: 1fr;
   }
@@ -195,6 +206,7 @@
   }
 
   .rankings-toolbar,
+  .rankings-my-card,
   .community-board-toolbar,
   .mypage-profile-header,
   .mypage-records-header,
@@ -232,6 +244,26 @@
   .community-detail-actions > *,
   .community-comment-form-actions > * {
     width: 100%;
+  }
+
+  .rankings-podium-section {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .rankings-podium-card,
+  .rankings-podium-card.rank-1 {
+    min-height: 0;
+    padding-top: 38px;
+    border-radius: var(--radius-card);
+  }
+
+  .rankings-my-main {
+    align-items: flex-start;
+  }
+
+  .rankings-my-time {
+    align-self: flex-start;
   }
 
   .community-post-actions {

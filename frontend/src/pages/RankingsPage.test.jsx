@@ -1,14 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getRankings } from '../api.js'
+import { useAuth } from '../context/useAuth.js'
 import RankingsPage from './RankingsPage.jsx'
 
 vi.mock('../api.js', () => ({
   getRankings: vi.fn(),
 }))
 
+vi.mock('../context/useAuth.js', () => ({
+  useAuth: vi.fn(),
+}))
+
 function createRankingPageResponse({
   items,
+  myRanking = null,
   page = 1,
   size = 25,
   totalElements = items.length,
@@ -25,6 +31,7 @@ function createRankingPageResponse({
       totalPages,
       hasNext,
       hasPrevious,
+      myRanking,
     },
   }
 }
@@ -32,6 +39,9 @@ function createRankingPageResponse({
 describe('RankingsPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+    })
   })
 
   it('should_render_loading_and_ranking_items_when_request_succeeds', async () => {
@@ -60,6 +70,44 @@ describe('RankingsPage', () => {
       size: 25,
     })
     expect(screen.getByLabelText('닉네임 검색')).toHaveAttribute('maxLength', '50')
+  })
+
+  it('should_render_podium_on_default_first_page_when_top_three_rankings_exist', async () => {
+    vi.mocked(getRankings).mockResolvedValue(
+      createRankingPageResponse({
+        items: [
+          { rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 },
+          { rank: 2, nickname: 'Beta', eventType: 'WCA_333', timeMs: 10100 },
+          { rank: 3, nickname: 'Gamma', eventType: 'WCA_333', timeMs: 10200 },
+        ],
+      }),
+    )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByLabelText('상위 3위 랭킹')).toBeInTheDocument()
+    expect(document.querySelector('.rankings-podium-card.rank-1')).not.toBeNull()
+    expect(document.querySelector('.rankings-podium-card.rank-2')).not.toBeNull()
+    expect(document.querySelector('.rankings-podium-card.rank-3')).not.toBeNull()
+  })
+
+  it('should_render_my_ranking_card_when_authenticated_response_contains_my_ranking', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+    })
+    vi.mocked(getRankings).mockResolvedValue(
+      createRankingPageResponse({
+        items: [
+          { rank: 4, nickname: 'Delta', eventType: 'WCA_333', timeMs: 10800 },
+        ],
+        myRanking: { rank: 6, nickname: 'Tester', eventType: 'WCA_333', timeMs: 11200 },
+      }),
+    )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('내 순위: 6위')).toBeInTheDocument()
+    expect(screen.getByText('11.200초')).toBeInTheDocument()
   })
 
   it('should_refetch_rankings_after_debounce_when_search_query_changes', async () => {
