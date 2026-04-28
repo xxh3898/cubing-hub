@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App.jsx'
@@ -92,12 +92,17 @@ describe('App auth routes', () => {
     expect(await screen.findByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
   })
 
-  it('should_render_refined_product_copy_in_topbar', () => {
+  it('should_render_product_navigation_shell', () => {
     vi.mocked(useAuth).mockReturnValue(buildAuthState())
 
     renderApp('/login')
 
-    expect(screen.getByText('기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'CubingHub 홈' })).toHaveAttribute('href', '/')
+
+    const primaryNavigation = screen.getByRole('navigation', { name: 'Primary' })
+
+    expect(within(primaryNavigation).getByRole('link', { name: '타이머' })).toHaveAttribute('href', '/timer')
+    expect(within(primaryNavigation).getByRole('link', { name: '커뮤니티' })).toHaveAttribute('href', '/community')
   })
 
   it('should_render_reset_password_page_for_public_route', async () => {

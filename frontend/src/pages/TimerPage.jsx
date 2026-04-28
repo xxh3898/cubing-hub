@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, Box, Gauge, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { eventOptions, findEventOption } from '../constants/eventOptions.js'
@@ -390,7 +391,10 @@ export default function TimerPage() {
         <div className="timer-scramble-panel timer-scramble-full">
           <div className="timer-scramble-content">
             <div className="timer-scramble-copy">
-              <p className="eyebrow">현재 스크램블</p>
+              <p className="timer-scramble-badge">
+                <Box size={16} aria-hidden="true" />
+                현재 스크램블
+              </p>
               <p className="scramble-text timer-scramble-text">
                 {isLoadingScramble
                   ? '스크램블을 불러오는 중입니다...'
@@ -433,7 +437,10 @@ export default function TimerPage() {
             onPointerCancel={handlePointerCancel}
             onContextMenu={(event) => event.preventDefault()}
           >
-            <p className="timer-caption">{statusLabel}</p>
+            <p className="timer-caption">
+              <Activity size={16} aria-hidden="true" />
+              {statusLabel}
+            </p>
             <h2 className="timer-value">{formattedTime}</h2>
             <p className="helper-text timer-helper">{timerMessage}</p>
             {saveNotice ? <p className="helper-text timer-save-notice">{saveNotice}</p> : null}
@@ -453,11 +460,17 @@ export default function TimerPage() {
             </div>
             <div className="timer-stats-grid">
               <article className="timer-stat-card">
-                <span className="timer-stat-label">Ao5</span>
+                <span className="timer-stat-label">
+                  <Gauge size={14} aria-hidden="true" />
+                  Ao5
+                </span>
                 <strong className="timer-stat-value">{formatAverageResult(ao5, { padSeconds: true })}</strong>
               </article>
               <article className="timer-stat-card">
-                <span className="timer-stat-label">Ao12</span>
+                <span className="timer-stat-label">
+                  <Gauge size={14} aria-hidden="true" />
+                  Ao12
+                </span>
                 <strong className="timer-stat-value">{formatAverageResult(ao12, { padSeconds: true })}</strong>
               </article>
             </div>
@@ -506,7 +519,8 @@ export default function TimerPage() {
                         onClick={() => handleDeleteRecentRecord(record.id)}
                         disabled={updatingRecordId === record.id || deletingRecordId === record.id}
                       >
-                        {deletingRecordId === record.id ? '삭제 중...' : '삭제'}
+                        <Trash2 size={15} aria-hidden="true" />
+                        <span>{deletingRecordId === record.id ? '삭제 중...' : '삭제'}</span>
                       </button>
                     </div>
                   </article>

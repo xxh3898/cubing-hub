@@ -1,4 +1,14 @@
 import { Suspense, lazy } from 'react'
+import {
+  BookOpen,
+  CircleHelp,
+  Home,
+  MessageCircle,
+  Shield,
+  Timer,
+  Trophy,
+  UserCircle,
+} from 'lucide-react'
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import { useAuth } from './context/useAuth.js'
@@ -111,28 +121,54 @@ function AppLayout() {
   const { currentUser, hasAuthToken, isAuthLoading } = useAuth()
   const accountLabel = isAuthLoading ? '계정 확인 중' : (currentUser?.nickname ?? '로그인')
   const isAdmin = currentUser?.role === 'ROLE_ADMIN'
+  const accountPath = hasAuthToken ? '/mypage' : '/login'
+  const primaryNavItems = [
+    { to: '/', label: '홈', icon: Home },
+    { to: '/timer', label: '타이머', icon: Timer },
+    { to: '/rankings', label: '랭킹', icon: Trophy },
+    { to: '/learning', label: '학습', icon: BookOpen },
+    { to: '/community', label: '커뮤니티', icon: MessageCircle },
+    { to: '/qna', label: 'Q&A', icon: CircleHelp },
+  ]
+  const mobileTabItems = primaryNavItems.slice(0, 5)
 
   return (
     <div className="app-shell">
-      <header className="topbar app-topbar">
-        <div className="brand-block">
-          <p className="eyebrow">Cubing Hub</p>
-          <h1>Cubing Hub</h1>
-          <p className="helper-text">기록, 랭킹, 학습, 커뮤니티를 한곳에서 이어가는 큐빙 허브입니다.</p>
-        </div>
-        <div className="topbar-meta">
-          <nav className="topnav" aria-label="Primary">
-            <NavLink to="/">홈</NavLink>
-            <NavLink to="/timer">타이머</NavLink>
-            <NavLink to="/rankings">랭킹</NavLink>
-            <NavLink to="/learning">학습</NavLink>
-            <NavLink to="/community">커뮤니티</NavLink>
-            <NavLink to="/qna">Q&A</NavLink>
-            {isAdmin ? <NavLink to="/admin">관리자</NavLink> : null}
-          </nav>
-          <NavLink className={`status-chip ${hasAuthToken ? 'is-authenticated' : 'is-guest'}`} to={hasAuthToken ? '/mypage' : '/login'}>
-            {accountLabel}
+      <header className="app-topbar">
+        <div className="app-nav-inner">
+          <NavLink className="brand-link" to="/" aria-label="CubingHub 홈">
+            <img className="brand-logo" src="/CUBINGHUB.png" alt="" aria-hidden="true" />
+            <span>CubingHub</span>
           </NavLink>
+
+          <nav className="topnav desktop-nav" aria-label="Primary">
+            {primaryNavItems.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <NavLink key={item.to} to={item.to} end={item.to === '/'}>
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{item.label}</span>
+                </NavLink>
+              )
+            })}
+          </nav>
+
+          <div className="topbar-meta">
+            <NavLink className="utility-link mobile-only-link" to="/qna">
+              Q&A
+            </NavLink>
+            {isAdmin ? (
+              <NavLink className="utility-link" to="/admin">
+                <Shield size={16} aria-hidden="true" />
+                <span>관리자</span>
+              </NavLink>
+            ) : null}
+            <NavLink className={`status-chip ${hasAuthToken ? 'is-authenticated' : 'is-guest'}`} to={accountPath}>
+              <UserCircle size={18} aria-hidden="true" />
+              <span>{accountLabel}</span>
+            </NavLink>
+          </div>
         </div>
       </header>
 
@@ -227,13 +263,30 @@ function AppLayout() {
 
       <footer className="app-footer">
         <div>
-          <p className="eyebrow">Feedback</p>
-          <p className="helper-text">서비스에 대한 의견과 개선점을 개발자에게 전달할 수 있습니다.</p>
+          <p className="app-footer-brand">CubingHub</p>
         </div>
-        <NavLink className="footer-feedback-link" to="/feedback">
-          개발자 피드백
-        </NavLink>
+        <nav className="app-footer-links" aria-label="Footer">
+          <NavLink to="/community">공지사항</NavLink>
+          <NavLink to="/qna">Q&A</NavLink>
+          <NavLink className="footer-feedback-link" to="/feedback">
+            개발자 피드백
+          </NavLink>
+        </nav>
+        <p className="app-footer-copy">© 2026 CubingHub. All rights reserved.</p>
       </footer>
+
+      <nav className="mobile-tabbar" aria-label="Mobile primary">
+        {mobileTabItems.map((item) => {
+          const Icon = item.icon
+
+          return (
+            <NavLink key={item.to} to={item.to} end={item.to === '/'}>
+              <Icon size={20} aria-hidden="true" />
+              <span>{item.label}</span>
+            </NavLink>
+          )
+        })}
+      </nav>
 
       <ToastContainer
         position="top-right"

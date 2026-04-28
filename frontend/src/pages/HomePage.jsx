@@ -1,5 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
+import {
+  ArrowRight,
+  Clock3,
+  Gauge,
+  MessageCircle,
+  TimerReset,
+  Trophy,
+  UserRound,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { getHome } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
@@ -26,9 +35,14 @@ export function formatPostCategoryLabel(category) {
   return category
 }
 
-export function DashboardCard({ label, value, detail }) {
+export function DashboardCard({ label, value, detail, icon: Icon, tone = 'default' }) {
   return (
-    <article className="dashboard-card">
+    <article className={`dashboard-card dashboard-card-${tone}`}>
+      {Icon ? (
+        <span className="dashboard-card-icon" aria-hidden="true">
+          <Icon size={18} />
+        </span>
+      ) : null}
       <p className="dashboard-card-label">{label}</p>
       <strong className="dashboard-card-value">{value}</strong>
       {detail ? <p className="dashboard-card-detail">{detail}</p> : null}
@@ -79,21 +93,27 @@ function GuestLanding() {
           label="실시간 타이머"
           value="스크램블과 기록 저장"
           detail="3x3 기준 스크램블 조회와 기록 저장 흐름을 바로 이어갈 수 있습니다."
+          icon={TimerReset}
+          tone="primary"
         />
         <DashboardCard
           label="커뮤니티"
           value="팁과 공지 확인"
           detail="연습 팁, 공지, 자유글을 최신순으로 확인하고 직접 글을 남길 수 있습니다."
+          icon={MessageCircle}
         />
         <DashboardCard
           label="랭킹"
           value="전체 기록 비교"
           detail="종목별 글로벌 랭킹을 보고 닉네임 검색과 페이지 이동을 할 수 있습니다."
+          icon={Trophy}
+          tone="accent"
         />
         <DashboardCard
           label="내 기록"
           value="로그인 후 기록 요약 확인"
           detail="PB, 평균, 최근 기록 5건을 로그인 후 바로 확인할 수 있습니다."
+          icon={Gauge}
         />
       </div>
 
@@ -224,7 +244,9 @@ export default function HomePage() {
     <section className="page-grid home-page">
       <div className="panel home-scramble-panel">
         <div className="home-scramble-copy">
-          <p className="eyebrow">오늘의 스크램블</p>
+          <p className="home-scramble-badge">
+            오늘의 스크램블
+          </p>
           <h2>{formatEventLabel(todayScramble?.eventType)}</h2>
           <p className="home-scramble-text">{todayScramble?.scramble ?? '-'}</p>
         </div>
@@ -235,7 +257,9 @@ export default function HomePage() {
               : '오늘 첫 솔브를 바로 시작하거나 최근 기록 흐름을 이어서 확인할 수 있습니다.'}
           </p>
           <NavLink className="primary-button home-action-link" to="/timer">
-            타이머로 이동
+            <TimerReset size={18} aria-hidden="true" />
+            <span>타이머로 이동</span>
+            <ArrowRight size={16} aria-hidden="true" />
           </NavLink>
         </div>
       </div>
@@ -249,21 +273,27 @@ export default function HomePage() {
               label="프로필"
               value={summary.nickname}
               detail={`주종목 ${summary.mainEvent}`}
+              icon={UserRound}
             />
             <DashboardCard
               label="솔빙 횟수"
               value={`${summary.totalSolveCount}회`}
               detail="저장된 전체 기록 기준"
+              icon={Clock3}
+              tone="primary"
             />
             <DashboardCard
               label="PB"
               value={formatNullableTime(summary.personalBestTimeMs)}
               detail="유효 시간 기준 최고 기록"
+              icon={Trophy}
+              tone="accent"
             />
             <DashboardCard
               label="전체 평균"
               value={formatNullableTime(summary.averageTimeMs)}
               detail="DNF 제외 평균 기록"
+              icon={Gauge}
             />
           </div>
         )}
