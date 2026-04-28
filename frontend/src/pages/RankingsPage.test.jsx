@@ -91,6 +91,24 @@ describe('RankingsPage', () => {
     expect(document.querySelector('.rankings-podium-card.rank-3')).not.toBeNull()
   })
 
+  it('should_render_fallback_initial_when_podium_nickname_is_missing', async () => {
+    vi.mocked(getRankings).mockResolvedValue(
+      createRankingPageResponse({
+        items: [
+          { rank: 1, nickname: undefined, eventType: 'WCA_333', timeMs: 9800 },
+          { rank: 2, nickname: '  ', eventType: 'WCA_333', timeMs: 10100 },
+          { rank: 3, nickname: 'Gamma', eventType: 'WCA_333', timeMs: 10200 },
+        ],
+      }),
+    )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByLabelText('상위 3위 랭킹')).toBeInTheDocument()
+    expect(document.querySelector('.rankings-podium-card.rank-1 .rankings-avatar')).toHaveTextContent('?')
+    expect(document.querySelector('.rankings-podium-card.rank-2 .rankings-avatar')).toHaveTextContent('?')
+  })
+
   it('should_render_my_ranking_card_when_authenticated_response_contains_my_ranking', async () => {
     vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true,
@@ -108,6 +126,52 @@ describe('RankingsPage', () => {
 
     expect(await screen.findByText('내 순위: 6위')).toBeInTheDocument()
     expect(screen.getByText('11.200초')).toBeInTheDocument()
+  })
+
+  it('should_highlight_matching_my_ranking_row_when_my_ranking_is_in_page', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+    })
+    vi.mocked(getRankings).mockResolvedValue(
+      createRankingPageResponse({
+        items: [
+          { rank: 6, nickname: 'Tester', eventType: 'WCA_333', timeMs: 11200 },
+        ],
+        myRanking: { rank: 6, nickname: 'Tester', eventType: 'WCA_333', timeMs: 11200 },
+      }),
+    )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('내 순위: 6위')).toBeInTheDocument()
+    expect(document.querySelector('.rankings-row.is-my-ranking')).not.toBeNull()
+  })
+
+  it('should_render_empty_my_ranking_card_when_authenticated_user_has_no_record', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+    })
+    vi.mocked(getRankings)
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'Alpha', eventType: 'WCA_333', timeMs: 9800 }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRankingPageResponse({
+          items: [{ rank: 1, nickname: 'UnknownEventUser', eventType: 'UNKNOWN_EVENT', timeMs: 9800 }],
+        }),
+      )
+
+    render(<RankingsPage />)
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'UNKNOWN_EVENT' } })
+
+    expect(await screen.findByText('UnknownEventUser')).toBeInTheDocument()
+    expect(screen.getByText('기록을 저장하면 내 순위가 표시됩니다.', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('-')).toBeInTheDocument()
   })
 
   it('should_refetch_rankings_after_debounce_when_search_query_changes', async () => {

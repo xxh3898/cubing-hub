@@ -15,12 +15,12 @@
 
 | 필드 | 값 |
 | --- | --- |
-| 작업명 | 초보자용 공식 학습 탭 추가 |
-| 상태 | 학습 화면에 초보자 8단계 목록, 단계별 완료 모습, 케이스·해법 카드, 단계 상세의 다음 단계 이동 버튼을 추가하고, 1단계는 케이스 카드 없이 흰색 외 면색을 회색으로 단순화한 세로형 가이드와 완료 모습만 보이도록 보정했다. 이후 frontend coverage 100%를 다시 맞췄다 |
-| 범위 | `frontend/src/constants/mockLearning.js`, `frontend/src/pages/LearningPage.jsx`, `frontend/src/pages/LearningPage.test.jsx`, `frontend/src/styles/learning.css`, `frontend/src/styles/responsive.css`, `README`, `Project Overview`, `Screen Specification`, `Feature Backlog`, `Project Schedule`, `Internal Schedule`, `portfolio.internal.md`, `docs/Development Log/Day 31.md` |
-| 핵심 리스크 | 초보자 케이스별 이미지는 VisualCube 그림용 상태값으로 구분하지만, 블로그 원본 그림을 복제한 전용 다이어그램은 아니다. CFOP 일부 중복 공식은 이번 작업에서 수정하지 않고 후속 TODO로 남겼다 |
-| 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md) |
-| 다음 로그 대상 | 초보자 학습 화면에 전용 단계 다이어그램이나 추가 초급 설명을 붙이거나, CFOP 중복 공식 검증을 다시 열 때 별도 로그를 추가한다 |
+| 작업명 | CFOP 공식 데이터 중복 보정 |
+| 상태 | 학습 화면의 `F2L`, `OLL` 정적 데이터에서 중복으로 보이던 5묶음의 대표 공식을 보정하고, CFOP 케이스 수·공식·VisualCube URL 중복 방지 테스트를 추가했다. `npx vitest run --coverage` 기준 frontend coverage 100%를 유지했다 |
+| 범위 | `frontend/src/constants/mockLearning.js`, `frontend/src/constants/mockLearning.test.js`, `frontend/src/pages/MyPage.test.jsx`, `frontend/src/pages/RankingsPage.test.jsx`, `docs/Development Log/Day 32.md` |
+| 핵심 리스크 | CFOP 대표 공식은 출처마다 다를 수 있다. 이번 작업은 SpeedCubeDB 케이스 번호와 대표 알고리즘을 기준으로 TODO에 남아 있던 5묶음만 보정했다 |
+| 참조 문서 | [Project Overview](./Project%20Overview.md), [Screen Specification](./Screen%20Specification.md), [2026-04-28 CFOP 공식 데이터 로그](./Development%20Log/Day%2032.md) |
+| 다음 로그 대상 | CFOP 119개 전체를 별도 출처 기준으로 재감사하거나, 자체 다이어그램/케이스 설명을 보강할 때 새 로그를 추가한다 |
 
 ## 로그 파일 목록
 
@@ -31,7 +31,7 @@
 | Frontend 연동 기반 | [Day 12](./Development%20Log/Day%2012.md) | `AuthContext`, 타이머, 스크램블/기록 저장 연동 |
 | 프런트 목업 기준선 | [Day 13](./Development%20Log/Day%2013.md) | 서비스형 UI 목업과 화면 요구사항 기준선 |
 | 보조 유지보수 로그 | [2026-04-10 로그](./Development%20Log/Day%2014.md), [2026-04-19 로그](./Development%20Log/Day%2020.md) | 주요 기능 작업일 사이에 들어간 저장소 규칙 정리와 backlog 기준선 추가 |
-| 최신 로그 | [2026-04-22 배포 로그](./Development%20Log/Day%2023.md), [2026-04-23 이메일 인증](./Development%20Log/Day%2024.md), [2026-04-23 모바일/타이머](./Development%20Log/Day%2025.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md), [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md), [2026-04-24 피드백 계약 정리](./Development%20Log/Day%2028.md), [2026-04-24 최종 품질 검증](./Development%20Log/Day%2029.md), [2026-04-27 시간 계약 정리](./Development%20Log/Day%2030.md), [2026-04-27 초보자 학습 탭](./Development%20Log/Day%2031.md) | AWS 배포, 이메일 인증, 모바일/타이머/입력 검증, 계정 복구/관리, 관리자/운영 안정화, 공개 피드백 계약 정리, 최종 커버리지/문서 마감, UTC instant 시간 계약 정리, 초보자 학습 탭 추가 |
+| 최신 로그 | [2026-04-22 배포 로그](./Development%20Log/Day%2023.md), [2026-04-23 이메일 인증](./Development%20Log/Day%2024.md), [2026-04-23 모바일/타이머](./Development%20Log/Day%2025.md), [2026-04-23 계정 복구/학습](./Development%20Log/Day%2026.md), [2026-04-23 관리자/운영/마감](./Development%20Log/Day%2027.md), [2026-04-24 피드백 계약 정리](./Development%20Log/Day%2028.md), [2026-04-24 최종 품질 검증](./Development%20Log/Day%2029.md), [2026-04-27 시간 계약 정리](./Development%20Log/Day%2030.md), [2026-04-27 초보자 학습 탭](./Development%20Log/Day%2031.md), [2026-04-28 CFOP 공식 데이터](./Development%20Log/Day%2032.md) | AWS 배포, 이메일 인증, 모바일/타이머/입력 검증, 계정 복구/관리, 관리자/운영 안정화, 공개 피드백 계약 정리, 최종 커버리지/문서 마감, UTC instant 시간 계약 정리, 초보자 학습 탭 추가, CFOP 중복 공식 보정 |
 
 ## 주요 설계 결정 추적
 
@@ -45,7 +45,8 @@
 
 ## 최근 정리 문서
 
-- 최근 정리 로그: [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md)
+- 최근 정리 로그: [2026-04-28 CFOP 공식 데이터 로그](./Development%20Log/Day%2032.md)
+- 이전 학습 로그: [2026-04-27 초보자 학습 탭 로그](./Development%20Log/Day%2031.md)
 - 이전 시간 계약 로그: [2026-04-27 시간 계약 로그](./Development%20Log/Day%2030.md)
 - 이전 품질 검증 로그: [2026-04-24 최종 품질 검증 로그](./Development%20Log/Day%2029.md)
 - 이전 계약 정리 로그: [2026-04-24 피드백 계약 로그](./Development%20Log/Day%2028.md)
@@ -56,7 +57,7 @@
 
 ## 문서 반영 체크
 
-- [x] 허브 문서를 초보자 학습 탭과 최신 frontend coverage 100% 기준으로 최신화함
+- [x] 허브 문서를 CFOP 공식 데이터 중복 보정과 최신 frontend coverage 100% 기준으로 최신화함
 - [x] `2026-04-24` 최종 품질 검증 로그가 추가되고 최신 문서 링크가 교체됨
 - [x] backend JaCoCo 100%, frontend Vitest 커버리지 100%, SMTP/S3 운영 어댑터 테스트, 공개 Q&A/관리자 UI 테스트 결과를 설명 자산에 반영함
 - [x] CI 강제 범위와 로컬 커버리지 검증 범위를 분리해서 문서화함

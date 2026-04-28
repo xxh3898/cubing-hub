@@ -112,6 +112,28 @@ describe('MyPage', () => {
     vi.mocked(logout).mockResolvedValue({ message: '로그아웃되었습니다.' })
   })
 
+  it('should_render_fallback_profile_initial_when_nickname_is_blank', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      data: {
+        userId: 1,
+        nickname: '',
+        mainEvent: 'WCA_333',
+        summary: {
+          totalSolveCount: 0,
+          personalBestTimeMs: null,
+          averageTimeMs: null,
+        },
+      },
+    })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([]))
+
+    render(<MyPage />)
+
+    await waitFor(() => {
+      expect(document.querySelector('.mypage-avatar')).toHaveTextContent('?')
+    })
+  })
+
   it('should_update_profile_and_refresh_current_user_when_profile_save_succeeds', async () => {
     vi.mocked(getMyProfile)
       .mockResolvedValueOnce({
