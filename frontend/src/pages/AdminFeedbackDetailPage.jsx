@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Bell, CalendarClock, Mail, MessageSquareText, Save } from 'lucide-react'
 import { getAdminFeedback, updateAdminFeedbackAnswer, updateAdminFeedbackVisibility } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { formatSeoulDateTime } from '../utils/dateTime.js'
@@ -121,7 +122,7 @@ export default function AdminFeedbackDetailPage() {
   if (isLoading) {
     return (
       <section className="page-grid admin-detail-page">
-        <div className="panel">
+        <div className="panel admin-state-card">
           <p className="helper-text">피드백 상세를 불러오는 중입니다.</p>
         </div>
       </section>
@@ -131,7 +132,7 @@ export default function AdminFeedbackDetailPage() {
   if (errorMessage && !detail) {
     return (
       <section className="page-grid admin-detail-page">
-        <div className="panel">
+        <div className="panel admin-state-card">
           <p className="message error">{errorMessage}</p>
           <div className="community-detail-actions">
             <Link to="/admin" className="ghost-button">관리자 목록으로</Link>
@@ -148,6 +149,9 @@ export default function AdminFeedbackDetailPage() {
   return (
     <section className="page-grid admin-detail-page">
       <div className="panel admin-detail-header-panel">
+        <span className="admin-header-icon" aria-hidden="true">
+          <MessageSquareText size={22} />
+        </span>
         <div className="admin-card-badges">
           <span className="qna-type-chip">{formatFeedbackType(detail.type)}</span>
           <span className={`admin-status-chip ${detail.answered ? 'is-success' : 'is-pending'}`}>
@@ -160,8 +164,14 @@ export default function AdminFeedbackDetailPage() {
         <h2>{detail.title}</h2>
         <div className="admin-detail-meta">
           <span>작성자 {detail.submitterNickname}</span>
-          <span>회신 이메일 {detail.replyEmail}</span>
-          <span>접수일 {formatDateTime(detail.createdAt)}</span>
+          <span>
+            <Mail size={14} aria-hidden="true" />
+            회신 이메일 {detail.replyEmail}
+          </span>
+          <span>
+            <CalendarClock size={14} aria-hidden="true" />
+            접수일 {formatDateTime(detail.createdAt)}
+          </span>
         </div>
       </div>
 
@@ -169,7 +179,10 @@ export default function AdminFeedbackDetailPage() {
         <div className="admin-detail-section">
           <div className="section-heading">
             <h3>질문 내용</h3>
-            <span className="helper-text">Discord {detail.notificationStatus} · {detail.notificationAttemptCount}회</span>
+            <span className="helper-text admin-notification-meta">
+              <Bell size={14} aria-hidden="true" />
+              Discord {detail.notificationStatus} · {detail.notificationAttemptCount}회
+            </span>
           </div>
           <div className="qna-detail-content">
             {detail.content.split('\n').map((line, index) => (
@@ -215,6 +228,7 @@ export default function AdminFeedbackDetailPage() {
           <div className="community-detail-actions">
             <Link to="/admin" className="ghost-button">목록으로</Link>
             <button type="submit" className="primary-button" disabled={isSaving}>
+              <Save size={16} aria-hidden="true" />
               {isSaving ? '저장 중...' : '답변 저장'}
             </button>
           </div>

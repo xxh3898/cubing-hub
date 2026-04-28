@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { toast } from 'react-toastify'
@@ -60,6 +60,12 @@ describe('FeedbackPage', () => {
 
     renderFeedbackPage()
 
+    expect(screen.getByRole('heading', { name: '피드백 보내기' })).toBeInTheDocument()
+    const guide = screen.getByLabelText('피드백 유형 안내')
+
+    expect(within(guide).getByText('버그')).toBeInTheDocument()
+    expect(within(guide).getByText('기능')).toBeInTheDocument()
+    expect(within(guide).getByText('사용성')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('피드백 종류'), { target: { value: 'FEATURE' } })
     fireEvent.change(screen.getByLabelText('회신 이메일'), { target: { value: 'reply@cubinghub.com' } })
     fireEvent.change(screen.getByLabelText('제목'), { target: { value: '기능 제안' } })

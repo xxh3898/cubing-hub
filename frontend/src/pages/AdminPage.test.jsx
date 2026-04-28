@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { createAdminMemo, getAdminFeedbacks, getAdminMemos } from '../api.js'
@@ -111,6 +111,10 @@ describe('AdminPage', () => {
 
     expect(screen.getByText('관리자 피드백 목록을 불러오는 중입니다.')).toBeInTheDocument()
     expect(await screen.findByText('첫 피드백 질문')).toBeInTheDocument()
+    const summary = screen.getByLabelText('관리자 현황 요약')
+
+    expect(within(summary).getByText('2')).toBeInTheDocument()
+    expect(within(summary).getByText('0')).toBeInTheDocument()
     expect(screen.getByText('사용성')).toBeInTheDocument()
     expect(screen.getByText('기타')).toBeInTheDocument()
     expect(screen.getByText(`${'가'.repeat(130)}...`)).toBeInTheDocument()

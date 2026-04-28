@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { ClipboardList, FileQuestion, NotebookPen, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
 import { createAdminMemo, getAdminFeedbacks, getAdminMemos } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
@@ -163,10 +164,23 @@ export default function AdminPage() {
   return (
     <section className="page-grid admin-page">
       <div className="panel admin-header-panel">
-        <div>
+        <span className="admin-header-icon" aria-hidden="true">
+          <ShieldCheck size={22} />
+        </span>
+        <div className="admin-header-copy">
           <p className="eyebrow">Admin Console</p>
-          <h2>운영 질문과 내부 메모</h2>
-          <p className="helper-text">피드백 질문 답변, 공개 여부, 개발 메모를 한곳에서 관리하는 관리자 보드입니다.</p>
+          <h2>운영 관리</h2>
+          <p className="helper-text">피드백 답변, 공개 여부, 내부 메모를 한곳에서 정리합니다.</p>
+        </div>
+        <div className="admin-console-summary" aria-label="관리자 현황 요약">
+          <span>
+            <strong>{feedbackPage?.totalElements ?? '-'}</strong>
+            <span>피드백</span>
+          </span>
+          <span>
+            <strong>{memoPage?.totalElements ?? '-'}</strong>
+            <span>메모</span>
+          </span>
         </div>
         <div className="admin-tab-row" role="tablist" aria-label="관리자 섹션">
           <button
@@ -174,6 +188,7 @@ export default function AdminPage() {
             className={activeTab === 'feedbacks' ? 'primary-button' : 'ghost-button'}
             onClick={() => setActiveTab('feedbacks')}
           >
+            <ClipboardList size={16} aria-hidden="true" />
             피드백
           </button>
           <button
@@ -181,6 +196,7 @@ export default function AdminPage() {
             className={activeTab === 'memos' ? 'primary-button' : 'ghost-button'}
             onClick={() => setActiveTab('memos')}
           >
+            <NotebookPen size={16} aria-hidden="true" />
             관리자 메모
           </button>
         </div>
@@ -188,6 +204,12 @@ export default function AdminPage() {
 
       {activeTab === 'feedbacks' ? (
         <div className="panel admin-board-panel">
+          <div className="section-heading admin-board-heading">
+            <div>
+              <h3>피드백 목록</h3>
+              <p className="helper-text">답변 상태와 공개 여부를 기준으로 빠르게 확인합니다.</p>
+            </div>
+          </div>
           <div className="admin-filter-row">
             <div className="field admin-filter-field">
               <label htmlFor="answered-filter">답변 여부</label>
@@ -227,6 +249,7 @@ export default function AdminPage() {
             <>
               <p className="message error">{feedbackErrorMessage}</p>
               <button className="ghost-button" type="button" onClick={() => setFeedbackReloadKey((current) => current + 1)}>
+                <RefreshCw size={16} aria-hidden="true" />
                 다시 시도
               </button>
             </>
@@ -274,7 +297,10 @@ export default function AdminPage() {
         <>
           <div className="panel admin-memo-create-panel">
             <div className="section-heading">
-              <h3>새 관리자 메모</h3>
+              <h3>
+                <Plus size={18} aria-hidden="true" />
+                새 관리자 메모
+              </h3>
               <span className="helper-text">질문과 답변을 한 세트로 저장할 수 있습니다.</span>
             </div>
             <form className="form-grid" onSubmit={handleCreateMemo}>
@@ -310,12 +336,22 @@ export default function AdminPage() {
           </div>
 
           <div className="panel admin-board-panel">
+            <div className="section-heading admin-board-heading">
+              <div>
+                <h3>
+                  <FileQuestion size={18} aria-hidden="true" />
+                  메모 목록
+                </h3>
+                <p className="helper-text">최근 수정된 메모부터 표시됩니다.</p>
+              </div>
+            </div>
             {isMemoLoading ? (
               <p className="helper-text">관리자 메모 목록을 불러오는 중입니다.</p>
             ) : memoErrorMessage ? (
               <>
                 <p className="message error">{memoErrorMessage}</p>
                 <button className="ghost-button" type="button" onClick={() => setMemoReloadKey((current) => current + 1)}>
+                  <RefreshCw size={16} aria-hidden="true" />
                   다시 시도
                 </button>
               </>

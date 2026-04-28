@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { CalendarClock, NotebookPen, Save, Trash2 } from 'lucide-react'
 import { deleteAdminMemo, getAdminMemo, updateAdminMemo } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { formatSeoulDateTime } from '../utils/dateTime.js'
@@ -117,7 +118,7 @@ export default function AdminMemoDetailPage() {
   if (isLoading) {
     return (
       <section className="page-grid admin-detail-page">
-        <div className="panel">
+        <div className="panel admin-state-card">
           <p className="helper-text">관리자 메모를 불러오는 중입니다.</p>
         </div>
       </section>
@@ -127,7 +128,7 @@ export default function AdminMemoDetailPage() {
   if (errorMessage && !detail) {
     return (
       <section className="page-grid admin-detail-page">
-        <div className="panel">
+        <div className="panel admin-state-card">
           <p className="message error">{errorMessage}</p>
           <div className="community-detail-actions">
             <Link to="/admin" className="ghost-button">관리자 목록으로</Link>
@@ -144,6 +145,9 @@ export default function AdminMemoDetailPage() {
   return (
     <section className="page-grid admin-detail-page">
       <div className="panel admin-detail-header-panel">
+        <span className="admin-header-icon" aria-hidden="true">
+          <NotebookPen size={22} />
+        </span>
         <div className="admin-card-badges">
           <span className={`admin-status-chip ${detail.answerStatus === 'ANSWERED' ? 'is-success' : 'is-pending'}`}>
             {detail.answerStatus === 'ANSWERED' ? '답변 완료' : '미답변'}
@@ -151,9 +155,18 @@ export default function AdminMemoDetailPage() {
         </div>
         <h2>관리자 메모 상세</h2>
         <div className="admin-detail-meta">
-          <span>생성일 {formatDateTime(detail.createdAt)}</span>
-          <span>수정일 {formatDateTime(detail.updatedAt)}</span>
-          <span>답변일 {formatDateTime(detail.answeredAt)}</span>
+          <span>
+            <CalendarClock size={14} aria-hidden="true" />
+            생성일 {formatDateTime(detail.createdAt)}
+          </span>
+          <span>
+            <CalendarClock size={14} aria-hidden="true" />
+            수정일 {formatDateTime(detail.updatedAt)}
+          </span>
+          <span>
+            <CalendarClock size={14} aria-hidden="true" />
+            답변일 {formatDateTime(detail.answeredAt)}
+          </span>
         </div>
       </div>
 
@@ -186,9 +199,11 @@ export default function AdminMemoDetailPage() {
           <div className="community-detail-actions">
             <Link to="/admin" className="ghost-button">목록으로</Link>
             <button type="button" className="ghost-button" onClick={handleDelete} disabled={isSaving || isDeleting}>
+              <Trash2 size={16} aria-hidden="true" />
               {isDeleting ? '삭제 중...' : '삭제'}
             </button>
             <button type="submit" className="primary-button" disabled={isSaving || isDeleting}>
+              <Save size={16} aria-hidden="true" />
               {isSaving ? '저장 중...' : '저장'}
             </button>
           </div>

@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
+import { Bug, Lightbulb, Mail, MessageSquareText, MousePointerClick } from 'lucide-react'
 import { createFeedback } from '../api.js'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
 import { useAuth } from '../context/useAuth.js'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const feedbackTypeHints = [
+  { label: '버그', description: '재현 경로와 화면 상태', icon: Bug },
+  { label: '기능', description: '있으면 좋을 개선 아이디어', icon: Lightbulb },
+  { label: '사용성', description: '불편한 흐름이나 헷갈린 문구', icon: MousePointerClick },
+]
 
 export default function FeedbackPage() {
   const { currentUser } = useAuth()
@@ -89,17 +95,39 @@ export default function FeedbackPage() {
   return (
     <section className="page-grid feedback-page">
       <div className="panel feedback-header-panel">
+        <span className="feedback-header-icon" aria-hidden="true">
+          <MessageSquareText size={22} />
+        </span>
         <div className="feedback-header-copy">
           <p className="eyebrow">Feedback</p>
-          <h2>개발자에게 전달하기</h2>
+          <h2>피드백 보내기</h2>
           <p className="helper-text">
-            버그 제보, 기능 제안, 어떤 의견이든 환영합니다!
-            서비스 개선에 큰 도움이 됩니다.
+            사용하면서 막힌 부분이나 더 좋아졌으면 하는 점을 편하게 남겨주세요.
           </p>
+        </div>
+        <div className="feedback-header-note">
+          <Mail size={16} aria-hidden="true" />
+          <span>답변이 필요한 경우 회신 이메일로 연락합니다.</span>
         </div>
       </div>
 
       <div className="panel feedback-form-panel">
+        <div className="feedback-type-guide" aria-label="피드백 유형 안내">
+          {feedbackTypeHints.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <span className="feedback-type-pill" key={item.label}>
+                <Icon size={16} aria-hidden="true" />
+                <span>
+                  <strong>{item.label}</strong>
+                  <span>{item.description}</span>
+                </span>
+              </span>
+            )
+          })}
+        </div>
+
         <form onSubmit={handleSubmit} className="form-grid" noValidate>
           {formMessage ? <p className="message error">{formMessage}</p> : null}
           <div className="field">

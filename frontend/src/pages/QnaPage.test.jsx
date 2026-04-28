@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { getQna } from '../api.js'
@@ -66,6 +66,10 @@ describe('QnaPage', () => {
 
     expect(screen.getByText('공개 질문 목록을 불러오는 중입니다.')).toBeInTheDocument()
     expect(await screen.findByText('로그인 문제')).toBeInTheDocument()
+    const summary = screen.getByLabelText('Q&A 요약')
+
+    expect(within(summary).getByText('1')).toBeInTheDocument()
+    expect(within(summary).getByText('공개 답변')).toBeInTheDocument()
     expect(screen.getAllByText('운영팀')).toHaveLength(2)
     expect(screen.getByText('캐시를 비우고 다시 시도해주세요.')).toBeInTheDocument()
     expect(getQna).toHaveBeenCalledWith({

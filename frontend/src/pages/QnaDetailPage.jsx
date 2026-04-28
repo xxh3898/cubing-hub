@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { CircleHelp, MessageCircleReply } from 'lucide-react'
 import { getQnaDetail } from '../api.js'
 import { formatSeoulDateTime } from '../utils/dateTime.js'
 
@@ -69,7 +70,7 @@ export default function QnaDetailPage() {
   if (isLoading) {
     return (
       <section className="page-grid qna-detail-page">
-        <div className="panel">
+        <div className="panel qna-state-card">
           <p className="helper-text">질문 상세를 불러오는 중입니다.</p>
         </div>
       </section>
@@ -79,7 +80,7 @@ export default function QnaDetailPage() {
   if (errorMessage || !detail) {
     return (
       <section className="page-grid qna-detail-page">
-        <div className="panel">
+        <div className="panel qna-state-card">
           <p className="message error">{errorMessage ?? '질문을 찾을 수 없습니다.'}</p>
           <div className="community-detail-actions">
             <Link to="/qna" className="ghost-button">목록으로</Link>
@@ -92,8 +93,13 @@ export default function QnaDetailPage() {
   return (
     <section className="page-grid qna-detail-page">
       <div className="panel qna-detail-header-panel">
-        <p className="eyebrow">{formatFeedbackType(detail.type)}</p>
-        <h2>{detail.title}</h2>
+        <span className="qna-header-icon" aria-hidden="true">
+          <CircleHelp size={22} />
+        </span>
+        <div className="qna-header-copy">
+          <p className="eyebrow">{formatFeedbackType(detail.type)}</p>
+          <h2>{detail.title}</h2>
+        </div>
         <div className="qna-detail-meta">
           <span>{detail.questionerLabel}</span>
           <span>공개일 {formatDateTime(detail.publishedAt)}</span>
@@ -103,7 +109,10 @@ export default function QnaDetailPage() {
       <div className="panel qna-detail-panel">
         <div className="qna-detail-block">
           <div className="section-heading">
-            <h3>질문</h3>
+            <h3>
+              <CircleHelp size={18} aria-hidden="true" />
+              질문
+            </h3>
             <span className="helper-text">{formatDateTime(detail.createdAt)}</span>
           </div>
           <div className="qna-detail-content">
@@ -118,7 +127,10 @@ export default function QnaDetailPage() {
 
         <div className="qna-detail-block">
           <div className="section-heading">
-            <h3>답변</h3>
+            <h3>
+              <MessageCircleReply size={18} aria-hidden="true" />
+              답변
+            </h3>
             <span className="helper-text">{detail.answererLabel} · {formatDateTime(detail.answeredAt)}</span>
           </div>
           <div className="qna-detail-content">
