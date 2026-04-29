@@ -31,6 +31,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'))
 const SignupPage = lazy(() => import('./pages/SignupPage.jsx'))
 const MyPage = lazy(() => import('./pages/MyPage.jsx'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
 
 function getReturnPath(location) {
   return `${location.pathname}${location.search}${location.hash}`
@@ -268,6 +269,7 @@ function AppLayout() {
               )}
             />
             <Route path="/auth" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </main>
