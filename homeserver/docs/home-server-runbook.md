@@ -9,6 +9,7 @@
 - image platform은 `linux/arm64`다.
 - `POST_IMAGES_HOST_DIR` 디렉터리가 repo checkout 밖에 존재한다.
 - `$HOME/cubing-hub-runtime/deploy-state/`는 배포 스크립트가 생성할 수 있다.
+- compose의 `SPRING_DATASOURCE_URL`에는 홈서버 MySQL 내부 연결용 `sslMode=DISABLED&allowPublicKeyRetrieval=true`가 포함되어 있다.
 
 ## 배포
 
@@ -36,6 +37,11 @@ rollback 조건은 아래로 제한한다.
 잘못된 인자, `.env` 파일 없음, 이전 `IMAGE_TAG` 없음, rollback 자체 실패는 deploy 실패로 보고하되 새 rollback 조건으로 다시 처리하지 않는다.
 
 Mac mini self-hosted runner는 image build를 수행하지 않는다.
+
+## 장애 확인
+
+- health check가 `502`이고 `cubing_hub_app`이 재시작 중이면 `docker logs cubing_hub_app --tail 200`으로 앱 기동 실패 원인을 먼저 확인한다.
+- 로그에 `Public Key Retrieval is not allowed`가 있으면 홈서버 JDBC URL에 `allowPublicKeyRetrieval=true`가 반영된 image/compose인지 확인한다.
 
 ## 수동 확인
 

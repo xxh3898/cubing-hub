@@ -67,6 +67,11 @@ rollback 조건은 아래로 제한한다.
 - 실제 `.env`와 rollback state는 GitHub Actions checkout 밖의 `~/cubing-hub-runtime/` 아래에 둔다.
 - 공개 URL은 `https://api.cubing-hub.com/uploads/<objectKey>` 형식이다.
 
+## 홈서버 DB 연결
+
+- `app`은 compose 내부 MySQL service에 `sslMode=DISABLED`로 연결한다.
+- MySQL 8의 `caching_sha2_password` 인증과 SSL 비활성 조합에서 Connector/J가 공개키 조회를 차단하지 않도록 홈서버 JDBC URL에 `allowPublicKeyRetrieval=true`를 명시한다.
+
 ## 모니터링 전략
 
 - Prometheus와 Grafana는 `monitoring` profile로 분리한다.
