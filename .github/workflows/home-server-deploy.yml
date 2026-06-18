@@ -126,4 +126,7 @@ jobs:
 
       - name: Deploy
         shell: bash
-        run: homeserver/scripts/deploy-home-server.sh "${{ needs.build-and-push.outputs.image_tag }}"
+        run: |
+          ENV_FILE="$HOME/cubing-hub-runtime/homeserver.env" \
+          STATE_DIR="$HOME/cubing-hub-runtime/deploy-state" \
+          homeserver/scripts/deploy-home-server.sh "${{ needs.build-and-push.outputs.image_tag }}"

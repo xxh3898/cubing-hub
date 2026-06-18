@@ -63,7 +63,8 @@ rollback 조건은 아래로 제한한다.
 
 - app 컨테이너는 `/data/post-images`에 read/write mount한다.
 - nginx 컨테이너는 같은 host path를 read-only mount한다.
-- host 기본 경로는 `~/cubing-hub-data/post-images/`다.
+- host 기본 경로는 `~/cubing-hub-runtime/post-images/`다.
+- 실제 `.env`와 rollback state는 GitHub Actions checkout 밖의 `~/cubing-hub-runtime/` 아래에 둔다.
 - 공개 URL은 `https://api.cubing-hub.com/uploads/<objectKey>` 형식이다.
 
 ## 모니터링 전략

@@ -14,9 +14,10 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RUNTIME_DIR="${CUBING_HUB_RUNTIME_DIR:-$HOME/cubing-hub-runtime}"
 COMPOSE_FILE="${COMPOSE_FILE:-$REPO_ROOT/homeserver/docker-compose.yml}"
-ENV_FILE="${ENV_FILE:-$REPO_ROOT/homeserver/.env}"
-STATE_DIR="${STATE_DIR:-$REPO_ROOT/homeserver/.deploy-state}"
+ENV_FILE="${ENV_FILE:-$RUNTIME_DIR/homeserver.env}"
+STATE_DIR="${STATE_DIR:-$RUNTIME_DIR/deploy-state}"
 CURRENT_TAG_FILE="$STATE_DIR/current-image-tag"
 PREVIOUS_TAG_FILE="$STATE_DIR/previous-image-tag"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8088/actuator/health}"

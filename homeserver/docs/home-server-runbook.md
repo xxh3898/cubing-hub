@@ -2,18 +2,21 @@
 
 ## 배포 전 확인
 
-- `homeserver/.env`가 존재한다.
+- `$HOME/cubing-hub-runtime/homeserver.env`가 존재한다.
 - `IMAGE_TAG`는 `sha-abcdef1` 형식이다.
 - Docker Hub에 `xxh3898/cubing-hub-api:<IMAGE_TAG>`가 존재한다.
 - Docker Hub에 `xxh3898/cubing-hub-web:<IMAGE_TAG>`가 존재한다.
 - image platform은 `linux/arm64`다.
-- `POST_IMAGES_HOST_DIR` 디렉터리가 존재한다.
+- `POST_IMAGES_HOST_DIR` 디렉터리가 repo checkout 밖에 존재한다.
+- `$HOME/cubing-hub-runtime/deploy-state/`는 배포 스크립트가 생성할 수 있다.
 
 ## 배포
 
 ```bash
 homeserver/scripts/deploy-home-server.sh sha-abcdef1
 ```
+
+기본 배포 스크립트는 `$HOME/cubing-hub-runtime/homeserver.env`와 `$HOME/cubing-hub-runtime/deploy-state/`를 사용한다. GitHub Actions deploy job도 같은 경로를 명시해서 `actions/checkout`이 runner workspace를 clean해도 `.env`와 rollback state가 지워지지 않게 한다.
 
 배포 스크립트는 아래 작업만 수행한다.
 
@@ -37,7 +40,7 @@ Mac mini self-hosted runner는 image build를 수행하지 않는다.
 ## 수동 확인
 
 ```bash
-docker compose --env-file homeserver/.env -f homeserver/docker-compose.yml ps
+docker compose --env-file "$HOME/cubing-hub-runtime/homeserver.env" -f homeserver/docker-compose.yml ps
 curl -fsS -H 'Host: api.cubing-hub.com' http://127.0.0.1:8088/actuator/health
 ```
 

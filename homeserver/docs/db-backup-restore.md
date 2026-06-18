@@ -12,7 +12,7 @@ Redis는 refresh token, blacklist, 이메일 인증 임시 상태, 랭킹 읽기
 
 ```text
 ~/backups/cubing-hub/
-~/cubing-hub-data/post-images/
+~/cubing-hub-runtime/post-images/
 ```
 
 ## 일관성 정책
