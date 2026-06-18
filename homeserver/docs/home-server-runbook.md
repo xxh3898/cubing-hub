@@ -50,12 +50,84 @@ docker compose --env-file "$HOME/cubing-hub-runtime/homeserver.env" -f homeserve
 curl -fsS -H 'Host: api.cubing-hub.com' http://127.0.0.1:8088/actuator/health
 ```
 
+## MySQL 관리 접속
+
+운영 기본 compose는 MySQL host port를 열지 않는다. Workbench 같은 GUI 접속이 필요할 때만 admin compose로 로컬 proxy를 수동 실행한다. 배포 스크립트에는 `homeserver/docker-compose.admin.yml`을 포함하지 않는다.
+
+```bash
+docker compose \
+  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
+  -f homeserver/docker-compose.yml \
+  -f homeserver/docker-compose.admin.yml \
+  --profile admin \
+  up -d mysql-admin-proxy
+```
+
+Workbench 설정은 아래처럼 둔다.
+
+```text
+Host: 127.0.0.1
+Port: 3307
+User: $DB_USERNAME
+Default Schema: $DB_NAME
+```
+
+관리 작업이 끝나면 proxy를 닫는다.
+
+```bash
+docker compose \
+  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
+  -f homeserver/docker-compose.yml \
+  -f homeserver/docker-compose.admin.yml \
+  stop mysql-admin-proxy
+
+docker compose \
+  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
+  -f homeserver/docker-compose.yml \
+  -f homeserver/docker-compose.admin.yml \
+  rm -f mysql-admin-proxy
+```
+
+## 백업
+
+홈서버 DB와 게시글 이미지 백업은 아래 스크립트로 실행한다.
+
+```bash
+homeserver/scripts/backup-home-server.sh
+```
+
+스크립트는 DB dump와 `POST_IMAGES_HOST_DIR` 파일 복사를 같은 backup run으로 묶고, `post_attachments.object_key`가 가리키는 파일이 백업에 없으면 실패한다. partial backup을 성공으로 표시하지 않기 위해 `.in-progress-*` 디렉터리에서 작업한 뒤 성공 시에만 최종 디렉터리로 이동한다.
+
+기본 백업 위치는 `$HOME/backups/cubing-hub/<yyyyMMdd-HHmmss>/`다. 오래된 백업 자동 삭제는 기본으로 꺼져 있으며, 필요할 때만 `BACKUP_RETENTION_COUNT=<보관 개수>`를 명시한다.
+
+주기 실행은 `homeserver/launchd/com.cubinghub-backup.plist.example`을 사용자 `LaunchAgent`로 치환 설치한다. Docker Desktop을 사용자 세션에서 쓰는 초기 구조에서는 이 방식이 가장 단순하다.
+
 ## Cloudflare 전환 확인
+
+- Cloudflare Dashboard의 `DNS > Records`를 바꾸기 전 `dig NS cubing-hub.com`으로 authoritative nameserver를 먼저 확인한다.
+- nameserver가 `ns-*.awsdns-*`이면 공개 트래픽은 AWS Route53 레코드를 따른다. 이 상태에서 Cloudflare Dashboard DNS를 수정해도 공개 `www` 트래픽은 바뀌지 않는다.
+- Cloudflare Dashboard DNS 변경 전 기존 AWS 레코드 값은 `homeserver/dns-cutover-rollback-20260619.md`처럼 기록한다.
+- Route53의 레코드와 Cloudflare Dashboard의 레코드를 대조하고, 메일/검증/wildcard 레코드 누락 여부를 확인한다.
+- Cloudflare Dashboard DNS만 바꾸는 단계와 registrar nameserver 위임은 별개로 확인한다. apex 도메인은 일반 CNAME 제약이 있으므로 Route53 유지 방식은 별도 설계가 필요하다.
+- 2026-06-19 MacBook 임시 검증에서는 Gabia nameserver를 Cloudflare `ara.ns.cloudflare.com`, `titan.ns.cloudflare.com`으로 전환했다. AWS 리소스는 중단하지 않았다.
+- nameserver 전환 직후에는 recursive resolver 캐시 때문에 `dig NS cubing-hub.com`이 기존 Route53 값을 잠시 반환할 수 있다. 이때는 `dig +trace`, `dig @1.1.1.1`, `dig @titan.ns.cloudflare.com`으로 전파 상태를 분리해서 본다.
+- macOS에서 `cloudflared service install`이 `cloudflared` 단독 실행 인자만 만든 경우 `/Users/chiho/Library/LaunchAgents/com.cloudflare.cloudflared.plist`의 `ProgramArguments`를 `cloudflared tunnel run cubing-hub-home` 형태로 맞춘 뒤 `launchctl bootstrap/kickstart`로 다시 올린다.
+- 전환 후 아래 명령으로 실제 공개 경로를 확인한다.
+
+```bash
+dig NS cubing-hub.com
+dig +short www.cubing-hub.com
+dig +short api.cubing-hub.com
+curl -I https://www.cubing-hub.com/
+curl -fsS https://api.cubing-hub.com/actuator/health
+```
 
 - `www.cubing-hub.com`이 web container로 연결된다.
 - `api.cubing-hub.com/api`가 app container로 연결된다.
 - `api.cubing-hub.com/uploads/`가 이미지 디렉터리를 서빙한다.
 - refresh cookie가 `Secure`, `HttpOnly`로 발급된다.
+- `www.cubing-hub.com` 응답 헤더에서 `AmazonS3`, `CloudFront`가 사라진다.
+- `cloudflared tunnel info cubing-hub-home`이 활성 connector를 반환한다.
 
 ## AWS 중단
 

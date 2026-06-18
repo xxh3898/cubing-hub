@@ -204,6 +204,7 @@ frontend/coverage/
 .env.local
 homeserver/.env
 homeserver/.deploy-state/
+homeserver/docker-compose.workbench.yml
 
 # Documentation
 docs/*.internal.md

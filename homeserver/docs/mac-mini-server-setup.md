@@ -16,6 +16,7 @@
 6. 이미지 저장 디렉터리 `~/cubing-hub-runtime/post-images/`를 준비한다.
 7. rollback state 디렉터리 `~/cubing-hub-runtime/deploy-state/`를 준비하거나 배포 스크립트가 만들도록 둔다.
 8. 백업 디렉터리 `~/backups/cubing-hub/`를 준비한다.
+9. 주기 백업이 필요하면 `homeserver/launchd/com.cubinghub-backup.plist.example`을 사용자 `LaunchAgent`로 설치한다.
 
 ## Docker 실행 기준
 
@@ -43,9 +44,25 @@ www.cubing-hub.com   -> http://127.0.0.1:8088
 api.cubing-hub.com   -> http://127.0.0.1:8088
 ```
 
+Cloudflare Dashboard에 위 레코드를 만들어도 `cubing-hub.com`의 authoritative nameserver가 Cloudflare가 아니면 공개 트래픽에는 적용되지 않는다. `dig NS cubing-hub.com`, `dig +trace`, `dig @1.1.1.1`으로 확인한다.
+
+2026-06-19 MacBook 임시 검증에서는 Cloudflare Dashboard의 `@`, `www`, `api` 레코드를 Tunnel CNAME으로 바꾸고 Gabia nameserver를 Cloudflare `ara.ns.cloudflare.com`, `titan.ns.cloudflare.com`으로 전환했다. Cloudflare edge 경유 `www` 응답과 `api /actuator/health` 응답은 통과했다. 단, 일부 recursive resolver는 기존 Route53 위임을 TTL 동안 캐시할 수 있으므로 전파 구간에는 resolver별 결과를 분리해서 확인한다.
+
+macOS 사용자 서비스 등록은 아래 순서로 확인한다.
+
+```bash
+cloudflared service install
+plutil -p ~/Library/LaunchAgents/com.cloudflare.cloudflared.plist
+launchctl print gui/$(id -u)/com.cloudflare.cloudflared
+cloudflared tunnel info cubing-hub-home
+```
+
+`ProgramArguments`가 `/opt/homebrew/bin/cloudflared`만 포함하면 서비스가 바로 종료된다. 이 경우 `ProgramArguments`를 `/opt/homebrew/bin/cloudflared tunnel run cubing-hub-home` 형태로 맞춘 뒤 다시 로드한다.
+
 ## 보안 기준
 
 - MySQL과 Redis host port는 열지 않는다.
+- MySQL Workbench 접속은 `homeserver/docker-compose.admin.yml`의 `mysql-admin-proxy`를 수동으로 띄울 때만 `127.0.0.1:3307`에 연다.
 - Grafana와 Prometheus는 public domain으로 노출하지 않는다.
 - SSH, Tailscale, 또는 로컬 tunnel을 통해서만 운영 도구에 접근한다.
 - `.env`의 secret은 Git에 올리지 않는다.
