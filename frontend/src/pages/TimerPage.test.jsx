@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
@@ -197,8 +197,12 @@ describe('TimerPage', () => {
   it('should_fallback_to_text_only_when_scramble_visual_fails_to_load', async () => {
     render(<TimerPage />)
 
-    const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
-    fireEvent.error(scrambleVisual)
+    await screen.findByText('10.000')
+
+    const scrambleVisual = screen.getByRole('img', { name: '현재 스크램블 시각화' })
+    await act(async () => {
+      scrambleVisual.dispatchEvent(new Event('error', { bubbles: true }))
+    })
 
     expect(await screen.findByText('스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.')).toBeInTheDocument()
   })
