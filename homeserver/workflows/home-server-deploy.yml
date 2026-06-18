@@ -1,0 +1,12 @@
+# Active workflow location: .github/workflows/home-server-deploy.yml
+# This copy keeps the home-server deployment design visible under homeserver/.
+name: Home Server Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Use .github/workflows/home-server-deploy.yml as the active workflow."

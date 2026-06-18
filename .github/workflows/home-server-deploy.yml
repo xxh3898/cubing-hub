@@ -1,0 +1,129 @@
+name: Home Server Deploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "homeserver/**"
+      - ".github/workflows/home-server-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: home-server-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Test, build, and push Docker Hub images
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    env:
+      DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'xxh3898' }}
+      VITE_API_BASE_URL: https://api.cubing-hub.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: meta
+        shell: bash
+        run: echo "image_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle', '**/settings.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Backend test and bootJar
+        working-directory: ./backend
+        run: ./gradlew test bootJar --no-daemon
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Frontend lint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Frontend test
+        working-directory: ./frontend
+        run: npm test -- --run
+
+      - name: Frontend build
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME || vars.DOCKERHUB_NAMESPACE || 'xxh3898' }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./homeserver/docker/backend.Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.DOCKERHUB_NAMESPACE }}/cubing-hub-api:${{ steps.meta.outputs.image_tag }}
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./homeserver/docker/frontend.Dockerfile
+          platforms: linux/arm64
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+          tags: ${{ env.DOCKERHUB_NAMESPACE }}/cubing-hub-web:${{ steps.meta.outputs.image_tag }}
+
+  deploy:
+    name: Deploy on Mac mini
+    runs-on: [self-hosted, macmini]
+    timeout-minutes: 15
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        shell: bash
+        run: homeserver/scripts/deploy-home-server.sh "${{ needs.build-and-push.outputs.image_tag }}"
