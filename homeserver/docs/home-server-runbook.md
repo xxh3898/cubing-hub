@@ -1,144 +1,120 @@
-# 홈서버 운영 Runbook
+# Mac mini 운영 Runbook
 
 ## 배포 전 확인
 
-- `$HOME/cubing-hub-runtime/homeserver.env`가 존재한다.
-- `IMAGE_TAG`는 `sha-abcdef1` 형식이다.
-- Docker Hub에 `xxh3898/cubing-hub-api:<IMAGE_TAG>`가 존재한다.
-- Docker Hub에 `xxh3898/cubing-hub-web:<IMAGE_TAG>`가 존재한다.
-- image platform은 `linux/arm64`다.
-- `POST_IMAGES_HOST_DIR` 디렉터리가 repo checkout 밖에 존재한다.
-- `$HOME/cubing-hub-runtime/deploy-state/`는 배포 스크립트가 생성할 수 있다.
-- compose의 `SPRING_DATASOURCE_URL`에는 홈서버 MySQL 내부 연결용 `sslMode=DISABLED&allowPublicKeyRetrieval=true`가 포함되어 있다.
+- `/Users/homeserver/Server/apps/cubing-hub/compose.yaml`과 `.env`가
+  존재한다.
+- `API_IMAGE`, `WEB_IMAGE`는 GHCR의 같은 40자리 commit SHA를 가리킨다.
+- 두 image의 platform은 `linux/arm64`다.
+- `/Users/homeserver/Server/data/cubing-hub/post-images/`가 존재한다.
+- external Docker network `edge`와 공유 `cloudflared`가 정상이다.
+- `/usr/local/bin/docker`를 비대화형 SSH에서도 실행할 수 있다.
 
-## 배포
+## CI 배포
 
-```bash
-homeserver/scripts/deploy-home-server.sh sha-abcdef1
-```
-
-기본 배포 스크립트는 `$HOME/cubing-hub-runtime/homeserver.env`와 `$HOME/cubing-hub-runtime/deploy-state/`를 사용한다. GitHub Actions deploy job도 같은 경로를 명시해서 `actions/checkout`이 runner workspace를 clean해도 `.env`와 rollback state가 지워지지 않게 한다.
-
-배포 스크립트는 아래 작업만 수행한다.
-
-1. `docker compose pull`
-2. `docker compose up -d`
-3. health check
-4. 지정된 실패 조건에서만 이전 `IMAGE_TAG`로 rollback
-
-rollback 조건은 아래로 제한한다.
-
-- `docker compose pull` 실패
-- `docker compose up -d` 실패
-- health check timeout
-- `/actuator/health` HTTP status가 `200`이 아님
-- `/actuator/health` 응답의 `status`가 `UP`이 아님
-
-잘못된 인자, `.env` 파일 없음, 이전 `IMAGE_TAG` 없음, rollback 자체 실패는 deploy 실패로 보고하되 새 rollback 조건으로 다시 처리하지 않는다.
-
-Mac mini self-hosted runner는 image build를 수행하지 않는다.
-
-## 장애 확인
-
-- health check가 `502`이고 `cubing_hub_app`이 재시작 중이면 `docker logs cubing_hub_app --tail 200`으로 앱 기동 실패 원인을 먼저 확인한다.
-- 로그에 `Public Key Retrieval is not allowed`가 있으면 홈서버 JDBC URL에 `allowPublicKeyRetrieval=true`가 반영된 image/compose인지 확인한다.
-
-## 수동 확인
-
-```bash
-docker compose --env-file "$HOME/cubing-hub-runtime/homeserver.env" -f homeserver/docker-compose.yml ps
-curl -fsS -H 'Host: api.cubing-hub.com' http://127.0.0.1:8088/actuator/health
-```
-
-## MySQL 관리 접속
-
-운영 기본 compose는 MySQL host port를 열지 않는다. Workbench 같은 GUI 접속이 필요할 때만 admin compose로 로컬 proxy를 수동 실행한다. 배포 스크립트에는 `homeserver/docker-compose.admin.yml`을 포함하지 않는다.
-
-```bash
-docker compose \
-  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
-  -f homeserver/docker-compose.yml \
-  -f homeserver/docker-compose.admin.yml \
-  --profile admin \
-  up -d mysql-admin-proxy
-```
-
-Workbench 설정은 아래처럼 둔다.
+GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에서
+아래 논리 명령만 호출한다.
 
 ```text
-Host: 127.0.0.1
-Port: 3307
-User: $DB_USERNAME
-Default Schema: $DB_NAME
+deploy-cubing-hub <40자리 commit SHA> <registry user>
 ```
 
-관리 작업이 끝나면 proxy를 닫는다.
+첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
+
+1. 신규 API/web image pull
+2. Compose render
+3. 신규 MySQL·Redis volume 시작과 health 확인
+4. API/web 시작
+5. Flyway, API health, web health 확인
+
+두 번째 배포부터는 다음 순서로 진행한다.
+
+1. 신규 API/web image pull과 Compose render
+2. 운영 DB 실행 상태 확인
+3. MySQL dump와 게시글 이미지 backup
+4. `.env`의 API/web image를 같은 신규 SHA로 교체
+5. Compose 적용과 health 확인
+6. 실패 시 이전 API/web SHA를 함께 복구
+
+DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
+image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
+간주하지 말고 수동 판단한다.
+
+## 수동 상태 확인
+
+Mac mini에서 다음 명령을 사용한다.
 
 ```bash
-docker compose \
-  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
-  -f homeserver/docker-compose.yml \
-  -f homeserver/docker-compose.admin.yml \
-  stop mysql-admin-proxy
+cd /Users/homeserver/Server/apps/cubing-hub
+/usr/local/bin/docker compose \
+  --env-file .env \
+  --file compose.yaml \
+  ps
 
-docker compose \
-  --env-file "$HOME/cubing-hub-runtime/homeserver.env" \
-  -f homeserver/docker-compose.yml \
-  -f homeserver/docker-compose.admin.yml \
-  rm -f mysql-admin-proxy
+/usr/local/bin/docker compose \
+  --env-file .env \
+  --file compose.yaml \
+  logs --tail 200 api web db redis
 ```
 
-## 백업
-
-홈서버 DB와 게시글 이미지 백업은 아래 스크립트로 실행한다.
+공개 경로는 아래를 확인한다.
 
 ```bash
-homeserver/scripts/backup-home-server.sh
-```
-
-스크립트는 DB dump와 `POST_IMAGES_HOST_DIR` 파일 복사를 같은 backup run으로 묶고, `post_attachments.object_key`가 가리키는 파일이 백업에 없으면 실패한다. partial backup을 성공으로 표시하지 않기 위해 `.in-progress-*` 디렉터리에서 작업한 뒤 성공 시에만 최종 디렉터리로 이동한다.
-
-기본 백업 위치는 `$HOME/backups/cubing-hub/<yyyyMMdd-HHmmss>/`다. 오래된 백업 자동 삭제는 기본으로 꺼져 있으며, 필요할 때만 `BACKUP_RETENTION_COUNT=<보관 개수>`를 명시한다.
-
-주기 실행은 `homeserver/launchd/com.cubinghub-backup.plist.example`을 사용자 `LaunchAgent`로 치환 설치한다. Docker Desktop을 사용자 세션에서 쓰는 초기 구조에서는 이 방식이 가장 단순하다.
-
-## Cloudflare 전환 확인
-
-- Cloudflare Dashboard의 `DNS > Records`를 바꾸기 전 `dig NS cubing-hub.com`으로 authoritative nameserver를 먼저 확인한다.
-- nameserver가 `ns-*.awsdns-*`이면 공개 트래픽은 AWS Route53 레코드를 따른다. 이 상태에서 Cloudflare Dashboard DNS를 수정해도 공개 `www` 트래픽은 바뀌지 않는다.
-- Cloudflare Dashboard DNS 변경 전 기존 AWS 레코드 값은 `homeserver/dns-cutover-rollback-20260619.md`처럼 기록한다.
-- Route53의 레코드와 Cloudflare Dashboard의 레코드를 대조하고, 메일/검증/wildcard 레코드 누락 여부를 확인한다.
-- Cloudflare Dashboard DNS만 바꾸는 단계와 registrar nameserver 위임은 별개로 확인한다. apex 도메인은 일반 CNAME 제약이 있으므로 Route53 유지 방식은 별도 설계가 필요하다.
-- 2026-06-19 MacBook 임시 검증에서는 Gabia nameserver를 Cloudflare `ara.ns.cloudflare.com`, `titan.ns.cloudflare.com`으로 전환했다. AWS 리소스는 중단하지 않았다.
-- nameserver 전환 직후에는 recursive resolver 캐시 때문에 `dig NS cubing-hub.com`이 기존 Route53 값을 잠시 반환할 수 있다. 이때는 `dig +trace`, `dig @1.1.1.1`, `dig @titan.ns.cloudflare.com`으로 전파 상태를 분리해서 본다.
-- macOS에서 `cloudflared service install`이 `cloudflared` 단독 실행 인자만 만든 경우 `/Users/chiho/Library/LaunchAgents/com.cloudflare.cloudflared.plist`의 `ProgramArguments`를 `cloudflared tunnel run cubing-hub-home` 형태로 맞춘 뒤 `launchctl bootstrap/kickstart`로 다시 올린다.
-- 전환 후 아래 명령으로 실제 공개 경로를 확인한다.
-
-```bash
-dig NS cubing-hub.com
-dig +short www.cubing-hub.com
-dig +short api.cubing-hub.com
+curl -I https://cubing-hub.com/
 curl -I https://www.cubing-hub.com/
 curl -fsS https://api.cubing-hub.com/actuator/health
 ```
 
-- `www.cubing-hub.com`이 web container로 연결된다.
-- `api.cubing-hub.com/api`가 app container로 연결된다.
-- `api.cubing-hub.com/uploads/`가 이미지 디렉터리를 서빙한다.
-- refresh cookie가 `Secure`, `HttpOnly`로 발급된다.
-- `www.cubing-hub.com` 응답 헤더에서 `AmazonS3`, `CloudFront`가 사라진다.
-- `cloudflared tunnel info cubing-hub-home`이 활성 connector를 반환한다.
+## MySQL 관리 접속
 
-## AWS 중단
+기본 Compose는 MySQL port를 publish하지 않는다. 관리가 필요할 때만
+저장소의 `homeserver/docker-compose.admin.yml`과 같은 검증된 override를
+Mac mini app directory에 설치하고 admin profile을 실행한다.
 
-확인 전 실행 보류. 이 작업은 영향 범위가 있으므로 아래 항목 확인 후 진행해야 합니다.
+```bash
+/usr/local/bin/docker compose \
+  --env-file .env \
+  --file compose.yaml \
+  --file compose.admin.yaml \
+  --profile admin \
+  up --detach db-admin-proxy
+```
 
-- 작업 목적: AWS 비용 중단과 운영 경로 단일화
-- 대상 환경: AWS 운영 리소스
-- 영향 범위: 기존 S3/CloudFront/EC2/RDS 기반 운영 경로
-- 데이터 손실 가능성: RDS/S3 데이터를 이관하지 않는 전제이므로 중단 후 AWS 데이터 복구 경로가 제한된다.
-- 서비스 중단 가능성: 홈서버 장애 시 즉시 AWS rollback 경로가 사라진다.
-- 롤백 가능성: AWS 중단 전에는 DNS/Tunnel route rollback 가능, 중단 후에는 제한적이다.
-- 사전 백업 필요 여부: 홈서버 DB와 이미지 백업/복구 검증 필요
-- 실행 전 확인: health check, 로그인, refresh, 기록 저장, 랭킹, 게시글 이미지 업로드, 백업/복구 검증
-- 사용자 결정: AWS 리소스 중단 명시 승인
+관리 접속은 `127.0.0.1:3307`만 사용한다. 작업을 마치면 proxy를
+중지하고 제거한다.
+
+## 백업
+
+```bash
+/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
+```
+
+스크립트는 MySQL dump와 게시글 이미지 snapshot을 같은 run으로 만들고,
+`post_attachments.object_key`가 가리키는 파일이 없으면 실패한다.
+성공 결과를 최종 directory로 이동한 뒤에만 오래된 backup을 정리한다.
+
+성공한 backup은 기본으로 최신 3개만 보관한다. 실패한 run은 조사할 수
+있도록 임시 directory를 남기며 기존 정상 backup을 삭제하지 않는다.
+
+## 첫 배포 검증
+
+1. Flyway history에 `V1`, `V2`가 성공 상태인지 확인한다.
+2. 회원, 기록, 게시글, 첨부 table이 빈 상태인지 확인한다.
+3. Redis key가 빈 상태인지 확인한다.
+4. 회원가입, 로그인, refresh, 기록 저장, 랭킹 반영을 확인한다.
+5. 게시글 이미지 upload/read/delete를 확인한다.
+6. backup을 한 번 실행하고 별도 volume에서 restore rehearsal을
+   수행한다.
+7. Portfolio와 Guess Pokémon 공개 경로에 회귀가 없는지 확인한다.
+
+## 장애와 rollback
+
+- API/web image 문제면 이전 두 SHA로 함께 되돌린다.
+- DB와 image volume을 삭제하는 `docker compose down -v`를 사용하지
+  않는다.
+- 첫 배포 실패 시 신규 data service는 보존하고 실패한 API/web만
+  중지한다.
+- Tunnel 문제면 Cubing Hub route만 비활성화하고 공유 connector와 다른
+  서비스 route는 건드리지 않는다.
+- GHCR 인증 실패 시 임시 Docker config가 cleanup됐는지 확인하되 token을
+  출력하지 않는다.

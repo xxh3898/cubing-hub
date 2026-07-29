@@ -1,138 +1,289 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 sha-abcdef1" >&2
-  exit 64
-fi
+set -Eeuo pipefail
 
-NEW_IMAGE_TAG="$1"
-if [[ ! "$NEW_IMAGE_TAG" =~ ^sha-[0-9a-f]{7,40}$ ]]; then
-  echo "IMAGE_TAG must use sha-<git-sha> format: $NEW_IMAGE_TAG" >&2
-  exit 64
-fi
+readonly DOCKER_BIN=/usr/local/bin/docker
+readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub
+readonly COMPOSE_FILE="${APP_DIR}/compose.yaml"
+readonly ENV_FILE="${APP_DIR}/.env"
+readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
+readonly API_IMAGE_REPOSITORY=ghcr.io/xxh3898/cubing-hub-api
+readonly WEB_IMAGE_REPOSITORY=ghcr.io/xxh3898/cubing-hub-web
+readonly HEALTH_TIMEOUT_SECONDS=240
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RUNTIME_DIR="${CUBING_HUB_RUNTIME_DIR:-$HOME/cubing-hub-runtime}"
-COMPOSE_FILE="${COMPOSE_FILE:-$REPO_ROOT/homeserver/docker-compose.yml}"
-ENV_FILE="${ENV_FILE:-$RUNTIME_DIR/homeserver.env}"
-STATE_DIR="${STATE_DIR:-$RUNTIME_DIR/deploy-state}"
-CURRENT_TAG_FILE="$STATE_DIR/current-image-tag"
-PREVIOUS_TAG_FILE="$STATE_DIR/previous-image-tag"
-HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8088/actuator/health}"
-HEALTHCHECK_HOST="${HEALTHCHECK_HOST:-api.cubing-hub.com}"
-HEALTHCHECK_ATTEMPTS="${HEALTHCHECK_ATTEMPTS:-20}"
-HEALTHCHECK_INTERVAL_SECONDS="${HEALTHCHECK_INTERVAL_SECONDS:-3}"
-HEALTHCHECK_CONNECT_TIMEOUT_SECONDS="${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS:-5}"
-HEALTHCHECK_MAX_TIME_SECONDS="${HEALTHCHECK_MAX_TIME_SECONDS:-10}"
-LAST_HEALTHCHECK_FAILURE_REASON=""
-
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing env file: $ENV_FILE" >&2
-  exit 66
-fi
-
-mkdir -p "$STATE_DIR"
-PREVIOUS_IMAGE_TAG=""
-if [[ -f "$CURRENT_TAG_FILE" ]]; then
-  PREVIOUS_IMAGE_TAG="$(cat "$CURRENT_TAG_FILE")"
-fi
-
-compose() {
-  IMAGE_TAG="$1" docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "${@:2}"
+usage() {
+  printf 'Usage: deploy-cubing-hub.sh <commit-sha> <registry-user>\n' >&2
 }
 
-health_check() {
-  local attempt
-  local response
-  local response_body
-  local http_status
-  local up_status_pattern='"status"[[:space:]]*:[[:space:]]*"UP"'
-
-  LAST_HEALTHCHECK_FAILURE_REASON="health check timeout"
-
-  for ((attempt = 1; attempt <= HEALTHCHECK_ATTEMPTS; attempt++)); do
-    response="$(
-      curl -sS \
-        -H "Host: $HEALTHCHECK_HOST" \
-        --connect-timeout "$HEALTHCHECK_CONNECT_TIMEOUT_SECONDS" \
-        --max-time "$HEALTHCHECK_MAX_TIME_SECONDS" \
-        -w $'\n__HTTP_STATUS__:%{http_code}' \
-        "$HEALTHCHECK_URL" 2>/dev/null || true
-    )"
-    http_status="${response##*__HTTP_STATUS__:}"
-    response_body="${response%$'\n'__HTTP_STATUS__:*}"
-
-    if [[ "$http_status" != "200" ]]; then
-      LAST_HEALTHCHECK_FAILURE_REASON="HTTP status is not 200: $http_status"
-      echo "Health check attempt $attempt/$HEALTHCHECK_ATTEMPTS returned HTTP $http_status." >&2
-    elif [[ ! "$response_body" =~ $up_status_pattern ]]; then
-      LAST_HEALTHCHECK_FAILURE_REASON="/actuator/health status is not UP"
-      echo "Health check attempt $attempt/$HEALTHCHECK_ATTEMPTS returned HTTP 200 but status is not UP." >&2
-    else
-      return 0
-    fi
-
-    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
-  done
-
-  if [[ -z "$LAST_HEALTHCHECK_FAILURE_REASON" ]]; then
-    LAST_HEALTHCHECK_FAILURE_REASON="health check timeout"
-  fi
-  return 1
-}
-
-rollback() {
-  if [[ -z "$PREVIOUS_IMAGE_TAG" ]]; then
-    echo "No previous IMAGE_TAG is available for rollback." >&2
-    return 1
-  fi
-
-  echo "Rolling back to $PREVIOUS_IMAGE_TAG" >&2
-  if ! compose "$PREVIOUS_IMAGE_TAG" pull web app nginx mysql redis; then
-    echo "Rollback docker compose pull failed." >&2
-    return 1
-  fi
-  if ! compose "$PREVIOUS_IMAGE_TAG" up -d --remove-orphans; then
-    echo "Rollback docker compose up -d failed." >&2
-    return 1
-  fi
-  if ! health_check; then
-    echo "Rollback health check failed: $LAST_HEALTHCHECK_FAILURE_REASON" >&2
-    return 1
-  fi
-  printf '%s\n' "$PREVIOUS_IMAGE_TAG" > "$CURRENT_TAG_FILE"
-}
-
-handle_deploy_failure() {
-  local reason="$1"
-
-  echo "Deploy failed: $reason" >&2
-  if rollback; then
-    echo "Rollback completed." >&2
-  else
-    echo "Rollback failed." >&2
-  fi
+fail() {
+  printf 'Cubing Hub deployment failed: %s\n' "$1" >&2
   exit 1
 }
 
-echo "Deploying $NEW_IMAGE_TAG"
-if ! compose "$NEW_IMAGE_TAG" pull web app nginx mysql redis; then
-  handle_deploy_failure "docker compose pull failed"
+if [[ "$#" -ne 2 ]]; then
+  usage
+  exit 64
 fi
 
-if ! compose "$NEW_IMAGE_TAG" up -d --remove-orphans; then
-  handle_deploy_failure "docker compose up -d failed"
+commit_sha="$1"
+registry_user="$2"
+
+if [[ ! "${commit_sha}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  printf 'Commit SHA must contain exactly 40 hexadecimal characters\n' >&2
+  exit 64
 fi
 
-if health_check; then
-  if [[ -n "$PREVIOUS_IMAGE_TAG" && "$PREVIOUS_IMAGE_TAG" != "$NEW_IMAGE_TAG" ]]; then
-    printf '%s\n' "$PREVIOUS_IMAGE_TAG" > "$PREVIOUS_TAG_FILE"
+if [[ ! "${registry_user}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  printf 'Registry user contains unsupported characters\n' >&2
+  exit 64
+fi
+
+if [[ ! -x "${DOCKER_BIN}" ]]; then
+  fail "Docker CLI is not executable: ${DOCKER_BIN}"
+fi
+
+if [[ ! -f "${COMPOSE_FILE}" || ! -f "${ENV_FILE}" ]]; then
+  fail "production Compose configuration is incomplete"
+fi
+
+if [[ ! -x "${BACKUP_SCRIPT}" ]]; then
+  fail "production backup script is not executable"
+fi
+
+registry_token="$(/bin/cat)"
+if [[ -z "${registry_token}" ]]; then
+  printf 'GHCR token must not be empty\n' >&2
+  exit 64
+fi
+
+umask 077
+
+docker_config_dir="$(
+  /usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-docker-config.XXXXXX"
+)"
+env_temp=
+logged_in=false
+
+# ShellCheck cannot infer that trap invokes this cleanup function.
+# shellcheck disable=SC2329
+cleanup() {
+  registry_token=
+
+  if [[ -n "${env_temp}" && -e "${env_temp}" ]]; then
+    /bin/unlink "${env_temp}"
   fi
-  printf '%s\n' "$NEW_IMAGE_TAG" > "$CURRENT_TAG_FILE"
-  compose "$NEW_IMAGE_TAG" ps
+
+  if [[ "${logged_in}" == true ]]; then
+    "${DOCKER_BIN}" \
+      --config "${docker_config_dir}" \
+      logout ghcr.io \
+      >/dev/null 2>&1 \
+      || true
+  fi
+
+  if [[ "$(/usr/bin/basename "${docker_config_dir}")" == cubing-hub-docker-config.* ]]; then
+    /bin/rm -rf -- "${docker_config_dir}"
+  fi
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+compose() {
+  "${DOCKER_BIN}" \
+    compose \
+    --project-directory "${APP_DIR}" \
+    --env-file "${ENV_FILE}" \
+    --file "${COMPOSE_FILE}" \
+    "$@"
+}
+
+read_env_value() {
+  local key="$1"
+  local value
+
+  value="$(
+    /usr/bin/awk -F= -v key="${key}" '
+      $1 == key {
+        value = substr($0, index($0, "=") + 1)
+        count += 1
+      }
+      END {
+        if (count != 1) {
+          exit 1
+        }
+        print value
+      }
+    ' "${ENV_FILE}"
+  )" || fail "${key} must appear exactly once in ${ENV_FILE}"
+
+  printf '%s' "${value}"
+}
+
+write_image_env() {
+  local api_image="$1"
+  local web_image="$2"
+
+  env_temp="$(/usr/bin/mktemp "${APP_DIR}/.env.tmp.XXXXXX")"
+
+  if ! /usr/bin/awk \
+    -v api_image="${api_image}" \
+    -v web_image="${web_image}" '
+      BEGIN {
+        api_count = 0
+        web_count = 0
+      }
+      /^API_IMAGE=/ {
+        print "API_IMAGE=" api_image
+        api_count += 1
+        next
+      }
+      /^WEB_IMAGE=/ {
+        print "WEB_IMAGE=" web_image
+        web_count += 1
+        next
+      }
+      {
+        print
+      }
+      END {
+        if (api_count != 1 || web_count != 1) {
+          exit 1
+        }
+      }
+    ' "${ENV_FILE}" >"${env_temp}"
+  then
+    fail "API_IMAGE and WEB_IMAGE must each appear once in ${ENV_FILE}"
+  fi
+
+  /bin/chmod 600 "${env_temp}"
+  /bin/mv -f -- "${env_temp}" "${ENV_FILE}"
+  env_temp=
+}
+
+extract_sha() {
+  local image="$1"
+  local repository="$2"
+  local image_sha="${image#"${repository}:"}"
+
+  if [[ "${image}" != "${repository}:${image_sha}" ]] \
+    || [[ ! "${image_sha}" =~ ^[0-9a-fA-F]{40}$ ]] \
+    || [[ "${image_sha}" == "0000000000000000000000000000000000000000" ]]
+  then
+    return 1
+  fi
+
+  printf '%s' "${image_sha}"
+}
+
+normalized_sha="$(
+  printf '%s' "${commit_sha}" \
+    | /usr/bin/tr '[:upper:]' '[:lower:]'
+)"
+new_api_image="${API_IMAGE_REPOSITORY}:${normalized_sha}"
+new_web_image="${WEB_IMAGE_REPOSITORY}:${normalized_sha}"
+current_api_image="$(read_env_value API_IMAGE)"
+current_web_image="$(read_env_value WEB_IMAGE)"
+previous_sha=
+
+current_api_sha="$(extract_sha "${current_api_image}" "${API_IMAGE_REPOSITORY}")" \
+  || current_api_sha=
+current_web_sha="$(extract_sha "${current_web_image}" "${WEB_IMAGE_REPOSITORY}")" \
+  || current_web_sha=
+
+if [[ -n "${current_api_sha}" || -n "${current_web_sha}" ]]; then
+  if [[ -z "${current_api_sha}" || "${current_api_sha}" != "${current_web_sha}" ]]; then
+    fail "current API and web images do not share one valid commit SHA"
+  fi
+  previous_sha="${current_api_sha}"
+fi
+
+printf '%s' "${registry_token}" \
+  | "${DOCKER_BIN}" \
+      --config "${docker_config_dir}" \
+      login ghcr.io \
+      --username "${registry_user}" \
+      --password-stdin \
+      >/dev/null
+logged_in=true
+registry_token=
+
+"${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_api_image}"
+"${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_web_image}"
+
+API_IMAGE="${new_api_image}" \
+WEB_IMAGE="${new_web_image}" \
+  "${DOCKER_BIN}" \
+    compose \
+    --project-directory "${APP_DIR}" \
+    --env-file "${ENV_FILE}" \
+    --file "${COMPOSE_FILE}" \
+    config \
+    --quiet
+
+running_services="$(compose ps --status running --services)"
+if ! /usr/bin/grep -qx db <<<"${running_services}"; then
+  if [[ -n "${previous_sha}" ]]; then
+    fail "production db service must be running before an update"
+  fi
+
+  compose pull db redis
+  compose up \
+    --detach \
+    --no-build \
+    --pull never \
+    --wait \
+    --wait-timeout "${HEALTH_TIMEOUT_SECONDS}" \
+    db redis
+fi
+
+if [[ -n "${previous_sha}" ]]; then
+  "${BACKUP_SCRIPT}"
+fi
+
+write_image_env "${new_api_image}" "${new_web_image}"
+
+if compose up \
+  --detach \
+  --no-build \
+  --pull never \
+  --remove-orphans \
+  --wait \
+  --wait-timeout "${HEALTH_TIMEOUT_SECONDS}"
+then
+  printf 'Cubing Hub deployment succeeded: %s\n' "${normalized_sha}"
   exit 0
 fi
 
-handle_deploy_failure "$LAST_HEALTHCHECK_FAILURE_REASON"
+printf 'Cubing Hub deployment failed for commit: %s\n' "${normalized_sha}" >&2
+compose logs --tail 100 api web >&2 || true
+
+if [[ -n "${previous_sha}" ]]; then
+  previous_api_image="${API_IMAGE_REPOSITORY}:${previous_sha}"
+  previous_web_image="${WEB_IMAGE_REPOSITORY}:${previous_sha}"
+
+  printf 'Rolling back application images to: %s\n' "${previous_sha}" >&2
+  write_image_env "${previous_api_image}" "${previous_web_image}"
+
+  if compose up \
+    --detach \
+    --no-build \
+    --pull never \
+    --remove-orphans \
+    --wait \
+    --wait-timeout "${HEALTH_TIMEOUT_SECONDS}"
+  then
+    printf 'Application image rollback succeeded: %s\n' "${previous_sha}" >&2
+  else
+    printf 'Application image rollback failed: %s\n' "${previous_sha}" >&2
+    compose logs --tail 100 api web >&2 || true
+  fi
+else
+  printf 'No previous SHA image exists; keeping data services and stopping failed app containers\n' >&2
+  write_image_env "${current_api_image}" "${current_web_image}"
+  compose stop api web || true
+fi
+
+printf 'Database migration is not rolled back automatically\n' >&2
+exit 1

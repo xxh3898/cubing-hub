@@ -1,2 +1,0 @@
--- Table schema is managed by Flyway migrations in the Spring Boot application.
--- Keep this file limited to MySQL container bootstrap tasks if they become necessary.
