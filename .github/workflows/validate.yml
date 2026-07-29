@@ -1,0 +1,206 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VITE_API_BASE_URL: https://api.cubing-hub.com
+
+jobs:
+  infrastructure:
+    name: Infrastructure checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Validate shell scripts
+        run: |
+          bash -n \
+            homeserver/scripts/backup-home-server.sh \
+            homeserver/scripts/deploy-home-server-ci.sh \
+            homeserver/scripts/deploy-home-server.sh
+
+      - name: Run infrastructure tests
+        run: >
+          node --test
+          homeserver/scripts/nginx-config.test.mjs
+          homeserver/scripts/operations-config.test.mjs
+          homeserver/scripts/workflow-config.test.mjs
+
+      - name: Render production Compose
+        run: |
+          docker compose \
+            --env-file homeserver/.env.example \
+            --file homeserver/docker-compose.yml \
+            config --quiet
+
+          docker compose \
+            --env-file homeserver/.env.example \
+            --file homeserver/docker-compose.yml \
+            --file homeserver/docker-compose.admin.yml \
+            --profile admin \
+            config --quiet
+
+      - name: Validate Nginx runtime configuration
+        run: |
+          docker run --rm \
+            --add-host api:127.0.0.1 \
+            --volume "${PWD}/homeserver/nginx/home-server.conf:/etc/nginx/conf.d/default.conf:ro" \
+            --volume "${PWD}/homeserver/nginx/cloudflare-edge-real-ip.conf:/etc/nginx/conf.d/00-cloudflare-real-ip.conf:ro" \
+            nginx:1.27.5-alpine \
+            nginx -t
+
+      - name: Validate frontend Dockerfile
+        run: |
+          docker build \
+            --check \
+            --file homeserver/docker/frontend.Dockerfile \
+            --build-arg VITE_API_BASE_URL="${VITE_API_BASE_URL}" \
+            .
+
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Run backend tests and build
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: test
+        run: ./gradlew test jacocoTestReport build --no-daemon
+
+      - name: Upload backend jar
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-jar-${{ github.sha }}
+          path: backend/build/libs/cubing-hub-0.0.1-SNAPSHOT.jar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload backend reports on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-failure-reports-${{ github.sha }}
+          path: |
+            backend/build/reports/tests/
+            backend/build/reports/jacoco/test/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test -- --run
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  api-image:
+    name: API ARM64 image
+    needs:
+      - backend
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Download backend jar
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: backend-jar-${{ github.sha }}
+          path: backend/build/libs
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build API ARM64 verification image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: homeserver/docker/backend.Dockerfile
+          platforms: linux/arm64
+          push: false
+          tags: cubing-hub-api:verify
+          cache-from: type=gha,scope=cubing-hub-api-arm64
+          cache-to: type=gha,mode=max,scope=cubing-hub-api-arm64
+
+  web-image:
+    name: Web ARM64 image
+    needs:
+      - frontend
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build web ARM64 verification image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: homeserver/docker/frontend.Dockerfile
+          platforms: linux/arm64
+          push: false
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+          tags: cubing-hub-web:verify
+          cache-from: type=gha,scope=cubing-hub-web-arm64
+          cache-to: type=gha,mode=max,scope=cubing-hub-web-arm64
