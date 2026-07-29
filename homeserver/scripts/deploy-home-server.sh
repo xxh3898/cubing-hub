@@ -92,7 +92,6 @@ trap 'exit 143' TERM
 
 compose() {
   "${DOCKER_BIN}" \
-    --config "${docker_config_dir}" \
     compose \
     --project-directory "${APP_DIR}" \
     --env-file "${ENV_FILE}" \
@@ -229,7 +228,15 @@ if ! /usr/bin/grep -qx db <<<"${running_services}"; then
     fail "production db service must be running before an update"
   fi
 
-  compose pull db redis
+  mapfile -t data_images < <(compose config --images db redis)
+  if [[ "${#data_images[@]}" -ne 2 ]]; then
+    fail "production db and redis images must each resolve exactly once"
+  fi
+
+  for data_image in "${data_images[@]}"; do
+    "${DOCKER_BIN}" --config "${docker_config_dir}" pull "${data_image}"
+  done
+
   compose up \
     --detach \
     --no-build \

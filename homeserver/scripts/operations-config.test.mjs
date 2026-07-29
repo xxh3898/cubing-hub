@@ -99,10 +99,16 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
   assert.match(
     deployScript,
-    /compose\(\) \{\n  "\$\{DOCKER_BIN\}" \\\n    --config "\$\{docker_config_dir\}" \\\n    compose \\/,
+    /mapfile -t data_images < <\(compose config --images db redis\)/,
+  );
+  assert.match(
+    deployScript,
+    /"\$\{DOCKER_BIN\}" --config "\$\{docker_config_dir\}" pull "\$\{data_image\}"/,
   );
 
-  const infrastructurePull = deployScript.indexOf("  compose pull db redis");
+  const infrastructurePull = deployScript.indexOf(
+    '  for data_image in "${data_images[@]}"; do',
+  );
   const firstDataStart = deployScript.indexOf('    db redis\n');
   const backupCondition = deployScript.indexOf(
     'if [[ -n "${previous_sha}" ]]; then\n  "${BACKUP_SCRIPT}"',
