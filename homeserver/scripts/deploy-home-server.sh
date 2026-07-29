@@ -228,7 +228,11 @@ if ! /usr/bin/grep -qx db <<<"${running_services}"; then
     fail "production db service must be running before an update"
   fi
 
-  mapfile -t data_images < <(compose config --images db redis)
+  data_images=()
+  while IFS= read -r data_image; do
+    data_images+=("${data_image}")
+  done < <(compose config --images db redis)
+
   if [[ "${#data_images[@]}" -ne 2 ]]; then
     fail "production db and redis images must each resolve exactly once"
   fi

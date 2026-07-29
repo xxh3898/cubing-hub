@@ -99,8 +99,9 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
   assert.match(
     deployScript,
-    /mapfile -t data_images < <\(compose config --images db redis\)/,
+    /data_images=\(\)[\s\S]*while IFS= read -r data_image; do[\s\S]*data_images\+=\("\$\{data_image\}"\)[\s\S]*done < <\(compose config --images db redis\)/,
   );
+  assert.doesNotMatch(deployScript, /\bmapfile\b/);
   assert.match(
     deployScript,
     /"\$\{DOCKER_BIN\}" --config "\$\{docker_config_dir\}" pull "\$\{data_image\}"/,
