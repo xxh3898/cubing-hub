@@ -92,6 +92,7 @@ trap 'exit 143' TERM
 
 compose() {
   "${DOCKER_BIN}" \
+    --config "${docker_config_dir}" \
     compose \
     --project-directory "${APP_DIR}" \
     --env-file "${ENV_FILE}" \
