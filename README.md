@@ -6,8 +6,8 @@
 | 항목 | 내용 |
 | --- | --- |
 | 프로젝트 성격 | 1인 풀스택 웹 플랫폼 |
-| 현재 상태 | 핵심 기능 구현과 운영 배포 완료 |
-| 운영 URL | `https://www.cubing-hub.com`, `https://api.cubing-hub.com` |
+| 현재 상태 | 핵심 기능 구현 완료, Mac mini 공개 배포 준비 중 |
+| 공개 URL | `https://www.cubing-hub.com`, `https://api.cubing-hub.com` 재연결 예정 |
 | 핵심 도메인 | 인증, 기록/타이머, 랭킹, 학습, 커뮤니티, 피드백 |
 | 현재 지원 종목 | `WCA_333` |
 
@@ -73,7 +73,7 @@
 | 커뮤니티 | 게시글 CRUD, 검색, 댓글, 다중 이미지 첨부, 로그인 사용자 기준 고유 조회수, 수정 화면 사전 조회 분리 |
 | 피드백 / 운영 | 로그인 사용자 피드백 제출, Discord 운영 알림 상태 내부 추적, 공개 Q&A, 관리자 답변/공개 전환, 관리자 메모 |
 | 품질 | JUnit 5/MockMvc API 검증, Testcontainers, REST Docs, JaCoCo instruction/branch 100%, Vitest 커버리지 100%, 분리된 GitHub Actions CI |
-| 배포 | `S3 + CloudFront` 프런트, `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드, backend/frontend deploy workflow 운영 반영 확인 |
+| 배포 | Mac mini의 Docker Compose로 web/API/MySQL/Redis 통합 운영, GHCR full SHA ARM64 이미지 배포 구조 구현 |
 
 ## 4. 주요 기술 결정
 
@@ -99,35 +99,33 @@
 
 ## 5. 운영 구조
 
-### 현재 운영 기준
+### Mac mini 운영 목표
 
-- Frontend: `AWS S3 + CloudFront`
-- Backend: `AWS EC2 + Docker Compose + Nginx + Spring Boot + Redis`
-- Data: `AWS RDS (MySQL)`
+- Runtime: Mac mini + Docker Compose
+- Web: React 정적 파일을 포함한 Nginx 컨테이너
+- API: Spring Boot 컨테이너
+- Data: MySQL 8.0, Redis 7.2 전용 volume
+- Image storage: Mac mini host directory와 `post_attachments` 메타데이터
+- Public edge: 공유 Cloudflare Tunnel의 `edge` Docker network
+- Image registry: GHCR의 API/web `linux/arm64` full commit SHA 이미지
 - Local observability baseline: `Prometheus + Grafana`
+
+저장소와 GitHub Actions 검증 구조는 전환을 마쳤다. Mac mini runtime, GitHub 배포 credential, Cloudflare route, 공개 기능은 아직 검증하지 않았다.
 
 ### CI/CD workflow
 
-- `backend-ci.yml`
-  - `./gradlew test jacocoTestReport --no-daemon`
-  - `./gradlew build -x test --no-daemon`
-  - `restdocs-site`, `jacoco-report`, 실패 시 `test-report` artifact 업로드
-- `frontend-ci.yml`
-  - `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build`
-  - 실패 시 `frontend-failure-reports` artifact 업로드
-- `deploy-backend.yml`
-  - `Backend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`
-  - Docker Hub push, EC2 배포, `https://localhost/actuator/health` health check
-- `deploy-frontend.yml`
-  - `Frontend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`
-  - production `VITE_API_BASE_URL` 검증, S3 sync, CloudFront invalidation
+- `validate.yml`
+  - `dev` push, `main` 대상 pull request, release 호출에서 backend/frontend 검증
+  - Testcontainers, JaCoCo, lint, Vitest, build와 API/web ARM64 이미지 build 확인
+- `deploy.yml`
+  - `main` release 검증 뒤 GHCR에 API/web full SHA ARM64 이미지 발행
+  - Tailscale OIDC와 제한 SSH 명령으로 Mac mini 배포
+  - `MAC_MINI_DEPLOY_ENABLED=true` 전에는 Publish와 Deploy를 건너뜀
 - `performance-benchmark.yml`
   - 수동 `workflow_dispatch`
   - seed + `k6` 기준선 실행, 비교 artifact 보관
-- `rebuild-ranking-redis.yml`
-  - 운영 Redis 읽기 모델 재구축용 수동 workflow
 
-배포 환경에서 핵심 사용자 기능, 관리자 기능, 실제 SMTP 송수신, 실제 S3 업로드/삭제까지 수동으로 검증했습니다.
+새 workflow의 GitHub-hosted 검증과 API/web ARM64 image build는 통과했다. GHCR 발행, Mac mini 배포, SMTP, 이미지 업로드, 공개 브라우저 smoke는 배포 gate를 열기 전까지 미검증 상태다.
 
 ## 6. 기술 스택
 
@@ -136,11 +134,11 @@
 | **Core Backend** | ![Java 17](https://img.shields.io/badge/Java_17-ED8B00?style=flat&logo=openjdk&logoColor=white) ![Spring Boot 3.5.12](https://img.shields.io/badge/Spring_Boot_3.5.12-6DB33F?style=flat&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat&logo=springsecurity&logoColor=white) ![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=flat&logo=spring&logoColor=white) ![QueryDSL 5.0.0](https://img.shields.io/badge/QueryDSL_5.0.0-0769AD?style=flat) ![JJWT 0.12.x](https://img.shields.io/badge/JJWT_0.12.x-000000?style=flat&logo=jsonwebtokens&logoColor=white) |
 | **Backend Experience** | ![Spring REST Docs](https://img.shields.io/badge/Spring_REST_Docs-6DB33F?style=flat&logo=spring&logoColor=white) ![Gradle 8.14.4](https://img.shields.io/badge/Gradle_8.14.4-02303A?style=flat&logo=gradle&logoColor=white) |
 | **Database / Cache** | ![MySQL 8.0](https://img.shields.io/badge/MySQL_8.0-4479A1?style=flat&logo=mysql&logoColor=white) ![Redis 7.2](https://img.shields.io/badge/Redis_7.2-DC382D?style=flat&logo=redis&logoColor=white) |
-| **Infra / DevOps** | ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat&logo=amazonwebservices&logoColor=white) ![EC2](https://img.shields.io/badge/EC2-FF9900?style=flat&logo=amazonec2&logoColor=white) ![RDS](https://img.shields.io/badge/RDS-527FFF?style=flat&logo=amazonrds&logoColor=white) ![S3](https://img.shields.io/badge/S3-569A31?style=flat&logo=amazons3&logoColor=white) ![CloudFront](https://img.shields.io/badge/CloudFront-FF9900?style=flat&logo=amazonwebservices&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat&logo=docker&logoColor=white) ![Nginx 1.27](https://img.shields.io/badge/Nginx_1.27-009639?style=flat&logo=nginx&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white) |
+| **Infra / DevOps** | ![Mac mini](https://img.shields.io/badge/Mac_mini-000000?style=flat&logo=apple&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat&logo=docker&logoColor=white) ![GHCR](https://img.shields.io/badge/GHCR-181717?style=flat&logo=github&logoColor=white) ![Nginx 1.27](https://img.shields.io/badge/Nginx_1.27-009639?style=flat&logo=nginx&logoColor=white) ![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare_Tunnel-F38020?style=flat&logo=cloudflare&logoColor=white) ![Tailscale](https://img.shields.io/badge/Tailscale-242424?style=flat&logo=tailscale&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white) |
 | **Frontend** | ![React 19.2.4](https://img.shields.io/badge/React_19.2.4-20232A?style=flat&logo=react&logoColor=61DAFB) ![Vite 8.0.1](https://img.shields.io/badge/Vite_8.0.1-646CFF?style=flat&logo=vite&logoColor=white) ![React Router 7.14.0](https://img.shields.io/badge/React_Router_7.14.0-CA4245?style=flat&logo=reactrouter&logoColor=white) ![Axios 1.15.0](https://img.shields.io/badge/Axios_1.15.0-5A29E4?style=flat&logo=axios&logoColor=white) ![Recharts 3.8.1](https://img.shields.io/badge/Recharts_3.8.1-22b5bf?style=flat) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black) ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white) |
 | **Testing / Quality** | ![JUnit 5](https://img.shields.io/badge/JUnit_5-25A162?style=flat&logo=junit5&logoColor=white) ![MockMvc](https://img.shields.io/badge/MockMvc-6DB33F?style=flat&logo=spring&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-2496ED?style=flat&logo=docker&logoColor=white) ![Spring REST Docs](https://img.shields.io/badge/Spring_REST_Docs-6DB33F?style=flat&logo=spring&logoColor=white) ![JaCoCo](https://img.shields.io/badge/JaCoCo-25A162?style=flat) ![Vitest 4.1.4](https://img.shields.io/badge/Vitest_4.1.4-6E9F18?style=flat&logo=vitest&logoColor=white) |
 | **Observability / Performance** | ![Spring Boot Actuator 3.5.12](https://img.shields.io/badge/Spring_Boot_Actuator_3.5.12-6DB33F?style=flat&logo=springboot&logoColor=white) ![Prometheus 2.54.1](https://img.shields.io/badge/Prometheus_2.54.1-E6522C?style=flat&logo=prometheus&logoColor=white) ![Grafana 11.2.0](https://img.shields.io/badge/Grafana_11.2.0-F46800?style=flat&logo=grafana&logoColor=white) ![k6](https://img.shields.io/badge/k6-7D64FF?style=flat&logo=k6&logoColor=white) |
-| **External / Ops** | ![AWS SDK S3 2.32.18](https://img.shields.io/badge/AWS_SDK_S3_2.32.18-569A31?style=flat&logo=amazons3&logoColor=white) ![SMTP](https://img.shields.io/badge/SMTP-111827?style=flat) ![Discord Webhook](https://img.shields.io/badge/Discord_Webhook-5865F2?style=flat&logo=discord&logoColor=white) |
+| **External / Ops** | ![SMTP](https://img.shields.io/badge/SMTP-111827?style=flat) ![Discord Webhook](https://img.shields.io/badge/Discord_Webhook-5865F2?style=flat&logo=discord&logoColor=white) |
 
 ## 7. 로컬 실행
 
@@ -247,5 +245,6 @@ npm run build
 
 - 랭킹 `nickname` 검색용 Redis secondary index 확장 여부 판단
 - 운영 Redis rebuild trigger와 장애 복구 정책 고도화
-- HTTPS 인증서 갱신 자동화
+- Mac mini 첫 배포와 공개 smoke 검증
+- 운영 backup/restore rehearsal과 Uptime Kuma 연결
 - 추가 benchmark(`/api/home`, 더 큰 사용자/기록 분포) 필요 여부 검토

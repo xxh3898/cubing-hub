@@ -90,7 +90,7 @@
 - QueryDSL 기반 게시판 CRUD 및 검색
 - 댓글 상호작용
 - 사용자 피드백 전달
-- EC2 내부 Docker Compose 기반 백엔드 운영
+- Mac mini Docker Compose 기반 web/API/MySQL/Redis 운영
 - GitHub Actions 기반 CI/CD
 
 ### 지원 종목
@@ -130,7 +130,7 @@ flowchart TD
     Running --> StopInput{Spacebar Down\nor Touch Press}
     StopInput --> Stopped[Stopped]
     Stopped --> Req[POST /api/records]
-    Req --> DB[(Save Record to RDS)]
+    Req --> DB[(Save Record to MySQL)]
     DB --> PB[Upsert User PB]
     PB --> End([End])
 ```
@@ -153,7 +153,7 @@ flowchart TD
     Running --> StopInput{Spacebar Down\nor Touch Press}
     StopInput --> Stopped[Stopped]
     Stopped --> Req[POST /api/records]
-    Req --> DB[(Save Record to RDS)]
+    Req --> DB[(Save Record to MySQL)]
     DB --> PB[Upsert User PB]
     PB --> ZSET[Update Redis ZSET PB Ranking]
     ZSET --> End([End])
@@ -172,7 +172,7 @@ flowchart TD
 | Frontend | React, Vite, React Router DOM, Axios | 단일 페이지 앱 구조와 빠른 개발 반복 |
 | Backend | Java 17, Spring Boot 3.5.12, Spring Security, JWT, Spring Data JPA, QueryDSL, Spring REST Docs | 인증/인가, 영속성, 동적 쿼리, 문서화 자동화 |
 | Database & Cache | MySQL 8.0, Redis 7.x | 영속 데이터 저장과 토큰/랭킹 캐시 분리 |
-| Infra | AWS EC2, RDS, S3, CloudFront | 정적 리소스와 API/DB 역할 분리 |
+| Infra | Mac mini, Docker Compose, Nginx, GHCR, Cloudflare Tunnel, Tailscale | 단일 ARM64 운영 호스트와 제한 배포 경로 구성 |
 | Testing & Ops | Docker, Docker Compose, GitHub Actions, JUnit 5, Testcontainers, JaCoCo, Vitest 커버리지, Prometheus, Grafana, k6 | 로컬 개발, 테스트 격리, CI, 커버리지 확인, 운영 관찰, 부하 검증 |
 
 ## 9. 구현 상태
@@ -203,18 +203,17 @@ flowchart TD
   - 피드백은 `POST /api/feedbacks` 기준으로 로그인 사용자가 제출하고, 일반 사용자에게는 접수 완료 메시지만 노출한다.
   - 공개된 질문/답변은 `/qna` 기준 공개 조회 화면으로 노출하고, 관리자 전용 `/admin`에서 피드백 답변/공개 전환과 내부 메모를 함께 관리한다.
 - 커뮤니티 운영
-  - 게시글은 다중 이미지 첨부를 지원하고 첨부 이미지는 S3 + DB 메타데이터 기준으로 관리한다.
+  - 게시글은 다중 이미지 첨부를 지원하고 첨부 이미지는 Mac mini host directory + DB 메타데이터 기준으로 관리한다.
   - 게시글 조회수는 로그인 사용자 기준 계정당 1회만 증가하고, 비로그인 사용자는 조회수에 반영하지 않는다.
 - 운영
-  - 로컬 Docker Compose, 분리 CI, REST Docs, 수동 벤치마크 workflow를 제공한다.
+  - 로컬 Docker Compose, 통합 Validate, REST Docs, 수동 벤치마크 workflow를 제공한다.
   - MySQL V1 기준선과 Redis V2 비교 산출물은 확보했다.
   - 로컬 `300,000` PB 기준 시작 시 재구축 시간은 약 9분으로 확인했다.
-  - `www.cubing-hub.com` 프런트와 `api.cubing-hub.com` 백엔드의 1차 수동 배포를 완료했다.
-  - 현재 운영 구조는 `S3 + CloudFront` 프런트와 `EC2 + Nginx + Spring Boot + Redis + RDS` 백엔드다.
-  - `deploy-backend.yml`, `deploy-frontend.yml` 자동 배포 workflow는 `main` 기준 CI 성공 후 `workflow_run`으로 이어지고, 수동 `workflow_dispatch`도 지원한다.
-  - backend/frontend CI와 deploy workflow의 운영 반영을 확인했고, 배포환경 기준 핵심 기능과 관리자 기능 수동 검증을 완료했다.
+  - Mac mini의 `db`, `redis`, `api`, `web` production Compose와 GHCR full SHA ARM64 image 배포 구조를 구현했다.
+  - `validate.yml`은 backend/frontend와 API/web ARM64 image build를 검증한다.
+  - `deploy.yml`은 `MAC_MINI_DEPLOY_ENABLED=true`일 때만 GHCR Publish와 Tailscale OIDC·제한 SSH Deploy를 실행한다.
+  - GitHub-hosted Validate는 통과했지만 GHCR 발행, Mac mini runtime, Cloudflare route, 공개 기능은 아직 검증하지 않았다.
   - 최종 품질 검증에서 backend JaCoCo instruction/branch 100%, frontend Vitest 커버리지 100%를 확인했다.
-  - 사용자 수동 확인 기준 실제 SMTP 송수신, 실제 AWS S3 업로드/삭제, 최종 브라우저 QA가 통과했다.
 
 ## 10. 성공 기준
 
@@ -222,11 +221,11 @@ flowchart TD
 | --- | --- |
 | 기능 | 인증, 기록 저장, 랭킹, 게시판, 학습, 피드백 흐름이 MVP 범위에서 동작한다. |
 | 품질 | Testcontainers 기반 통합 테스트, REST Docs 생성, backend JaCoCo 100%, frontend Vitest 커버리지 100% 확인 흐름이 유지된다. |
-| 배포 | CloudFront, S3, EC2, RDS 기준 프로덕션 배포 구조를 설명하고 실행 가능하게 만든다. |
+| 배포 | Mac mini Docker Compose와 GHCR full SHA image 기준 프로덕션 구조를 설명하고 첫 공개 배포를 검증한다. |
 | 문서화 | 구현 상태, 목표 상태, 공개 계약을 관련 문서에서 일관되게 유지한다. |
 | 성능 | 개발 완료 후 `k6` 부하 테스트를 수행하고 개선 전/후 비교 문서를 남긴다. |
 
-`2026-04-24` 기준으로 위 성공 기준을 현재 코드, 운영 반영 결과, 최종 품질 검증, 사용자 수동 스모크 검증 결과, 문서 마감 상태와 대조해 확인했다.
+기능·품질·성능 기준선은 확인했다. Mac mini 배포와 공개 smoke가 끝나기 전까지 배포 성공 기준은 진행 중이다.
 
 ## 11. 미확정 사항
 

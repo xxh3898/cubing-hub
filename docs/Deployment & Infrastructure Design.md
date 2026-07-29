@@ -2,326 +2,260 @@
 
 ## 1. 배포 개요
 
-- 목표는 프런트엔드와 백엔드를 역할에 맞게 분리 배포하는 것이다.
-- 프런트엔드는 `S3 + CloudFront`, 백엔드는 `EC2 + Docker Compose`, 영속 데이터는 `RDS`를 기준으로 둔다.
-- 로컬, 테스트, 운영 환경을 같은 구조로 복제하지 않고, 목적에 맞는 격리 수준으로 나눈다.
+- 운영 목표는 Mac mini 한 대에서 `web`, `api`, `db`, `redis`를 Docker Compose로 실행하는 것이다.
+- API와 web 이미지는 GitHub-hosted ARM64 runner에서 검증하고 GHCR에 full commit SHA tag로 발행한다.
+- GitHub Actions는 Tailscale OIDC와 Cubing Hub 전용 forced-command SSH를 통해 Mac mini 배포 script만 호출한다.
+- 공개 traffic은 Mac mini의 공유 Cloudflare Tunnel과 external `edge` Docker network를 사용한다.
+- 삭제된 기존 원격 DB 데이터를 복구하거나 이관하지 않고 신규 MySQL volume에서 시작한다.
 
-## 2. 인프라 구성
-
-| 영역 | 구성 | 목적 |
-| --- | --- | --- |
-| Frontend | AWS S3, AWS CloudFront | 정적 자산 호스팅 및 CDN 배포 |
-| Backend | AWS EC2, Docker Compose, Nginx, Spring Boot, Redis | API 실행, HTTPS reverse proxy, 토큰/캐시 처리 |
-| Data | AWS RDS (MySQL 8) | 영속 데이터 저장 |
-| Delivery | GitHub Actions, Docker Hub | CI/CD 자동화 |
-
-## 3. 서버 구성
+## 2. 환경별 구성
 
 ### Local
 
-- `docker-compose.yml`
-  - `mysql` (`mysql:8.0`)
-  - `redis`
-  - `prometheus`
-  - `grafana`
-- Spring Boot와 Vite는 로컬 프로세스로 실행한다.
-- `k6`는 로컬 Spring Boot를 대상으로 실행하고, `experimental-prometheus-rw` 출력으로 Prometheus에 메트릭을 적재한다.
-- Grafana는 provisioning된 `Rankings Baseline` 대시보드로 `k6`와 Spring Boot 메트릭을 같은 축에서 시각화한다.
-- local profile은 `monitoring.prometheus.permit-all=true`로 `/actuator/prometheus` scrape를 허용한다.
-- 목적
-  - 기능 개발
-  - API 연동 확인
-  - 모니터링 환경 로컬 재현
-  - Redis 리팩토링 전/후 성능 기준선 재현
-- 제약
-  - 랭킹 `nickname` 검색 대체 경로는 MySQL 8 window function을 사용하므로 로컬, 테스트, 운영 DB 기준은 MySQL 8을 유지한다.
-
-### Test
-
-- GitHub Actions workflow는 변경 경로 기준으로 backend/frontend를 분리해 실행한다.
-- Backend CI
-  - Testcontainers 기반 MySQL / Redis
-  - `./gradlew test jacocoTestReport --no-daemon`
-  - REST Docs 검증을 위한 `./gradlew build -x test`
-  - 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
-  - 실패 시 `backend/build/reports/tests/`를 `test-report` artifact로 업로드
-  - 항상 `backend/build/reports/jacoco/test/`를 `jacoco-report` artifact로 업로드
-- Frontend CI
-  - `npm ci`
-  - `npm run lint`
-  - `npm test -- --run`
-  - `npm run build`
-  - 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
-- Performance Benchmark
-  - `workflow_dispatch` 기반 수동 실행
-  - MySQL / Redis service container 준비
-  - schema reset 후 기준선 seed SQL 적재
-  - `k6` summary JSON과 Markdown 비교 리포트 artifact 업로드
-- 목적
-  - 실제 DB/Redis와 가까운 통합 테스트
-  - 문서화 자동화 검증
-  - 프런트 정적 검증과 실패 분석 산출물 회수
-  - 성능 기준선 재현과 전/후 비교용 artifact 보관
-
-### Production (목표)
-
-- Frontend
-  - S3 정적 호스팅
-  - CloudFront CDN
-- Backend
-  - EC2 내부 Docker Compose
-  - Nginx reverse proxy
-  - Spring Boot API
+- root `docker-compose.yml`
+  - MySQL
   - Redis
-- Data
-  - RDS MySQL
+  - Prometheus
+  - Grafana
+- Spring Boot와 Vite는 local process로 실행한다.
+- Testcontainers, REST Docs, JaCoCo, Vitest, `k6` 기준선을 재현한다.
 
-### Production (현재 운영 기준)
+### CI
 
-- 저장소 기준 파일
-  - `backend/Dockerfile`
-  - `infra/docker/docker-compose.prod.yml`
-  - `infra/nginx/nginx.conf`
-- 실행 기준
-  - `infra/docker/.env`에 운영 값을 두고 `cd infra/docker && docker compose -f docker-compose.prod.yml ...` 기준으로 실행한다.
-- 배포 범위
-  - `api.cubing-hub.com` Nginx + Spring Boot + Redis
-  - `www.cubing-hub.com` CloudFront + S3
-- 실제 반영 상태
-  - `api.cubing-hub.com` HTTPS 응답과 `/actuator/health` 확인을 완료했다.
-  - 프런트는 `VITE_API_BASE_URL=https://api.cubing-hub.com`로 다시 빌드해 배포했다.
-  - backend/frontend 자동 배포 workflow의 운영 반영을 확인했고, 배포환경 핵심 기능과 관리자 기능 수동 검증을 완료했다.
-- 제외 범위
-  - Prometheus / Grafana 운영 배포
-- 초기 운영 정책
-  - 1차 운영 반영에서는 `GET /actuator/health`를 먼저 확인하고, 이후 핵심 사용자 기능과 관리자 기능까지 수동 검증한다.
-  - `Spring Boot`는 `prod` profile로 동작
-  - Redis 랭킹 초기화는 env로 제어한다.
-  - `/actuator/prometheus`는 기본값으로 공개하지 않는다.
+- `validate.yml`
+  - `dev` push
+  - `main` 대상 pull request
+  - `deploy.yml`의 reusable workflow 호출
+- Backend
+  - Java 17
+  - `./gradlew test jacocoTestReport build --no-daemon`
+  - API image build에 사용할 jar artifact 업로드
+- Frontend
+  - Node.js 20
+  - `npm ci`, lint, Vitest, production build
+- Infrastructure
+  - shell syntax
+  - 운영 설정 Node test
+  - production/admin Compose render
+  - Nginx runtime config
+  - frontend Dockerfile check
+- Images
+  - GitHub-hosted ARM64 runner에서 API/web `linux/arm64` image build
+  - Validate 단계에서는 registry에 push하지 않음
 
-## 4. 환경 변수 / 비밀값 관리
+### Production 목표
 
-### Local
+| Service | Image / Source | Data | Network |
+| --- | --- | --- | --- |
+| `db` | `mysql:8.0.46` | `mysql-data` volume | `application` |
+| `redis` | `redis:7.2.14-alpine` | `redis-data` volume | `application` |
+| `api` | `ghcr.io/xxh3898/cubing-hub-api:<full-sha>` | post image host directory read-write | `application` |
+| `web` | `ghcr.io/xxh3898/cubing-hub-web:<full-sha>` | post image host directory read-only | `application`, `edge` |
 
-- root `.env.example`를 복사해 root `.env`를 만든 뒤 local 실행에 필요한 값을 채운다.
-- local 실행에서 직접 사용하는 값:
-  - `LOCAL_DB_PASSWORD`
-  - `LOCAL_JWT_SECRET`
-  - `LOCAL_GRAFANA_ADMIN_PASSWORD`
-  - `LOCAL_FEEDBACK_DISCORD_WEBHOOK_URL`
-  - `SMTP_HOST`
-  - `SMTP_PORT`
-  - `SMTP_USERNAME`
-  - `SMTP_PASSWORD`
-  - `SMTP_AUTH`
-  - `SMTP_STARTTLS_ENABLE`
-  - `SMTP_FROM_ADDRESS`
-  - 위 SMTP 설정은 회원가입 이메일 인증과 비밀번호 재설정 메일 발송에 공통으로 사용한다.
-- `docker compose up -d`
-  - `LOCAL_DB_PASSWORD`, `LOCAL_GRAFANA_ADMIN_PASSWORD`를 사용한다.
-- `cd backend && ./gradlew bootRun`
-  - `application-local.yaml`이 root `.env`의 property 형식 값을 읽어 `LOCAL_DB_PASSWORD`, `LOCAL_JWT_SECRET`를 사용한다.
-- 실제 값 파일은 Git 추적 대상에 포함하지 않는다.
+- `application` network는 외부 port가 없는 internal network다.
+- `edge` network는 다른 Mac mini 서비스와 공유하는 external network다.
+- Cloudflare Tunnel은 `cubing-hub-web` alias를 origin으로 사용한다.
+- Prometheus와 Grafana는 production Compose 범위에 포함하지 않는다.
 
-### Backend Production
+## 3. Mac mini 고정 경로
 
-`application-prod.yaml` 기준:
+| 목적 | 경로 |
+| --- | --- |
+| App directory | `/Users/homeserver/Server/apps/cubing-hub` |
+| Compose | `/Users/homeserver/Server/apps/cubing-hub/compose.yaml` |
+| Runtime env | `/Users/homeserver/Server/apps/cubing-hub/.env` |
+| Post images | `/Users/homeserver/Server/data/cubing-hub/post-images` |
+| Backup | `/Users/homeserver/Server/backups/cubing-hub` |
+| Deploy script | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh` |
+| Backup script | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh` |
 
-- `DB_HOST`
-- `DB_PORT`
+- runtime 파일은 repository checkout 밖에 둔다.
+- `.env`와 private key는 Git에 추가하지 않는다.
+- 실제 비밀값은 문서, log, command output에 노출하지 않는다.
+
+## 4. Runtime 설정
+
+### Images
+
+- `API_IMAGE`
+- `WEB_IMAGE`
+- 두 값은 같은 40자리 commit SHA를 사용해야 한다.
+- moving tag인 `latest`, `main`은 사용하지 않는다.
+
+### Database / Redis
+
 - `DB_NAME`
 - `DB_USERNAME`
 - `DB_PASSWORD`
-- `REDIS_HOST`
-- `REDIS_PORT`
+- `MYSQL_ROOT_PASSWORD`
+- MySQL과 Redis는 Compose service name으로만 접근한다.
+- API의 JPA schema policy는 `validate`로 고정한다.
+- Flyway가 신규 DB schema를 초기화한다.
+
+### Authentication / External
+
 - `JWT_SECRET`
-- `CORS_ALLOWED_ORIGINS`
-  - 기본값 `https://cubing-hub.com,https://www.cubing-hub.com`
 - `JWT_EXPIRATION`
-  - 프로덕션 Access Token 만료 시간, 기본 30분
 - `JWT_REFRESH_EXPIRATION`
-  - 프로덕션 Refresh Token 만료 시간, 기본 7일
-- `SPRING_JPA_HIBERNATE_DDL_AUTO`
-  - 기본값 `validate`, 최초 배포 1회만 `update` 권장
-- `spring.jpa.properties.hibernate.jdbc.time_zone`
-  - 값은 `UTC`로 고정한다.
-  - DB `timestamp` 컬럼과 API UTC instant 응답 계약이 서버 timezone에 흔들리지 않도록 유지한다.
-- `AUTH_REFRESH_COOKIE_SECURE`
-  - 기본값 `true`
-- `AUTH_EMAIL_VERIFICATION_CODE_EXPIRATION_MS`
-  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 만료 시간, 기본 `600000`
-- `AUTH_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS`
-  - 회원가입 이메일 인증과 비밀번호 재설정 인증번호 재요청 제한 시간, 기본 `60000`
-- `AUTH_EMAIL_VERIFICATION_VERIFIED_EXPIRATION_MS`
-  - 이메일 인증 완료 상태 유지 시간, 기본 `1800000`
-- `AUTH_EMAIL_VERIFICATION_SUBJECT`
-  - 회원가입 인증 메일 제목
-- `SMTP_HOST`
-- `SMTP_PORT`
-  - 기본값 `587`
-- `SMTP_USERNAME`
-- `SMTP_PASSWORD`
-- `SMTP_AUTH`
-  - 기본값 `true`
-- `SMTP_STARTTLS_ENABLE`
-  - 기본값 `true`
-- `SMTP_FROM_ADDRESS`
-- SMTP 설정은 회원가입 인증 메일과 비밀번호 재설정 인증 메일에 공통으로 사용한다.
+- `CORS_ALLOWED_ORIGINS`
+- `SMTP_*`
 - `FEEDBACK_DISCORD_WEBHOOK_URL`
-  - Discord incoming webhook URL
-- `MONITORING_PROMETHEUS_PERMIT_ALL`
-  - 기본값 `false`, local scraping 재현이 필요할 때만 제한적으로 사용
 - `RANKING_REDIS_REBUILD_MODE`
-  - 기본값 `disabled`
-  - `startup`: 로컬 시작 시 재구축
-  - `oneshot`: 수동 Redis 랭킹 재구축 workflow 전용
-- `BACKEND_IMAGE`
-  - Docker Hub backend image 경로
-- `BACKEND_IMAGE_TAG`
-  - Docker Hub image tag
-- `LETSENCRYPT_DIR`
-  - host 인증서 디렉터리, 기본 `/etc/letsencrypt`
-- `CERTBOT_WEBROOT`
-  - ACME challenge webroot, 기본 `/var/www/certbot`
 
-### Frontend
+### Post images
 
-- `VITE_API_BASE_URL`
-  - 미설정 시 `http://localhost:8080`
-
-### 보안 원칙
-
-- 비밀값은 코드에 하드코딩하지 않는다.
-- 프로덕션용 민감 정보는 환경 변수나 승인된 배포 설정에서 주입한다.
-- local 개발용 값도 추적 파일에 직접 넣지 않고 `.env` 같은 비추적 파일로 분리한다.
-- 로컬 개발 편의 설정은 프로덕션 보안 정책으로 그대로 승격하지 않는다.
-- Discord webhook URL도 비밀값으로 취급하고 로그나 문서 본문에 직접 노출하지 않는다.
-
-### 피드백 Discord 알림 반영 절차
-
-- 운영 환경은 `infra/docker/.env`에 `FEEDBACK_DISCORD_WEBHOOK_URL`을 추가한 뒤 backend container를 재기동한다.
-- `feedbacks` 테이블에 새 컬럼이 추가되는 변경은 운영 DB schema 반영 절차가 먼저 필요하다.
-- 현재 운영 기본값이 `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`이므로, 새 컬럼 반영 시에는 아래 둘 중 하나를 선택한다.
-  - 운영 DB에 `ALTER TABLE feedbacks ...`를 수동 적용
-  - 또는 1회 배포 동안만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 올린 뒤 반영 확인 후 다시 `validate`로 원복
-- 게시글 이미지 업로드를 사용하려면 백엔드 런타임에 아래 환경 변수가 추가되어야 한다.
-  - `POST_IMAGES_BUCKET`
-  - `POST_IMAGES_REGION`
-  - `POST_IMAGES_KEY_PREFIX`
-  - `POST_IMAGES_PUBLIC_BASE_URL`
-- `post_attachments`, `post_views`, `admin_memos` 테이블이 추가되는 변경도 운영 DB schema 반영 절차가 먼저 필요하다.
+- `POST_IMAGES_HOST_DIR`
+- `POST_IMAGES_KEY_PREFIX`
+- `POST_IMAGES_PUBLIC_BASE_URL`
+- API container 내부 root는 `/data/post-images`다.
+- web container는 같은 directory를 read-only로 마운트한다.
 
 ## 5. CI/CD 파이프라인
 
-### 구현 상태
+### Validate
 
-1. GitHub Push
-2. 변경 경로에 따라 `Backend CI` 또는 `Frontend CI` 실행
-3. Backend 변경 시 `./gradlew test jacocoTestReport --no-daemon` 수행
-4. Backend 변경 시 `./gradlew build -x test --no-daemon` 수행
-5. Backend 성공 시 `backend/build/docs/asciidoc/`를 `restdocs-site` artifact로 업로드
-6. Backend 실패 시 `test-report`, 항상 `jacoco-report` 업로드
-7. Frontend 변경 시 `npm ci`, `npm run lint`, `npm test -- --run`, `npm run build` 수행
-8. Frontend 실패 시 `frontend/.ci-reports/`를 `frontend-failure-reports` artifact로 업로드
-9. 필요 시 `Performance Benchmark`를 수동 실행
-10. benchmark workflow에서 schema reset, seed 적재, `k6` 기준선 실행
-11. benchmark workflow에서 `summary.json`, `comparison.md`, backend 로그 artifact 업로드
-12. `deploy-backend.yml`은 `Backend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 Docker Hub push, EC2 deploy, health check를 수행한다.
-13. `deploy-frontend.yml`은 `Frontend CI` 성공 후 `workflow_run` 또는 수동 `workflow_dispatch`로 production `VITE_API_BASE_URL` 검증, S3 sync, CloudFront invalidation을 수행한다.
-14. backend는 Docker Hub image 푸시 후 EC2에서 사용하지 않는 Docker 산출물을 정리한 뒤 `docker compose pull app && up -d`로 반영한다.
-15. frontend는 `VITE_API_BASE_URL`을 주입해 빌드한 뒤 S3/CloudFront에 반영한다.
-16. backend/frontend CI와 deploy workflow의 운영 반영을 확인했고, 배포환경 수동 검증까지 완료했다.
-17. `2026-04-24` 최종 로컬 품질 게이트에서 backend `./gradlew test jacocoTestReport --no-daemon` JaCoCo instruction/branch 100%, frontend `npx vitest run --coverage` statements/branches/functions/lines 100%를 확인했다. 현재 Frontend CI의 강제 단계는 `lint`, `test`, `build`이며 커버리지 기준 강제는 별도 CI 단계로 두지 않았다.
-18. 사용자 수동 확인 기준 실제 SMTP 서버 송수신, 실제 AWS S3 업로드/삭제, 최종 브라우저 QA가 통과했다. 이 항목은 자동 CI가 아니라 배포 환경 스모크 검증으로 분리한다.
+1. backend/frontend와 infra 검증 실행
+2. backend jar artifact 생성
+3. API/web ARM64 image build
+4. registry push 없이 build 결과만 확인
 
-### 운영 적용 흐름
+### Publish
 
-1. GitHub Push
-2. GitHub Actions 테스트 통과
-3. Docker 이미지 빌드 및 Docker Hub 푸시
-4. EC2에서 최신 이미지 Pull
-5. 컨테이너 재시작으로 CD 수행
-6. Nginx + Let's Encrypt(Certbot) 인증서를 마운트해 HTTPS 적용
+1. `main`과 `MAC_MINI_DEPLOY_ENABLED=true` 조건 확인
+2. Validate 성공 확인
+3. GHCR 로그인
+4. API/web `linux/arm64` image를 같은 commit SHA tag로 발행
+5. image digest를 GitHub Actions summary에 기록
 
-### GitHub Actions 배포용 값
+### Deploy
 
-#### Secrets
+1. `production` Environment 적용
+2. Tailscale OIDC로 `home-mini` 연결
+3. 고정 `known_hosts`와 전용 SSH identity 검증
+4. GHCR token을 standard input으로 forced command에 전달
+5. Mac mini deploy script가 두 image를 pull
+6. 첫 배포는 `db`, `redis`부터 health 확인 뒤 API/web 기동
+7. 업데이트는 backup 성공 뒤 API/web를 같은 SHA로 교체
+8. web health 실패 시 이전 SHA로 rollback
 
-- `DOCKERHUB_TOKEN`
-- `EC2_SSH_PRIVATE_KEY`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
+## 6. GitHub 설정
 
-#### Variables
+### Environment
 
-- `DOCKERHUB_USERNAME`
-- `BACKEND_IMAGE`
-- `EC2_HOST`
-- `EC2_USER`
-- `AWS_REGION`
-- `S3_BUCKET`
-- `POST_IMAGES_BUCKET`
-- `POST_IMAGES_REGION`
-- `POST_IMAGES_KEY_PREFIX`
-- `POST_IMAGES_PUBLIC_BASE_URL`
-- `CLOUDFRONT_DISTRIBUTION_ID`
-- `VITE_API_BASE_URL`
+- `production`
 
-## 6. 도메인 / 네트워크
+### Secrets
 
-- Frontend
-  - CloudFront가 공개 진입점을 담당한다.
-  - OAC를 사용해 S3 직접 접근을 차단하는 구성을 목표로 한다.
-- Backend
-  - `api.cubing-hub.com`이 외부 진입점이다.
-  - Nginx가 `80 -> 443` 리다이렉트와 `/api`, `/actuator/health` reverse proxy를 담당한다.
-  - EC2와 RDS는 보안 그룹으로 접근 범위를 제한한다.
-- 데이터 저장소
-  - RDS는 외부 직접 접근을 허용하지 않고 애플리케이션 계층에서만 접근한다.
+- `TS_OAUTH_CLIENT_ID`
+- `TS_AUDIENCE`
+- `HOME_MINI_SSH_KEY`
+- `HOME_MINI_KNOWN_HOSTS`
 
-## 7. 운영 고려사항
+### Variables
 
-- 1차 운영 반영에서는 `GET /actuator/health`를 먼저 확인하고, 이후 핵심 사용자 기능과 관리자 기능까지 수동 검증한다.
-- `prometheus`, `grafana`는 local 관찰 기준선으로 유지하고 production 범위에서는 제외한다.
-- RDS는 최초 배포 시점에만 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`를 사용하고 이후 `validate`로 되돌린다.
-- Redis 준비 상태 키가 필요할 때는 일반 배포 시작 경로가 아니라 수동 Redis 재구축 workflow를 사용한다.
-- 운영 Redis 읽기 모델이 비어 복구가 필요하면 `RANKING_REDIS_REBUILD_MODE=oneshot`으로 one-shot 컨테이너를 실행해 재구축한다.
-- 일반 backend deploy는 시작 시 재구축을 사용하지 않고 health check와 분리한다.
-- AWS Billing Alarm 설정으로 과도한 비용 사용을 방지한다.
-- 실제 최초 배포 / 재배포 절차와 운영 후처리 체크리스트는 [aws-first-deploy-and-redeploy-checklist](./Trouble%20Shooting/aws-first-deploy-and-redeploy-checklist.md)에 정리한다.
+- `MAC_MINI_DEPLOY_ENABLED`
+  - 준비와 사전 검증이 끝날 때까지 설정하지 않거나 `false`로 유지한다.
+  - 첫 실제 발행과 배포를 승인한 뒤 `true`로 설정한다.
 
-## 8. 장애 대응 초안
+`GITHUB_TOKEN`은 GitHub Actions가 제공하는 token을 사용하고 별도 장기 GHCR token을 repository secret으로 저장하지 않는다.
+
+## 7. Tailscale와 SSH 경계
+
+- GitHub Actions는 Tailscale workload identity federation을 사용한다.
+- deploy client는 `tag:ci`로 연결하고 `home-mini` 도달 여부를 확인한다.
+- SSH는 `StrictHostKeyChecking=yes`와 사전 등록한 `known_hosts`를 사용한다.
+- Mac mini authorized key는 wrapper를 통해 아래 명령만 허용한다.
+
+```text
+deploy-cubing-hub <commit-sha> <registry-user>
+```
+
+- shell, port forwarding, PTY 같은 일반 원격 접근 권한을 배포 key에 부여하지 않는다.
+
+## 8. Backup과 rollback
+
+- 업데이트 전에 MySQL dump, Redis snapshot, post image snapshot을 한 backup 단위로 만든다.
+- `post_attachments.object_key`와 image snapshot의 파일 존재 여부를 대조한다.
+- 검증에 실패한 backup은 성공본으로 보관하지 않는다.
+- 성공한 backup은 최신 `3개`를 유지한다.
+- 첫 배포는 이전 운영 SHA가 없으므로 공개 cutover 전에 실패를 해결한다.
+- 업데이트 health 실패 시 이전 API/web SHA로 Compose를 되돌린다.
+- 데이터 restore는 자동 rollback에 포함하지 않고 별도 승인과 격리 검증 뒤 진행한다.
+
+## 9. Cloudflare route
+
+- `www.cubing-hub.com`
+  - React SPA와 정적 자산
+- `api.cubing-hub.com`
+  - `/api/**`, `/actuator/health`, `/uploads/**`
+- apex
+  - `www` redirect
+
+route 변경 전 현재 Cloudflare 구성을 backup한다. Cubing Hub route만 수정하고 Portfolio와 Guess Pokémon origin은 변경하지 않는다.
+
+## 10. 검증 기준
+
+### 저장소와 CI
+
+- workflow YAML과 actionlint
+- backend/frontend 전체 검증
+- Compose render
+- Nginx runtime config
+- API/web ARM64 image build
+- 폐기한 cloud deploy path와 moving image tag 0건
+
+### Mac mini
+
+- Docker daemon과 external `edge` network
+- runtime directory 권한과 `.env` mode
+- 신규 MySQL/Redis volume
+- Flyway migration 성공
+- JPA `validate` 성공
+- API/web/db/redis health
+- 초기 business table이 빈 상태인지 확인
+- backup과 restore rehearsal
+
+### 공개
+
+- apex redirect
+- `www` 200과 SPA deep link
+- API health `UP`
+- TLS
+- 로그인, refresh, logout
+- SMTP 회원가입/비밀번호 재설정
+- 기록 저장과 랭킹 반영
+- 게시글 이미지 upload/read/delete
+- Portfolio와 Guess Pokémon 회귀 확인
+
+## 11. 구현 및 배포 상태
+
+- 저장소 구현 완료
+  - production Compose
+  - deploy/backup/rollback script
+  - GHCR/Tailscale/SSH workflow
+  - Nginx Cloudflare origin config
+- 검증 완료
+  - local 정적·설정 검증
+  - GitHub-hosted backend/frontend와 API/web ARM64 build
+- 준비 필요
+  - GitHub `production` Environment와 secret
+  - Tailscale OIDC grant
+  - Mac mini forced-command SSH key와 runtime 파일
+  - 신규 data volume과 post image directory
+- 미실행
+  - GHCR Publish
+  - Mac mini Deploy
+  - Cloudflare cutover
+  - 공개 smoke와 운영 backup/monitoring
+
+## 12. 장애 대응
 
 | 상황 | 1차 대응 | 후속 대응 |
 | --- | --- | --- |
-| Spring Boot 컨테이너 장애 | 컨테이너 재시작 및 로그 확인 | 이미지/설정 롤백 검토 |
-| Redis 장애 | 토큰/캐시 영향 범위 확인 | Redis 배치 전략 또는 영속화 옵션 재검토 |
-| RDS 연결 실패 | DB 접속 정보와 네트워크 설정 점검 | 보안 그룹 / 애플리케이션 설정 재검토 |
-| CloudFront / S3 정적 배포 문제 | 캐시 무효화 및 배포 산출물 재확인 | 배포 파이프라인 검토 |
-| HTTPS 인증서 문제 | `certbot` 발급/만료 상태 확인 | 인증서 갱신 방식 재검토 |
-| CI 실패 | backend는 `test-report`, `jacoco-report`, frontend는 `frontend-failure-reports` 확인 | backend는 테스트/문서 단계, frontend는 lint/test/build 단계로 원인 분리 |
-
-## 9. 배포 다이어그램
-
-### 배포 구조도
-
-```mermaid
-flowchart LR
-    Dev[Developer] --> GH[GitHub]
-    GH --> GA[GitHub Actions]
-    GA --> DH[Docker Hub]
-    GA --> S3[S3 Static Hosting]
-    DH --> EC2[EC2 Docker Compose]
-    EC2 --> RDS[RDS MySQL]
-    EC2 --> Redis[Redis]
-    S3 --> CF[CloudFront]
-    CF --> User[Client]
-    EC2 --> User
-```
-
-## 10. 미확정 사항
-
-- HTTPS 인증서 발급/갱신 자동화 방식
-- 운영 Redis rebuild trigger와 장애 복구 절차
-- Route 53, OAC 세부 운영 절차
-- HTTPS 인증서 갱신 자동화 이후의 runbook 운영 수준
+| API/web image pull 실패 | 새 SHA 배포 중단 | GHCR package 권한과 tag 확인 |
+| API health 실패 | 이전 API/web SHA rollback | application log와 DB/Redis 상태 확인 |
+| MySQL 연결 실패 | DB health와 runtime env 확인 | volume과 Flyway history 확인 |
+| Redis 장애 | 인증/랭킹 영향 확인 | persistence와 rebuild 절차 검토 |
+| 이미지 파일 불일치 | 공개 전환 중단 | DB object key와 snapshot 대조 |
+| Cloudflare origin 장애 | Cubing Hub route 원복 | edge alias와 Nginx Host routing 확인 |
+| CI 실패 | 실패 job artifact와 log 확인 | backend/frontend/infra/image 단계로 원인 분리 |

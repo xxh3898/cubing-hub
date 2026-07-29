@@ -217,7 +217,7 @@ Records 1:1 (또는 1:0) User_PBs
 #### 제약 / 비즈니스 규칙
 
 - 게시글 수정/삭제는 작성자 본인 또는 `ROLE_ADMIN`만 허용한다.
-- 첨부 이미지는 S3 object storage를 원본 저장소로 두고 DB에는 메타데이터만 저장한다.
+- 첨부 이미지는 Mac mini host directory를 원본 저장소로 두고 DB에는 메타데이터만 저장한다.
 - 상세 조회는 로그인 사용자 기준 `post_views(post_id, user_id)` 고유 행이 처음 생성될 때만 `view_count`를 증가시킨다.
 - 비로그인 사용자는 조회수에 반영하지 않는다.
 
@@ -226,13 +226,13 @@ Records 1:1 (또는 1:0) User_PBs
 - 목적:
   - 게시글에 연결된 다중 이미지 메타데이터를 저장한다.
 - 설명:
-  - 실제 바이너리는 S3에 저장하고, DB에는 URL/파일명/순서 정보만 둔다.
+  - 실제 바이너리는 `POST_IMAGES_HOST_DIR` 아래에 저장하고, DB에는 URL/파일명/순서 정보만 둔다.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | `bigint` | 첨부 이미지 ID (PK, Auto Increment) |
 | `post_id` | `bigint` | 게시글 ID (FK -> `posts.id`) |
-| `object_key` | `varchar(512)` | S3 object key |
+| `object_key` | `varchar(512)` | host image root 기준 상대 object key |
 | `image_url` | `varchar(1000)` | 공개 이미지 URL |
 | `original_file_name` | `varchar(255)` | 원본 파일명 |
 | `content_type` | `varchar(100)` | MIME type |
