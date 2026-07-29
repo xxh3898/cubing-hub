@@ -9,9 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "post.images")
 public class PostImageStorageProperties {
 
-    private String storageType = "";
-    private String bucket = "";
-    private String region = "";
     private String keyPrefix = "community/posts";
     private String publicBaseUrl = "";
     private String localRootPath = "";

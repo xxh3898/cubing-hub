@@ -57,10 +57,9 @@ feedback:
 
 post:
   images:
-    bucket:
-    region:
     key-prefix: community/posts
     public-base-url:
+    local-root-path:
     max-file-count: 5
     max-file-size-bytes: 10485760
     max-total-size-bytes: 31457280
