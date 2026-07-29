@@ -49,11 +49,16 @@
 | --- | --- | --- | --- |
 | `db` | `mysql:8.0.46` | `mysql-data` volume | `application` |
 | `redis` | `redis:7.2.14-alpine` | `redis-data` volume | `application` |
-| `api` | `ghcr.io/xxh3898/cubing-hub-api:<full-sha>` | post image host directory read-write | `application` |
+| `api` | `ghcr.io/xxh3898/cubing-hub-api:<full-sha>` | post image host directory read-write | `application`, `outbound` |
 | `web` | `ghcr.io/xxh3898/cubing-hub-web:<full-sha>` | post image host directory read-only | `application`, `edge` |
 
 - `application` network는 외부 port가 없는 internal network다.
+- `outbound` network는 API만 연결하는 project 전용 bridge network다.
+  SMTP·Discord 외부 연동에 필요한 egress를 제공하고 host port는 열지
+  않는다.
 - `edge` network는 다른 Mac mini 서비스와 공유하는 external network다.
+- MySQL·Redis는 `application`에만, web은 `application`, `edge`에만
+  연결한다.
 - Cloudflare Tunnel은 `cubing-hub-web` alias를 origin으로 사용한다.
 - Prometheus와 Grafana는 production Compose 범위에 포함하지 않는다.
 

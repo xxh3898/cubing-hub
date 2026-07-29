@@ -6,10 +6,12 @@
 flowchart LR
     Client((Client))
     CF[Cloudflare Tunnel]
+    SMTP[SMTP Server]
 
     subgraph MacMini["Mac mini - Docker Compose"]
         Web[Nginx + React]
         API[Spring Boot API]
+        Outbound[API-only outbound network]
         MySQL[(MySQL 8.0)]
         Redis[(Redis 7.2)]
         Images[(Post image host directory)]
@@ -22,13 +24,19 @@ flowchart LR
     API --> MySQL
     API --> Redis
     API --> Images
+    API --> Outbound
+    Outbound --> SMTP
 ```
 
 - 저장소에는 Mac mini용 `db`, `redis`, `api`, `web` Compose 구성이 반영되어 있다.
 - 외부 요청은 공유 Cloudflare Tunnel과 `edge` network의 `cubing-hub-web` alias를 거쳐 web 컨테이너로 전달한다.
 - web 컨테이너는 React 정적 파일, SPA fallback, API reverse proxy, 게시글 이미지 응답을 담당한다.
-- API, MySQL, Redis는 외부에 port를 공개하지 않는 내부 `application` network를 사용한다.
-- Mac mini runtime과 Cloudflare route는 아직 실제 배포 전이다.
+- API, MySQL, Redis는 외부에 port를 공개하지 않는 내부 `application`
+  network를 사용한다.
+- API만 별도 `outbound` bridge network에도 연결해 SMTP와 Discord 같은
+  외부 연동에 필요한 outbound traffic을 허용한다.
+- Mac mini runtime과 Cloudflare route는 운영 중이며, `outbound` 추가
+  구성은 아직 재배포 전이다.
 
 ## 2. 주요 구성요소
 
@@ -59,6 +67,9 @@ flowchart LR
 
 - API는 `application` network에서 `db:3306`, `redis:6379`를 사용한다.
 - `application` network는 `internal: true`로 구성한다.
+- API는 project 전용 `outbound` bridge network를 통해서만 외부 DNS와
+  SMTP·Discord endpoint에 접근한다.
+- MySQL과 Redis는 `outbound`와 `edge`에 참여하지 않는다.
 - MySQL과 Redis는 host port를 공개하지 않는다.
 - web만 외부 `edge` network에 참여한다.
 

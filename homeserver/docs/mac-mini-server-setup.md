@@ -4,7 +4,9 @@
 
 - Mac mini M4의 Docker Desktop에서 `linux/arm64` image를 실행한다.
 - Cubing Hub는 `db`, `redis`, `api`, `web` container로 운영한다.
-- `db`, `redis`, `api`는 project 전용 internal network에만 연결한다.
+- `db`, `redis`는 project 전용 internal network에만 연결한다.
+- `api`는 internal network와 API 전용 outbound bridge network에
+  연결한다.
 - `web`만 공유 external `edge` network에 `cubing-hub-web` alias로
   연결한다.
 - 공유 `cloudflared` connector가 `http://cubing-hub-web:80`으로

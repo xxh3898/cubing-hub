@@ -106,6 +106,7 @@ services:
         condition: service_healthy
     networks:
       - application
+      - outbound
     logging:
       driver: json-file
       options:
@@ -162,6 +163,8 @@ volumes:
 networks:
   application:
     internal: true
+  outbound:
+    driver: bridge
   edge:
     external: true
     name: edge

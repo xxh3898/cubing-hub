@@ -24,7 +24,7 @@ const [
   read("../../.dockerignore"),
 ]);
 
-test("should_isolateDataServicesAndExposeOnlyWebToSharedEdge_when_productionRuns", () => {
+test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
   const db = serviceBlock(compose, "db");
   const redis = serviceBlock(compose, "redis");
   const api = serviceBlock(compose, "api");
@@ -36,14 +36,21 @@ test("should_isolateDataServicesAndExposeOnlyWebToSharedEdge_when_productionRuns
 
   assert.match(db, /\n    networks:\n      - application/);
   assert.match(redis, /\n    networks:\n      - application/);
-  assert.match(api, /\n    networks:\n      - application/);
+  assert.match(
+    api,
+    /\n    networks:\n      - application\n      - outbound/,
+  );
+  assert.doesNotMatch(api, /\n      - edge/);
+  assert.doesNotMatch(db, /\n      - outbound/);
+  assert.doesNotMatch(redis, /\n      - outbound/);
   assert.match(
     web,
     /\n    networks:\n      application:\n      edge:\n        aliases:\n          - cubing-hub-web/,
   );
+  assert.doesNotMatch(web, /\n      outbound:/);
   assert.match(
     compose,
-    /application:\n    internal: true[\s\S]*edge:\n    external: true\n    name: edge/,
+    /application:\n    internal: true[\s\S]*outbound:\n    driver: bridge[\s\S]*edge:\n    external: true\n    name: edge/,
   );
 });
 
