@@ -379,7 +379,8 @@ config = json.load(sys.stdin)
     expected_database_password_sha256,
     expected_database_root_password_sha256,
     expected_jwt_secret_sha256,
-) = sys.argv[1:10]
+    expected_env_file,
+) = sys.argv[1:11]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -577,6 +578,73 @@ if services["db"].get("command") != [
 ]:
     raise SystemExit("MySQL server command contract is invalid")
 api_environment = services["api"].get("environment", {})
+host_environment = {}
+with open(expected_env_file, encoding="utf-8") as env_file:
+    for raw_line in env_file:
+        line = raw_line.rstrip("\r\n")
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise SystemExit("protected host environment contains an invalid line")
+        name, value = line.split("=", 1)
+        if name in host_environment:
+            raise SystemExit("protected host environment contains a duplicate key")
+        host_environment[name] = value
+
+def host_value(name, default=None):
+    value = host_environment.get(name, default)
+    if value is None:
+        raise SystemExit(f"protected host environment is missing: {name}")
+    return value
+
+expected_full_api_environment = {
+    "AUTH_REFRESH_COOKIE_SECURE": "true",
+    "CORS_ALLOWED_ORIGINS": host_value(
+        "CORS_ALLOWED_ORIGINS",
+        "https://cubing-hub.com,https://www.cubing-hub.com",
+    ),
+    "DB_PASSWORD": host_value("DB_PASSWORD"),
+    "DB_USERNAME": host_value("DB_USERNAME"),
+    "FEEDBACK_DISCORD_WEBHOOK_URL": host_value(
+        "FEEDBACK_DISCORD_WEBHOOK_URL", ""
+    ),
+    "JWT_EXPIRATION": host_value("JWT_EXPIRATION", "1800000"),
+    "JWT_REFRESH_EXPIRATION": host_value(
+        "JWT_REFRESH_EXPIRATION", "604800000"
+    ),
+    "JWT_SECRET": host_value("JWT_SECRET"),
+    "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE": "health",
+    "MONITORING_PROMETHEUS_PERMIT_ALL": "false",
+    "POST_IMAGES_KEY_PREFIX": host_value(
+        "POST_IMAGES_KEY_PREFIX", "community/posts"
+    ),
+    "POST_IMAGES_LOCAL_ROOT_PATH": "/data/post-images",
+    "POST_IMAGES_PUBLIC_BASE_URL": host_value(
+        "POST_IMAGES_PUBLIC_BASE_URL",
+        "https://api.cubing-hub.com/uploads",
+    ),
+    "RANKING_REDIS_REBUILD_MODE": host_value(
+        "RANKING_REDIS_REBUILD_MODE", "disabled"
+    ),
+    "REDIS_HOST": "redis",
+    "REDIS_PORT": "6379",
+    "SMTP_AUTH": host_value("SMTP_AUTH", "true"),
+    "SMTP_FROM_ADDRESS": host_value("SMTP_FROM_ADDRESS", ""),
+    "SMTP_HOST": host_value("SMTP_HOST", "smtp.gmail.com"),
+    "SMTP_PASSWORD": host_value("SMTP_PASSWORD", ""),
+    "SMTP_PORT": host_value("SMTP_PORT", "587"),
+    "SMTP_STARTTLS_ENABLE": host_value("SMTP_STARTTLS_ENABLE", "true"),
+    "SMTP_USERNAME": host_value("SMTP_USERNAME", ""),
+    "SPRING_DATASOURCE_URL": (
+        f"jdbc:mysql://db:3306/{expected_database_name}"
+        "?sslMode=DISABLED&allowPublicKeyRetrieval=true"
+        "&serverTimezone=Asia/Seoul"
+    ),
+    "SPRING_JPA_HIBERNATE_DDL_AUTO": "validate",
+    "SPRING_PROFILES_ACTIVE": "prod",
+}
+if api_environment != expected_full_api_environment:
+    raise SystemExit("API environment contract must exactly match production")
 if api_environment.get("DB_USERNAME") != expected_database_user:
     raise SystemExit("API database user must match the protected host environment")
 api_database_password = api_environment.get("DB_PASSWORD")
@@ -740,7 +808,8 @@ if (
       "$(read_env_value DB_USERNAME)" \
       "$(printf '%s' "$(read_env_value DB_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
       "$(printf '%s' "$(read_env_value MYSQL_ROOT_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
-      "$(printf '%s' "$(read_env_value JWT_SECRET)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
+      "$(printf '%s' "$(read_env_value JWT_SECRET)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
+      "${ENV_FILE}"
 }
 
 prepare_runtime_release() {
