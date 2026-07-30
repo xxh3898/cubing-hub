@@ -26,23 +26,60 @@ deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user
 v2 workflow를 `main`에 병합하기 전에 repository의
 `homeserver/scripts/deploy-home-server.sh`,
 `homeserver/scripts/deploy-home-server-ci.sh`,
+`homeserver/scripts/backup-home-server-bootstrap.sh`,
 `homeserver/scripts/backup-home-server.sh`를 각각 Mac mini의
 `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh`와
 `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh`,
+`/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh`,
 `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh`에 사전
 설치해야 한다. 기존 파일을 timestamp backup으로 보존하고, 설치본의
 SHA-256이 repository 원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과
 잘못된 forced command 거부가 통과하는지 확인한 뒤에만 merge한다.
 이 prerequisite가 완료되지 않으면 기존 wrapper가 v2 명령을 거부하거나
 backup이 legacy Compose만 찾으므로 workflow를 병합하지 않는다.
-deploy·backup script는 runtime config artifact의 자동 동기화 대상이
-아니다.
+`deploy-home-server-ci.sh`와 `backup-home-server-bootstrap.sh`는 최초 v2
+전환을 위한 stable wrapper/bootstrap이며 runtime artifact로 자동 교체하지
+않는다. 고정 deploy/backup worker는 기존 2파일 v2 또는 pre-v2 fallback용으로
+보존한다.
 
 마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
-pinned Cloudflare real-IP 설정 또는 `homeserver/runtime-config.Dockerfile`이
-변경된 배포만 immutable runtime-config image를 새로 발행하고 `update`한다.
-따라서 설정 배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만
-바뀌면 `keep`으로 현재 검증된 config digest를 유지한다.
+pinned Cloudflare real-IP 설정, 허용된 deploy/backup script,
+`.dockerignore`의 runtime artifact 입력 또는
+`homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
+runtime-config image를 새로 발행하고 `update`한다. 따라서 설정·script
+배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만 바뀌면
+`keep`으로 현재 검증된 config digest를 유지한다.
+
+runtime-config image에는 아래 네 파일만 들어간다.
+
+```text
+compose.yaml
+nginx/cloudflare-edge-real-ip.conf
+scripts/deploy-cubing-hub.sh
+scripts/backup-cubing-hub.sh
+```
+
+고정 forced-command/bootstrap은 exact digest, revision/project label, regular-file
+allowlist, 전체 content hash, script mode `700`과 `/bin/bash -n`을 검증한
+뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전에는
+legacy Compose와 고정 legacy backup worker를 사용한다. v2 성공 뒤에는
+`runtime-config/current`가 Compose와 deploy/backup script의 공통 active
+release를 가리킨다. `keep`, recovery와 정기 backup은 이 release의 검증된
+script를 사용한다.
+
+Deploy와 scheduled backup 진입점은
+`/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`의 같은
+non-blocking advisory lock을 FD `9`로 잡고 worker 전체 실행 동안 유지한다.
+다른 작업이 실행 중이면 새 작업은 exit `75`로 fail-closed하며 pull, backup,
+state 또는 container 변경을 시작하지 않는다. Lock file은 mode `600`
+regular file로 계속 보존하고 프로세스 종료 시 kernel lock이 자동
+해제되므로 수동으로 삭제하지 않는다.
+
+Artifact 추출·script 검증 또는 candidate preflight가 실패하면
+`state`, `current`, `.env`와 실행 중 container를 바꾸지 않는다. Candidate
+배포가 실패하면 기존 application/config pair를 재적용하며 `current`는
+기존 release를 유지한다. Stable wrapper/bootstrap 자체를 바꾸는 작업만
+기존 파일의 timestamp backup과 별도 운영 승인 아래 수동 설치한다.
 
 배포 script는 Compose 전체 snapshot을 복제하지 않는다. healthcheck timing,
 logging, restart, replica, PID·tmpfs mount option과 일반 application
@@ -79,7 +116,8 @@ migration·backup·rollback 계획으로 진행한다.
 두 번째 배포부터는 다음 순서로 진행한다.
 
 1. 신규 API/Web image pull과, `update`일 때만 runtime config exact digest pull
-2. config provenance, 파일 allowlist, network·upload bind 계약과 Compose render
+2. config provenance, 파일 allowlist, deploy/backup script mode·문법,
+   network·upload bind 계약과 Compose render
 3. 운영 DB 실행 상태 확인
 4. MySQL dump와 게시글 이미지 backup
 5. `.env`의 API/Web image를 같은 신규 SHA로 교체
@@ -98,11 +136,13 @@ v2 배포가 강제 종료되거나 host가 재시작되어
 말고 Mac mini에서 다음 recovery 명령을 실행한다.
 
 ```bash
-/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh recover
+/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh recover
 ```
 
-recovery는 pending key와 SHA/digest 형식, 마지막 검증 state, release
-allowlist와 content hash를 먼저 대조한다.
+고정 forced-command/bootstrap은 검증된 state가 있으면 active release의 deploy
+script로 recovery를 전달한다. Recovery는 pending key와 SHA/digest 형식,
+마지막 검증 state, Compose·Nginx·deploy/backup script allowlist와 content
+hash를 먼저 대조한다.
 
 - 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
   검증된 target release로 stale `current` pointer를 원자 조정하고 pending
@@ -202,12 +242,16 @@ test -f "${runtime_release}/compose.yaml"
 ## 백업
 
 ```bash
-/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
+/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
 
-스크립트는 MySQL dump와 게시글 이미지 snapshot을 같은 run으로 만들고,
+고정 backup bootstrap은 `state`, `current`, content hash를 검증해 active
+release의 backup worker를 실행한다. Worker는 MySQL dump와 게시글 이미지
+snapshot을 같은 run으로 만들고,
 `post_attachments.object_key`가 가리키는 파일이 없으면 실패한다.
 성공 결과를 최종 directory로 이동한 뒤에만 오래된 backup을 정리한다.
+Deploy 또는 다른 backup이 공통 lock을 보유하거나 runtime config
+`pending` recovery가 남아 있으면 backup은 운영 data를 읽기 전에 실패한다.
 
 성공한 backup은 기본으로 최신 3개만 보관한다. 실패한 run은 조사할 수
 있도록 임시 directory를 남기며 기존 정상 backup을 삭제하지 않는다.

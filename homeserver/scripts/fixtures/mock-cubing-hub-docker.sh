@@ -22,7 +22,7 @@ case "${command_name}" in
     ;;
   cp)
     destination="$2"
-    /bin/mkdir -p "${destination}/nginx"
+    /bin/mkdir -p "${destination}/nginx" "${destination}/scripts"
     if [[ "${FAKE_FAIL_CP:-false}" == true ]]; then
       exit 1
     fi
@@ -30,6 +30,30 @@ case "${command_name}" in
     /bin/cp \
       "${FAKE_RUNTIME_REAL_IP}" \
       "${destination}/nginx/cloudflare-edge-real-ip.conf"
+    /bin/cp \
+      "${FAKE_RUNTIME_BACKUP_SCRIPT}" \
+      "${destination}/scripts/backup-cubing-hub.sh"
+    /bin/cp \
+      "${FAKE_RUNTIME_DEPLOY_SCRIPT}" \
+      "${destination}/scripts/deploy-cubing-hub.sh"
+    /bin/chmod 700 \
+      "${destination}/scripts/backup-cubing-hub.sh" \
+      "${destination}/scripts/deploy-cubing-hub.sh"
+    if [[ "${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" == true ]]; then
+      printf '\nif\n' >>"${destination}/scripts/deploy-cubing-hub.sh"
+    fi
+    if [[ "${FAKE_RUNTIME_INSECURE_SCRIPT_MODE:-false}" == true ]]; then
+      /bin/chmod 755 "${destination}/scripts/backup-cubing-hub.sh"
+    fi
+    if [[ "${FAKE_RUNTIME_EXTRA_FILE:-false}" == true ]]; then
+      printf 'unexpected\n' >"${destination}/unexpected"
+    fi
+    if [[ "${FAKE_RUNTIME_EXTRA_DIR:-false}" == true ]]; then
+      /bin/mkdir "${destination}/unexpected-directory"
+    fi
+    if [[ "${FAKE_RUNTIME_SYMLINK:-false}" == true ]]; then
+      /bin/ln -s compose.yaml "${destination}/unexpected-link"
+    fi
     ;;
   image)
     test "$1" = inspect
@@ -54,7 +78,7 @@ case "${command_name}" in
           ;;
       esac
     elif [[ "${format}" == *io.chochiho.runtime-config.project* ]]; then
-      printf 'cubing-hub\n'
+      printf '%s\n' "${FAKE_CONFIG_PROJECT:-cubing-hub}"
     else
       exit 1
     fi

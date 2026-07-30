@@ -8,7 +8,9 @@ infra
 homeserver/docs
 homeserver/launchd
 homeserver/monitoring
-homeserver/scripts
+homeserver/scripts/*
+!homeserver/scripts/deploy-home-server.sh
+!homeserver/scripts/backup-home-server.sh
 homeserver/workflows
 
 **/.DS_Store

@@ -9,6 +9,7 @@ const [
   deployScript,
   restrictedWrapper,
   backupScript,
+  backupBootstrap,
   frontendDockerfile,
   launchAgent,
   dockerIgnore,
@@ -22,6 +23,7 @@ const [
   read("./deploy-home-server.sh"),
   read("./deploy-home-server-ci.sh"),
   read("./backup-home-server.sh"),
+  read("./backup-home-server-bootstrap.sh"),
   read("../docker/frontend.Dockerfile"),
   read("../launchd/com.cubinghub-backup.plist.example"),
   read("../../.dockerignore"),
@@ -113,8 +115,9 @@ test("should_documentPinnedSystemPython_when_operationsScriptsRequireIt", () => 
   assert.match(deployScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
   assert.match(backupScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
   assert.match(setupGuide, /test -x \/usr\/bin\/python3/);
+  assert.match(setupGuide, /test -x \/usr\/bin\/lockf/);
   assert.match(setupGuide, /\/usr\/bin\/python3 --version/);
-  assert.match(setupGuide, /Homebrew Python이나 임의 PATH로 대체하지/);
+  assert.match(setupGuide, /Homebrew 도구나 임의[\s\S]*PATH로 대체하지/);
 });
 
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
@@ -133,7 +136,7 @@ test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
   );
   const firstDataStart = deployScript.indexOf('    db redis\n');
   const backupCondition = deployScript.indexOf(
-    'if [[ -n "${previous_sha}" ]]; then\n  "${BACKUP_SCRIPT}"',
+    'if [[ -n "${previous_sha}" ]]; then\n  if [[ ! -x "${active_backup_script}"',
   );
   const imageWrite = deployScript.indexOf(
     'write_image_env "${new_api_image}" "${new_web_image}"',
@@ -266,15 +269,82 @@ test("should_validateOnlyProtectedRuntimeInvariants_when_composeChanges", () => 
 test("should_packageOnlyAllowlistedRuntimeConfigFiles_when_configChanges", () => {
   assert.match(
     runtimeConfigDockerfile,
-    /FROM scratch[\s\S]*COPY homeserver\/docker-compose\.yml \/runtime\/compose\.yaml[\s\S]*COPY homeserver\/nginx\/cloudflare-edge-real-ip\.conf/,
+    /FROM scratch[\s\S]*COPY homeserver\/docker-compose\.yml \/runtime\/compose\.yaml[\s\S]*COPY homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*COPY --chmod=0700 homeserver\/scripts\/deploy-home-server\.sh \/runtime\/scripts\/deploy-cubing-hub\.sh[\s\S]*COPY --chmod=0700 homeserver\/scripts\/backup-home-server\.sh \/runtime\/scripts\/backup-cubing-hub\.sh/,
   );
+  assert.doesNotMatch(runtimeConfigDockerfile, /deploy-home-server-ci/);
   assert.match(
     runtimeConfigDetector,
-    /homeserver\/docker-compose\.yml[\s\S]*homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*homeserver\/runtime-config\.Dockerfile/,
+    /\.dockerignore[\s\S]*homeserver\/docker-compose\.yml[\s\S]*homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*homeserver\/scripts\/backup-home-server\.sh[\s\S]*homeserver\/scripts\/deploy-home-server\.sh[\s\S]*homeserver\/runtime-config\.Dockerfile/,
   );
   assert.match(runtimeConfigDetector, /git diff --quiet/);
   assert.match(runtimeConfigDetector, /printf 'keep\\n'/);
   assert.match(runtimeConfigDetector, /printf 'update\\n'/);
+  assert.match(dockerIgnore, /^homeserver\/scripts\/\*$/m);
+  assert.match(
+    dockerIgnore,
+    /^!homeserver\/scripts\/deploy-home-server\.sh$/m,
+  );
+  assert.match(
+    dockerIgnore,
+    /^!homeserver\/scripts\/backup-home-server\.sh$/m,
+  );
+});
+
+test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () => {
+  for (const script of [deployScript, backupScript]) {
+    assert.match(
+      script,
+      /scripts\/backup-cubing-hub\.sh[\s\S]*scripts\/deploy-cubing-hub\.sh/,
+    );
+    assert.match(script, /runtime config script mode must be 700/);
+    assert.match(script, /\/bin\/bash -n "\$\{script\}"/);
+    assert.match(
+      script,
+      /runtime_config_content_sha256[\s\S]*scripts\/backup-cubing-hub\.sh[\s\S]*scripts\/deploy-cubing-hub\.sh/,
+    );
+  }
+
+  assert.match(
+    restrictedWrapper,
+    /runtime config entry allowlist does not match/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /validate_release "\$\{release_temp\}" synced[\s\S]*exec "\$\{candidate_script\}"/,
+  );
+  assert.match(
+    deployScript,
+    /active_backup_script="\$\{candidate_release\}\/scripts\/backup-cubing-hub\.sh"[\s\S]*"\$\{active_backup_script\}"/,
+  );
+  assert.match(
+    backupBootstrap,
+    /readonly LEGACY_BACKUP_SCRIPT=\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub\.sh/,
+  );
+  assert.match(
+    backupBootstrap,
+    /runtime config entry allowlist does not match[\s\S]*exec "\$\{release_dir\}\/scripts\/backup-cubing-hub\.sh"/,
+  );
+  for (const bootstrap of [restrictedWrapper, backupBootstrap]) {
+    assert.match(
+      bootstrap,
+      /readonly LOCKF_BIN=\/usr\/bin\/lockf/,
+    );
+    assert.match(
+      bootstrap,
+      /readonly OPERATION_LOCK="\$\{APP_DIR\}\/\.cubing-hub-operation\.lock"/,
+    );
+    assert.match(bootstrap, /"\$\{LOCKF_BIN\}" -s -t 0 9/);
+    assert.match(
+      bootstrap,
+      /Another Cubing Hub deploy or backup operation is already running/,
+    );
+  }
+  assert.equal(restrictedWrapper.match(/<&3 3<&-/g)?.length, 2);
+  assert.match(
+    backupBootstrap,
+    /RUNTIME_CONFIG_PENDING[\s\S]*an incomplete runtime config transaction requires recovery/,
+  );
+  assert.doesNotMatch(runtimeConfigDockerfile, /bootstrap|deploy-home-server-ci/);
 });
 
 test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
@@ -339,7 +409,7 @@ test("should_excludeCredentialsAndGeneratedFilesFromDockerBuildContext", () => {
 test("should_runScheduledBackupFromRepositoryIndependentPath", () => {
   assert.match(
     launchAgent,
-    /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub\.sh/,
+    /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub-bootstrap\.sh/,
   );
   assert.doesNotMatch(launchAgent, /__REPO_DIR__|cd /);
 });

@@ -37,8 +37,11 @@ if git diff --quiet \
   "${before_sha}" \
   "${after_sha}" \
   -- \
+  .dockerignore \
   homeserver/docker-compose.yml \
   homeserver/nginx/cloudflare-edge-real-ip.conf \
+  homeserver/scripts/backup-home-server.sh \
+  homeserver/scripts/deploy-home-server.sh \
   homeserver/runtime-config.Dockerfile
 then
   printf 'keep\n'

@@ -4,8 +4,9 @@
 
 - 운영 목표는 Mac mini 한 대에서 `web`, `api`, `db`, `redis`를 Docker Compose로 실행하는 것이다.
 - API와 web 이미지는 GitHub-hosted ARM64 runner에서 검증하고 GHCR에 full commit SHA tag로 발행한다.
-- Compose와 공개 Nginx 설정은 변경된 배포에서만 immutable runtime-config
-  image로 발행하고 exact digest로 적용한다.
+- Compose, 공개 Nginx 설정과 허용된 project deploy/backup script는 변경된
+  배포에서만 immutable runtime-config image로 발행하고 exact digest로
+  적용한다.
 - GitHub Actions는 Tailscale OIDC와 Cubing Hub 전용 forced-command SSH를 통해 Mac mini 배포 script만 호출한다.
 - 공개 traffic은 Mac mini의 공유 Cloudflare Tunnel과 external `edge` Docker network를 사용한다.
 - 삭제된 기존 원격 DB 데이터를 복구하거나 이관하지 않고 신규 MySQL volume에서 시작한다.
@@ -77,10 +78,17 @@
 | Backup | `/Users/homeserver/Server/backups/cubing-hub` |
 | Deploy script | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh` |
 | Backup script | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh` |
+| Deploy bootstrap | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh` |
+| Backup bootstrap | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh` |
 
 - runtime 파일은 repository checkout 밖에 둔다.
 - v2 초기화 뒤 active Compose는 검증된 `state`와 atomic `current` pointer가
-  같은 immutable release를 가리킬 때만 사용한다.
+  같은 immutable release를 가리킬 때만 사용한다. Active deploy/backup
+  script도 같은 release에서 선택한다.
+- 고정 forced-command wrapper/deploy bootstrap과 별도 backup bootstrap은
+  최초 전환 때 수동 설치하며 runtime artifact로 자기 갱신하지 않는다.
+  고정 deploy/backup worker는 기존 2파일 v2와 pre-v2 fallback용으로
+  보존한다.
 - `.env`와 private key는 Git에 추가하지 않는다.
 - 실제 비밀값은 문서, log, command output에 노출하지 않는다.
 
@@ -146,14 +154,19 @@
 2. Tailscale OIDC로 `home-mini` 연결
 3. 고정 `known_hosts`와 전용 SSH identity 검증
 4. GHCR token을 standard input으로 forced command에 전달
-5. Mac mini deploy script가 API/web image와 `update`일 때만 runtime-config
-   exact digest를 pull
-6. artifact provenance·allowlist와 service/network/data 보호 경계, exact
-   healthcheck `test`, process user와 `tmpfs` target 집합 검증
-7. 첫 배포는 `db`, `redis`부터 health 확인 뒤 API/web 기동
-8. 업데이트는 backup 성공 뒤 API/web와 runtime config를 한 transaction으로 적용
-9. 모든 필수 service가 running/healthy일 때만 `state`와 `current` commit
-10. 실패 시 이전 application SHA와 config digest 쌍으로 rollback
+5. Deploy/backup 공통 advisory lock을 획득하고 경합 또는 pending recovery는
+   운영 변경 전에 fail-closed
+6. Mac mini deploy bootstrap이 API/web image와 `update`일 때만
+   runtime-config exact digest를 pull
+7. artifact provenance·Compose/Nginx/deploy/backup allowlist, script
+   mode·문법과 service/network/data 보호 경계, exact healthcheck `test`,
+   process user와 `tmpfs` target 집합 검증
+8. 첫 배포는 `db`, `redis`부터 health 확인 뒤 API/web 기동
+9. 업데이트는 backup 성공 뒤 API/web와 runtime config를 한 transaction으로 적용
+10. 검증된 candidate deploy script가 모든 필수 service를
+   running/healthy로 만든 경우에만 `state`와 Compose/script 공통
+   `current`를 commit
+11. 실패 시 이전 application SHA와 config digest 쌍으로 rollback
 
 ## 6. GitHub 설정
 
@@ -199,6 +212,8 @@ deploy-cubing-hub-v2 <commit-sha> update <config-digest> <registry-user>
 - 성공한 backup은 최신 `3개`를 유지한다.
 - v2 초기화 뒤 backup은 검증된 active runtime-config release를 사용하며
   손상된 `state`나 `current`에서 legacy Compose로 fallback하지 않는다.
+- Deploy와 scheduled backup은 stable bootstrap의 같은 advisory lock으로
+  직렬화하며, lock 경합과 pending recovery에서는 backup을 시작하지 않는다.
 - 첫 배포는 이전 운영 SHA가 없으므로 공개 cutover 전에 실패를 해결한다.
 - 업데이트 health 실패 시 이전 API/web SHA와 runtime-config digest 쌍으로
   Compose를 되돌린다.

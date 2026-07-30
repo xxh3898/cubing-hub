@@ -14,6 +14,7 @@ REVISION_THREE=3333333333333333333333333333333333333333
 CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 CONFIG_DIGEST_TWO=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 CONFIG_DIGEST_THREE=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+CONFIG_DIGEST_FIVE=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-deploy-test.XXXXXX")"
 cleanup() {
@@ -26,6 +27,7 @@ trap cleanup EXIT INT TERM
 app_dir="${test_root}/app"
 test_script="${test_root}/deploy-cubing-hub.sh"
 backup_script="${test_root}/backup.sh"
+backup_log="${test_root}/backup.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
 runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
 /bin/mkdir -p "${app_dir}"
@@ -42,8 +44,12 @@ runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
   "${app_dir}/.env" >"${app_dir}/.env.updated"
 /bin/mv "${app_dir}/.env.updated" "${app_dir}/.env"
 
-printf '#!/bin/bash\nexit 0\n' >"${backup_script}"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'printf "%s\n" "${BASH_SOURCE[0]}" >>"${FAKE_BACKUP_LOG}"' \
+  >"${backup_script}"
 /bin/chmod 700 "${backup_script}"
+: >"${backup_log}"
 
 /usr/bin/sed \
   -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${MOCK_DOCKER}#" \
@@ -60,7 +66,16 @@ run_deploy() {
     | /usr/bin/env \
         FAKE_RUNTIME_COMPOSE="${runtime_compose}" \
         FAKE_RUNTIME_REAL_IP="${runtime_real_ip}" \
+        FAKE_RUNTIME_BACKUP_SCRIPT="${FAKE_RUNTIME_BACKUP_SCRIPT:-${backup_script}}" \
+        FAKE_RUNTIME_DEPLOY_SCRIPT="${FAKE_RUNTIME_DEPLOY_SCRIPT:-${test_script}}" \
+        FAKE_RUNTIME_EXTRA_DIR="${FAKE_RUNTIME_EXTRA_DIR:-false}" \
+        FAKE_RUNTIME_EXTRA_FILE="${FAKE_RUNTIME_EXTRA_FILE:-false}" \
+        FAKE_RUNTIME_INSECURE_SCRIPT_MODE="${FAKE_RUNTIME_INSECURE_SCRIPT_MODE:-false}" \
+        FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX="${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" \
+        FAKE_RUNTIME_SYMLINK="${FAKE_RUNTIME_SYMLINK:-false}" \
+        FAKE_BACKUP_LOG="${backup_log}" \
         FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${REVISION_ONE}}" \
+        FAKE_CONFIG_PROJECT="${FAKE_CONFIG_PROJECT:-cubing-hub}" \
         FAKE_REVISION_ONE="${REVISION_ONE}" \
         FAKE_REVISION_TWO="${REVISION_TWO}" \
         FAKE_REVISION_THREE="${REVISION_THREE}" \
@@ -168,6 +183,42 @@ test "$(/bin/cat "${initialization_marker}")" = RUNTIME_CONFIG_V2=initialized
 /usr/bin/grep -Fxq "RUNTIME_CONFIG_REVISION=${REVISION_ONE}" "${state_file}"
 test -L "${current_link}"
 test ! -e "${app_dir}/runtime-config/pending"
+/usr/bin/tail -n 1 "${backup_log}" \
+  | /usr/bin/grep -Fxq \
+      "${bootstrap_candidate}/scripts/backup-cubing-hub.sh"
+
+legacy_v2_scripts="${test_root}/legacy-v2-scripts"
+/bin/mv "${bootstrap_candidate}/scripts" "${legacy_v2_scripts}"
+legacy_v2_content_sha="$(
+  {
+    /usr/bin/shasum -a 256 "${bootstrap_candidate}/compose.yaml"
+    /usr/bin/shasum -a 256 \
+      "${bootstrap_candidate}/nginx/cloudflare-edge-real-ip.conf"
+  } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
+)"
+/usr/bin/sed \
+  -e "s#^RUNTIME_CONFIG_CONTENT_SHA256=.*#RUNTIME_CONFIG_CONTENT_SHA256=${legacy_v2_content_sha}#" \
+  "${state_file}" >"${state_file}.legacy-v2"
+/bin/mv "${state_file}.legacy-v2" "${state_file}"
+run_deploy "${REVISION_ONE}" keep test-user
+test "$(/usr/bin/readlink "${current_link}")" \
+  = "releases/${CONFIG_DIGEST#sha256:}"
+/bin/mv "${legacy_v2_scripts}" "${bootstrap_candidate}/scripts"
+restored_v2_content_sha="$(
+  {
+    /usr/bin/shasum -a 256 "${bootstrap_candidate}/compose.yaml"
+    /usr/bin/shasum -a 256 \
+      "${bootstrap_candidate}/nginx/cloudflare-edge-real-ip.conf"
+    /usr/bin/shasum -a 256 \
+      "${bootstrap_candidate}/scripts/backup-cubing-hub.sh"
+    /usr/bin/shasum -a 256 \
+      "${bootstrap_candidate}/scripts/deploy-cubing-hub.sh"
+  } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
+)"
+/usr/bin/sed \
+  -e "s#^RUNTIME_CONFIG_CONTENT_SHA256=.*#RUNTIME_CONFIG_CONTENT_SHA256=${restored_v2_content_sha}#" \
+  "${state_file}" >"${state_file}.restored-v2"
+/bin/mv "${state_file}.restored-v2" "${state_file}"
 
 /bin/mv "${state_file}" "${state_file}.both-missing"
 /bin/mv "${current_link}" "${current_link}.both-missing"
@@ -326,6 +377,10 @@ target_content_sha="$(
     /usr/bin/shasum -a 256 "${release_two}/compose.yaml"
     /usr/bin/shasum -a 256 \
       "${release_two}/nginx/cloudflare-edge-real-ip.conf"
+    /usr/bin/shasum -a 256 \
+      "${release_two}/scripts/backup-cubing-hub.sh"
+    /usr/bin/shasum -a 256 \
+      "${release_two}/scripts/deploy-cubing-hub.sh"
   } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
 )"
 {
@@ -457,6 +512,58 @@ FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT=',"FEATURE_FLAG":"enabled"' \
 /usr/bin/grep -Fxq "RUNTIME_CONFIG_DIGEST=${CONFIG_DIGEST_TWO}" "${state_file}"
 test "$(/usr/bin/readlink "${current_link}")" \
   = "releases/${CONFIG_DIGEST_TWO#sha256:}"
+
+verified_state_sha="$(
+  /usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}'
+)"
+verified_env_sha="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
+verified_current_target="$(
+  /usr/bin/readlink "${current_link}"
+)"
+
+expect_artifact_preflight_failure() {
+  local label="$1"
+  local exit_code
+
+  set +e
+  FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${REVISION_ONE}}" \
+    run_deploy \
+      "${REVISION_ONE}" \
+      update \
+      "${CONFIG_DIGEST_FIVE}" \
+      test-user \
+      >/dev/null 2>&1
+  exit_code="$?"
+  set -e
+
+  if [[ "${exit_code}" -ne 1 ]]; then
+    printf '%s must fail before the deployment transaction starts\n' "${label}" >&2
+    exit 1
+  fi
+  test ! -e "${pending_file}"
+  test "$(/usr/bin/readlink "${current_link}")" = "${verified_current_target}"
+  test "$(/usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}')" \
+    = "${verified_state_sha}"
+  test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" \
+    = "${verified_env_sha}"
+}
+
+FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX=true \
+  expect_artifact_preflight_failure "invalid candidate deploy syntax"
+FAKE_RUNTIME_INSECURE_SCRIPT_MODE=true \
+  expect_artifact_preflight_failure "insecure candidate script mode"
+FAKE_RUNTIME_EXTRA_FILE=true \
+  expect_artifact_preflight_failure "unexpected artifact file"
+FAKE_RUNTIME_EXTRA_DIR=true \
+  expect_artifact_preflight_failure "unexpected artifact directory"
+FAKE_RUNTIME_SYMLINK=true \
+  expect_artifact_preflight_failure "artifact symlink"
+FAKE_CONFIG_PROJECT=other-project \
+  expect_artifact_preflight_failure "runtime artifact project mismatch"
+FAKE_CONFIG_REVISION="${REVISION_TWO}" \
+  expect_artifact_preflight_failure "runtime artifact revision mismatch"
 
 expect_protected_failure() {
   local label="$1"

@@ -61,6 +61,7 @@ prepare_script() {
   /usr/bin/sed \
     -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${mock_docker}#" \
     -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
+    -e "s#readonly BACKUP_BOOTSTRAP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_BOOTSTRAP_SCRIPT=${target_script}#" \
     -e "s#readonly BACKUP_ROOT=/Users/homeserver/Server/backups/cubing-hub#readonly BACKUP_ROOT=${backup_root}#" \
     "${SOURCE_SCRIPT}" >"${target_script}"
   /bin/chmod 700 "${target_script}"
@@ -73,11 +74,21 @@ runtime_content_sha256() {
     /usr/bin/shasum -a 256 "${release_dir}/compose.yaml"
     /usr/bin/shasum -a 256 \
       "${release_dir}/nginx/cloudflare-edge-real-ip.conf"
+    if [[ -f "${release_dir}/scripts/backup-cubing-hub.sh" ]] \
+      && [[ -f "${release_dir}/scripts/deploy-cubing-hub.sh" ]]
+    then
+      /usr/bin/shasum -a 256 \
+        "${release_dir}/scripts/backup-cubing-hub.sh"
+      /usr/bin/shasum -a 256 \
+        "${release_dir}/scripts/deploy-cubing-hub.sh"
+    fi
   } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
 }
 
 prepare_runtime_state() {
   local app_dir="$1"
+  local runtime_backup_script="$2"
+  local include_scripts="${3:-true}"
   local release_dir="${app_dir}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
   local content_sha
 
@@ -85,6 +96,18 @@ prepare_runtime_state() {
   printf 'name: cubing-hub\nservices: {}\n' >"${release_dir}/compose.yaml"
   printf 'set_real_ip_from 192.0.2.0/24;\n' \
     >"${release_dir}/nginx/cloudflare-edge-real-ip.conf"
+  if [[ "${include_scripts}" == true ]]; then
+    /bin/mkdir -p "${release_dir}/scripts"
+    /bin/cp \
+      "${runtime_backup_script}" \
+      "${release_dir}/scripts/backup-cubing-hub.sh"
+    /bin/cp \
+      "${SCRIPT_DIR}/deploy-home-server.sh" \
+      "${release_dir}/scripts/deploy-cubing-hub.sh"
+    /bin/chmod 700 \
+      "${release_dir}/scripts/backup-cubing-hub.sh" \
+      "${release_dir}/scripts/deploy-cubing-hub.sh"
+  fi
   content_sha="$(runtime_content_sha256 "${release_dir}")"
 
   {
@@ -118,8 +141,8 @@ v2_post_images="${test_root}/v2-post-images"
 v2_script="${test_root}/v2-backup.sh"
 prepare_app "${v2_app}" "${v2_post_images}"
 /bin/mkdir -p "${v2_backups}"
-prepare_runtime_state "${v2_app}"
 prepare_script "${v2_app}" "${v2_backups}" "${v2_script}"
+prepare_runtime_state "${v2_app}" "${v2_script}"
 
 COMPOSE_PROJECT_NAME=ambient-project \
 POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \
@@ -132,16 +155,36 @@ expected_release="${v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--file ${expected_release}/compose.yaml" "${docker_log}"
 test "$(find "${v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 1
 
+legacy_v2_app="${test_root}/legacy-v2-app"
+legacy_v2_backups="${test_root}/legacy-v2-backups"
+legacy_v2_post_images="${test_root}/legacy-v2-post-images"
+legacy_v2_script="${test_root}/legacy-v2-backup.sh"
+prepare_app "${legacy_v2_app}" "${legacy_v2_post_images}"
+/bin/mkdir -p "${legacy_v2_backups}"
+prepare_script \
+  "${legacy_v2_app}" \
+  "${legacy_v2_backups}" \
+  "${legacy_v2_script}"
+prepare_runtime_state "${legacy_v2_app}" "${legacy_v2_script}" false
+
+: >"${docker_log}"
+DOCKER_LOG="${docker_log}" \
+MOCK_POST_IMAGES_DIR="${legacy_v2_post_images}" \
+  "${legacy_v2_script}" >/dev/null
+legacy_v2_release="${legacy_v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
+/usr/bin/grep -Fq -- "--file ${legacy_v2_release}/compose.yaml" "${docker_log}"
+test "$(find "${legacy_v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 1
+
 unsafe_app="${test_root}/unsafe-app"
 unsafe_backups="${test_root}/unsafe-backups"
 unsafe_post_images="${test_root}/unsafe-post-images"
 unsafe_script="${test_root}/unsafe-backup.sh"
 prepare_app "${unsafe_app}" "${unsafe_post_images}"
 /bin/mkdir -p "${unsafe_backups}"
-prepare_runtime_state "${unsafe_app}"
+prepare_script "${unsafe_app}" "${unsafe_backups}" "${unsafe_script}"
+prepare_runtime_state "${unsafe_app}" "${unsafe_script}"
 /bin/rm -f -- "${unsafe_app}/runtime-config/current"
 /bin/ln -s releases/not-the-verified-release "${unsafe_app}/runtime-config/current"
-prepare_script "${unsafe_app}" "${unsafe_backups}" "${unsafe_script}"
 
 if DOCKER_LOG="${docker_log}" \
   MOCK_POST_IMAGES_DIR="${unsafe_post_images}" \
@@ -158,10 +201,10 @@ tampered_post_images="${test_root}/tampered-post-images"
 tampered_script="${test_root}/tampered-backup.sh"
 prepare_app "${tampered_app}" "${tampered_post_images}"
 /bin/mkdir -p "${tampered_backups}"
-prepare_runtime_state "${tampered_app}"
+prepare_script "${tampered_app}" "${tampered_backups}" "${tampered_script}"
+prepare_runtime_state "${tampered_app}" "${tampered_script}"
 printf '\n# tampered after verification\n' \
   >>"${tampered_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}/compose.yaml"
-prepare_script "${tampered_app}" "${tampered_backups}" "${tampered_script}"
 
 if DOCKER_LOG="${docker_log}" \
   MOCK_POST_IMAGES_DIR="${tampered_post_images}" \
@@ -178,15 +221,15 @@ symlink_state_post_images="${test_root}/symlink-state-post-images"
 symlink_state_script="${test_root}/symlink-state-backup.sh"
 prepare_app "${symlink_state_app}" "${symlink_state_post_images}"
 /bin/mkdir -p "${symlink_state_backups}"
-prepare_runtime_state "${symlink_state_app}"
-/bin/mv \
-  "${symlink_state_app}/runtime-config/state" \
-  "${symlink_state_app}/runtime-config/state.target"
-/bin/ln -s state.target "${symlink_state_app}/runtime-config/state"
 prepare_script \
   "${symlink_state_app}" \
   "${symlink_state_backups}" \
   "${symlink_state_script}"
+prepare_runtime_state "${symlink_state_app}" "${symlink_state_script}"
+/bin/mv \
+  "${symlink_state_app}/runtime-config/state" \
+  "${symlink_state_app}/runtime-config/state.target"
+/bin/ln -s state.target "${symlink_state_app}/runtime-config/state"
 
 if DOCKER_LOG="${docker_log}" \
   MOCK_POST_IMAGES_DIR="${symlink_state_post_images}" \

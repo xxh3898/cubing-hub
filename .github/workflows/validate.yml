@@ -32,13 +32,16 @@ jobs:
       - name: Validate shell scripts
         run: |
           bash -n \
+            homeserver/scripts/backup-home-server-bootstrap.sh \
             homeserver/scripts/backup-home-server.sh \
             homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
             homeserver/scripts/deploy-home-server.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
             homeserver/scripts/test-backup-home-server.sh \
-            homeserver/scripts/test-deploy-home-server.sh
+            homeserver/scripts/test-detect-runtime-config-change.sh \
+            homeserver/scripts/test-deploy-home-server.sh \
+            homeserver/scripts/test-runtime-script-bootstrap.sh
 
       - name: Verify runtime config change detection
         run: |
@@ -55,6 +58,8 @@ jobs:
               "${current_sha}" \
               true
           )" = update
+          /bin/bash ./homeserver/scripts/test-detect-runtime-config-change.sh
+          /bin/bash ./homeserver/scripts/test-runtime-script-bootstrap.sh
 
       - name: Test deploy v2 state transitions
         run: /bin/bash ./homeserver/scripts/test-deploy-home-server.sh
@@ -103,6 +108,24 @@ jobs:
           docker cp "${container_id}:/runtime/." "${runtime_dir}"
           test -f "${runtime_dir}/compose.yaml"
           test -f "${runtime_dir}/nginx/cloudflare-edge-real-ip.conf"
+          test -x "${runtime_dir}/scripts/deploy-cubing-hub.sh"
+          test -x "${runtime_dir}/scripts/backup-cubing-hub.sh"
+          test "$(stat -c '%a' "${runtime_dir}/scripts/deploy-cubing-hub.sh")" = 700
+          test "$(stat -c '%a' "${runtime_dir}/scripts/backup-cubing-hub.sh")" = 700
+          test "$(
+            find "${runtime_dir}" -mindepth 1 -printf '%P\n' | LC_ALL=C sort
+          )" = "$(
+            printf '%s\n' \
+              compose.yaml \
+              nginx \
+              nginx/cloudflare-edge-real-ip.conf \
+              scripts \
+              scripts/backup-cubing-hub.sh \
+              scripts/deploy-cubing-hub.sh
+          )"
+          bash -n \
+            "${runtime_dir}/scripts/deploy-cubing-hub.sh" \
+            "${runtime_dir}/scripts/backup-cubing-hub.sh"
 
           cp homeserver/.env.example "${runtime_dir}/.env"
           API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:1111111111111111111111111111111111111111 \
