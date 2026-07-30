@@ -90,14 +90,16 @@ case "${command_name}" in
         web_profiles='["optional"]'
       fi
       web_restart="${FAKE_RENDER_RESTART_POLICY:-unless-stopped}"
+      web_scale="${FAKE_RENDER_WEB_SCALE:-1}"
       printf \
-        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","healthcheck":{"test":["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -u root --password=\\\"$${MYSQL_ROOT_PASSWORD}\\\" --silent"]},"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"image":"%s","restart":"unless-stopped","healthcheck":{"test":["CMD","redis-cli","ping"]},"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"image":"%s","restart":"unless-stopped","networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"image":"%s","restart":"%s","profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","healthcheck":{"test":["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -u root --password=\\\"$${MYSQL_ROOT_PASSWORD}\\\" --silent"]},"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"image":"%s","restart":"unless-stopped","healthcheck":{"test":["CMD","redis-cli","ping"]},"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"image":"%s","restart":"unless-stopped","networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"image":"%s","restart":"%s","scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
         "${db_image}" \
         "${redis_image}" \
         "${api_image}" \
         "${upload_source}" \
         "${web_image}" \
         "${web_restart}" \
+        "${web_scale}" \
         "${web_profiles}" \
         "${web_healthcheck}" \
         "${edge_alias}" \

@@ -397,6 +397,10 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} must not use Compose profiles")
     if service.get("restart") != "unless-stopped":
         raise SystemExit(f"{name} restart policy must remain unless-stopped")
+    if service.get("scale", 1) != 1:
+        raise SystemExit(f"{name} must run exactly one replica")
+    if service.get("deploy", {}).get("replicas", 1) != 1:
+        raise SystemExit(f"{name} deploy replicas must remain one")
 web_edge = services["web"].get("networks", {}).get("edge", {})
 if not isinstance(web_edge, dict) or "cubing-hub-web" not in web_edge.get(
     "aliases", []
