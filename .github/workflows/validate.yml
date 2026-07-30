@@ -33,8 +33,29 @@ jobs:
         run: |
           bash -n \
             homeserver/scripts/backup-home-server.sh \
+            homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
-            homeserver/scripts/deploy-home-server.sh
+            homeserver/scripts/deploy-home-server.sh \
+            homeserver/scripts/test-deploy-home-server.sh
+
+      - name: Verify runtime config change detection
+        run: |
+          current_sha="$(git rev-parse HEAD)"
+          test "$(
+            ./homeserver/scripts/detect-runtime-config-change.sh \
+              "${current_sha}" \
+              "${current_sha}" \
+              false
+          )" = keep
+          test "$(
+            ./homeserver/scripts/detect-runtime-config-change.sh \
+              "${current_sha}" \
+              "${current_sha}" \
+              true
+          )" = update
+
+      - name: Test deploy v2 state transitions
+        run: ./homeserver/scripts/test-deploy-home-server.sh
 
       - name: Run infrastructure tests
         run: >
@@ -49,6 +70,44 @@ jobs:
             --env-file homeserver/.env.example \
             --file homeserver/docker-compose.yml \
             config --quiet
+
+      - name: Build and verify runtime config image
+        run: |
+          docker build \
+            --file homeserver/runtime-config.Dockerfile \
+            --build-arg REVISION=1111111111111111111111111111111111111111 \
+            --tag cubing-hub-runtime-config:verify \
+            .
+
+          actual_revision="$(
+            docker image inspect \
+              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+              cubing-hub-runtime-config:verify
+          )"
+          test "${actual_revision}" = 1111111111111111111111111111111111111111
+
+          container_id="$(docker create cubing-hub-runtime-config:verify)"
+          runtime_dir="$(mktemp -d)"
+
+          cleanup_runtime_config() {
+            docker rm "${container_id}" >/dev/null 2>&1 || true
+            rm -rf -- "${runtime_dir}"
+          }
+          trap cleanup_runtime_config EXIT INT TERM
+
+          docker cp "${container_id}:/runtime/." "${runtime_dir}"
+          test -f "${runtime_dir}/compose.yaml"
+          test -f "${runtime_dir}/nginx/cloudflare-edge-real-ip.conf"
+
+          cp homeserver/.env.example "${runtime_dir}/.env"
+          API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:1111111111111111111111111111111111111111 \
+          WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:1111111111111111111111111111111111111111 \
+            docker compose \
+              --project-directory "${runtime_dir}" \
+              --env-file "${runtime_dir}/.env" \
+              --file "${runtime_dir}/compose.yaml" \
+              config \
+              --quiet
 
           docker compose \
             --env-file homeserver/.env.example \

@@ -59,7 +59,7 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   );
   assert.equal(
     countMatches(deployWorkflow, /platforms: linux\/arm64/g),
-    2,
+    3,
   );
   assert.match(
     deployWorkflow,
@@ -68,6 +68,14 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   assert.match(
     deployWorkflow,
     /tags: \$\{\{ env\.WEB_IMAGE_NAME \}\}:\$\{\{ github\.sha \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
+    /RUNTIME_CONFIG_IMAGE_NAME: ghcr\.io\/xxh3898\/cubing-hub-runtime-config/,
+  );
+  assert.match(
+    deployWorkflow,
+    /if: steps\.runtime-config-mode\.outputs\.mode == 'update'/,
   );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
   assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
@@ -109,7 +117,7 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   assert.match(deployWorkflow, /ping: home-mini/);
   assert.match(
     deployWorkflow,
-    /"deploy-cubing-hub \$\{GITHUB_SHA\} \$\{GITHUB_ACTOR\}"/,
+    /deploy_command="deploy-cubing-hub-v2 \$\{GITHUB_SHA\} keep \$\{GITHUB_ACTOR\}"/,
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);

@@ -17,7 +17,14 @@ GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에�
 
 ```text
 deploy-cubing-hub <40자리 commit SHA> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
 ```
+
+`homeserver/docker-compose.yml`, pinned Cloudflare real-IP 설정 또는
+`homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
+runtime-config image를 새로 발행하고 `update`한다. 애플리케이션만 바뀌면
+`keep`으로 현재 검증된 config digest를 유지한다.
 
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
@@ -29,12 +36,13 @@ deploy-cubing-hub <40자리 commit SHA> <registry user>
 
 두 번째 배포부터는 다음 순서로 진행한다.
 
-1. 신규 API/web image pull과 Compose render
-2. 운영 DB 실행 상태 확인
-3. MySQL dump와 게시글 이미지 backup
-4. `.env`의 API/web image를 같은 신규 SHA로 교체
-5. Compose 적용과 health 확인
-6. 실패 시 이전 API/web SHA를 함께 복구
+1. 신규 API/Web image pull과, `update`일 때만 runtime config exact digest pull
+2. config provenance, 파일 allowlist, network·upload bind 계약과 Compose render
+3. 운영 DB 실행 상태 확인
+4. MySQL dump와 게시글 이미지 backup
+5. `.env`의 API/Web image를 같은 신규 SHA로 교체
+6. Compose 적용과 health 확인
+7. 실패 시 이전 API/Web SHA와 runtime config를 함께 복구
 
 DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
 image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
@@ -109,7 +117,8 @@ Mac mini app directory에 설치하고 admin profile을 실행한다.
 
 ## 장애와 rollback
 
-- API/web image 문제면 이전 두 SHA로 함께 되돌린다.
+- API/Web 또는 runtime config 문제면 이전 두 SHA와 이전 config digest를
+  한 쌍으로 되돌린다.
 - DB와 image volume을 삭제하는 `docker compose down -v`를 사용하지
   않는다.
 - 첫 배포 실패 시 신규 data service는 보존하고 실패한 API/web만

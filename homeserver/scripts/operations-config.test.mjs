@@ -12,6 +12,8 @@ const [
   frontendDockerfile,
   launchAgent,
   dockerIgnore,
+  runtimeConfigDockerfile,
+  runtimeConfigDetector,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -22,6 +24,8 @@ const [
   read("../docker/frontend.Dockerfile"),
   read("../launchd/com.cubinghub-backup.plist.example"),
   read("../../.dockerignore"),
+  read("../runtime-config.Dockerfile"),
+  read("./detect-runtime-config-change.sh"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -94,7 +98,7 @@ test("should_hardenApplicationContainersAndKeepSecretsExternal", () => {
 test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
   assert.match(
     restrictedWrapper,
-    /\^deploy-cubing-hub\[\[:space:\]\]\(\[0-9a-fA-F\]\{40\}\)\[\[:space:\]\]\(\[A-Za-z0-9_-\]\+\)\$/,
+    /deploy-cubing-hub-v2[\s\S]*keep[\s\S]*deploy-cubing-hub-v2[\s\S]*update/,
   );
   assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
   assert.match(
@@ -148,10 +152,29 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     deployScript,
     /Database migration is not rolled back automatically/,
   );
+  assert.match(
+    deployScript,
+    /active_compose_file="\$\{current_compose_file\}"/,
+  );
+  assert.match(deployScript, /RUNTIME_CONFIG_PENDING/);
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
   );
+});
+
+test("should_packageOnlyAllowlistedRuntimeConfigFiles_when_configChanges", () => {
+  assert.match(
+    runtimeConfigDockerfile,
+    /FROM scratch[\s\S]*COPY homeserver\/docker-compose\.yml \/runtime\/compose\.yaml[\s\S]*COPY homeserver\/nginx\/cloudflare-edge-real-ip\.conf/,
+  );
+  assert.match(
+    runtimeConfigDetector,
+    /homeserver\/docker-compose\.yml[\s\S]*homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*homeserver\/runtime-config\.Dockerfile/,
+  );
+  assert.match(runtimeConfigDetector, /git diff --quiet/);
+  assert.match(runtimeConfigDetector, /printf 'keep\\n'/);
+  assert.match(runtimeConfigDetector, /printf 'update\\n'/);
 });
 
 test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
