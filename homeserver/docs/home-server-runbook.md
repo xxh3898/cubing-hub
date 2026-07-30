@@ -21,6 +21,18 @@ deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
 deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
 ```
 
+v2 workflow를 `main`에 병합하기 전에 repository의
+`homeserver/scripts/deploy-home-server.sh`와
+`homeserver/scripts/deploy-home-server-ci.sh`를 각각 Mac mini의
+`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh`와
+`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh`에
+사전 설치해야 한다. 기존 파일을 timestamp backup으로 보존하고, 설치본의
+SHA-256이 repository 원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과
+잘못된 forced command 거부가 통과하는지 확인한 뒤에만 merge한다.
+이 prerequisite가 완료되지 않으면 기존 wrapper가 v2 명령을 거부하므로
+workflow를 병합하지 않는다. deploy script는 runtime config artifact의
+자동 동기화 대상이 아니다.
+
 `homeserver/docker-compose.yml`, pinned Cloudflare real-IP 설정 또는
 `homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
 runtime-config image를 새로 발행하고 `update`한다. 애플리케이션만 바뀌면
@@ -47,6 +59,34 @@ runtime-config image를 새로 발행하고 `update`한다. 애플리케이션�
 DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
 image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
 간주하지 말고 수동 판단한다.
+
+## 중단된 runtime config transaction 복구
+
+v2 배포가 강제 종료되거나 host가 재시작되어
+`/Users/homeserver/Server/apps/cubing-hub/runtime-config/pending`이 남으면
+후속 v2 배포는 fail closed한다. pending 파일을 직접 삭제하거나 수정하지
+말고 Mac mini에서 다음 recovery 명령을 실행한다.
+
+```bash
+/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh recover
+```
+
+recovery는 pending key와 SHA/digest 형식, 마지막 검증 state, release
+allowlist와 content hash를 먼저 대조한다.
+
+- 성공 state가 이미 target pair라면 `.env`, `current` pointer와 실행
+  service를 검증한 뒤 pending marker만 정리한다.
+- state가 previous pair라면 이전 API/Web SHA와 config release를
+  `--pull never`로 다시 적용하고 health가 통과한 뒤 marker를 정리한다.
+- runtime config 도입 전 기존 설치라면 legacy Compose와 이전 SHA로
+  복구한다.
+- 정상 image가 한 번도 없던 bootstrap 중단이라면 API/Web을 중지하고
+  zero-SHA placeholder로 되돌려 다음 배포가 첫 배포로 다시 시작하게 한다.
+- pending/state가 서로 맞지 않거나 release가 변조됐으면 아무것도
+  정리하지 않고 실패한다.
+
+복구 후 production Compose `ps`, API/Web health, DB·Redis health와 public
+URL을 다시 확인한다. Flyway migration은 recovery가 되돌리지 않는다.
 
 ## 수동 상태 확인
 
