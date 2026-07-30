@@ -67,6 +67,7 @@ run_deploy() {
         FAKE_RENDER_DATABASE_NAME="${FAKE_RENDER_DATABASE_NAME:-}" \
         FAKE_RENDER_DB_ENTRYPOINT_JSON="${FAKE_RENDER_DB_ENTRYPOINT_JSON:-}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
+        FAKE_RENDER_API_EXTRA_VOLUME="${FAKE_RENDER_API_EXTRA_VOLUME:-}" \
         FAKE_RENDER_DATASOURCE_URL="${FAKE_RENDER_DATASOURCE_URL:-}" \
         FAKE_RENDER_DDL_AUTO="${FAKE_RENDER_DDL_AUTO:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
@@ -368,6 +369,16 @@ wrong_upload_root_exit_code="$?"
 set -e
 if [[ "${wrong_upload_root_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with a non-persistent API upload path must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_API_EXTRA_VOLUME=',{"type":"volume","source":"mysql-data","target":"/leak"}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+extra_api_volume_exit_code="$?"
+set -e
+if [[ "${extra_api_volume_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with an extra API volume must fail\n' >&2
   exit 1
 fi
 

@@ -409,6 +409,8 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} must not override the image entrypoint")
     if service.get("post_start") is not None or service.get("pre_stop") is not None:
         raise SystemExit(f"{name} must not define lifecycle hooks")
+    if service.get("volumes_from") or service.get("configs") or service.get("secrets"):
+        raise SystemExit(f"{name} contains an unapproved mount source")
     if service.get("scale", 1) != 1:
         raise SystemExit(f"{name} must run exactly one replica")
     if service.get("deploy", {}).get("replicas", 1) != 1:
@@ -514,6 +516,10 @@ def volume(service, target):
 
 db_data = volume("db", "/var/lib/mysql")
 redis_data = volume("redis", "/data")
+if len(services["db"].get("volumes", [])) != 1:
+    raise SystemExit("unexpected MySQL volume mount")
+if len(services["redis"].get("volumes", [])) != 1:
+    raise SystemExit("unexpected Redis volume mount")
 if (
     not db_data
     or db_data.get("type") != "volume"
@@ -532,6 +538,10 @@ if (
 api_upload = volume("api", "/data/post-images")
 web_upload = volume("web", "/data/post-images")
 real_ip = volume("web", "/etc/nginx/conf.d/00-cloudflare-real-ip.conf")
+if len(services["api"].get("volumes", [])) != 1:
+    raise SystemExit("unexpected API volume mount")
+if len(services["web"].get("volumes", [])) != 2:
+    raise SystemExit("unexpected Web volume mount")
 if not api_upload or api_upload.get("read_only") is True:
     raise SystemExit("API writable upload bind is missing")
 if not web_upload or web_upload.get("read_only") is not True:
