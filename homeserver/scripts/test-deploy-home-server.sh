@@ -61,6 +61,11 @@ run_deploy() {
         FAKE_REVISION_ONE="${REVISION_ONE}" \
         FAKE_REVISION_TWO="${REVISION_TWO}" \
         FAKE_REVISION_THREE="${REVISION_THREE}" \
+        FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
+        FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
+        FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
+        FAKE_RENDER_WEB_IMAGE="${FAKE_RENDER_WEB_IMAGE:-}" \
+        FAKE_RENDER_REAL_IP_SOURCE="${FAKE_RENDER_REAL_IP_SOURCE:-}" \
         /bin/bash "${test_script}" "$@"
 }
 
