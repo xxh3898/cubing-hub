@@ -86,6 +86,7 @@ run_deploy() {
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_REDIS_COMMAND_JSON="${FAKE_RENDER_REDIS_COMMAND_JSON:-}" \
         FAKE_RENDER_MYSQL_COMMAND_JSON="${FAKE_RENDER_MYSQL_COMMAND_JSON:-}" \
+        FAKE_RENDER_MYSQL_VOLUME_EXTRA="${FAKE_RENDER_MYSQL_VOLUME_EXTRA:-}" \
         FAKE_RENDER_UPLOAD_ROOT="${FAKE_RENDER_UPLOAD_ROOT:-}" \
         FAKE_RENDER_WEB_IMAGE="${FAKE_RENDER_WEB_IMAGE:-}" \
         FAKE_RENDER_REAL_IP_SOURCE="${FAKE_RENDER_REAL_IP_SOURCE:-}" \
@@ -340,6 +341,16 @@ wrong_database_name_exit_code="$?"
 set -e
 if [[ "${wrong_database_name_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with a changed MySQL database name must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_MYSQL_VOLUME_EXTRA=',"driver_opts":{"type":"tmpfs"}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+custom_volume_driver_exit_code="$?"
+set -e
+if [[ "${custom_volume_driver_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with custom data-volume driver options must fail\n' >&2
   exit 1
 fi
 

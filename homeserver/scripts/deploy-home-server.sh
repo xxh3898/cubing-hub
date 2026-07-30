@@ -762,31 +762,55 @@ def volume(service, target):
 
 db_data = volume("db", "/var/lib/mysql")
 redis_data = volume("redis", "/data")
-if len(services["db"].get("volumes", [])) != 1:
-    raise SystemExit("unexpected MySQL volume mount")
-if len(services["redis"].get("volumes", [])) != 1:
-    raise SystemExit("unexpected Redis volume mount")
-if (
-    not db_data
-    or db_data.get("type") != "volume"
-    or db_data.get("source") != "mysql-data"
-    or volumes.get("mysql-data", {}).get("name") != "cubing-hub_mysql-data"
-):
+if volumes != {
+    "mysql-data": {"name": "cubing-hub_mysql-data"},
+    "redis-data": {"name": "cubing-hub_redis-data"},
+}:
+    raise SystemExit("top-level data volume contract is invalid")
+if services["db"].get("volumes", []) != [
+    {
+        "type": "volume",
+        "source": "mysql-data",
+        "target": "/var/lib/mysql",
+        "volume": {},
+    }
+]:
     raise SystemExit("MySQL persistent volume contract is invalid")
-if (
-    not redis_data
-    or redis_data.get("type") != "volume"
-    or redis_data.get("source") != "redis-data"
-    or volumes.get("redis-data", {}).get("name") != "cubing-hub_redis-data"
-):
+if services["redis"].get("volumes", []) != [
+    {
+        "type": "volume",
+        "source": "redis-data",
+        "target": "/data",
+        "volume": {},
+    }
+]:
     raise SystemExit("Redis persistent volume contract is invalid")
 
 api_upload = volume("api", "/data/post-images")
 web_upload = volume("web", "/data/post-images")
 real_ip = volume("web", "/etc/nginx/conf.d/00-cloudflare-real-ip.conf")
-if len(services["api"].get("volumes", [])) != 1:
+if services["api"].get("volumes", []) != [
+    {
+        "type": "bind",
+        "source": expected_upload_source,
+        "target": "/data/post-images",
+    }
+]:
     raise SystemExit("unexpected API volume mount")
-if len(services["web"].get("volumes", [])) != 2:
+if services["web"].get("volumes", []) != [
+    {
+        "type": "bind",
+        "source": expected_upload_source,
+        "target": "/data/post-images",
+        "read_only": True,
+    },
+    {
+        "type": "bind",
+        "source": expected_real_ip_source,
+        "target": "/etc/nginx/conf.d/00-cloudflare-real-ip.conf",
+        "read_only": True,
+    },
+]:
     raise SystemExit("unexpected Web volume mount")
 if not api_upload or api_upload.get("read_only") is True:
     raise SystemExit("API writable upload bind is missing")
