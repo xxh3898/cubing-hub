@@ -148,7 +148,8 @@
 4. GHCR token을 standard input으로 forced command에 전달
 5. Mac mini deploy script가 API/web image와 `update`일 때만 runtime-config
    exact digest를 pull
-6. artifact provenance·allowlist와 service/network/data/health 보호 경계 검증
+6. artifact provenance·allowlist와 service/network/data 보호 경계, exact
+   healthcheck `test`, process user와 `tmpfs` target 집합 검증
 7. 첫 배포는 `db`, `redis`부터 health 확인 뒤 API/web 기동
 8. 업데이트는 backup 성공 뒤 API/web와 runtime config를 한 transaction으로 적용
 9. 모든 필수 service가 running/healthy일 때만 `state`와 `current` commit

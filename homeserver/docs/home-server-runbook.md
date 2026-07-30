@@ -45,18 +45,18 @@ pinned Cloudflare real-IP 설정 또는 `homeserver/runtime-config.Dockerfile`�
 바뀌면 `keep`으로 현재 검증된 config digest를 유지한다.
 
 배포 script는 Compose 전체 snapshot을 복제하지 않는다. healthcheck timing,
-logging, restart, replica, PID·tmpfs와 일반 application environment 변경은
-Compose render와 service health로 검증한다. 대신 아래 운영 보호 경계만
-고정한다.
+logging, restart, replica, PID·tmpfs mount option과 일반 application
+environment 변경은 Compose render와 service health로 검증한다. 대신 아래
+운영 보호 경계만 고정한다.
 
 - `db`, `redis`, `api`, `web` service와 API/Web exact image
 - DB·Redis command/entrypoint, DB의 `MYSQL_*`, API의 DB·Redis·upload identity와
   Spring profile·datasource·JPA·Flyway·Liquibase·SQL init·config JSON 및
   JVM option 설정
 - API/Web image command·entrypoint override 금지
-- DB의 loopback `mysqladmin ping`, Redis의 `redis-cli ping`, Web의
-  loopback actuator `status=UP`·Host probe 의미와 배포 완료 시 실제
-  running/healthy 상태. 동등한 probe 표현과 timing은 변경 가능
+- DB·Redis·Web healthcheck `test` 명령과 배포 완료 시 실제
+  running/healthy 상태. healthcheck timing은 변경 가능
+- 각 service의 process user와 정규화한 `tmpfs` mount target 집합
 - MySQL·Redis named volume과 기존 upload bind identity
 - internal application, API 전용 outbound, shared edge network 경계
 - host port, privileged mode, Docker socket, host namespace, 추가 host bind,

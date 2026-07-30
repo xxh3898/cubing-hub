@@ -418,7 +418,7 @@ validate_compose_contract() {
     "${baseline_rendered}" \
     | "${PYTHON_BIN}" -c '
 import json
-import re
+import posixpath
 import sys
 
 candidate, baseline = json.load(sys.stdin)
@@ -518,45 +518,58 @@ if (
 ):
     fail("API data-sensitive environment changes require a separate migration procedure")
 
-def probe_text(service_name):
-    healthcheck = candidate_services[service_name].get("healthcheck")
+def healthcheck_test_for(service, label):
+    healthcheck = service.get("healthcheck")
+    if healthcheck is None:
+        return None
     if not isinstance(healthcheck, dict) or healthcheck.get("disable") is True:
-        fail(f"{service_name} healthcheck is required")
+        fail(f"{label} healthcheck is invalid")
     test = healthcheck.get("test")
-    if isinstance(test, list):
-        parts = test
-    elif isinstance(test, str):
-        parts = [test]
-    else:
-        fail(f"{service_name} healthcheck probe is invalid")
-    if not parts:
-        fail(f"{service_name} healthcheck probe is empty")
-    return " ".join(str(part) for part in parts).lower()
+    if (
+        not isinstance(test, list)
+        or not test
+        or test[0] not in ("CMD", "CMD-SHELL")
+    ):
+        fail(f"{label} healthcheck probe is invalid")
+    return test
 
-def has_loopback(probe):
-    return any(value in probe for value in ("127.0.0.1", "localhost", "::1"))
+def tmpfs_targets_for(service, label):
+    entries = service.get("tmpfs", [])
+    if entries is None:
+        return set()
+    if not isinstance(entries, list):
+        fail(f"{label} tmpfs contract is invalid")
+    targets = []
+    for entry in entries:
+        if isinstance(entry, str):
+            target = entry.split(":", 1)[0]
+        elif isinstance(entry, dict):
+            target = entry.get("target")
+        else:
+            fail(f"{label} tmpfs contract is invalid")
+        if not isinstance(target, str) or not target.startswith("/"):
+            fail(f"{label} tmpfs target is invalid")
+        targets.append(posixpath.normpath(target))
+    if len(targets) != len(set(targets)):
+        fail(f"{label} tmpfs target set is invalid")
+    return set(targets)
 
-db_probe = probe_text("db")
-if (
-    "mysqladmin" not in db_probe
-    or re.search(r"\bping\b", db_probe) is None
-    or not has_loopback(db_probe)
-):
-    fail("db healthcheck must retain mysqladmin ping against loopback")
-
-redis_probe = probe_text("redis")
-if "redis-cli" not in redis_probe or re.search(r"\bping\b", redis_probe) is None:
-    fail("redis healthcheck must retain redis-cli ping")
-
-web_probe = probe_text("web")
-if (
-    not has_loopback(web_probe)
-    or "/actuator/health" not in web_probe
-    or "status" not in web_probe
-    or re.search(r"\bup\b", web_probe) is None
-    or re.search(r"\bhost\s*:\s*api\.cubing-hub\.com\b", web_probe) is None
-):
-    fail("web healthcheck must retain loopback API readiness, status UP, and Host semantics")
+for name in ("db", "redis", "api", "web"):
+    if candidate_services[name].get("user") != baseline_services[name].get("user"):
+        fail(f"{name} user differs from the active verified configuration")
+    if tmpfs_targets_for(candidate_services[name], name) != tmpfs_targets_for(
+        baseline_services[name],
+        f"active {name}",
+    ):
+        fail(f"{name} tmpfs target set differs from the active verified configuration")
+    if healthcheck_test_for(
+        candidate_services[name],
+        name,
+    ) != healthcheck_test_for(
+        baseline_services[name],
+        f"active {name}",
+    ):
+        fail(f"{name} healthcheck test differs from the active verified configuration")
 
 for name, service in candidate_services.items():
     if service.get("ports"):

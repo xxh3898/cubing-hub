@@ -131,6 +131,8 @@ case "${command_name}" in
       api_env_file_json="${FAKE_RENDER_API_ENV_FILE_JSON:-null}"
       api_command_json="${FAKE_RENDER_API_COMMAND_JSON:-null}"
       api_entrypoint_json="${FAKE_RENDER_API_ENTRYPOINT_JSON:-null}"
+      api_user_json=null
+      api_tmpfs_json='["/tmp:size=128m,mode=1777"]'
       application_json='{"name":"cubing-hub_application","ipam":{},"internal":true}'
       application_json="${FAKE_RENDER_APPLICATION_JSON:-${application_json}}"
       outbound_json='{"name":"cubing-hub_outbound","driver":"bridge","ipam":{}}'
@@ -175,6 +177,8 @@ case "${command_name}" in
         api_env_file_json="${FAKE_CANDIDATE_API_ENV_FILE_JSON:-${api_env_file_json}}"
         api_command_json="${FAKE_CANDIDATE_API_COMMAND_JSON:-${api_command_json}}"
         api_entrypoint_json="${FAKE_CANDIDATE_API_ENTRYPOINT_JSON:-${api_entrypoint_json}}"
+        api_user_json="${FAKE_CANDIDATE_API_USER_JSON:-${api_user_json}}"
+        api_tmpfs_json="${FAKE_CANDIDATE_API_TMPFS_JSON:-${api_tmpfs_json}}"
         application_json="${FAKE_CANDIDATE_APPLICATION_JSON:-${application_json}}"
         outbound_json="${FAKE_CANDIDATE_OUTBOUND_JSON:-${outbound_json}}"
         edge_json="${FAKE_CANDIDATE_EDGE_JSON:-${edge_json}}"
@@ -194,7 +198,7 @@ case "${command_name}" in
         ddl_auto="${FAKE_CANDIDATE_DDL_AUTO:-${ddl_auto}}"
       fi
       printf \
-        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","entrypoint":%s,"environment":{"MYSQL_DATABASE":"%s","MYSQL_USER":"%s","MYSQL_PASSWORD":"%s","MYSQL_ROOT_PASSWORD":"%s"},"command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"redis":{"image":"%s","restart":"unless-stopped","command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"api":{"image":"%s","command":%s,"entrypoint":%s,"privileged":%s,"ports":%s,"pid":%s,"restart":"unless-stopped","init":true,"read_only":true,"pids_limit":256,"security_opt":["no-new-privileges:true"],"tmpfs":["/tmp:size=128m,mode=1777"],"extra_hosts":%s,"configs":%s,"secrets":%s,"env_file":%s,"environment":{"SPRING_PROFILES_ACTIVE":"prod","SPRING_DATASOURCE_URL":"%s","DB_USERNAME":"%s","DB_PASSWORD":"%s","REDIS_HOST":"redis","REDIS_PORT":"6379","JWT_SECRET":"%s","JWT_EXPIRATION":"1800000","JWT_REFRESH_EXPIRATION":"604800000","CORS_ALLOWED_ORIGINS":"https://cubing-hub.com,https://www.cubing-hub.com","SPRING_JPA_HIBERNATE_DDL_AUTO":"%s"%s,"AUTH_REFRESH_COOKIE_SECURE":"true","SMTP_HOST":"%s","SMTP_PORT":"587","SMTP_USERNAME":"","SMTP_PASSWORD":"%s","SMTP_AUTH":"true","SMTP_STARTTLS_ENABLE":"true","SMTP_FROM_ADDRESS":"","FEEDBACK_DISCORD_WEBHOOK_URL":"","RANKING_REDIS_REBUILD_MODE":"disabled","MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE":"health","MONITORING_PROMETHEUS_PERMIT_ALL":"false","POST_IMAGES_LOCAL_ROOT_PATH":"%s","POST_IMAGES_KEY_PREFIX":"community/posts","POST_IMAGES_PUBLIC_BASE_URL":"https://api.cubing-hub.com/uploads"%s},"networks":{"application":%s,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}%s],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"web":{"image":"%s","command":%s,"entrypoint":%s,"restart":"%s","init":true,"read_only":true,"pids_limit":100,"security_opt":["no-new-privileges:true"],"tmpfs":["/var/cache/nginx:size=32m,mode=0755","/var/run:size=4m,mode=0755","/tmp:size=16m,mode=1777"],"scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}},"networks":{"application":%s,"outbound":%s,"edge":%s},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"%s},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","entrypoint":%s,"environment":{"MYSQL_DATABASE":"%s","MYSQL_USER":"%s","MYSQL_PASSWORD":"%s","MYSQL_ROOT_PASSWORD":"%s"},"command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"redis":{"image":"%s","restart":"unless-stopped","command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"api":{"image":"%s","command":%s,"entrypoint":%s,"user":%s,"privileged":%s,"ports":%s,"pid":%s,"restart":"unless-stopped","init":true,"read_only":true,"pids_limit":256,"security_opt":["no-new-privileges:true"],"tmpfs":%s,"extra_hosts":%s,"configs":%s,"secrets":%s,"env_file":%s,"environment":{"SPRING_PROFILES_ACTIVE":"prod","SPRING_DATASOURCE_URL":"%s","DB_USERNAME":"%s","DB_PASSWORD":"%s","REDIS_HOST":"redis","REDIS_PORT":"6379","JWT_SECRET":"%s","JWT_EXPIRATION":"1800000","JWT_REFRESH_EXPIRATION":"604800000","CORS_ALLOWED_ORIGINS":"https://cubing-hub.com,https://www.cubing-hub.com","SPRING_JPA_HIBERNATE_DDL_AUTO":"%s"%s,"AUTH_REFRESH_COOKIE_SECURE":"true","SMTP_HOST":"%s","SMTP_PORT":"587","SMTP_USERNAME":"","SMTP_PASSWORD":"%s","SMTP_AUTH":"true","SMTP_STARTTLS_ENABLE":"true","SMTP_FROM_ADDRESS":"","FEEDBACK_DISCORD_WEBHOOK_URL":"","RANKING_REDIS_REBUILD_MODE":"disabled","MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE":"health","MONITORING_PROMETHEUS_PERMIT_ALL":"false","POST_IMAGES_LOCAL_ROOT_PATH":"%s","POST_IMAGES_KEY_PREFIX":"community/posts","POST_IMAGES_PUBLIC_BASE_URL":"https://api.cubing-hub.com/uploads"%s},"networks":{"application":%s,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}%s],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"web":{"image":"%s","command":%s,"entrypoint":%s,"restart":"%s","init":true,"read_only":true,"pids_limit":100,"security_opt":["no-new-privileges:true"],"tmpfs":["/var/cache/nginx:size=32m,mode=0755","/var/run:size=4m,mode=0755","/tmp:size=16m,mode=1777"],"scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}},"networks":{"application":%s,"outbound":%s,"edge":%s},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"%s},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
         "${db_image}" \
         "${db_entrypoint_json}" \
         "${database_name}" \
@@ -209,9 +213,11 @@ case "${command_name}" in
         "${api_image}" \
         "${api_command_json}" \
         "${api_entrypoint_json}" \
+        "${api_user_json}" \
         "${api_privileged}" \
         "${api_ports_json}" \
         "${api_pid_json}" \
+        "${api_tmpfs_json}" \
         "${api_extra_hosts_json}" \
         "${api_configs_json}" \
         "${api_secrets_json}" \

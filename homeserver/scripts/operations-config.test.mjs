@@ -226,15 +226,15 @@ test("should_validateOnlyProtectedRuntimeInvariants_when_composeChanges", () => 
   }
   assert.match(
     deployScript,
-    /db healthcheck must retain mysqladmin ping against loopback/,
+    /healthcheck test differs from the active verified configuration/,
   );
   assert.match(
     deployScript,
-    /redis healthcheck must retain redis-cli ping/,
+    /user differs from the active verified configuration/,
   );
   assert.match(
     deployScript,
-    /web healthcheck must retain loopback API readiness, status UP, and Host semantics/,
+    /tmpfs target set differs from the active verified configuration/,
   );
   assert.equal(deployScript.match(/--no-env-resolution/g)?.length, 1);
   assert.doesNotMatch(deployScript, /RUNTIME_CONFIG_VALIDATION_ROLE/);
