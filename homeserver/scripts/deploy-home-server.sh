@@ -405,6 +405,8 @@ for name, expected_networks in expected.items():
         or service.get("devices")
     ):
         raise SystemExit(f"{name} must not override image user or add privileges")
+    if service.get("entrypoint"):
+        raise SystemExit(f"{name} must not override the image entrypoint")
     if service.get("scale", 1) != 1:
         raise SystemExit(f"{name} must run exactly one replica")
     if service.get("deploy", {}).get("replicas", 1) != 1:
@@ -422,6 +424,8 @@ if services["db"].get("image") != "mysql:8.0.46":
     raise SystemExit("MySQL image changes require a separate data migration")
 if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
+if services["api"].get("command") or services["web"].get("command"):
+    raise SystemExit("application services must not override the image command")
 if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
     raise SystemExit("MySQL database name must match the production environment")
 if services["db"].get("command") != [
