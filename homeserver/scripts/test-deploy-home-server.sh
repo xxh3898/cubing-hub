@@ -72,6 +72,7 @@ run_deploy() {
         FAKE_RENDER_DDL_AUTO="${FAKE_RENDER_DDL_AUTO:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
         FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
+        FAKE_RENDER_FLYWAY_ENABLED="${FAKE_RENDER_FLYWAY_ENABLED:-}" \
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_REDIS_COMMAND_JSON="${FAKE_RENDER_REDIS_COMMAND_JSON:-}" \
         FAKE_RENDER_MYSQL_COMMAND_JSON="${FAKE_RENDER_MYSQL_COMMAND_JSON:-}" \
@@ -389,6 +390,16 @@ wrong_ddl_auto_exit_code="$?"
 set -e
 if [[ "${wrong_ddl_auto_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with unsafe Hibernate schema handling must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_FLYWAY_ENABLED=false \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+disabled_flyway_exit_code="$?"
+set -e
+if [[ "${disabled_flyway_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with Flyway disabled must fail\n' >&2
   exit 1
 fi
 

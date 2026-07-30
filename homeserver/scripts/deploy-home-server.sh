@@ -457,6 +457,8 @@ if api_environment.get("SPRING_DATASOURCE_URL") != expected_datasource_url:
     raise SystemExit("API datasource must use the production DB service")
 if api_environment.get("POST_IMAGES_LOCAL_ROOT_PATH") != "/data/post-images":
     raise SystemExit("API image storage must use the persistent upload mount")
+if api_environment.get("SPRING_FLYWAY_ENABLED", "true") != "true":
+    raise SystemExit("Flyway must remain enabled")
 expected_api_environment = {
     "SPRING_PROFILES_ACTIVE": "prod",
     "REDIS_HOST": "redis",
