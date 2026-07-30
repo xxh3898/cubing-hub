@@ -129,6 +129,9 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
 });
 
 test("should_pinEveryExternalActionToFullCommitSha", () => {
+  const expectedDockerBuildAction =
+    "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a";
+
   for (const workflow of [
     validateWorkflow,
     deployWorkflow,
@@ -140,6 +143,9 @@ test("should_pinEveryExternalActionToFullCommitSha", () => {
         continue;
       }
       assert.match(action, /^[^@]+@[0-9a-f]{40}$/);
+      if (action.startsWith("docker/build-push-action@")) {
+        assert.equal(action, expectedDockerBuildAction);
+      }
     }
   }
 });
