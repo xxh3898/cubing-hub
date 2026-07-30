@@ -65,6 +65,12 @@ run_deploy() {
         FAKE_DISABLE_WEB_HEALTHCHECK="${FAKE_DISABLE_WEB_HEALTHCHECK:-false}" \
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_RENDER_DATABASE_NAME="${FAKE_RENDER_DATABASE_NAME:-}" \
+        FAKE_RENDER_DATABASE_USER="${FAKE_RENDER_DATABASE_USER:-}" \
+        FAKE_RENDER_DATABASE_PASSWORD="${FAKE_RENDER_DATABASE_PASSWORD:-}" \
+        FAKE_RENDER_DATABASE_ROOT_PASSWORD="${FAKE_RENDER_DATABASE_ROOT_PASSWORD:-}" \
+        FAKE_RENDER_API_DATABASE_USER="${FAKE_RENDER_API_DATABASE_USER:-}" \
+        FAKE_RENDER_API_DATABASE_PASSWORD="${FAKE_RENDER_API_DATABASE_PASSWORD:-}" \
+        FAKE_RENDER_API_EXTRA_ENVIRONMENT="${FAKE_RENDER_API_EXTRA_ENVIRONMENT:-}" \
         FAKE_RENDER_DB_ENTRYPOINT_JSON="${FAKE_RENDER_DB_ENTRYPOINT_JSON:-}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
         FAKE_RENDER_API_EXTRA_VOLUME="${FAKE_RENDER_API_EXTRA_VOLUME:-}" \
@@ -393,6 +399,29 @@ replaced_jwt_secret_exit_code="$?"
 set -e
 if [[ "${replaced_jwt_secret_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with a replaced JWT secret must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_DATABASE_USER=known-packaged-user \
+FAKE_RENDER_DATABASE_PASSWORD=known-packaged-password \
+FAKE_RENDER_API_DATABASE_USER=known-packaged-user \
+FAKE_RENDER_API_DATABASE_PASSWORD=known-packaged-password \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+replaced_database_credentials_exit_code="$?"
+set -e
+if [[ "${replaced_database_credentials_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with packaged database credentials must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_API_EXTRA_ENVIRONMENT=',"SPRING_FLYWAY_TARGET":"2"' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+flyway_target_override_exit_code="$?"
+set -e
+if [[ "${flyway_target_override_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a Flyway target override must fail\n' >&2
   exit 1
 fi
 

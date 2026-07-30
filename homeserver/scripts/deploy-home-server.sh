@@ -375,8 +375,11 @@ config = json.load(sys.stdin)
     expected_real_ip_source,
     expected_upload_source,
     expected_database_name,
+    expected_database_user,
+    expected_database_password_sha256,
+    expected_database_root_password_sha256,
     expected_jwt_secret_sha256,
-) = sys.argv[1:7]
+) = sys.argv[1:10]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -542,14 +545,47 @@ if (
     or services["web"].get("command") is not None
 ):
     raise SystemExit("application services must not override the image command")
-if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
+db_environment = services["db"].get("environment", {})
+if set(db_environment) != {
+    "MYSQL_DATABASE",
+    "MYSQL_USER",
+    "MYSQL_PASSWORD",
+    "MYSQL_ROOT_PASSWORD",
+}:
+    raise SystemExit("MySQL environment key allowlist is invalid")
+if db_environment.get("MYSQL_DATABASE") != expected_database_name:
     raise SystemExit("MySQL database name must match the production environment")
+if db_environment.get("MYSQL_USER") != expected_database_user:
+    raise SystemExit("MySQL user must match the protected host environment")
+database_password = db_environment.get("MYSQL_PASSWORD")
+if (
+    not isinstance(database_password, str)
+    or hashlib.sha256(database_password.encode()).hexdigest()
+    != expected_database_password_sha256
+):
+    raise SystemExit("MySQL password must match the protected host environment")
+database_root_password = db_environment.get("MYSQL_ROOT_PASSWORD")
+if (
+    not isinstance(database_root_password, str)
+    or hashlib.sha256(database_root_password.encode()).hexdigest()
+    != expected_database_root_password_sha256
+):
+    raise SystemExit("MySQL root password must match the protected host environment")
 if services["db"].get("command") != [
     "--character-set-server=utf8mb4",
     "--collation-server=utf8mb4_0900_ai_ci",
 ]:
     raise SystemExit("MySQL server command contract is invalid")
 api_environment = services["api"].get("environment", {})
+if api_environment.get("DB_USERNAME") != expected_database_user:
+    raise SystemExit("API database user must match the protected host environment")
+api_database_password = api_environment.get("DB_PASSWORD")
+if (
+    not isinstance(api_database_password, str)
+    or hashlib.sha256(api_database_password.encode()).hexdigest()
+    != expected_database_password_sha256
+):
+    raise SystemExit("API database password must match the protected host environment")
 actual_jwt_secret = api_environment.get("JWT_SECRET")
 if (
     not isinstance(actual_jwt_secret, str)
@@ -565,6 +601,13 @@ for name in {
 }:
     if name in api_environment:
         raise SystemExit(f"API environment override source is forbidden: {name}")
+unapproved_flyway_environment = {
+    name
+    for name in api_environment
+    if name.startswith("SPRING_FLYWAY_") and name != "SPRING_FLYWAY_ENABLED"
+}
+if unapproved_flyway_environment:
+    raise SystemExit("API contains an unapproved Flyway environment property")
 expected_datasource_url = (
     f"jdbc:mysql://db:3306/{expected_database_name}"
     "?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
@@ -694,6 +737,9 @@ if (
       "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf" \
       "$(read_env_value POST_IMAGES_HOST_DIR)" \
       "$(read_env_value DB_NAME)" \
+      "$(read_env_value DB_USERNAME)" \
+      "$(printf '%s' "$(read_env_value DB_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
+      "$(printf '%s' "$(read_env_value MYSQL_ROOT_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
       "$(printf '%s' "$(read_env_value JWT_SECRET)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 }
 
