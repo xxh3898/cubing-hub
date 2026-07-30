@@ -113,6 +113,9 @@ fi
 if [[ "${recovery_mode}" == false && -e "${RUNTIME_CONFIG_PENDING}" ]]; then
   fail "an incomplete runtime config transaction requires recovery"
 fi
+if [[ "${legacy_mode}" == true && -e "${RUNTIME_CONFIG_STATE}" ]]; then
+  fail "legacy deployment is disabled after runtime config state initialization"
+fi
 
 if [[ "${recovery_mode}" == false && ! -x "${BACKUP_SCRIPT}" ]]; then
   fail "production backup script is not executable"
@@ -674,7 +677,9 @@ recover_pending_transaction() {
       "${API_IMAGE_REPOSITORY}:${ZERO_SHA}" \
       "${WEB_IMAGE_REPOSITORY}:${ZERO_SHA}"
     active_compose_file="${LEGACY_COMPOSE_FILE}"
-    compose stop api web || true
+    if ! compose stop api web; then
+      fail "bootstrap recovery could not stop interrupted app services"
+    fi
     /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
     printf 'Interrupted Cubing Hub bootstrap cleared with app services stopped\n'
     return 0
@@ -920,9 +925,12 @@ else
   printf 'No previous SHA image exists; keeping data services and stopping failed app containers\n' >&2
   write_image_env "${current_api_image}" "${current_web_image}"
   active_compose_file="${current_compose_file}"
-  compose stop api web || true
-  if [[ "${legacy_mode}" == false ]]; then
-    /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
+  if compose stop api web; then
+    if [[ "${legacy_mode}" == false ]]; then
+      /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
+    fi
+  else
+    printf 'Application bootstrap teardown failed; pending transaction retained\n' >&2
   fi
 fi
 
