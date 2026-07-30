@@ -11,11 +11,20 @@
 ## 운영 경로
 
 ```text
-/Users/homeserver/Server/apps/cubing-hub/compose.yaml
 /Users/homeserver/Server/apps/cubing-hub/.env
+/Users/homeserver/Server/apps/cubing-hub/.runtime-config-v2-initialized
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/state
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/current
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/compose.yaml
 /Users/homeserver/Server/data/cubing-hub/post-images/
 /Users/homeserver/Server/backups/cubing-hub/
 ```
+
+runtime config v2 initialization marker가 있으면 backup은 state의 content
+hash와 `current` pointer가 함께 가리키는 immutable release Compose만
+사용한다. marker가 있는데 state 또는 current가 없으면 손상 상태로
+판단해 실패한다. marker, state, current가 모두 없는 기존 설치에서만 app
+directory의 legacy `compose.yaml`로 fallback한다.
 
 ## 백업 실행
 
