@@ -342,7 +342,7 @@ if [[ "${wrong_mysql_command_exit_code}" -ne 1 ]]; then
 fi
 
 set +e
-FAKE_RENDER_DB_ENTRYPOINT_JSON='["docker-entrypoint.sh","mysqld","--datadir=/tmp/mysql"]' \
+FAKE_RENDER_DB_ENTRYPOINT_JSON='[]' \
   run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
 db_entrypoint_override_exit_code="$?"
 set -e
