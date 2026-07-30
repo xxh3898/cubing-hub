@@ -30,12 +30,17 @@
 /Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
 
-`compose.yaml`, 배포 wrapper/bootstrap과 별도 백업 bootstrap은 최초 v2
-전환 전에 검증한 저장소 파일을 위 고정 경로에 한 번 설치한다. 이후
-허용된 deploy/backup script는 runtime-config release로 전달하며 고정
-bootstrap을 자동 교체하지 않는다. `.env`는
+신규 서버의 `compose.yaml`과 기존 고정 deploy/backup worker는 pre-v2
+bootstrap·recovery seed다. 현재 운영 서버를 v2로 전환할 때는 이 worker를
+branch 원본으로 교체하지 않고 stable deploy/backup bootstrap 두 개만 한 번
+설치한다. 이후 허용된 deploy/backup worker는 runtime-config release로
+전달하며 stable bootstrap을 자동 교체하지 않는다. `.env`는
 `homeserver/.env.example`을 복사한 뒤 실제 secret으로 교체하고 mode를
 `600`으로 제한한다.
+
+현재 운영 서버 전환 전에는 기존 deploy fallback의 `recover` 지원과 기존
+backup fallback의 실행 가능 여부를 확인한다. 둘 중 하나라도 충족하지 않으면
+고정 worker를 자동 교체하지 말고 별도 전환 계획으로 중단한다.
 
 ## 최초 준비
 
@@ -61,20 +66,21 @@ bootstrap을 자동 교체하지 않는다. `.env`는
    ```
 
 4. 고정 운영 directory와 빈 게시글 이미지 directory를 만든다.
-5. `homeserver/docker-compose.yml`,
-   `homeserver/nginx/cloudflare-edge-real-ip.conf`,
-   `homeserver/scripts/deploy-home-server.sh`,
-   `homeserver/scripts/deploy-home-server-ci.sh`,
-   `homeserver/scripts/backup-home-server-bootstrap.sh`,
-   `homeserver/scripts/backup-home-server.sh`를 최초 bootstrap으로 고정
-   경로에 설치한다.
-   Nginx 설정은 app directory의 `nginx/` 아래에 둔다.
-6. `.env`의 image 두 개는 같은 full commit SHA를 사용하고 DB/JWT/SMTP
+5. 새 서버를 처음 준비하는 경우에만 `homeserver/docker-compose.yml`,
+   `homeserver/nginx/cloudflare-edge-real-ip.conf`와 pre-v2 fallback
+   deploy/backup worker를 초기 seed로 설치한다. 이미 운영 중인 서버의
+   고정 worker는 교체하지 않는다. Nginx 설정은 app directory의
+   `nginx/` 아래에 둔다.
+6. `homeserver/scripts/deploy-home-server-ci.sh`와
+   `homeserver/scripts/backup-home-server-bootstrap.sh`를 stable 진입점으로
+   한 번 설치한다. 첫 v2 `update`부터 deploy/backup worker는 exact
+   runtime-config digest로만 갱신한다.
+7. `.env`의 image 두 개는 같은 full commit SHA를 사용하고 DB/JWT/SMTP
    secret을 실제 값으로 교체한다.
-7. 배포·백업 script와 `.env` 권한을 제한한다.
-8. Tailscale `tag:ci`에서 Mac mini SSH로 접근할 수 있는 최소 ACL과
+8. 배포·백업 script와 `.env` 권한을 제한한다.
+9. Tailscale `tag:ci`에서 Mac mini SSH로 접근할 수 있는 최소 ACL과
    workload identity federation credential을 구성한다.
-9. Cubing Hub 전용 SSH 공개키를 forced command와 함께 등록한다.
+10. Cubing Hub 전용 SSH 공개키를 forced command와 함께 등록한다.
 
 forced command는 아래 wrapper만 실행해야 한다.
 

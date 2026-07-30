@@ -163,7 +163,7 @@ if [[ "${legacy_mode}" == true ]]; then
   require_legacy_compose
 fi
 
-if [[ "${recovery_mode}" == false && ! -x "${BACKUP_SCRIPT}" ]]; then
+if [[ "${legacy_mode}" == true && ! -x "${BACKUP_SCRIPT}" ]]; then
   fail "production backup script is not executable"
 fi
 

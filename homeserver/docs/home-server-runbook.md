@@ -23,24 +23,28 @@ deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
 deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
 ```
 
-v2 workflow를 `main`에 병합하기 전에 repository의
-`homeserver/scripts/deploy-home-server.sh`,
-`homeserver/scripts/deploy-home-server-ci.sh`,
-`homeserver/scripts/backup-home-server-bootstrap.sh`,
-`homeserver/scripts/backup-home-server.sh`를 각각 Mac mini의
-`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh`와
-`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh`,
-`/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh`,
-`/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh`에 사전
-설치해야 한다. 기존 파일을 timestamp backup으로 보존하고, 설치본의
-SHA-256이 repository 원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과
-잘못된 forced command 거부가 통과하는지 확인한 뒤에만 merge한다.
-이 prerequisite가 완료되지 않으면 기존 wrapper가 v2 명령을 거부하거나
-backup이 legacy Compose만 찾으므로 workflow를 병합하지 않는다.
-`deploy-home-server-ci.sh`와 `backup-home-server-bootstrap.sh`는 최초 v2
-전환을 위한 stable wrapper/bootstrap이며 runtime artifact로 자동 교체하지
-않는다. 고정 deploy/backup worker는 기존 2파일 v2 또는 pre-v2 fallback용으로
-보존한다.
+현재 운영 서버에서 v2 workflow를 `main`에 병합하기 전에는 아래 두 stable
+진입점만 한 번 설치한다.
+
+```text
+homeserver/scripts/deploy-home-server-ci.sh
+  -> /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh
+homeserver/scripts/backup-home-server-bootstrap.sh
+  -> /Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
+```
+
+기존 진입점은 timestamp backup으로 보존하고, 설치본의 SHA-256이 repository
+원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과 잘못된 forced command
+및 backup 인자 거부가 통과하는지 확인한 뒤에만 merge한다.
+`deploy-home-server.sh`와 `backup-home-server.sh`를 고정 운영 경로에
+사전 설치하거나 branch 원본으로 교체하지 않는다. 기존 고정 worker는
+pre-v2 또는 기존 2파일 release의 recovery fallback으로만 보존한다.
+설치 전에는 기존 deploy worker가 `recover`를 지원하고 기존 backup worker가
+실행 가능한지 확인한다. 이 fallback 계약을 충족하지 않으면 worker를 임의로
+덮어쓰지 말고 전환을 중단한다.
+첫 `update`가 exact runtime-config digest 안의 새 deploy/backup worker를
+함께 staging하며, 이후 worker 변경도 runtime-config 변경으로 감지해
+자동 동기화한다.
 
 마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
 pinned Cloudflare real-IP 설정, 허용된 deploy/backup script,
@@ -61,8 +65,9 @@ scripts/backup-cubing-hub.sh
 
 고정 forced-command/bootstrap은 exact digest, revision/project label, regular-file
 allowlist, 전체 content hash, script mode `700`과 `/bin/bash -n`을 검증한
-뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전에는
-legacy Compose와 고정 legacy backup worker를 사용한다. v2 성공 뒤에는
+뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전
+recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. 정상
+`update`와 backup은 candidate release worker를 사용한다. v2 성공 뒤에는
 `runtime-config/current`가 Compose와 deploy/backup script의 공통 active
 release를 가리킨다. `keep`, recovery와 정기 backup은 이 release의 검증된
 script를 사용한다.

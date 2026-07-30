@@ -16,6 +16,7 @@ const [
   runtimeConfigDockerfile,
   runtimeConfigDetector,
   setupGuide,
+  runbook,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -30,6 +31,7 @@ const [
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
   read("../docs/mac-mini-server-setup.md"),
+  read("../docs/home-server-runbook.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -279,6 +281,10 @@ test("should_packageOnlyAllowlistedRuntimeConfigFiles_when_configChanges", () =>
   assert.match(runtimeConfigDetector, /git diff --quiet/);
   assert.match(runtimeConfigDetector, /printf 'keep\\n'/);
   assert.match(runtimeConfigDetector, /printf 'update\\n'/);
+  assert.doesNotMatch(
+    runtimeConfigDetector,
+    /deploy-home-server-ci|backup-home-server-bootstrap/,
+  );
   assert.match(dockerIgnore, /^homeserver\/scripts\/\*$/m);
   assert.match(
     dockerIgnore,
@@ -317,6 +323,10 @@ test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () =>
     /active_backup_script="\$\{candidate_release\}\/scripts\/backup-cubing-hub\.sh"[\s\S]*"\$\{active_backup_script\}"/,
   );
   assert.match(
+    deployScript,
+    /if \[\[ "\$\{legacy_mode\}" == true && ! -x "\$\{BACKUP_SCRIPT\}" \]\]; then/,
+  );
+  assert.match(
     backupBootstrap,
     /readonly LEGACY_BACKUP_SCRIPT=\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub\.sh/,
   );
@@ -345,6 +355,14 @@ test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () =>
     /RUNTIME_CONFIG_PENDING[\s\S]*an incomplete runtime config transaction requires recovery/,
   );
   assert.doesNotMatch(runtimeConfigDockerfile, /bootstrap|deploy-home-server-ci/);
+  assert.match(
+    setupGuide,
+    /현재 운영 서버를 v2로 전환할 때는 이 worker를[\s\S]*branch 원본으로 교체하지 않고 stable deploy\/backup bootstrap 두 개만/,
+  );
+  assert.match(
+    runbook,
+    /deploy-home-server\.sh.*backup-home-server\.sh.*사전 설치하거나 branch 원본으로 교체하지 않는다/s,
+  );
 });
 
 test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {

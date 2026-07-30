@@ -27,6 +27,7 @@ trap cleanup EXIT INT TERM
 app_dir="${test_root}/app"
 test_script="${test_root}/deploy-cubing-hub.sh"
 backup_script="${test_root}/backup.sh"
+runtime_backup_script="${test_root}/runtime-backup.sh"
 backup_log="${test_root}/backup.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
 runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
@@ -48,7 +49,8 @@ printf '%s\n' \
   '#!/bin/bash' \
   'printf "%s\n" "${BASH_SOURCE[0]}" >>"${FAKE_BACKUP_LOG}"' \
   >"${backup_script}"
-/bin/chmod 700 "${backup_script}"
+/bin/cp "${backup_script}" "${runtime_backup_script}"
+/bin/chmod 700 "${backup_script}" "${runtime_backup_script}"
 : >"${backup_log}"
 
 /usr/bin/sed \
@@ -66,7 +68,7 @@ run_deploy() {
     | /usr/bin/env \
         FAKE_RUNTIME_COMPOSE="${runtime_compose}" \
         FAKE_RUNTIME_REAL_IP="${runtime_real_ip}" \
-        FAKE_RUNTIME_BACKUP_SCRIPT="${FAKE_RUNTIME_BACKUP_SCRIPT:-${backup_script}}" \
+        FAKE_RUNTIME_BACKUP_SCRIPT="${FAKE_RUNTIME_BACKUP_SCRIPT:-${runtime_backup_script}}" \
         FAKE_RUNTIME_DEPLOY_SCRIPT="${FAKE_RUNTIME_DEPLOY_SCRIPT:-${test_script}}" \
         FAKE_RUNTIME_EXTRA_DIR="${FAKE_RUNTIME_EXTRA_DIR:-false}" \
         FAKE_RUNTIME_EXTRA_FILE="${FAKE_RUNTIME_EXTRA_FILE:-false}" \
@@ -135,6 +137,9 @@ bootstrap_failure_marker="${test_root}/fail-bootstrap-app-up-once"
 bootstrap_docker_log="${test_root}/bootstrap-docker.log"
 : >"${bootstrap_docker_log}"
 
+# The first v2 update must use the artifact worker without requiring the fixed
+# pre-v2 backup fallback to be executable.
+/bin/chmod 600 "${backup_script}"
 set +e
 FAKE_DOCKER_LOG="${bootstrap_docker_log}" \
 FAKE_FAIL_APP_UP_ONCE_FILE="${bootstrap_failure_marker}" \
@@ -186,6 +191,7 @@ test ! -e "${app_dir}/runtime-config/pending"
 /usr/bin/tail -n 1 "${backup_log}" \
   | /usr/bin/grep -Fxq \
       "${bootstrap_candidate}/scripts/backup-cubing-hub.sh"
+/bin/chmod 700 "${backup_script}"
 
 legacy_v2_scripts="${test_root}/legacy-v2-scripts"
 /bin/mv "${bootstrap_candidate}/scripts" "${legacy_v2_scripts}"

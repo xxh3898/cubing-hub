@@ -76,8 +76,8 @@
 | Runtime env | `/Users/homeserver/Server/apps/cubing-hub/.env` |
 | Post images | `/Users/homeserver/Server/data/cubing-hub/post-images` |
 | Backup | `/Users/homeserver/Server/backups/cubing-hub` |
-| Deploy script | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh` |
-| Backup script | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh` |
+| Legacy deploy fallback | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh` |
+| Legacy backup fallback | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh` |
 | Deploy bootstrap | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh` |
 | Backup bootstrap | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh` |
 
@@ -88,7 +88,8 @@
 - 고정 forced-command wrapper/deploy bootstrap과 별도 backup bootstrap은
   최초 전환 때 수동 설치하며 runtime artifact로 자기 갱신하지 않는다.
   고정 deploy/backup worker는 기존 2파일 v2와 pre-v2 fallback용으로
-  보존한다.
+  보존하되 branch 원본으로 사전 교체하지 않는다. 첫 `update`부터 active
+  worker는 exact runtime-config release에서만 선택한다.
 - `.env`와 private key는 Git에 추가하지 않는다.
 - 실제 비밀값은 문서, log, command output에 노출하지 않는다.
 
