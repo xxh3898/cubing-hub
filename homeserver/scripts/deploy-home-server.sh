@@ -417,6 +417,13 @@ if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
 if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
     raise SystemExit("MySQL database name must match the production environment")
+if (
+    services["api"]
+    .get("environment", {})
+    .get("SPRING_JPA_HIBERNATE_DDL_AUTO")
+    != "validate"
+):
+    raise SystemExit("Hibernate schema handling must remain validate")
 if services["redis"].get("command") != [
     "redis-server",
     "--appendonly",
