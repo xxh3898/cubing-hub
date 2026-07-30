@@ -77,6 +77,10 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
     deployWorkflow,
     /if: steps\.runtime-config-mode\.outputs\.mode == 'update'/,
   );
+  assert.match(
+    deployWorkflow,
+    /deployments\?environment=production[\s\S]*steps\.deployed-base\.outputs\.sha/,
+  );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
   assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
 });
@@ -97,6 +101,7 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
 
   assert.match(publish, /actions: read/);
   assert.match(publish, /contents: read/);
+  assert.match(publish, /deployments: read/);
   assert.match(publish, /packages: write/);
   assert.doesNotMatch(publish, /id-token: write/);
 

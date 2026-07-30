@@ -157,6 +157,10 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     /active_compose_file="\$\{current_compose_file\}"/,
   );
   assert.match(deployScript, /RUNTIME_CONFIG_PENDING/);
+  assert.match(
+    deployScript,
+    /write_pending_state[\s\S]*"\$\{previous_sha:-\$\{ZERO_SHA\}\}"/,
+  );
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,

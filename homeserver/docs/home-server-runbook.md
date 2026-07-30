@@ -33,10 +33,11 @@ SHA-256이 repository 원본과 일치하는지, mode가 `700`인지, `/bin/bash
 workflow를 병합하지 않는다. deploy script는 runtime config artifact의
 자동 동기화 대상이 아니다.
 
-`homeserver/docker-compose.yml`, pinned Cloudflare real-IP 설정 또는
-`homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
-runtime-config image를 새로 발행하고 `update`한다. 애플리케이션만 바뀌면
-`keep`으로 현재 검증된 config digest를 유지한다.
+마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
+pinned Cloudflare real-IP 설정 또는 `homeserver/runtime-config.Dockerfile`이
+변경된 배포만 immutable runtime-config image를 새로 발행하고 `update`한다.
+따라서 설정 배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만
+바뀌면 `keep`으로 현재 검증된 config digest를 유지한다.
 
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
@@ -74,8 +75,9 @@ v2 배포가 강제 종료되거나 host가 재시작되어
 recovery는 pending key와 SHA/digest 형식, 마지막 검증 state, release
 allowlist와 content hash를 먼저 대조한다.
 
-- 성공 state가 이미 target pair라면 `.env`, `current` pointer와 실행
-  service를 검증한 뒤 pending marker만 정리한다.
+- 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
+  검증된 target release로 stale `current` pointer를 원자 조정하고 pending
+  marker를 정리한다.
 - state가 previous pair라면 이전 API/Web SHA와 config release를
   `--pull never`로 다시 적용하고 health가 통과한 뒤 marker를 정리한다.
 - runtime config 도입 전 기존 설치라면 legacy Compose와 이전 SHA로
