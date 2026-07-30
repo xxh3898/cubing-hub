@@ -393,6 +393,8 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} network contract is invalid")
     if service.get("ports"):
         raise SystemExit(f"{name} must not publish host ports")
+    if service.get("profiles"):
+        raise SystemExit(f"{name} must not use Compose profiles")
 web_edge = services["web"].get("networks", {}).get("edge", {})
 if not isinstance(web_edge, dict) or "cubing-hub-web" not in web_edge.get(
     "aliases", []
