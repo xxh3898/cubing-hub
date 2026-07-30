@@ -203,6 +203,26 @@ if [[ "${recovery_exit_code}" -ne 1 || ! -f "${pending_file}" ]]; then
 fi
 /bin/rm -f -- "${pending_file}"
 
+set +e
+FAKE_RENDER_API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:unexpected \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_image_exit_code="$?"
+set -e
+if [[ "${wrong_image_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a different API image must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_REAL_IP_SOURCE=/tmp/stale/nginx/cloudflare-edge-real-ip.conf \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_real_ip_exit_code="$?"
+set -e
+if [[ "${wrong_real_ip_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a non-release real-IP bind must fail\n' >&2
+  exit 1
+fi
+
 docker_log="${test_root}/docker.log"
 set +e
 FAKE_FAIL_CP=true \

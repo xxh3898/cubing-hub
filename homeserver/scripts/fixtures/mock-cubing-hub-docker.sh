@@ -62,8 +62,26 @@ case "${command_name}" in
   compose)
     arguments=" $* "
     if [[ "${arguments}" == *" --format json "* ]]; then
-      printf '%s\n' \
-        '{"name":"cubing-hub","services":{"db":{"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images"}]},"web":{"networks":{"application":null,"edge":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images","read_only":true},{"type":"bind","source":"/tmp/runtime/nginx/cloudflare-edge-real-ip.conf","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}'
+      compose_file=
+      previous_argument=
+      for argument in "$@"; do
+        if [[ "${previous_argument}" == --file ]]; then
+          compose_file="${argument}"
+          break
+        fi
+        previous_argument="${argument}"
+      done
+      api_image="${FAKE_RENDER_API_IMAGE:-${API_IMAGE}}"
+      web_image="${FAKE_RENDER_WEB_IMAGE:-${WEB_IMAGE}}"
+      real_ip_source="$(
+        /usr/bin/dirname "${compose_file}"
+      )/nginx/cloudflare-edge-real-ip.conf"
+      real_ip_source="${FAKE_RENDER_REAL_IP_SOURCE:-${real_ip_source}}"
+      printf \
+        '{"name":"cubing-hub","services":{"db":{"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"image":"%s","networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images"}]},"web":{"image":"%s","networks":{"application":null,"edge":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        "${api_image}" \
+        "${web_image}" \
+        "${real_ip_source}"
     elif [[ "${arguments}" == *" ps --status running --services "* ]]; then
       printf 'db\nredis\napi\nweb\n'
     fi

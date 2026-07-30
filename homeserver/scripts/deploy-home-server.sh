@@ -357,6 +357,7 @@ import json
 import sys
 
 config = json.load(sys.stdin)
+expected_api_image, expected_web_image, expected_real_ip_source = sys.argv[1:4]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -376,6 +377,10 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} network contract is invalid")
     if service.get("ports"):
         raise SystemExit(f"{name} must not publish host ports")
+if services["api"].get("image") != expected_api_image:
+    raise SystemExit("API image does not match the requested deployment")
+if services["web"].get("image") != expected_web_image:
+    raise SystemExit("Web image does not match the requested deployment")
 if networks.get("application", {}).get("internal") is not True:
     raise SystemExit("application network must be internal")
 if networks.get("outbound", {}).get("internal") is True:
@@ -425,12 +430,13 @@ if not str(api_upload.get("source", "")).startswith("/Users/homeserver/Server/da
 if (
     not real_ip
     or real_ip.get("read_only") is not True
-    or not real_ip.get("source", "").endswith(
-        "/nginx/cloudflare-edge-real-ip.conf"
-    )
+    or real_ip.get("source") != expected_real_ip_source
 ):
     raise SystemExit("pinned Cloudflare real-IP bind is missing")
-'
+' \
+      "${api_image}" \
+      "${web_image}" \
+      "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf"
 }
 
 prepare_runtime_release() {
