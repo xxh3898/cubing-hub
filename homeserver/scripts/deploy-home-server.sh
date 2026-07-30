@@ -373,7 +373,8 @@ config = json.load(sys.stdin)
     expected_web_image,
     expected_real_ip_source,
     expected_upload_source,
-) = sys.argv[1:5]
+    expected_database_name,
+) = sys.argv[1:6]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -414,6 +415,8 @@ if services["db"].get("image") != "mysql:8.0.46":
     raise SystemExit("MySQL image changes require a separate data migration")
 if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
+if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
+    raise SystemExit("MySQL database name must match the production environment")
 expected_healthchecks = {
     "db": [
         "CMD-SHELL",
@@ -493,7 +496,8 @@ if (
       "${api_image}" \
       "${web_image}" \
       "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf" \
-      "$(read_env_value POST_IMAGES_HOST_DIR)"
+      "$(read_env_value POST_IMAGES_HOST_DIR)" \
+      "$(read_env_value DB_NAME)"
 }
 
 prepare_runtime_release() {
