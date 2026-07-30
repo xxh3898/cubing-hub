@@ -441,6 +441,14 @@ if services["db"].get("command") != [
 ]:
     raise SystemExit("MySQL server command contract is invalid")
 api_environment = services["api"].get("environment", {})
+for name in {
+    "SPRING_APPLICATION_JSON",
+    "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
+    "_JAVA_OPTIONS",
+}:
+    if name in api_environment:
+        raise SystemExit(f"API environment override source is forbidden: {name}")
 expected_datasource_url = (
     f"jdbc:mysql://db:3306/{expected_database_name}"
     "?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
