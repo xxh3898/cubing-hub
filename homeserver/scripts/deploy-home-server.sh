@@ -339,6 +339,7 @@ validate_compose_contract() {
   local api_image="$2"
   local web_image="$3"
   local rendered
+  local resolved_environment
 
   API_IMAGE="${api_image}" \
   WEB_IMAGE="${web_image}" \
@@ -362,25 +363,82 @@ validate_compose_contract() {
         --format json
   )"
 
-  printf '%s' "${rendered}" \
+  resolved_environment="$(
+    printf '%s\n' \
+      'name: cubing-hub-environment-probe' \
+      'services:' \
+      '  probe:' \
+      '    image: scratch' \
+      '    environment:' \
+      '      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://cubing-hub.com,https://www.cubing-hub.com}' \
+      '      DB_NAME: ${DB_NAME:?DB_NAME must be set}' \
+      '      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME must be set}' \
+      '      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}' \
+      '      FEEDBACK_DISCORD_WEBHOOK_URL: ${FEEDBACK_DISCORD_WEBHOOK_URL:-}' \
+      '      JWT_EXPIRATION: ${JWT_EXPIRATION:-1800000}' \
+      '      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}' \
+      '      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}' \
+      '      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}' \
+      '      POST_IMAGES_HOST_DIR: ${POST_IMAGES_HOST_DIR:?POST_IMAGES_HOST_DIR must be set}' \
+      '      POST_IMAGES_KEY_PREFIX: ${POST_IMAGES_KEY_PREFIX:-community/posts}' \
+      '      POST_IMAGES_PUBLIC_BASE_URL: ${POST_IMAGES_PUBLIC_BASE_URL:-https://api.cubing-hub.com/uploads}' \
+      '      RANKING_REDIS_REBUILD_MODE: ${RANKING_REDIS_REBUILD_MODE:-disabled}' \
+      '      SMTP_AUTH: ${SMTP_AUTH:-true}' \
+      '      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}' \
+      '      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}' \
+      '      SMTP_PASSWORD: ${SMTP_PASSWORD:-}' \
+      '      SMTP_PORT: ${SMTP_PORT:-587}' \
+      '      SMTP_STARTTLS_ENABLE: ${SMTP_STARTTLS_ENABLE:-true}' \
+      '      SMTP_USERNAME: ${SMTP_USERNAME:-}' \
+      | "${DOCKER_BIN}" \
+          compose \
+          --project-directory "$(/usr/bin/dirname "${compose_file}")" \
+          --env-file "${ENV_FILE}" \
+          --file - \
+          config \
+          --format json
+  )"
+
+  printf '[%s,%s]' "${rendered}" "${resolved_environment}" \
     | "${PYTHON_BIN}" -c '
 import json
 import hashlib
 import sys
 
-config = json.load(sys.stdin)
+config, environment_probe = json.load(sys.stdin)
 (
     expected_api_image,
     expected_web_image,
     expected_real_ip_source,
-    expected_upload_source,
-    expected_database_name,
-    expected_database_user,
-    expected_database_password_sha256,
-    expected_database_root_password_sha256,
-    expected_jwt_secret_sha256,
-    expected_env_file,
-) = sys.argv[1:11]
+) = sys.argv[1:4]
+host_environment = (
+    environment_probe.get("services", {})
+    .get("probe", {})
+    .get("environment", {})
+)
+if not isinstance(host_environment, dict):
+    raise SystemExit("resolved Compose environment probe is invalid")
+
+def host_value(name, default=None):
+    value = host_environment.get(name)
+    if value is None or (default is not None and value == ""):
+        if default is None:
+            raise SystemExit(f"resolved Compose environment is missing: {name}")
+        return default
+    return value
+
+expected_upload_source = host_value("POST_IMAGES_HOST_DIR")
+expected_database_name = host_value("DB_NAME")
+expected_database_user = host_value("DB_USERNAME")
+expected_database_password_sha256 = hashlib.sha256(
+    host_value("DB_PASSWORD").encode()
+).hexdigest()
+expected_database_root_password_sha256 = hashlib.sha256(
+    host_value("MYSQL_ROOT_PASSWORD").encode()
+).hexdigest()
+expected_jwt_secret_sha256 = hashlib.sha256(
+    host_value("JWT_SECRET").encode()
+).hexdigest()
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -581,25 +639,6 @@ if services["db"].get("command") != [
 ]:
     raise SystemExit("MySQL server command contract is invalid")
 api_environment = services["api"].get("environment", {})
-host_environment = {}
-with open(expected_env_file, encoding="utf-8") as env_file:
-    for raw_line in env_file:
-        line = raw_line.rstrip("\r\n")
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            raise SystemExit("protected host environment contains an invalid line")
-        name, value = line.split("=", 1)
-        if name in host_environment:
-            raise SystemExit("protected host environment contains a duplicate key")
-        host_environment[name] = value
-
-def host_value(name, default=None):
-    value = host_environment.get(name, default)
-    if value is None:
-        raise SystemExit(f"protected host environment is missing: {name}")
-    return value
-
 expected_full_api_environment = {
     "AUTH_REFRESH_COOKIE_SECURE": "true",
     "CORS_ALLOWED_ORIGINS": host_value(
@@ -714,40 +753,62 @@ if services["redis"].get("command") != [
 ]:
     raise SystemExit("Redis persistence command contract is invalid")
 expected_healthchecks = {
-    "db": [
-        "CMD-SHELL",
-        "mysqladmin ping -h 127.0.0.1 -u root "
-        "--password=\"$${MYSQL_ROOT_PASSWORD}\" --silent",
-    ],
-    "redis": ["CMD", "redis-cli", "ping"],
-    "web": [
-        "CMD-SHELL",
-        "wget --header="
-        + chr(39)
-        + "Host: api.cubing-hub.com"
-        + chr(39)
-        + " -qO- http://127.0.0.1/actuator/health | grep -q "
-        + chr(39)
-        + "\"status\":\"UP\""
-        + chr(39),
-    ],
+    "db": {
+        "test": [
+            "CMD-SHELL",
+            "mysqladmin ping -h 127.0.0.1 -u root "
+            "--password=\"$${MYSQL_ROOT_PASSWORD}\" --silent",
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "30s",
+    },
+    "redis": {
+        "test": ["CMD", "redis-cli", "ping"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "10s",
+    },
+    "web": {
+        "test": [
+            "CMD-SHELL",
+            "wget --header="
+            + chr(39)
+            + "Host: api.cubing-hub.com"
+            + chr(39)
+            + " -qO- http://127.0.0.1/actuator/health | grep -q "
+            + chr(39)
+            + "\"status\":\"UP\""
+            + chr(39),
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "40s",
+    },
 }
-for name, expected_test in expected_healthchecks.items():
-    healthcheck = services[name].get("healthcheck", {})
-    if healthcheck.get("disable") is True or healthcheck.get("test") != expected_test:
+for name, expected_healthcheck in expected_healthchecks.items():
+    if services[name].get("healthcheck", {}) != expected_healthcheck:
         raise SystemExit(f"{name} healthcheck contract is invalid")
-if networks.get("application", {}).get("internal") is not True:
+if networks.get("application", {}) != {
+    "name": "cubing-hub_application",
+    "ipam": {},
+    "internal": True,
+}:
     raise SystemExit("application network must be internal")
-outbound = networks.get("outbound", {})
-if (
-    outbound.get("internal") is True
-    or outbound.get("external") is True
-    or outbound.get("driver") != "bridge"
-    or outbound.get("name") != "cubing-hub_outbound"
-):
+if networks.get("outbound", {}) != {
+    "name": "cubing-hub_outbound",
+    "driver": "bridge",
+    "ipam": {},
+}:
     raise SystemExit("outbound network must remain a project-private bridge")
-edge = networks.get("edge", {})
-if edge.get("external") is not True or edge.get("name") != "edge":
+if networks.get("edge", {}) != {
+    "name": "edge",
+    "external": True,
+    "ipam": {},
+}:
     raise SystemExit("edge network contract is invalid")
 
 def volume(service, target):
@@ -829,14 +890,7 @@ if (
 ' \
       "${api_image}" \
       "${web_image}" \
-      "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf" \
-      "$(read_env_value POST_IMAGES_HOST_DIR)" \
-      "$(read_env_value DB_NAME)" \
-      "$(read_env_value DB_USERNAME)" \
-      "$(printf '%s' "$(read_env_value DB_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
-      "$(printf '%s' "$(read_env_value MYSQL_ROOT_PASSWORD)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
-      "$(printf '%s' "$(read_env_value JWT_SECRET)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')" \
-      "${ENV_FILE}"
+      "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf"
 }
 
 prepare_runtime_release() {

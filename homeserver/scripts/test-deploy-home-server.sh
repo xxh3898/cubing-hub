@@ -68,6 +68,7 @@ run_deploy() {
         FAKE_RENDER_DATABASE_USER="${FAKE_RENDER_DATABASE_USER:-}" \
         FAKE_RENDER_DATABASE_PASSWORD="${FAKE_RENDER_DATABASE_PASSWORD:-}" \
         FAKE_RENDER_DATABASE_ROOT_PASSWORD="${FAKE_RENDER_DATABASE_ROOT_PASSWORD:-}" \
+        FAKE_RENDER_DB_HEALTHCHECK_JSON="${FAKE_RENDER_DB_HEALTHCHECK_JSON:-}" \
         FAKE_RENDER_API_DATABASE_USER="${FAKE_RENDER_API_DATABASE_USER:-}" \
         FAKE_RENDER_API_DATABASE_PASSWORD="${FAKE_RENDER_API_DATABASE_PASSWORD:-}" \
         FAKE_RENDER_API_EXTRA_ENVIRONMENT="${FAKE_RENDER_API_EXTRA_ENVIRONMENT:-}" \
@@ -82,9 +83,14 @@ run_deploy() {
         FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
         FAKE_RENDER_FLYWAY_ENABLED="${FAKE_RENDER_FLYWAY_ENABLED:-}" \
         FAKE_RENDER_JWT_SECRET="${FAKE_RENDER_JWT_SECRET:-}" \
+        FAKE_RENDER_SMTP_PASSWORD="${FAKE_RENDER_SMTP_PASSWORD:-}" \
+        FAKE_RESOLVED_SMTP_PASSWORD="${FAKE_RESOLVED_SMTP_PASSWORD:-}" \
+        FAKE_RENDER_APPLICATION_JSON="${FAKE_RENDER_APPLICATION_JSON:-}" \
         FAKE_RENDER_OUTBOUND_JSON="${FAKE_RENDER_OUTBOUND_JSON:-}" \
+        FAKE_RENDER_EDGE_JSON="${FAKE_RENDER_EDGE_JSON:-}" \
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_REDIS_COMMAND_JSON="${FAKE_RENDER_REDIS_COMMAND_JSON:-}" \
+        FAKE_RENDER_REDIS_HEALTHCHECK_JSON="${FAKE_RENDER_REDIS_HEALTHCHECK_JSON:-}" \
         FAKE_RENDER_MYSQL_COMMAND_JSON="${FAKE_RENDER_MYSQL_COMMAND_JSON:-}" \
         FAKE_RENDER_MYSQL_VOLUME_EXTRA="${FAKE_RENDER_MYSQL_VOLUME_EXTRA:-}" \
         FAKE_RENDER_UPLOAD_ROOT="${FAKE_RENDER_UPLOAD_ROOT:-}" \
@@ -93,6 +99,7 @@ run_deploy() {
         FAKE_RENDER_RESTART_POLICY="${FAKE_RENDER_RESTART_POLICY:-}" \
         FAKE_RENDER_WEB_SCALE="${FAKE_RENDER_WEB_SCALE:-}" \
         FAKE_RENDER_UPLOAD_SOURCE="${FAKE_RENDER_UPLOAD_SOURCE:-}" \
+        FAKE_RENDER_WEB_HEALTHCHECK_JSON="${FAKE_RENDER_WEB_HEALTHCHECK_JSON:-}" \
         FAKE_RENDER_WEB_PROFILE="${FAKE_RENDER_WEB_PROFILE:-false}" \
         /bin/bash "${test_script}" "$@"
 }
@@ -314,6 +321,18 @@ if [[ "${recovery_exit_code}" -ne 1 || ! -f "${pending_file}" ]]; then
 fi
 /bin/rm -f -- "${pending_file}"
 
+/usr/bin/sed \
+  -e "s#^SMTP_PASSWORD=.*#SMTP_PASSWORD='app password'#" \
+  "${app_dir}/.env" >"${app_dir}/.env.compose-syntax"
+/bin/mv "${app_dir}/.env.compose-syntax" "${app_dir}/.env"
+FAKE_RESOLVED_SMTP_PASSWORD='app password' \
+FAKE_RENDER_SMTP_PASSWORD='app password' \
+  run_deploy "${REVISION_TWO}" keep test-user
+/usr/bin/sed \
+  -e 's#^SMTP_PASSWORD=.*#SMTP_PASSWORD=#' \
+  "${app_dir}/.env" >"${app_dir}/.env.compose-syntax"
+/bin/mv "${app_dir}/.env.compose-syntax" "${app_dir}/.env"
+
 set +e
 FAKE_RENDER_RESTART_POLICY=no \
   run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
@@ -411,6 +430,26 @@ external_outbound_exit_code="$?"
 set -e
 if [[ "${external_outbound_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with an external outbound network must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_APPLICATION_JSON='{"name":"shared-internal","ipam":{},"internal":true}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+shared_application_exit_code="$?"
+set -e
+if [[ "${shared_application_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a shared application network must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_OUTBOUND_JSON='{"name":"cubing-hub_outbound","driver":"bridge","ipam":{},"driver_opts":{"com.docker.network.bridge.enable_ip_masquerade":"false"}}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+disabled_masquerade_exit_code="$?"
+set -e
+if [[ "${disabled_masquerade_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with disabled outbound IP masquerading must fail\n' >&2
   exit 1
 fi
 
@@ -514,6 +553,16 @@ disabled_healthcheck_exit_code="$?"
 set -e
 if [[ "${disabled_healthcheck_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with a disabled Web healthcheck must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_REDIS_HEALTHCHECK_JSON='{"test":["CMD","redis-cli","ping"],"interval":"1ms","timeout":"5s","retries":12,"start_period":"10s"}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+healthcheck_schedule_exit_code="$?"
+set -e
+if [[ "${healthcheck_schedule_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a changed healthcheck schedule must fail\n' >&2
   exit 1
 fi
 
