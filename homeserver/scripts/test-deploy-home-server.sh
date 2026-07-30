@@ -75,6 +75,7 @@ run_deploy() {
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
         FAKE_RENDER_API_EXTRA_VOLUME="${FAKE_RENDER_API_EXTRA_VOLUME:-}" \
         FAKE_RENDER_API_EXTRA_HOSTS_JSON="${FAKE_RENDER_API_EXTRA_HOSTS_JSON:-}" \
+        FAKE_RENDER_API_APPLICATION_ATTACHMENT_JSON="${FAKE_RENDER_API_APPLICATION_ATTACHMENT_JSON:-}" \
         FAKE_RENDER_DATASOURCE_URL="${FAKE_RENDER_DATASOURCE_URL:-}" \
         FAKE_RENDER_DDL_AUTO="${FAKE_RENDER_DDL_AUTO:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
@@ -379,6 +380,16 @@ extra_hosts_exit_code="$?"
 set -e
 if [[ "${extra_hosts_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with an API host override must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_API_APPLICATION_ATTACHMENT_JSON='{"aliases":["db"]}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+api_network_alias_exit_code="$?"
+set -e
+if [[ "${api_network_alias_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with an API network alias must fail\n' >&2
   exit 1
 fi
 

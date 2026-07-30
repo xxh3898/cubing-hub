@@ -389,10 +389,13 @@ if config.get("name") != "cubing-hub":
 if set(services) != {"db", "redis", "api", "web"}:
     raise SystemExit("unexpected Cubing Hub service set")
 expected = {
-    "db": {"application"},
-    "redis": {"application"},
-    "api": {"application", "outbound"},
-    "web": {"application", "edge"},
+    "db": {"application": None},
+    "redis": {"application": None},
+    "api": {"application": None, "outbound": None},
+    "web": {
+        "application": None,
+        "edge": {"aliases": ["cubing-hub-web"]},
+    },
 }
 allowed_service_keys = {
     "db": {
@@ -459,7 +462,7 @@ for name, expected_networks in expected.items():
     }
     if unsupported_service_keys:
         raise SystemExit(f"{name} contains an unsupported Compose service field")
-    if set(service.get("networks", {})) != expected_networks:
+    if service.get("networks", {}) != expected_networks:
         raise SystemExit(f"{name} network contract is invalid")
     if service.get("ports"):
         raise SystemExit(f"{name} must not publish host ports")
