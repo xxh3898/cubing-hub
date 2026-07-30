@@ -402,6 +402,29 @@ if services["db"].get("image") != "mysql:8.0.46":
     raise SystemExit("MySQL image changes require a separate data migration")
 if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
+expected_healthchecks = {
+    "db": [
+        "CMD-SHELL",
+        "mysqladmin ping -h 127.0.0.1 -u root "
+        "--password=\"$${MYSQL_ROOT_PASSWORD}\" --silent",
+    ],
+    "redis": ["CMD", "redis-cli", "ping"],
+    "web": [
+        "CMD-SHELL",
+        "wget --header="
+        + chr(39)
+        + "Host: api.cubing-hub.com"
+        + chr(39)
+        + " -qO- http://127.0.0.1/actuator/health | grep -q "
+        + chr(39)
+        + "\"status\":\"UP\""
+        + chr(39),
+    ],
+}
+for name, expected_test in expected_healthchecks.items():
+    healthcheck = services[name].get("healthcheck", {})
+    if healthcheck.get("disable") is True or healthcheck.get("test") != expected_test:
+        raise SystemExit(f"{name} healthcheck contract is invalid")
 if networks.get("application", {}).get("internal") is not True:
     raise SystemExit("application network must be internal")
 if networks.get("outbound", {}).get("internal") is True:
