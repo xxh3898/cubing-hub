@@ -91,6 +91,11 @@ allowlist와 content hash를 먼저 대조한다.
   zero-SHA placeholder로 되돌려 다음 배포가 첫 배포로 다시 시작하게 한다.
 - pending/state가 서로 맞지 않거나 release가 변조됐으면 아무것도
   정리하지 않고 실패한다.
+- 첫 성공 시 app directory에 별도 initialization marker를 원자 생성한다.
+  이 marker가 있는데 `state` 또는 `current`가 사라지면 pre-v2 설치로
+  fallback하지 않고 실패한다. marker가 생기기 전 실패한 bootstrap의
+  동일 digest candidate release는 다음 `update`에서 image와 다시 대조한
+  뒤 재사용할 수 있다.
 
 복구 후 production Compose `ps`, API/Web health, DB·Redis health와 public
 URL을 다시 확인한다. Flyway migration은 recovery가 되돌리지 않는다.

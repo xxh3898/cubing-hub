@@ -38,26 +38,37 @@
 
 1. Docker Desktop for Apple Silicon을 설치하고 로그인 뒤 자동 시작을
    확인한다.
-2. external network를 한 번만 만든다.
+2. 배포·백업 script가 Compose JSON 계약을 검사할 때 사용하는 system
+   Python을 확인한다.
+
+   ```bash
+   test -x /usr/bin/python3
+   /usr/bin/python3 --version
+   ```
+
+   `/usr/bin/python3`가 없으면 Homebrew Python이나 임의 PATH로 대체하지
+   말고 준비를 중단한다. Xcode Command Line Tools 설치 여부와 운영 영향은
+   별도 승인 후 확인한다.
+3. external network를 한 번만 만든다.
 
    ```bash
    /usr/local/bin/docker network inspect edge >/dev/null 2>&1 \
      || /usr/local/bin/docker network create edge
    ```
 
-3. 고정 운영 directory와 빈 게시글 이미지 directory를 만든다.
-4. `homeserver/docker-compose.yml`,
+4. 고정 운영 directory와 빈 게시글 이미지 directory를 만든다.
+5. `homeserver/docker-compose.yml`,
    `homeserver/nginx/cloudflare-edge-real-ip.conf`,
    `homeserver/scripts/deploy-home-server.sh`,
    `homeserver/scripts/deploy-home-server-ci.sh`,
    `homeserver/scripts/backup-home-server.sh`를 고정 경로에 설치한다.
    Nginx 설정은 app directory의 `nginx/` 아래에 둔다.
-5. `.env`의 image 두 개는 같은 full commit SHA를 사용하고 DB/JWT/SMTP
+6. `.env`의 image 두 개는 같은 full commit SHA를 사용하고 DB/JWT/SMTP
    secret을 실제 값으로 교체한다.
-6. 배포·백업 script와 `.env` 권한을 제한한다.
-7. Tailscale `tag:ci`에서 Mac mini SSH로 접근할 수 있는 최소 ACL과
+7. 배포·백업 script와 `.env` 권한을 제한한다.
+8. Tailscale `tag:ci`에서 Mac mini SSH로 접근할 수 있는 최소 ACL과
    workload identity federation credential을 구성한다.
-8. Cubing Hub 전용 SSH 공개키를 forced command와 함께 등록한다.
+9. Cubing Hub 전용 SSH 공개키를 forced command와 함께 등록한다.
 
 forced command는 아래 wrapper만 실행해야 한다.
 

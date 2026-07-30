@@ -14,6 +14,7 @@ const [
   dockerIgnore,
   runtimeConfigDockerfile,
   runtimeConfigDetector,
+  setupGuide,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -26,6 +27,7 @@ const [
   read("../../.dockerignore"),
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
+  read("../docs/mac-mini-server-setup.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -105,6 +107,14 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
     restrictedWrapper,
     /\/Users\/homeserver\/Server\/scripts\/deploy\/deploy-cubing-hub\.sh/,
   );
+});
+
+test("should_documentPinnedSystemPython_when_operationsScriptsRequireIt", () => {
+  assert.match(deployScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
+  assert.match(backupScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
+  assert.match(setupGuide, /test -x \/usr\/bin\/python3/);
+  assert.match(setupGuide, /\/usr\/bin\/python3 --version/);
+  assert.match(setupGuide, /Homebrew Python이나 임의 PATH로 대체하지/);
 });
 
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
