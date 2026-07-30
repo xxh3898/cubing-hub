@@ -359,6 +359,9 @@ import sys
 config = json.load(sys.stdin)
 services = config.get("services", {})
 networks = config.get("networks", {})
+volumes = config.get("volumes", {})
+if config.get("name") != "cubing-hub":
+    raise SystemExit("Compose project name must remain cubing-hub")
 if set(services) != {"db", "redis", "api", "web"}:
     raise SystemExit("unexpected Cubing Hub service set")
 expected = {
@@ -390,6 +393,23 @@ def volume(service, target):
         ),
         None,
     )
+
+db_data = volume("db", "/var/lib/mysql")
+redis_data = volume("redis", "/data")
+if (
+    not db_data
+    or db_data.get("type") != "volume"
+    or db_data.get("source") != "mysql-data"
+    or volumes.get("mysql-data", {}).get("name") != "cubing-hub_mysql-data"
+):
+    raise SystemExit("MySQL persistent volume contract is invalid")
+if (
+    not redis_data
+    or redis_data.get("type") != "volume"
+    or redis_data.get("source") != "redis-data"
+    or volumes.get("redis-data", {}).get("name") != "cubing-hub_redis-data"
+):
+    raise SystemExit("Redis persistent volume contract is invalid")
 
 api_upload = volume("api", "/data/post-images")
 web_upload = volume("web", "/data/post-images")

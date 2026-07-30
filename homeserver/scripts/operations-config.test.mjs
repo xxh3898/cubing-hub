@@ -157,6 +157,9 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     /active_compose_file="\$\{current_compose_file\}"/,
   );
   assert.match(deployScript, /RUNTIME_CONFIG_PENDING/);
+  assert.match(deployScript, /Compose project name must remain cubing-hub/);
+  assert.match(deployScript, /MySQL persistent volume contract is invalid/);
+  assert.match(deployScript, /Redis persistent volume contract is invalid/);
   assert.match(
     deployScript,
     /write_pending_state[\s\S]*"\$\{previous_sha:-\$\{ZERO_SHA\}\}"/,
