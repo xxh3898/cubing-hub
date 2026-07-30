@@ -398,6 +398,13 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} must not use Compose profiles")
     if service.get("restart") != "unless-stopped":
         raise SystemExit(f"{name} restart policy must remain unless-stopped")
+    if (
+        service.get("user") not in (None, "")
+        or service.get("privileged") is True
+        or service.get("cap_add")
+        or service.get("devices")
+    ):
+        raise SystemExit(f"{name} must not override image user or add privileges")
     if service.get("scale", 1) != 1:
         raise SystemExit(f"{name} must run exactly one replica")
     if service.get("deploy", {}).get("replicas", 1) != 1:
