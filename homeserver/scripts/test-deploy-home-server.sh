@@ -254,6 +254,21 @@ release_dir="${release_one}"
 printf '\n# tampered\n' >>"${release_dir}/compose.yaml"
 
 set +e
+run_deploy \
+  "${REVISION_THREE}" \
+  update \
+  "${CONFIG_DIGEST_TWO}" \
+  test-user \
+  >/dev/null 2>&1
+update_exit_code="$?"
+set -e
+
+if [[ "${update_exit_code}" -ne 1 ]]; then
+  printf 'Update with a tampered active runtime config must fail: actual=%s\n' "${update_exit_code}" >&2
+  exit 1
+fi
+
+set +e
 run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
 exit_code="$?"
 set -e

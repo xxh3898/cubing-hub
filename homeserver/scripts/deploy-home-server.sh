@@ -816,6 +816,21 @@ else
     current_compose_file="${LEGACY_COMPOSE_FILE}"
   fi
 
+  if [[ -n "${current_release}" ]]; then
+    if [[ ! "${current_config_revision}" =~ ^[0-9a-f]{40}$ ]] \
+      || [[ ! "${current_config_content_sha}" =~ ^[0-9a-f]{64}$ ]]
+    then
+      fail "current runtime config state is invalid"
+    fi
+    if [[ ! -d "${current_release}" ]]; then
+      fail "current runtime config release is missing"
+    fi
+    validate_release_files "${current_release}"
+    if [[ "$(runtime_config_content_sha256 "${current_release}")" != "${current_config_content_sha}" ]]; then
+      fail "current runtime config release integrity check failed"
+    fi
+  fi
+
   if [[ "${config_mode}" == update ]]; then
     candidate_config_digest="${config_digest}"
     candidate_config_revision="${normalized_sha}"
@@ -825,18 +840,8 @@ else
       runtime_config_content_sha256 "${candidate_release}"
     )"
   else
-    if [[ -z "${current_release}" ]] \
-      || [[ ! "${current_config_revision}" =~ ^[0-9a-f]{40}$ ]] \
-      || [[ ! "${current_config_content_sha}" =~ ^[0-9a-f]{64}$ ]]
-    then
+    if [[ -z "${current_release}" ]]; then
       fail "keep mode requires an existing verified runtime config state"
-    fi
-    if [[ ! -d "${current_release}" ]]; then
-      fail "current runtime config release is missing"
-    fi
-    validate_release_files "${current_release}"
-    if [[ "$(runtime_config_content_sha256 "${current_release}")" != "${current_config_content_sha}" ]]; then
-      fail "current runtime config release integrity check failed"
     fi
     candidate_config_digest="${current_config_digest}"
     candidate_config_revision="${current_config_revision}"
