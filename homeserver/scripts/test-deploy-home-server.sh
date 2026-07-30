@@ -64,6 +64,8 @@ run_deploy() {
         FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
+        FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
+        FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_WEB_IMAGE="${FAKE_RENDER_WEB_IMAGE:-}" \
         FAKE_RENDER_REAL_IP_SOURCE="${FAKE_RENDER_REAL_IP_SOURCE:-}" \
         /bin/bash "${test_script}" "$@"
@@ -207,6 +209,16 @@ if [[ "${recovery_exit_code}" -ne 1 || ! -f "${pending_file}" ]]; then
   exit 1
 fi
 /bin/rm -f -- "${pending_file}"
+
+set +e
+FAKE_RENDER_DB_IMAGE=mysql:8.4 \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_db_image_exit_code="$?"
+set -e
+if [[ "${wrong_db_image_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a changed MySQL image must fail\n' >&2
+  exit 1
+fi
 
 set +e
 FAKE_RENDER_API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:unexpected \

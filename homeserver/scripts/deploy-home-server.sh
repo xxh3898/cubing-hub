@@ -381,6 +381,10 @@ if services["api"].get("image") != expected_api_image:
     raise SystemExit("API image does not match the requested deployment")
 if services["web"].get("image") != expected_web_image:
     raise SystemExit("Web image does not match the requested deployment")
+if services["db"].get("image") != "mysql:8.0.46":
+    raise SystemExit("MySQL image changes require a separate data migration")
+if services["redis"].get("image") != "redis:7.2.14-alpine":
+    raise SystemExit("Redis image changes require a separate data migration")
 if networks.get("application", {}).get("internal") is not True:
     raise SystemExit("application network must be internal")
 if networks.get("outbound", {}).get("internal") is True:

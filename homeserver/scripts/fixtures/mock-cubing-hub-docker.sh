@@ -73,12 +73,16 @@ case "${command_name}" in
       done
       api_image="${FAKE_RENDER_API_IMAGE:-${API_IMAGE}}"
       web_image="${FAKE_RENDER_WEB_IMAGE:-${WEB_IMAGE}}"
+      db_image="${FAKE_RENDER_DB_IMAGE:-mysql:8.0.46}"
+      redis_image="${FAKE_RENDER_REDIS_IMAGE:-redis:7.2.14-alpine}"
       real_ip_source="$(
         /usr/bin/dirname "${compose_file}"
       )/nginx/cloudflare-edge-real-ip.conf"
       real_ip_source="${FAKE_RENDER_REAL_IP_SOURCE:-${real_ip_source}}"
       printf \
-        '{"name":"cubing-hub","services":{"db":{"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"image":"%s","networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images"}]},"web":{"image":"%s","networks":{"application":null,"edge":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        '{"name":"cubing-hub","services":{"db":{"image":"%s","networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql"}]},"redis":{"image":"%s","networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data"}]},"api":{"image":"%s","networks":{"application":null,"outbound":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images"}]},"web":{"image":"%s","networks":{"application":null,"edge":null},"volumes":[{"type":"bind","source":"/Users/homeserver/Server/data/cubing-hub/post-images","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}]}},"networks":{"application":{"internal":true},"outbound":{},"edge":{"external":true,"name":"edge"}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        "${db_image}" \
+        "${redis_image}" \
         "${api_image}" \
         "${web_image}" \
         "${real_ip_source}"
