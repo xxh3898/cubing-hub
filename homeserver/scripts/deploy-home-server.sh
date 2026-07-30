@@ -115,7 +115,12 @@ if [[ "${recovery_mode}" == false ]] \
 then
   fail "an incomplete runtime config transaction requires recovery"
 fi
-if [[ "${legacy_mode}" == true && -e "${RUNTIME_CONFIG_STATE}" ]]; then
+if [[ "${legacy_mode}" == true ]] \
+  && {
+    [[ -e "${RUNTIME_CONFIG_STATE}" || -L "${RUNTIME_CONFIG_STATE}" ]] \
+      || [[ -e "${RUNTIME_CONFIG_CURRENT}" || -L "${RUNTIME_CONFIG_CURRENT}" ]];
+  }
+then
   fail "legacy deployment is disabled after runtime config state initialization"
 fi
 
@@ -359,7 +364,12 @@ import json
 import sys
 
 config = json.load(sys.stdin)
-expected_api_image, expected_web_image, expected_real_ip_source = sys.argv[1:4]
+(
+    expected_api_image,
+    expected_web_image,
+    expected_real_ip_source,
+    expected_upload_source,
+) = sys.argv[1:5]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -379,6 +389,11 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} network contract is invalid")
     if service.get("ports"):
         raise SystemExit(f"{name} must not publish host ports")
+web_edge = services["web"].get("networks", {}).get("edge", {})
+if not isinstance(web_edge, dict) or "cubing-hub-web" not in web_edge.get(
+    "aliases", []
+):
+    raise SystemExit("Web edge alias must retain cubing-hub-web")
 if services["api"].get("image") != expected_api_image:
     raise SystemExit("API image does not match the requested deployment")
 if services["web"].get("image") != expected_web_image:
@@ -431,8 +446,8 @@ if not web_upload or web_upload.get("read_only") is not True:
     raise SystemExit("Web read-only upload bind is missing")
 if api_upload.get("source") != web_upload.get("source"):
     raise SystemExit("API and Web upload paths differ")
-if not str(api_upload.get("source", "")).startswith("/Users/homeserver/Server/data/cubing-hub/"):
-    raise SystemExit("upload bind must stay in Cubing Hub data boundary")
+if api_upload.get("source") != expected_upload_source:
+    raise SystemExit("upload bind must match the configured production directory")
 if (
     not real_ip
     or real_ip.get("read_only") is not True
@@ -442,7 +457,8 @@ if (
 ' \
       "${api_image}" \
       "${web_image}" \
-      "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf"
+      "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf" \
+      "$(read_env_value POST_IMAGES_HOST_DIR)"
 }
 
 prepare_runtime_release() {
@@ -812,6 +828,12 @@ else
   current_config_revision="$(read_state_value RUNTIME_CONFIG_REVISION)"
   current_config_content_sha="$(read_state_value RUNTIME_CONFIG_CONTENT_SHA256)"
   current_state_sha="$(read_state_value APPLICATION_REVISION)"
+
+  if [[ ! -e "${RUNTIME_CONFIG_STATE}" && ! -L "${RUNTIME_CONFIG_STATE}" ]] \
+    && [[ -e "${RUNTIME_CONFIG_CURRENT}" || -L "${RUNTIME_CONFIG_CURRENT}" ]]
+  then
+    fail "runtime config state is missing while the current release pointer exists"
+  fi
 
   if [[ -e "${RUNTIME_CONFIG_STATE}" || -L "${RUNTIME_CONFIG_STATE}" ]] \
     && {

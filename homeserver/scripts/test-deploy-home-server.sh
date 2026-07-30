@@ -65,9 +65,11 @@ run_deploy() {
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
+        FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_WEB_IMAGE="${FAKE_RENDER_WEB_IMAGE:-}" \
         FAKE_RENDER_REAL_IP_SOURCE="${FAKE_RENDER_REAL_IP_SOURCE:-}" \
+        FAKE_RENDER_UPLOAD_SOURCE="${FAKE_RENDER_UPLOAD_SOURCE:-}" \
         /bin/bash "${test_script}" "$@"
 }
 
@@ -94,6 +96,22 @@ test -f "${state_file}"
 /usr/bin/grep -Fxq "RUNTIME_CONFIG_REVISION=${REVISION_ONE}" "${state_file}"
 test -L "${app_dir}/runtime-config/current"
 test ! -e "${app_dir}/runtime-config/pending"
+
+/bin/mv "${state_file}" "${state_file}.missing"
+set +e
+run_deploy \
+  "${REVISION_TWO}" \
+  update \
+  "${CONFIG_DIGEST_TWO}" \
+  test-user \
+  >/dev/null 2>&1
+missing_state_exit_code="$?"
+set -e
+if [[ "${missing_state_exit_code}" -ne 1 ]]; then
+  printf 'Deployment with a current pointer but missing state must fail\n' >&2
+  exit 1
+fi
+/bin/mv "${state_file}.missing" "${state_file}"
 
 /bin/ln -s missing-pending "${app_dir}/runtime-config/pending"
 set +e
@@ -220,6 +238,26 @@ if [[ "${recovery_exit_code}" -ne 1 || ! -f "${pending_file}" ]]; then
   exit 1
 fi
 /bin/rm -f -- "${pending_file}"
+
+set +e
+FAKE_RENDER_UPLOAD_SOURCE=/Users/homeserver/Server/data/cubing-hub/alternate \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_upload_exit_code="$?"
+set -e
+if [[ "${wrong_upload_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a different upload directory must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_EDGE_ALIAS=unexpected \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_edge_alias_exit_code="$?"
+set -e
+if [[ "${wrong_edge_alias_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config without the Cloudflare Web alias must fail\n' >&2
+  exit 1
+fi
 
 /usr/bin/sed \
   -e "s#^API_IMAGE=.*#API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_ONE}#" \
