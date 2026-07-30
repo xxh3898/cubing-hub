@@ -59,7 +59,7 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   );
   assert.equal(
     countMatches(deployWorkflow, /platforms: linux\/arm64/g),
-    2,
+    3,
   );
   assert.match(
     deployWorkflow,
@@ -68,6 +68,18 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   assert.match(
     deployWorkflow,
     /tags: \$\{\{ env\.WEB_IMAGE_NAME \}\}:\$\{\{ github\.sha \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
+    /RUNTIME_CONFIG_IMAGE_NAME: ghcr\.io\/xxh3898\/cubing-hub-runtime-config/,
+  );
+  assert.match(
+    deployWorkflow,
+    /if: steps\.runtime-config-mode\.outputs\.mode == 'update'/,
+  );
+  assert.match(
+    deployWorkflow,
+    /deployments\?environment=production[\s\S]*steps\.deployed-base\.outputs\.sha/,
   );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
   assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
@@ -89,6 +101,7 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
 
   assert.match(publish, /actions: read/);
   assert.match(publish, /contents: read/);
+  assert.match(publish, /deployments: read/);
   assert.match(publish, /packages: write/);
   assert.doesNotMatch(publish, /id-token: write/);
 
@@ -109,26 +122,47 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   assert.match(deployWorkflow, /ping: home-mini/);
   assert.match(
     deployWorkflow,
-    /"deploy-cubing-hub \$\{GITHUB_SHA\} \$\{GITHUB_ACTOR\}"/,
+    /deploy_command="deploy-cubing-hub-v2 \$\{GITHUB_SHA\} keep \$\{GITHUB_ACTOR\}"/,
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
 });
 
 test("should_pinEveryExternalActionToFullCommitSha", () => {
+  const expectedDockerBuildAction =
+    "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a";
+  const externalActions = [];
+  const quotedKeyAction = `example/action@${"a".repeat(40)}`;
+  const quotedValueAction = `example/quoted-action@${"b".repeat(40)}`;
+
+  assert.deepEqual(
+    actionReferences(
+      `steps:\n  - "uses": ${quotedKeyAction}\n  - 'uses': "${quotedValueAction}"\n`,
+    ),
+    [quotedKeyAction, quotedValueAction],
+  );
+  assert.throws(
+    () => actionReferences("steps:\n  - { uses: example/action@v1 }\n"),
+    /Unsupported uses syntax/,
+  );
+
   for (const workflow of [
     validateWorkflow,
     deployWorkflow,
     benchmarkWorkflow,
   ]) {
-    for (const line of workflow.matchAll(/^\s*uses:\s*(\S+)/gm)) {
-      const action = line[1];
+    for (const action of actionReferences(workflow)) {
       if (action.startsWith("./")) {
         continue;
       }
+      externalActions.push(action);
       assert.match(action, /^[^@]+@[0-9a-f]{40}$/);
+      if (action.startsWith("docker/build-push-action@")) {
+        assert.equal(action, expectedDockerBuildAction);
+      }
     }
   }
+  assert.ok(externalActions.length > 0);
 });
 
 test("should_haveNoActiveAwsEc2OrSelfHostedDeploymentPath", () => {
@@ -160,4 +194,27 @@ function workflowJob(workflow, jobId) {
 
 function countMatches(value, pattern) {
   return [...value.matchAll(pattern)].length;
+}
+
+function actionReferences(workflow) {
+  const possibleUsesKey = /(?:^|[\s{,-])(?:"uses"|'uses'|uses)\s*:/;
+  const actionReference =
+    /^\s*(?:-\s*)?(?:"uses"|'uses'|uses)\s*:\s*(?:"([^"]+)"|'([^']+)'|(\S+))(?:\s+#.*)?\s*$/;
+  const actions = [];
+
+  for (const line of workflow.split("\n")) {
+    const match = actionReference.exec(line);
+    if (match) {
+      actions.push(match[1] ?? match[2] ?? match[3]);
+      continue;
+    }
+    if (
+      !line.trimStart().startsWith("#") &&
+      possibleUsesKey.test(line)
+    ) {
+      assert.fail(`Unsupported uses syntax: ${line.trim()}`);
+    }
+  }
+
+  return actions;
 }

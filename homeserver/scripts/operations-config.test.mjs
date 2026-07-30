@@ -9,9 +9,14 @@ const [
   deployScript,
   restrictedWrapper,
   backupScript,
+  backupBootstrap,
   frontendDockerfile,
   launchAgent,
   dockerIgnore,
+  runtimeConfigDockerfile,
+  runtimeConfigDetector,
+  setupGuide,
+  runbook,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -19,9 +24,14 @@ const [
   read("./deploy-home-server.sh"),
   read("./deploy-home-server-ci.sh"),
   read("./backup-home-server.sh"),
+  read("./backup-home-server-bootstrap.sh"),
   read("../docker/frontend.Dockerfile"),
   read("../launchd/com.cubinghub-backup.plist.example"),
   read("../../.dockerignore"),
+  read("../runtime-config.Dockerfile"),
+  read("./detect-runtime-config-change.sh"),
+  read("../docs/mac-mini-server-setup.md"),
+  read("../docs/home-server-runbook.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -94,13 +104,22 @@ test("should_hardenApplicationContainersAndKeepSecretsExternal", () => {
 test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
   assert.match(
     restrictedWrapper,
-    /\^deploy-cubing-hub\[\[:space:\]\]\(\[0-9a-fA-F\]\{40\}\)\[\[:space:\]\]\(\[A-Za-z0-9_-\]\+\)\$/,
+    /deploy-cubing-hub-v2[\s\S]*keep[\s\S]*deploy-cubing-hub-v2[\s\S]*update/,
   );
   assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
   assert.match(
     restrictedWrapper,
     /\/Users\/homeserver\/Server\/scripts\/deploy\/deploy-cubing-hub\.sh/,
   );
+});
+
+test("should_documentPinnedSystemPython_when_operationsScriptsRequireIt", () => {
+  assert.match(deployScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
+  assert.match(backupScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
+  assert.match(setupGuide, /test -x \/usr\/bin\/python3/);
+  assert.match(setupGuide, /test -x \/usr\/bin\/lockf/);
+  assert.match(setupGuide, /\/usr\/bin\/python3 --version/);
+  assert.match(setupGuide, /Homebrew 도구나 임의[\s\S]*PATH로 대체하지/);
 });
 
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
@@ -119,7 +138,7 @@ test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {
   );
   const firstDataStart = deployScript.indexOf('    db redis\n');
   const backupCondition = deployScript.indexOf(
-    'if [[ -n "${previous_sha}" ]]; then\n  "${BACKUP_SCRIPT}"',
+    'if [[ -n "${previous_sha}" ]]; then\n  if [[ ! -x "${active_backup_script}"',
   );
   const imageWrite = deployScript.indexOf(
     'write_image_env "${new_api_image}" "${new_web_image}"',
@@ -148,9 +167,201 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     deployScript,
     /Database migration is not rolled back automatically/,
   );
+  assert.match(
+    deployScript,
+    /active_compose_file="\$\{current_compose_file\}"/,
+  );
+  assert.match(deployScript, /RUNTIME_CONFIG_PENDING/);
+  assert.match(deployScript, /Compose project name must remain cubing-hub/);
+  assert.match(deployScript, /MySQL persistent volume contract is invalid/);
+  assert.match(deployScript, /Redis persistent volume contract is invalid/);
+  assert.match(
+    deployScript,
+    /write_pending_state[\s\S]*"\$\{previous_sha:-\$\{ZERO_SHA\}\}"/,
+  );
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+  );
+});
+
+test("should_validateOnlyProtectedRuntimeInvariants_when_composeChanges", () => {
+  assert.match(
+    deployScript,
+    /validation_baseline_compose_file="\$\{current_compose_file\}"/,
+  );
+  assert.match(deployScript, /--project-name "\$\{PROJECT_NAME\}"/);
+  assert.match(
+    deployScript,
+    /current runtime config pointer does not match verified state/,
+  );
+  assert.match(
+    deployScript,
+    /image changes require a separate data-service procedure/,
+  );
+  assert.match(
+    deployScript,
+    /for field in \("command", "entrypoint"\)/,
+  );
+  assert.match(
+    deployScript,
+    /API data-sensitive environment changes require a separate migration procedure/,
+  );
+  assert.match(
+    deployScript,
+    /db MYSQL environment changes require a separate data-service procedure/,
+  );
+  assert.match(deployScript, /"DB_USERNAME"/);
+  assert.match(deployScript, /"DB_PASSWORD"/);
+  assert.match(deployScript, /"REDIS_HOST"/);
+  assert.match(deployScript, /"REDIS_PORT"/);
+  assert.match(deployScript, /"RANKING_REDIS_REBUILD_MODE"/);
+  assert.match(deployScript, /"POST_IMAGES_"/);
+  assert.match(deployScript, /"SPRING_APPLICATION_JSON"/);
+  assert.match(deployScript, /"SPRING_CONFIG_"/);
+  assert.match(deployScript, /"SPRING_PROFILES_"/);
+  assert.match(deployScript, /"SPRING_SQL_INIT_"/);
+  for (const javaOption of [
+    "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
+    "_JAVA_OPTIONS",
+    "JAVA_OPTS",
+  ]) {
+    assert.match(deployScript, new RegExp(`"${javaOption}"`));
+  }
+  assert.match(
+    deployScript,
+    /healthcheck test differs from the active verified configuration/,
+  );
+  assert.match(
+    deployScript,
+    /user differs from the active verified configuration/,
+  );
+  assert.match(
+    deployScript,
+    /tmpfs target set differs from the active verified configuration/,
+  );
+  assert.equal(deployScript.match(/--no-env-resolution/g)?.length, 1);
+  assert.doesNotMatch(deployScript, /RUNTIME_CONFIG_VALIDATION_ROLE/);
+  assert.doesNotMatch(deployScript, /candidate_source/);
+  assert.match(
+    deployScript,
+    /must not mount configs, secrets, or env files/,
+  );
+  assert.match(deployScript, /service\.get\("extra_hosts"\)/);
+  assert.match(deployScript, /service\.get\("external_links"\)/);
+  assert.match(deployScript, /service\.get\("links"\)/);
+  assert.match(deployScript, /must not override protected service hostnames/);
+  assert.match(deployScript, /for name in \("api", "web"\)/);
+  assert.match(deployScript, /for field in \("command", "entrypoint"\)/);
+  assert.match(deployScript, /must not override its image/);
+  assert.match(deployScript, /must not publish host ports/);
+  assert.match(deployScript, /must not receive host or Docker privileges/);
+  assert.match(deployScript, /must not share the host namespace/);
+  assert.match(deployScript, /application network must remain project-private and internal/);
+  assert.match(deployScript, /Nginx must mount the candidate release real-IP configuration/);
+  assert.match(deployScript, /deployment_service_set_is_healthy/);
+  assert.doesNotMatch(deployScript, /expected_full_api_environment/);
+  assert.doesNotMatch(deployScript, /expected_healthchecks/);
+  assert.doesNotMatch(deployScript, /expected_hardening/);
+  assert.doesNotMatch(deployScript, /restart policy must remain/);
+  assert.doesNotMatch(deployScript, /logging rotation contract/);
+});
+
+test("should_packageOnlyAllowlistedRuntimeConfigFiles_when_configChanges", () => {
+  assert.match(
+    runtimeConfigDockerfile,
+    /FROM scratch[\s\S]*COPY homeserver\/docker-compose\.yml \/runtime\/compose\.yaml[\s\S]*COPY homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*COPY --chmod=0700 homeserver\/scripts\/deploy-home-server\.sh \/runtime\/scripts\/deploy-cubing-hub\.sh[\s\S]*COPY --chmod=0700 homeserver\/scripts\/backup-home-server\.sh \/runtime\/scripts\/backup-cubing-hub\.sh/,
+  );
+  assert.doesNotMatch(runtimeConfigDockerfile, /deploy-home-server-ci/);
+  assert.match(
+    runtimeConfigDetector,
+    /\.dockerignore[\s\S]*homeserver\/docker-compose\.yml[\s\S]*homeserver\/nginx\/cloudflare-edge-real-ip\.conf[\s\S]*homeserver\/scripts\/backup-home-server\.sh[\s\S]*homeserver\/scripts\/deploy-home-server\.sh[\s\S]*homeserver\/runtime-config\.Dockerfile/,
+  );
+  assert.match(runtimeConfigDetector, /git diff --quiet/);
+  assert.match(runtimeConfigDetector, /printf 'keep\\n'/);
+  assert.match(runtimeConfigDetector, /printf 'update\\n'/);
+  assert.doesNotMatch(
+    runtimeConfigDetector,
+    /deploy-home-server-ci|backup-home-server-bootstrap/,
+  );
+  assert.match(dockerIgnore, /^homeserver\/scripts\/\*$/m);
+  assert.match(
+    dockerIgnore,
+    /^!homeserver\/scripts\/deploy-home-server\.sh$/m,
+  );
+  assert.match(
+    dockerIgnore,
+    /^!homeserver\/scripts\/backup-home-server\.sh$/m,
+  );
+});
+
+test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () => {
+  for (const script of [deployScript, backupScript]) {
+    assert.match(
+      script,
+      /scripts\/backup-cubing-hub\.sh[\s\S]*scripts\/deploy-cubing-hub\.sh/,
+    );
+    assert.match(script, /runtime config script mode must be 700/);
+    assert.match(script, /\/bin\/bash -n "\$\{script\}"/);
+    assert.match(
+      script,
+      /runtime_config_content_sha256[\s\S]*scripts\/backup-cubing-hub\.sh[\s\S]*scripts\/deploy-cubing-hub\.sh/,
+    );
+  }
+
+  assert.match(
+    restrictedWrapper,
+    /runtime config entry allowlist does not match/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /validate_release "\$\{release_temp\}" synced[\s\S]*exec "\$\{candidate_script\}"/,
+  );
+  assert.match(
+    deployScript,
+    /active_backup_script="\$\{candidate_release\}\/scripts\/backup-cubing-hub\.sh"[\s\S]*"\$\{active_backup_script\}"/,
+  );
+  assert.match(
+    deployScript,
+    /if \[\[ "\$\{legacy_mode\}" == true && ! -x "\$\{BACKUP_SCRIPT\}" \]\]; then/,
+  );
+  assert.match(
+    backupBootstrap,
+    /readonly LEGACY_BACKUP_SCRIPT=\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub\.sh/,
+  );
+  assert.match(
+    backupBootstrap,
+    /runtime config entry allowlist does not match[\s\S]*exec "\$\{release_dir\}\/scripts\/backup-cubing-hub\.sh"/,
+  );
+  for (const bootstrap of [restrictedWrapper, backupBootstrap]) {
+    assert.match(
+      bootstrap,
+      /readonly LOCKF_BIN=\/usr\/bin\/lockf/,
+    );
+    assert.match(
+      bootstrap,
+      /readonly OPERATION_LOCK="\$\{APP_DIR\}\/\.cubing-hub-operation\.lock"/,
+    );
+    assert.match(bootstrap, /"\$\{LOCKF_BIN\}" -s -t 0 9/);
+    assert.match(
+      bootstrap,
+      /Another Cubing Hub deploy or backup operation is already running/,
+    );
+  }
+  assert.equal(restrictedWrapper.match(/<&3 3<&-/g)?.length, 2);
+  assert.match(
+    backupBootstrap,
+    /RUNTIME_CONFIG_PENDING[\s\S]*an incomplete runtime config transaction requires recovery/,
+  );
+  assert.doesNotMatch(runtimeConfigDockerfile, /bootstrap|deploy-home-server-ci/);
+  assert.match(
+    setupGuide,
+    /현재 운영 서버를 v2로 전환할 때는 이 worker를[\s\S]*branch 원본으로 교체하지 않고 stable deploy\/backup bootstrap 두 개만/,
+  );
+  assert.match(
+    runbook,
+    /deploy-home-server\.sh.*backup-home-server\.sh.*사전 설치하거나 branch 원본으로 교체하지 않는다/s,
   );
 });
 
@@ -216,7 +427,7 @@ test("should_excludeCredentialsAndGeneratedFilesFromDockerBuildContext", () => {
 test("should_runScheduledBackupFromRepositoryIndependentPath", () => {
   assert.match(
     launchAgent,
-    /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub\.sh/,
+    /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub-bootstrap\.sh/,
   );
   assert.doesNotMatch(launchAgent, /__REPO_DIR__|cd /);
 });

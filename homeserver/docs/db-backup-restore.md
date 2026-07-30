@@ -11,16 +11,34 @@
 ## 운영 경로
 
 ```text
-/Users/homeserver/Server/apps/cubing-hub/compose.yaml
 /Users/homeserver/Server/apps/cubing-hub/.env
+/Users/homeserver/Server/apps/cubing-hub/.runtime-config-v2-initialized
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/state
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/current
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/compose.yaml
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/scripts/deploy-cubing-hub.sh
+/Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/scripts/backup-cubing-hub.sh
 /Users/homeserver/Server/data/cubing-hub/post-images/
 /Users/homeserver/Server/backups/cubing-hub/
 ```
 
+runtime config v2 initialization marker가 있으면 별도 고정 backup bootstrap은
+state의 content hash와 `current` pointer가 함께 가리키는 immutable release의
+backup script를 실행한다. 해당 script는 같은 release Compose만 사용한다.
+marker가 있는데 state 또는 current가 없으면 손상 상태로 판단해 실패한다.
+marker, state, current가 모두 없는 기존 설치에서만 고정 bootstrap과 app
+directory의 legacy `compose.yaml`로 fallback한다.
+
+Backup bootstrap은 deploy bootstrap과 같은
+`/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`을
+non-blocking으로 획득한다. 다른 deploy/backup이 실행 중이면 exit `75`로
+중단하고, runtime config `pending`이 있으면 recovery가 완료될 때까지
+backup을 시작하지 않는다. Persistent mode `600` lock file은 삭제하지 않는다.
+
 ## 백업 실행
 
 ```bash
-/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
+/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
 
 스크립트는 다음 순서로 실행한다.
@@ -62,7 +80,7 @@ backup이 실패하면 기존 정상 backup은 삭제하지 않는다. 실패 �
 ## LaunchAgent
 
 `homeserver/launchd/com.cubinghub-backup.plist.example`은 매일
-04:10에 repository 밖의 고정 backup script를 실행한다.
+04:10에 repository 밖의 고정 backup bootstrap을 실행한다.
 
 ```bash
 mkdir -p /Users/homeserver/Library/LaunchAgents \

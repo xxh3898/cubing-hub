@@ -2,8 +2,10 @@
 
 ## 배포 전 확인
 
-- `/Users/homeserver/Server/apps/cubing-hub/compose.yaml`과 `.env`가
-  존재한다.
+- `/Users/homeserver/Server/apps/cubing-hub/.env`가 존재하고, runtime
+  config v2 도입 후에는 검증된 `state`와 `current` release가 일치한다.
+  v2 state가 아직 없는 기존 설치에서만 app directory의 legacy
+  `compose.yaml`을 사용한다.
 - `API_IMAGE`, `WEB_IMAGE`는 GHCR의 같은 40자리 commit SHA를 가리킨다.
 - 두 image의 platform은 `linux/arm64`다.
 - `/Users/homeserver/Server/data/cubing-hub/post-images/`가 존재한다.
@@ -17,7 +19,96 @@ GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에�
 
 ```text
 deploy-cubing-hub <40자리 commit SHA> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
 ```
+
+현재 운영 서버에서 v2 workflow를 `main`에 병합하기 전에는 아래 두 stable
+진입점만 한 번 설치한다.
+
+```text
+homeserver/scripts/deploy-home-server-ci.sh
+  -> /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh
+homeserver/scripts/backup-home-server-bootstrap.sh
+  -> /Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
+```
+
+기존 진입점은 timestamp backup으로 보존하고, 설치본의 SHA-256이 repository
+원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과 잘못된 forced command
+및 backup 인자 거부가 통과하는지 확인한 뒤에만 merge한다.
+`deploy-home-server.sh`와 `backup-home-server.sh`를 고정 운영 경로에
+사전 설치하거나 branch 원본으로 교체하지 않는다. 기존 고정 worker는
+pre-v2 또는 기존 2파일 release의 recovery fallback으로만 보존한다.
+설치 전에는 기존 deploy worker가 `recover`를 지원하고 기존 backup worker가
+실행 가능한지 확인한다. 이 fallback 계약을 충족하지 않으면 worker를 임의로
+덮어쓰지 말고 전환을 중단한다.
+첫 `update`가 exact runtime-config digest 안의 새 deploy/backup worker를
+함께 staging하며, 이후 worker 변경도 runtime-config 변경으로 감지해
+자동 동기화한다.
+
+마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
+pinned Cloudflare real-IP 설정, 허용된 deploy/backup script,
+`.dockerignore`의 runtime artifact 입력 또는
+`homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
+runtime-config image를 새로 발행하고 `update`한다. 따라서 설정·script
+배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만 바뀌면
+`keep`으로 현재 검증된 config digest를 유지한다.
+
+runtime-config image에는 아래 네 파일만 들어간다.
+
+```text
+compose.yaml
+nginx/cloudflare-edge-real-ip.conf
+scripts/deploy-cubing-hub.sh
+scripts/backup-cubing-hub.sh
+```
+
+고정 forced-command/bootstrap은 exact digest, revision/project label, regular-file
+allowlist, 전체 content hash, script mode `700`과 `/bin/bash -n`을 검증한
+뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전
+recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. 정상
+`update`와 backup은 candidate release worker를 사용한다. v2 성공 뒤에는
+`runtime-config/current`가 Compose와 deploy/backup script의 공통 active
+release를 가리킨다. `keep`, recovery와 정기 backup은 이 release의 검증된
+script를 사용한다.
+
+Deploy와 scheduled backup 진입점은
+`/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`의 같은
+non-blocking advisory lock을 FD `9`로 잡고 worker 전체 실행 동안 유지한다.
+다른 작업이 실행 중이면 새 작업은 exit `75`로 fail-closed하며 pull, backup,
+state 또는 container 변경을 시작하지 않는다. Lock file은 mode `600`
+regular file로 계속 보존하고 프로세스 종료 시 kernel lock이 자동
+해제되므로 수동으로 삭제하지 않는다.
+
+Artifact 추출·script 검증 또는 candidate preflight가 실패하면
+`state`, `current`, `.env`와 실행 중 container를 바꾸지 않는다. Candidate
+배포가 실패하면 기존 application/config pair를 재적용하며 `current`는
+기존 release를 유지한다. Stable wrapper/bootstrap 자체를 바꾸는 작업만
+기존 파일의 timestamp backup과 별도 운영 승인 아래 수동 설치한다.
+
+배포 script는 Compose 전체 snapshot을 복제하지 않는다. healthcheck timing,
+logging, restart, replica, PID·tmpfs mount option과 일반 application
+environment 변경은 Compose render와 service health로 검증한다. 대신 아래
+운영 보호 경계만 고정한다.
+
+- `db`, `redis`, `api`, `web` service와 API/Web exact image
+- DB·Redis command/entrypoint, DB의 `MYSQL_*`, API의 DB·Redis·upload identity와
+  Spring profile·datasource·JPA·Flyway·Liquibase·SQL init·config JSON 및
+  JVM option 설정
+- API/Web image command·entrypoint override 금지
+- DB·Redis·Web healthcheck `test` 명령과 배포 완료 시 실제
+  running/healthy 상태. healthcheck timing은 변경 가능
+- 각 service의 process user와 정규화한 `tmpfs` mount target 집합
+- MySQL·Redis named volume과 기존 upload bind identity
+- internal application, API 전용 outbound, shared edge network 경계
+- host port, privileged mode, Docker socket, host namespace, 추가 host bind,
+  `extra_hosts`·link를 통한 service hostname override 금지
+- Compose `configs`, `secrets`, `env_file`을 통한 host file 주입 금지
+- candidate release의 pinned Nginx real-IP bind
+
+DB·Redis image·실행 명령이나 data-sensitive Spring 설정 등 위 보호 경계를
+바꾸는 작업은 일반 runtime config 동기화가 아니라 별도
+migration·backup·rollback 계획으로 진행한다.
 
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
@@ -29,33 +120,89 @@ deploy-cubing-hub <40자리 commit SHA> <registry user>
 
 두 번째 배포부터는 다음 순서로 진행한다.
 
-1. 신규 API/web image pull과 Compose render
-2. 운영 DB 실행 상태 확인
-3. MySQL dump와 게시글 이미지 backup
-4. `.env`의 API/web image를 같은 신규 SHA로 교체
-5. Compose 적용과 health 확인
-6. 실패 시 이전 API/web SHA를 함께 복구
+1. 신규 API/Web image pull과, `update`일 때만 runtime config exact digest pull
+2. config provenance, 파일 allowlist, deploy/backup script mode·문법,
+   network·upload bind 계약과 Compose render
+3. 운영 DB 실행 상태 확인
+4. MySQL dump와 게시글 이미지 backup
+5. `.env`의 API/Web image를 같은 신규 SHA로 교체
+6. Compose 적용과 health 확인
+7. 실패 시 이전 API/Web SHA와 runtime config를 함께 복구
 
 DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
 image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
 간주하지 말고 수동 판단한다.
+
+## 중단된 runtime config transaction 복구
+
+v2 배포가 강제 종료되거나 host가 재시작되어
+`/Users/homeserver/Server/apps/cubing-hub/runtime-config/pending`이 남으면
+후속 v2 배포는 fail closed한다. pending 파일을 직접 삭제하거나 수정하지
+말고 Mac mini에서 다음 recovery 명령을 실행한다.
+
+```bash
+/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh recover
+```
+
+고정 forced-command/bootstrap은 검증된 state가 있으면 active release의 deploy
+script로 recovery를 전달한다. Recovery는 pending key와 SHA/digest 형식,
+마지막 검증 state, Compose·Nginx·deploy/backup script allowlist와 content
+hash를 먼저 대조한다.
+
+- 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
+  검증된 target release로 stale `current` pointer를 원자 조정하고 pending
+  marker를 정리한다.
+- state가 previous pair라면 이전 API/Web SHA와 config release를
+  `--pull never`로 다시 적용하고 health가 통과한 뒤 marker를 정리한다.
+- runtime config 도입 전 기존 설치라면 legacy Compose와 이전 SHA로
+  복구한다.
+- 정상 image가 한 번도 없던 bootstrap 중단이라면 API/Web을 중지하고
+  zero-SHA placeholder로 되돌려 다음 배포가 첫 배포로 다시 시작하게 한다.
+- pending/state가 서로 맞지 않거나 release가 변조됐으면 아무것도
+  정리하지 않고 실패한다.
+- 첫 성공 시 app directory에 별도 initialization marker를 원자 생성한다.
+  이 marker가 있는데 `state` 또는 `current`가 사라지면 pre-v2 설치로
+  fallback하지 않고 실패한다. marker가 생기기 전 실패한 bootstrap의
+  동일 digest candidate release는 다음 `update`에서 image와 다시 대조한
+  뒤 재사용할 수 있다.
+
+복구 후 production Compose `ps`, API/Web health, DB·Redis health와 public
+URL을 다시 확인한다. Flyway migration은 recovery가 되돌리지 않는다.
 
 ## 수동 상태 확인
 
 Mac mini에서 다음 명령을 사용한다.
 
 ```bash
-cd /Users/homeserver/Server/apps/cubing-hub
+app_dir=/Users/homeserver/Server/apps/cubing-hub
+runtime_root="${app_dir}/runtime-config"
+runtime_digest="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_DIGEST=//p' \
+    "${runtime_root}/state"
+)"
+[[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+runtime_release="${runtime_root}/releases/${runtime_digest#sha256:}"
+test "$(/usr/bin/readlink "${runtime_root}/current")" = \
+  "releases/${runtime_digest#sha256:}"
+test -f "${runtime_release}/compose.yaml"
+
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
   ps
 
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
   logs --tail 200 api web db redis
 ```
+
+runtime config v2 state가 아직 없는 기존 설치에서만
+`${app_dir}/compose.yaml`을 Compose file로 사용한다.
 
 공개 경로는 아래를 확인한다.
 
@@ -72,10 +219,24 @@ curl -fsS https://api.cubing-hub.com/actuator/health
 Mac mini app directory에 설치하고 admin profile을 실행한다.
 
 ```bash
+app_dir=/Users/homeserver/Server/apps/cubing-hub
+runtime_root="${app_dir}/runtime-config"
+runtime_digest="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_DIGEST=//p' \
+    "${runtime_root}/state"
+)"
+[[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+runtime_release="${runtime_root}/releases/${runtime_digest#sha256:}"
+test "$(/usr/bin/readlink "${runtime_root}/current")" = \
+  "releases/${runtime_digest#sha256:}"
+test -f "${runtime_release}/compose.yaml"
+
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
-  --file compose.admin.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
+  --file "${app_dir}/compose.admin.yaml" \
   --profile admin \
   up --detach db-admin-proxy
 ```
@@ -86,12 +247,16 @@ Mac mini app directory에 설치하고 admin profile을 실행한다.
 ## 백업
 
 ```bash
-/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
+/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
 
-스크립트는 MySQL dump와 게시글 이미지 snapshot을 같은 run으로 만들고,
+고정 backup bootstrap은 `state`, `current`, content hash를 검증해 active
+release의 backup worker를 실행한다. Worker는 MySQL dump와 게시글 이미지
+snapshot을 같은 run으로 만들고,
 `post_attachments.object_key`가 가리키는 파일이 없으면 실패한다.
 성공 결과를 최종 directory로 이동한 뒤에만 오래된 backup을 정리한다.
+Deploy 또는 다른 backup이 공통 lock을 보유하거나 runtime config
+`pending` recovery가 남아 있으면 backup은 운영 data를 읽기 전에 실패한다.
 
 성공한 backup은 기본으로 최신 3개만 보관한다. 실패한 run은 조사할 수
 있도록 임시 directory를 남기며 기존 정상 backup을 삭제하지 않는다.
@@ -109,7 +274,8 @@ Mac mini app directory에 설치하고 admin profile을 실행한다.
 
 ## 장애와 rollback
 
-- API/web image 문제면 이전 두 SHA로 함께 되돌린다.
+- API/Web 또는 runtime config 문제면 이전 두 SHA와 이전 config digest를
+  한 쌍으로 되돌린다.
 - DB와 image volume을 삭제하는 `docker compose down -v`를 사용하지
   않는다.
 - 첫 배포 실패 시 신규 data service는 보존하고 실패한 API/web만

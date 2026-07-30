@@ -7,7 +7,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh</string>
+    <string>/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh</string>
   </array>
 
   <key>StartCalendarInterval</key>
