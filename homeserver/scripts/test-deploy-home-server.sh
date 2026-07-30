@@ -66,11 +66,14 @@ run_deploy() {
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_RENDER_DATABASE_NAME="${FAKE_RENDER_DATABASE_NAME:-}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
+        FAKE_RENDER_DATASOURCE_URL="${FAKE_RENDER_DATASOURCE_URL:-}" \
         FAKE_RENDER_DDL_AUTO="${FAKE_RENDER_DDL_AUTO:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
         FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_REDIS_COMMAND_JSON="${FAKE_RENDER_REDIS_COMMAND_JSON:-}" \
+        FAKE_RENDER_MYSQL_COMMAND_JSON="${FAKE_RENDER_MYSQL_COMMAND_JSON:-}" \
+        FAKE_RENDER_UPLOAD_ROOT="${FAKE_RENDER_UPLOAD_ROOT:-}" \
         FAKE_RENDER_WEB_IMAGE="${FAKE_RENDER_WEB_IMAGE:-}" \
         FAKE_RENDER_REAL_IP_SOURCE="${FAKE_RENDER_REAL_IP_SOURCE:-}" \
         FAKE_RENDER_RESTART_POLICY="${FAKE_RENDER_RESTART_POLICY:-}" \
@@ -300,6 +303,36 @@ wrong_database_name_exit_code="$?"
 set -e
 if [[ "${wrong_database_name_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with a changed MySQL database name must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_MYSQL_COMMAND_JSON='["--datadir=/tmp/mysql"]' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_mysql_command_exit_code="$?"
+set -e
+if [[ "${wrong_mysql_command_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a changed MySQL server command must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_DATASOURCE_URL='jdbc:mysql://external:3306/cubing_hub' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_datasource_exit_code="$?"
+set -e
+if [[ "${wrong_datasource_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with an external API datasource must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_UPLOAD_ROOT=/tmp/post-images \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+wrong_upload_root_exit_code="$?"
+set -e
+if [[ "${wrong_upload_root_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a non-persistent API upload path must fail\n' >&2
   exit 1
 fi
 

@@ -424,10 +424,33 @@ if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
 if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
     raise SystemExit("MySQL database name must match the production environment")
+if services["db"].get("command") != [
+    "--character-set-server=utf8mb4",
+    "--collation-server=utf8mb4_0900_ai_ci",
+]:
+    raise SystemExit("MySQL server command contract is invalid")
+api_environment = services["api"].get("environment", {})
+expected_datasource_url = (
+    f"jdbc:mysql://db:3306/{expected_database_name}"
+    "?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+)
+if api_environment.get("SPRING_DATASOURCE_URL") != expected_datasource_url:
+    raise SystemExit("API datasource must use the production DB service")
+if api_environment.get("POST_IMAGES_LOCAL_ROOT_PATH") != "/data/post-images":
+    raise SystemExit("API image storage must use the persistent upload mount")
+expected_api_environment = {
+    "SPRING_PROFILES_ACTIVE": "prod",
+    "REDIS_HOST": "redis",
+    "REDIS_PORT": "6379",
+    "AUTH_REFRESH_COOKIE_SECURE": "true",
+    "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE": "health",
+    "MONITORING_PROMETHEUS_PERMIT_ALL": "false",
+}
+for name, expected_value in expected_api_environment.items():
+    if api_environment.get(name) != expected_value:
+        raise SystemExit(f"API environment contract is invalid: {name}")
 if (
-    services["api"]
-    .get("environment", {})
-    .get("SPRING_JPA_HIBERNATE_DDL_AUTO")
+    api_environment.get("SPRING_JPA_HIBERNATE_DDL_AUTO")
     != "validate"
 ):
     raise SystemExit("Hibernate schema handling must remain validate")
