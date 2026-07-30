@@ -74,6 +74,8 @@ run_deploy() {
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
         FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
         FAKE_RENDER_FLYWAY_ENABLED="${FAKE_RENDER_FLYWAY_ENABLED:-}" \
+        FAKE_RENDER_JWT_SECRET="${FAKE_RENDER_JWT_SECRET:-}" \
+        FAKE_RENDER_OUTBOUND_JSON="${FAKE_RENDER_OUTBOUND_JSON:-}" \
         FAKE_RENDER_REDIS_IMAGE="${FAKE_RENDER_REDIS_IMAGE:-}" \
         FAKE_RENDER_REDIS_COMMAND_JSON="${FAKE_RENDER_REDIS_COMMAND_JSON:-}" \
         FAKE_RENDER_MYSQL_COMMAND_JSON="${FAKE_RENDER_MYSQL_COMMAND_JSON:-}" \
@@ -371,6 +373,26 @@ extra_hosts_exit_code="$?"
 set -e
 if [[ "${extra_hosts_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with an API host override must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_OUTBOUND_JSON='{"external":true,"name":"edge"}' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+external_outbound_exit_code="$?"
+set -e
+if [[ "${external_outbound_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with an external outbound network must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_JWT_SECRET=known-packaged-secret \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+replaced_jwt_secret_exit_code="$?"
+set -e
+if [[ "${replaced_jwt_secret_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with a replaced JWT secret must fail\n' >&2
   exit 1
 fi
 

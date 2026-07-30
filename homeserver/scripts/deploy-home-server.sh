@@ -365,6 +365,7 @@ validate_compose_contract() {
   printf '%s' "${rendered}" \
     | "${PYTHON_BIN}" -c '
 import json
+import hashlib
 import sys
 
 config = json.load(sys.stdin)
@@ -374,7 +375,8 @@ config = json.load(sys.stdin)
     expected_real_ip_source,
     expected_upload_source,
     expected_database_name,
-) = sys.argv[1:6]
+    expected_jwt_secret_sha256,
+) = sys.argv[1:7]
 services = config.get("services", {})
 networks = config.get("networks", {})
 volumes = config.get("volumes", {})
@@ -490,6 +492,38 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} must run exactly one replica")
     if service.get("deploy", {}).get("replicas", 1) != 1:
         raise SystemExit(f"{name} deploy replicas must remain one")
+expected_hardening = {
+    "api": {
+        "init": True,
+        "read_only": True,
+        "pids_limit": 256,
+        "security_opt": ["no-new-privileges:true"],
+        "tmpfs": ["/tmp:size=128m,mode=1777"],
+    },
+    "web": {
+        "init": True,
+        "read_only": True,
+        "pids_limit": 100,
+        "security_opt": ["no-new-privileges:true"],
+        "tmpfs": [
+            "/var/cache/nginx:size=32m,mode=0755",
+            "/var/run:size=4m,mode=0755",
+            "/tmp:size=16m,mode=1777",
+        ],
+    },
+}
+for name, expected_values in expected_hardening.items():
+    service = services[name]
+    for field, expected_value in expected_values.items():
+        if service.get(field) != expected_value:
+            raise SystemExit(f"{name} hardening contract is invalid: {field}")
+expected_logging = {
+    "driver": "json-file",
+    "options": {"max-file": "3", "max-size": "10m"},
+}
+for name, service in services.items():
+    if service.get("logging") != expected_logging:
+        raise SystemExit(f"{name} logging rotation contract is invalid")
 web_edge = services["web"].get("networks", {}).get("edge", {})
 if not isinstance(web_edge, dict) or "cubing-hub-web" not in web_edge.get(
     "aliases", []
@@ -516,6 +550,13 @@ if services["db"].get("command") != [
 ]:
     raise SystemExit("MySQL server command contract is invalid")
 api_environment = services["api"].get("environment", {})
+actual_jwt_secret = api_environment.get("JWT_SECRET")
+if (
+    not isinstance(actual_jwt_secret, str)
+    or hashlib.sha256(actual_jwt_secret.encode()).hexdigest()
+    != expected_jwt_secret_sha256
+):
+    raise SystemExit("API JWT secret must match the protected host environment")
 for name in {
     "SPRING_APPLICATION_JSON",
     "JAVA_TOOL_OPTIONS",
@@ -583,8 +624,14 @@ for name, expected_test in expected_healthchecks.items():
         raise SystemExit(f"{name} healthcheck contract is invalid")
 if networks.get("application", {}).get("internal") is not True:
     raise SystemExit("application network must be internal")
-if networks.get("outbound", {}).get("internal") is True:
-    raise SystemExit("outbound network must permit external access")
+outbound = networks.get("outbound", {})
+if (
+    outbound.get("internal") is True
+    or outbound.get("external") is True
+    or outbound.get("driver") != "bridge"
+    or outbound.get("name") != "cubing-hub_outbound"
+):
+    raise SystemExit("outbound network must remain a project-private bridge")
 edge = networks.get("edge", {})
 if edge.get("external") is not True or edge.get("name") != "edge":
     raise SystemExit("edge network contract is invalid")
@@ -646,7 +693,8 @@ if (
       "${web_image}" \
       "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf" \
       "$(read_env_value POST_IMAGES_HOST_DIR)" \
-      "$(read_env_value DB_NAME)"
+      "$(read_env_value DB_NAME)" \
+      "$(printf '%s' "$(read_env_value JWT_SECRET)" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 }
 
 prepare_runtime_release() {
