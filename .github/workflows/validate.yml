@@ -36,6 +36,7 @@ jobs:
             homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
             homeserver/scripts/deploy-home-server.sh \
+            homeserver/scripts/test-backup-home-server.sh \
             homeserver/scripts/test-deploy-home-server.sh
 
       - name: Verify runtime config change detection
@@ -56,6 +57,9 @@ jobs:
 
       - name: Test deploy v2 state transitions
         run: ./homeserver/scripts/test-deploy-home-server.sh
+
+      - name: Test production backup Compose selection
+        run: ./homeserver/scripts/test-backup-home-server.sh
 
       - name: Run infrastructure tests
         run: >

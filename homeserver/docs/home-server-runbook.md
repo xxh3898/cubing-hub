@@ -2,8 +2,10 @@
 
 ## 배포 전 확인
 
-- `/Users/homeserver/Server/apps/cubing-hub/compose.yaml`과 `.env`가
-  존재한다.
+- `/Users/homeserver/Server/apps/cubing-hub/.env`가 존재하고, runtime
+  config v2 도입 후에는 검증된 `state`와 `current` release가 일치한다.
+  v2 state가 아직 없는 기존 설치에서만 app directory의 legacy
+  `compose.yaml`을 사용한다.
 - `API_IMAGE`, `WEB_IMAGE`는 GHCR의 같은 40자리 commit SHA를 가리킨다.
 - 두 image의 platform은 `linux/arm64`다.
 - `/Users/homeserver/Server/data/cubing-hub/post-images/`가 존재한다.
@@ -22,16 +24,19 @@ deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user
 ```
 
 v2 workflow를 `main`에 병합하기 전에 repository의
-`homeserver/scripts/deploy-home-server.sh`와
-`homeserver/scripts/deploy-home-server-ci.sh`를 각각 Mac mini의
+`homeserver/scripts/deploy-home-server.sh`,
+`homeserver/scripts/deploy-home-server-ci.sh`,
+`homeserver/scripts/backup-home-server.sh`를 각각 Mac mini의
 `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh`와
-`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh`에
-사전 설치해야 한다. 기존 파일을 timestamp backup으로 보존하고, 설치본의
+`/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh`,
+`/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh`에 사전
+설치해야 한다. 기존 파일을 timestamp backup으로 보존하고, 설치본의
 SHA-256이 repository 원본과 일치하는지, mode가 `700`인지, `/bin/bash -n`과
 잘못된 forced command 거부가 통과하는지 확인한 뒤에만 merge한다.
-이 prerequisite가 완료되지 않으면 기존 wrapper가 v2 명령을 거부하므로
-workflow를 병합하지 않는다. deploy script는 runtime config artifact의
-자동 동기화 대상이 아니다.
+이 prerequisite가 완료되지 않으면 기존 wrapper가 v2 명령을 거부하거나
+backup이 legacy Compose만 찾으므로 workflow를 병합하지 않는다.
+deploy·backup script는 runtime config artifact의 자동 동기화 대상이
+아니다.
 
 마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
 pinned Cloudflare real-IP 설정 또는 `homeserver/runtime-config.Dockerfile`이
@@ -95,17 +100,35 @@ URL을 다시 확인한다. Flyway migration은 recovery가 되돌리지 않는�
 Mac mini에서 다음 명령을 사용한다.
 
 ```bash
-cd /Users/homeserver/Server/apps/cubing-hub
+app_dir=/Users/homeserver/Server/apps/cubing-hub
+runtime_root="${app_dir}/runtime-config"
+runtime_digest="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_DIGEST=//p' \
+    "${runtime_root}/state"
+)"
+[[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+runtime_release="${runtime_root}/releases/${runtime_digest#sha256:}"
+test "$(/usr/bin/readlink "${runtime_root}/current")" = \
+  "releases/${runtime_digest#sha256:}"
+test -f "${runtime_release}/compose.yaml"
+
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
   ps
 
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
   logs --tail 200 api web db redis
 ```
+
+runtime config v2 state가 아직 없는 기존 설치에서만
+`${app_dir}/compose.yaml`을 Compose file로 사용한다.
 
 공개 경로는 아래를 확인한다.
 
@@ -122,10 +145,24 @@ curl -fsS https://api.cubing-hub.com/actuator/health
 Mac mini app directory에 설치하고 admin profile을 실행한다.
 
 ```bash
+app_dir=/Users/homeserver/Server/apps/cubing-hub
+runtime_root="${app_dir}/runtime-config"
+runtime_digest="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_DIGEST=//p' \
+    "${runtime_root}/state"
+)"
+[[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+runtime_release="${runtime_root}/releases/${runtime_digest#sha256:}"
+test "$(/usr/bin/readlink "${runtime_root}/current")" = \
+  "releases/${runtime_digest#sha256:}"
+test -f "${runtime_release}/compose.yaml"
+
 /usr/local/bin/docker compose \
-  --env-file .env \
-  --file compose.yaml \
-  --file compose.admin.yaml \
+  --project-name cubing-hub \
+  --project-directory "${runtime_release}" \
+  --env-file "${app_dir}/.env" \
+  --file "${runtime_release}/compose.yaml" \
+  --file "${app_dir}/compose.admin.yaml" \
   --profile admin \
   up --detach db-admin-proxy
 ```
