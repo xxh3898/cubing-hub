@@ -417,6 +417,14 @@ if services["redis"].get("image") != "redis:7.2.14-alpine":
     raise SystemExit("Redis image changes require a separate data migration")
 if services["db"].get("environment", {}).get("MYSQL_DATABASE") != expected_database_name:
     raise SystemExit("MySQL database name must match the production environment")
+if services["redis"].get("command") != [
+    "redis-server",
+    "--appendonly",
+    "yes",
+    "--appendfsync",
+    "everysec",
+]:
+    raise SystemExit("Redis persistence command contract is invalid")
 expected_healthchecks = {
     "db": [
         "CMD-SHELL",
