@@ -68,6 +68,7 @@ run_deploy() {
         FAKE_RENDER_DB_ENTRYPOINT_JSON="${FAKE_RENDER_DB_ENTRYPOINT_JSON:-}" \
         FAKE_RENDER_API_IMAGE="${FAKE_RENDER_API_IMAGE:-}" \
         FAKE_RENDER_API_EXTRA_VOLUME="${FAKE_RENDER_API_EXTRA_VOLUME:-}" \
+        FAKE_RENDER_API_EXTRA_HOSTS_JSON="${FAKE_RENDER_API_EXTRA_HOSTS_JSON:-}" \
         FAKE_RENDER_DATASOURCE_URL="${FAKE_RENDER_DATASOURCE_URL:-}" \
         FAKE_RENDER_DDL_AUTO="${FAKE_RENDER_DDL_AUTO:-}" \
         FAKE_RENDER_DB_IMAGE="${FAKE_RENDER_DB_IMAGE:-}" \
@@ -360,6 +361,16 @@ wrong_datasource_exit_code="$?"
 set -e
 if [[ "${wrong_datasource_exit_code}" -ne 1 ]]; then
   printf 'Runtime config with an external API datasource must fail\n' >&2
+  exit 1
+fi
+
+set +e
+FAKE_RENDER_API_EXTRA_HOSTS_JSON='["db=203.0.113.10"]' \
+  run_deploy "${REVISION_THREE}" keep test-user >/dev/null 2>&1
+extra_hosts_exit_code="$?"
+set -e
+if [[ "${extra_hosts_exit_code}" -ne 1 ]]; then
+  printf 'Runtime config with an API host override must fail\n' >&2
   exit 1
 fi
 

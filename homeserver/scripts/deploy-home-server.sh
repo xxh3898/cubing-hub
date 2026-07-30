@@ -412,6 +412,13 @@ for name, expected_networks in expected.items():
         raise SystemExit(f"{name} must not define lifecycle hooks")
     if service.get("volumes_from") or service.get("configs") or service.get("secrets"):
         raise SystemExit(f"{name} contains an unapproved mount source")
+    if (
+        service.get("extra_hosts")
+        or service.get("dns")
+        or service.get("dns_search")
+        or service.get("network_mode")
+    ):
+        raise SystemExit(f"{name} must not override service name resolution")
     if service.get("scale", 1) != 1:
         raise SystemExit(f"{name} must run exactly one replica")
     if service.get("deploy", {}).get("replicas", 1) != 1:
