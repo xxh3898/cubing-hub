@@ -83,7 +83,9 @@ run_deploy() {
         FAKE_RENDER_EDGE_ALIAS="${FAKE_RENDER_EDGE_ALIAS:-}" \
         FAKE_RENDER_FLYWAY_ENABLED="${FAKE_RENDER_FLYWAY_ENABLED:-}" \
         FAKE_RENDER_JWT_SECRET="${FAKE_RENDER_JWT_SECRET:-}" \
+        FAKE_RENDER_SMTP_HOST="${FAKE_RENDER_SMTP_HOST-smtp.gmail.com}" \
         FAKE_RENDER_SMTP_PASSWORD="${FAKE_RENDER_SMTP_PASSWORD:-}" \
+        FAKE_RESOLVED_SMTP_HOST="${FAKE_RESOLVED_SMTP_HOST-smtp.gmail.com}" \
         FAKE_RESOLVED_SMTP_PASSWORD="${FAKE_RESOLVED_SMTP_PASSWORD:-}" \
         FAKE_RENDER_APPLICATION_JSON="${FAKE_RENDER_APPLICATION_JSON:-}" \
         FAKE_RENDER_OUTBOUND_JSON="${FAKE_RENDER_OUTBOUND_JSON:-}" \
@@ -164,7 +166,9 @@ if [[ "${legacy_after_v2_exit_code}" -ne 1 ]]; then
   exit 1
 fi
 
+/bin/mv "${app_dir}/compose.yaml" "${app_dir}/compose.yaml.legacy"
 run_deploy "${REVISION_TWO}" keep test-user
+/bin/mv "${app_dir}/compose.yaml.legacy" "${app_dir}/compose.yaml"
 
 /usr/bin/grep -Fxq \
   "API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_TWO}" \
@@ -215,7 +219,9 @@ fi
 /bin/rm -f -- "${state_file}"
 /bin/mv "${state_file}.real" "${state_file}"
 
+/bin/mv "${app_dir}/compose.yaml" "${app_dir}/compose.yaml.legacy"
 run_recovery
+/bin/mv "${app_dir}/compose.yaml.legacy" "${app_dir}/compose.yaml"
 
 test ! -e "${pending_file}"
 /usr/bin/grep -Fxq \
@@ -332,6 +338,21 @@ FAKE_RENDER_SMTP_PASSWORD='app password' \
   -e 's#^SMTP_PASSWORD=.*#SMTP_PASSWORD=#' \
   "${app_dir}/.env" >"${app_dir}/.env.compose-syntax"
 /bin/mv "${app_dir}/.env.compose-syntax" "${app_dir}/.env"
+
+/usr/bin/sed \
+  -e 's#^SMTP_HOST=.*#SMTP_HOST=#' \
+  "${app_dir}/.env" >"${app_dir}/.env.compose-syntax"
+/bin/mv "${app_dir}/.env.compose-syntax" "${app_dir}/.env"
+FAKE_RESOLVED_SMTP_HOST= \
+FAKE_RENDER_SMTP_HOST= \
+  run_deploy "${REVISION_TWO}" keep test-user
+/usr/bin/sed \
+  -e 's#^SMTP_HOST=.*#SMTP_HOST=smtp.gmail.com#' \
+  "${app_dir}/.env" >"${app_dir}/.env.compose-syntax"
+/bin/mv "${app_dir}/.env.compose-syntax" "${app_dir}/.env"
+
+FAKE_RENDER_FLYWAY_ENABLED=true \
+  run_deploy "${REVISION_TWO}" keep test-user
 
 set +e
 FAKE_RENDER_RESTART_POLICY=no \

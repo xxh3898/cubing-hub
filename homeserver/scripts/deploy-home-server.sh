@@ -35,6 +35,12 @@ fail() {
   exit 1
 }
 
+require_legacy_compose() {
+  if [[ ! -f "${LEGACY_COMPOSE_FILE}" ]]; then
+    fail "legacy production Compose configuration is missing"
+  fi
+}
+
 is_digest() {
   [[ "$1" =~ ^sha256:[0-9a-f]{64}$ ]] && [[ "$1" != "${ZERO_DIGEST}" ]]
 }
@@ -110,8 +116,8 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   fail "Python is not executable: ${PYTHON_BIN}"
 fi
 
-if [[ ! -f "${LEGACY_COMPOSE_FILE}" || ! -f "${ENV_FILE}" ]]; then
-  fail "production Compose configuration is incomplete"
+if [[ ! -f "${ENV_FILE}" ]]; then
+  fail "production environment configuration is missing"
 fi
 
 if [[ "${recovery_mode}" == false ]] \
@@ -126,6 +132,9 @@ if [[ "${legacy_mode}" == true ]] \
   }
 then
   fail "legacy deployment is disabled after runtime config state initialization"
+fi
+if [[ "${legacy_mode}" == true ]]; then
+  require_legacy_compose
 fi
 
 if [[ "${recovery_mode}" == false && ! -x "${BACKUP_SCRIPT}" ]]; then
@@ -385,7 +394,7 @@ validate_compose_contract() {
       '      RANKING_REDIS_REBUILD_MODE: ${RANKING_REDIS_REBUILD_MODE:-disabled}' \
       '      SMTP_AUTH: ${SMTP_AUTH:-true}' \
       '      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}' \
-      '      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}' \
+      '      SMTP_HOST: ${SMTP_HOST:-}' \
       '      SMTP_PASSWORD: ${SMTP_PASSWORD:-}' \
       '      SMTP_PORT: ${SMTP_PORT:-587}' \
       '      SMTP_STARTTLS_ENABLE: ${SMTP_STARTTLS_ENABLE:-true}' \
@@ -672,7 +681,7 @@ expected_full_api_environment = {
     "REDIS_PORT": "6379",
     "SMTP_AUTH": host_value("SMTP_AUTH", "true"),
     "SMTP_FROM_ADDRESS": host_value("SMTP_FROM_ADDRESS", ""),
-    "SMTP_HOST": host_value("SMTP_HOST", "smtp.gmail.com"),
+    "SMTP_HOST": host_value("SMTP_HOST", ""),
     "SMTP_PASSWORD": host_value("SMTP_PASSWORD", ""),
     "SMTP_PORT": host_value("SMTP_PORT", "587"),
     "SMTP_STARTTLS_ENABLE": host_value("SMTP_STARTTLS_ENABLE", "true"),
@@ -685,6 +694,26 @@ expected_full_api_environment = {
     "SPRING_JPA_HIBERNATE_DDL_AUTO": "validate",
     "SPRING_PROFILES_ACTIVE": "prod",
 }
+for name in {
+    "SPRING_APPLICATION_JSON",
+    "JAVA_TOOL_OPTIONS",
+    "JDK_JAVA_OPTIONS",
+    "_JAVA_OPTIONS",
+}:
+    if name in api_environment:
+        raise SystemExit(f"API environment override source is forbidden: {name}")
+unapproved_flyway_environment = {
+    name
+    for name in api_environment
+    if name.startswith("SPRING_FLYWAY_") and name != "SPRING_FLYWAY_ENABLED"
+}
+if unapproved_flyway_environment:
+    raise SystemExit("API contains an unapproved Flyway environment property")
+flyway_enabled = api_environment.get("SPRING_FLYWAY_ENABLED")
+if flyway_enabled is not None:
+    if flyway_enabled != "true":
+        raise SystemExit("Flyway must remain enabled")
+    expected_full_api_environment["SPRING_FLYWAY_ENABLED"] = "true"
 if api_environment != expected_full_api_environment:
     raise SystemExit("API environment contract must exactly match production")
 if api_environment.get("DB_USERNAME") != expected_database_user:
@@ -703,21 +732,6 @@ if (
     != expected_jwt_secret_sha256
 ):
     raise SystemExit("API JWT secret must match the protected host environment")
-for name in {
-    "SPRING_APPLICATION_JSON",
-    "JAVA_TOOL_OPTIONS",
-    "JDK_JAVA_OPTIONS",
-    "_JAVA_OPTIONS",
-}:
-    if name in api_environment:
-        raise SystemExit(f"API environment override source is forbidden: {name}")
-unapproved_flyway_environment = {
-    name
-    for name in api_environment
-    if name.startswith("SPRING_FLYWAY_") and name != "SPRING_FLYWAY_ENABLED"
-}
-if unapproved_flyway_environment:
-    raise SystemExit("API contains an unapproved Flyway environment property")
 expected_datasource_url = (
     f"jdbc:mysql://db:3306/{expected_database_name}"
     "?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
@@ -726,8 +740,6 @@ if api_environment.get("SPRING_DATASOURCE_URL") != expected_datasource_url:
     raise SystemExit("API datasource must use the production DB service")
 if api_environment.get("POST_IMAGES_LOCAL_ROOT_PATH") != "/data/post-images":
     raise SystemExit("API image storage must use the persistent upload mount")
-if api_environment.get("SPRING_FLYWAY_ENABLED", "true") != "true":
-    raise SystemExit("Flyway must remain enabled")
 expected_api_environment = {
     "SPRING_PROFILES_ACTIVE": "prod",
     "REDIS_HOST": "redis",
@@ -1208,6 +1220,7 @@ recover_pending_transaction() {
     if [[ -n "${state_sha}" || "${previous_digest}" != "${ZERO_DIGEST}" ]]; then
       fail "bootstrap recovery state is inconsistent"
     fi
+    require_legacy_compose
     write_image_env \
       "${API_IMAGE_REPOSITORY}:${ZERO_SHA}" \
       "${WEB_IMAGE_REPOSITORY}:${ZERO_SHA}"
@@ -1223,6 +1236,7 @@ recover_pending_transaction() {
   recovery_api_image="${API_IMAGE_REPOSITORY}:${previous_sha}"
   recovery_web_image="${WEB_IMAGE_REPOSITORY}:${previous_sha}"
   if [[ -z "${state_sha}" && -z "${state_digest}" && "${previous_digest}" == "${ZERO_DIGEST}" ]]; then
+    require_legacy_compose
     active_compose_file="${LEGACY_COMPOSE_FILE}"
   else
     if [[ "${state_sha}" != "${previous_sha}" || "${state_digest}" != "${previous_digest}" ]]; then
@@ -1346,6 +1360,7 @@ else
     current_compose_file="${current_release}/compose.yaml"
   else
     current_release=
+    require_legacy_compose
     current_compose_file="${LEGACY_COMPOSE_FILE}"
   fi
 
