@@ -75,7 +75,7 @@
 | Verified runtime config | `/Users/homeserver/Server/apps/cubing-hub/runtime-config` |
 | Runtime env | `/Users/homeserver/Server/apps/cubing-hub/.env` |
 | Post images | `/Users/homeserver/Server/data/cubing-hub/post-images` |
-| Backup | `/Users/homeserver/Server/backups/cubing-hub` |
+| Data backup | `/Users/homeserver/Server/backups/cubing-hub/data` |
 | Legacy deploy fallback | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh` |
 | Legacy backup fallback | `/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh` |
 | Deploy bootstrap | `/Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh` |

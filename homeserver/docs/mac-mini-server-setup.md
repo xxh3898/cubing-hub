@@ -23,7 +23,7 @@
 /Users/homeserver/Server/apps/cubing-hub/.env
 /Users/homeserver/Server/apps/cubing-hub/nginx/cloudflare-edge-real-ip.conf
 /Users/homeserver/Server/data/cubing-hub/post-images/
-/Users/homeserver/Server/backups/cubing-hub/
+/Users/homeserver/Server/backups/cubing-hub/data/
 /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub.sh
 /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh
 /Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh
