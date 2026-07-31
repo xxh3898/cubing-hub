@@ -7,6 +7,7 @@ readonly SCRIPT_DIR="$(
   pwd -P
 )"
 readonly SOURCE_SCRIPT="${SCRIPT_DIR}/backup-home-server.sh"
+readonly PRODUCTION_BACKUP_ROOT=/Users/homeserver/Server/backups/cubing-hub/data
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 readonly APPLICATION_SHA=1111111111111111111111111111111111111111
 readonly PREVIOUS_SHA=2222222222222222222222222222222222222222
@@ -58,12 +59,26 @@ prepare_script() {
   local backup_root="$2"
   local target_script="$3"
 
+  if ! /usr/bin/grep -Fqx \
+    "readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}" \
+    "${SOURCE_SCRIPT}"
+  then
+    printf 'Production backup path contract is missing: %s\n' \
+      "${PRODUCTION_BACKUP_ROOT}" \
+      >&2
+    exit 1
+  fi
+
   /usr/bin/sed \
     -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${mock_docker}#" \
     -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
     -e "s#readonly BACKUP_BOOTSTRAP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_BOOTSTRAP_SCRIPT=${target_script}#" \
-    -e "s#readonly BACKUP_ROOT=/Users/homeserver/Server/backups/cubing-hub#readonly BACKUP_ROOT=${backup_root}#" \
+    -e "s#readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}#readonly BACKUP_ROOT=${backup_root}#" \
     "${SOURCE_SCRIPT}" >"${target_script}"
+  if ! /usr/bin/grep -Fqx "readonly BACKUP_ROOT=${backup_root}" "${target_script}"; then
+    printf 'Test backup path substitution failed: %s\n' "${backup_root}" >&2
+    exit 1
+  fi
   /bin/chmod 700 "${target_script}"
 }
 

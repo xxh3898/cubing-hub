@@ -19,7 +19,7 @@
 /Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/scripts/deploy-cubing-hub.sh
 /Users/homeserver/Server/apps/cubing-hub/runtime-config/releases/<digest>/scripts/backup-cubing-hub.sh
 /Users/homeserver/Server/data/cubing-hub/post-images/
-/Users/homeserver/Server/backups/cubing-hub/
+/Users/homeserver/Server/backups/cubing-hub/data/
 ```
 
 runtime config v2 initialization marker가 있으면 별도 고정 backup bootstrap은
@@ -28,6 +28,10 @@ backup script를 실행한다. 해당 script는 같은 release Compose만 사용
 marker가 있는데 state 또는 current가 없으면 손상 상태로 판단해 실패한다.
 marker, state, current가 모두 없는 기존 설치에서만 고정 bootstrap과 app
 directory의 legacy `compose.yaml`로 fallback한다.
+
+프로젝트 backup root의 `predeploy/`와 `bootstrap/`은 각각 배포 전 snapshot과
+host bootstrap 설치본을 위한 별도 범주다. 이 문서의 retention과 restore
+절차는 `data/` 아래의 검증된 DB·이미지 backup만 대상으로 한다.
 
 Backup bootstrap은 deploy bootstrap과 같은
 `/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`을
