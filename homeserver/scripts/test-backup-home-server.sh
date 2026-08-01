@@ -31,6 +31,44 @@ mock_age="${test_root}/age"
 mock_curl="${test_root}/curl"
 docker_log="${test_root}/docker.log"
 heartbeat_log="${test_root}/heartbeat.log"
+default_dump_file="${test_root}/default-dump.sql"
+
+write_mysql_dump_fixture() {
+  local target_file="$1"
+  local object_key="$2"
+  local insert_mode="${3:-single}"
+
+  {
+    printf '%s\n' \
+      '-- Table structure for table `post_attachments`' \
+      'CREATE TABLE `post_attachments` (' \
+      '  `id` BIGINT,' \
+      '  `object_key` VARCHAR(512)' \
+      ');' \
+      '-- Dumping data for table `post_attachments`'
+    if [[ "${insert_mode}" == single ]]; then
+      printf \
+        "INSERT INTO \`post_attachments\` (\`id\`, \`original_file_name\`, \`object_key\`) VALUES (1,'photo, (primary).jpg','%s');\n" \
+        "${object_key}"
+    elif [[ "${insert_mode}" == extended ]]; then
+      printf \
+        "INSERT INTO \`post_attachments\` (\`id\`, \`original_file_name\`, \`object_key\`) VALUES (1,'photo, (primary).jpg','%s'),(2,'second.jpg','second.jpg');\n" \
+        "${object_key}"
+    else
+      printf 'Unsupported dump fixture mode: %s\n' "${insert_mode}" >&2
+      return 1
+    fi
+    printf '%s\n' \
+      '-- Table structure for table `users`' \
+      'CREATE TABLE `users` (`id` BIGINT);' \
+      '-- Dumping data for table `users`' \
+      'INSERT INTO `users` (`id`) VALUES (1);' \
+      '-- Dump completed on 2026-08-01 00:00:00'
+  } >"${target_file}"
+}
+
+write_mysql_dump_fixture "${default_dump_file}" image-one.jpg
+export MOCK_DUMP_FILE="${default_dump_file}"
 
 {
   printf '%s\n' \
@@ -49,7 +87,7 @@ heartbeat_log="${test_root}/heartbeat.log"
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
     '  printf "db\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
-    '  printf "%s\n" "CREATE TABLE \`users\` (id BIGINT);" "-- Dump completed on 2026-08-01 00:00:00"' \
+    '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
     '  printf "8.0.46\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=record-counts"* ]]; then' \
@@ -214,17 +252,24 @@ def write_valid(timestamp):
     (snapshot / "database").mkdir(parents=True)
     (snapshot / "files" / "post-images").mkdir(parents=True)
     dump = b"retention fixture\n"
+    references = b""
     (snapshot / "database" / "dump").write_bytes(dump)
     (snapshot / "files" / "sha256.txt").write_text("", encoding="utf-8")
+    (snapshot / "files" / "database-references.txt").write_bytes(references)
     manifest = {
         "schemaVersion": 1,
         "status": "success",
         "project": "cubing-hub",
         "environment": "production",
         "database": {
+            "engine": "mysql",
+            "version": "8.0.46",
             "dumpFile": "database/dump",
             "bytes": len(dump),
             "sha256": hashlib.sha256(dump).hexdigest(),
+            "validator": "mysqldump structure and completion marker",
+            "recordCounts": {"post_attachments": 0},
+            "recordCountsSource": "database/dump",
         },
         "files": {
             "enabled": True,
@@ -232,6 +277,12 @@ def write_valid(timestamp):
             "manifest": "files/sha256.txt",
             "count": 0,
             "bytes": 0,
+            "databaseReferences": {
+                "source": "database/dump",
+                "manifest": "files/database-references.txt",
+                "count": 0,
+                "sha256": hashlib.sha256(references).hexdigest(),
+            },
         },
     }
     (snapshot / "manifest.json").write_text(
@@ -271,6 +322,30 @@ symlink_time = dt.datetime.combine(
 symlink_name = name_for(symlink_time)
 os.symlink(recent_seed[0], root / symlink_name)
 
+missing_reference_time = dt.datetime.combine(
+    today - dt.timedelta(days=11), dt.time(6, 5), tzinfo=kst
+)
+missing_reference_name = write_valid(missing_reference_time)
+missing_reference_snapshot = root / missing_reference_name
+missing_references = b"missing.jpg\n"
+(missing_reference_snapshot / "files" / "database-references.txt").write_bytes(
+    missing_references
+)
+missing_reference_manifest_path = missing_reference_snapshot / "manifest.json"
+missing_reference_manifest = json.loads(
+    missing_reference_manifest_path.read_text(encoding="utf-8")
+)
+missing_reference_manifest["database"]["recordCounts"]["post_attachments"] = 1
+missing_reference_manifest["files"]["databaseReferences"].update(
+    {
+        "count": 1,
+        "sha256": hashlib.sha256(missing_references).hexdigest(),
+    }
+)
+missing_reference_manifest_path.write_text(
+    json.dumps(missing_reference_manifest) + "\n", encoding="utf-8"
+)
+
 expected_path.write_text(
     json.dumps(
         {
@@ -278,6 +353,7 @@ expected_path.write_text(
             "dailyKeep": daily_keep,
             "pruneExpected": prune_expected,
             "invalidName": invalid_name,
+            "missingReferenceName": missing_reference_name,
             "symlinkName": symlink_name,
         }
     )
@@ -310,6 +386,7 @@ assert set(expected["recentSeed"]) <= keep
 assert set(expected["dailyKeep"]) <= keep
 assert set(expected["pruneExpected"]) <= prune
 assert expected["invalidName"] in invalid
+assert expected["missingReferenceName"] in invalid
 assert expected["symlinkName"] not in keep | prune | invalid
 assert keep.isdisjoint(prune)
 assert len(keep) == 11
@@ -339,6 +416,8 @@ assert_snapshot_contract() {
   test -f "${snapshot}/SUCCESS"
   test -f "${snapshot}/manifest.json"
   test -f "${snapshot}/database/dump"
+  test -f "${snapshot}/database/record-counts.tsv"
+  test -f "${snapshot}/files/database-references.txt"
   test -f "${snapshot}/files/sha256.txt"
   test -f "${backup_root}/retention-plan.json"
   "${PYTHON_BIN:-/usr/bin/python3}" - \
@@ -366,11 +445,18 @@ assert manifest["source"]["applicationSha"] == application_sha
 assert manifest["source"]["runtimeConfigDigest"] == config_digest
 assert manifest["database"]["engine"] == "mysql"
 assert manifest["database"]["version"] == "8.0.46"
-assert manifest["database"]["recordCounts"] == {"post_attachments": 0, "users": 1}
+assert manifest["database"]["recordCounts"] == {"post_attachments": 1, "users": 1}
+assert manifest["database"]["recordCountsSource"] == "database/dump"
 assert manifest["database"]["bytes"] == dump.stat().st_size
 assert manifest["database"]["sha256"] == hashlib.sha256(dump.read_bytes()).hexdigest()
 assert manifest["files"]["enabled"] is True
 assert manifest["files"]["count"] >= 0
+references = manifest["files"]["databaseReferences"]
+reference_file = snapshot / references["manifest"]
+assert references["source"] == "database/dump"
+assert references["count"] == manifest["database"]["recordCounts"]["post_attachments"]
+assert references["sha256"] == hashlib.sha256(reference_file.read_bytes()).hexdigest()
+assert reference_file.read_text(encoding="utf-8") == "image-one.jpg\n"
 assert manifest["redis"]["included"] is False
 plan = json.loads(plan_path.read_text(encoding="utf-8"))
 assert plan["mode"] == "dry-run"
@@ -428,6 +514,10 @@ expected_release="${v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${expected_release}" "${docker_log}"
 /usr/bin/grep -Fq -- "--file ${expected_release}/compose.yaml" "${docker_log}"
+if /usr/bin/grep -Eq 'BACKUP_QUERY=(attachment-keys|record-counts)' "${docker_log}"; then
+  printf 'Snapshot metadata must not be queried from the live database after dump\n' >&2
+  exit 1
+fi
 test "$(find "${v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" -ge 1
 assert_snapshot_contract "${v2_backups}" scheduled
 assert_retention_matrix "${v2_backups}" "${v2_retention_expected}"
@@ -435,11 +525,86 @@ test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 2
 /usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
 /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"
 
+missing_reference_app="${test_root}/missing-reference-app"
+missing_reference_backups="${test_root}/missing-reference-backups"
+missing_reference_post_images="${test_root}/missing-reference-post-images"
+missing_reference_script="${test_root}/missing-reference-backup.sh"
+missing_reference_dump="${test_root}/missing-reference-dump.sql"
+write_mysql_dump_fixture "${missing_reference_dump}" missing.jpg
+prepare_app "${missing_reference_app}" "${missing_reference_post_images}"
+/bin/mkdir -p "${missing_reference_backups}"
+prepare_script \
+  "${missing_reference_app}" \
+  "${missing_reference_backups}" \
+  "${missing_reference_script}"
+prepare_runtime_state "${missing_reference_app}" "${missing_reference_script}"
+
+if MOCK_DUMP_FILE="${missing_reference_dump}" \
+  DOCKER_LOG="${docker_log}" \
+  MOCK_POST_IMAGES_DIR="${missing_reference_post_images}" \
+  "${missing_reference_script}" >/dev/null 2>&1
+then
+  printf 'backup accepted a dump reference missing from the copied image tree\n' >&2
+  exit 1
+fi
+test "$(find "${missing_reference_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 0
+
+malformed_dump_app="${test_root}/malformed-dump-app"
+malformed_dump_backups="${test_root}/malformed-dump-backups"
+malformed_dump_post_images="${test_root}/malformed-dump-post-images"
+malformed_dump_script="${test_root}/malformed-dump-backup.sh"
+malformed_dump_file="${test_root}/malformed-dump.sql"
+write_mysql_dump_fixture "${malformed_dump_file}" first.jpg extended
+prepare_app "${malformed_dump_app}" "${malformed_dump_post_images}"
+printf 'first\n' >"${malformed_dump_post_images}/first.jpg"
+printf 'second\n' >"${malformed_dump_post_images}/second.jpg"
+/bin/mkdir -p "${malformed_dump_backups}"
+prepare_script \
+  "${malformed_dump_app}" \
+  "${malformed_dump_backups}" \
+  "${malformed_dump_script}"
+prepare_runtime_state "${malformed_dump_app}" "${malformed_dump_script}"
+
+if MOCK_DUMP_FILE="${malformed_dump_file}" \
+  DOCKER_LOG="${docker_log}" \
+  MOCK_POST_IMAGES_DIR="${malformed_dump_post_images}" \
+  "${malformed_dump_script}" >/dev/null 2>&1
+then
+  printf 'backup accepted an unexpected multi-row INSERT dump grammar\n' >&2
+  exit 1
+fi
+test "$(find "${malformed_dump_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 0
+
+unsafe_key_app="${test_root}/unsafe-key-app"
+unsafe_key_backups="${test_root}/unsafe-key-backups"
+unsafe_key_post_images="${test_root}/unsafe-key-post-images"
+unsafe_key_script="${test_root}/unsafe-key-backup.sh"
+unsafe_key_dump="${test_root}/unsafe-key-dump.sql"
+write_mysql_dump_fixture "${unsafe_key_dump}" ../escape.jpg
+prepare_app "${unsafe_key_app}" "${unsafe_key_post_images}"
+/bin/mkdir -p "${unsafe_key_backups}"
+prepare_script \
+  "${unsafe_key_app}" \
+  "${unsafe_key_backups}" \
+  "${unsafe_key_script}"
+prepare_runtime_state "${unsafe_key_app}" "${unsafe_key_script}"
+
+if MOCK_DUMP_FILE="${unsafe_key_dump}" \
+  DOCKER_LOG="${docker_log}" \
+  MOCK_POST_IMAGES_DIR="${unsafe_key_post_images}" \
+  "${unsafe_key_script}" >/dev/null 2>&1
+then
+  printf 'backup accepted an unsafe dump object-key path\n' >&2
+  exit 1
+fi
+test "$(find "${unsafe_key_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 0
+
 legacy_v2_app="${test_root}/legacy-v2-app"
 legacy_v2_backups="${test_root}/legacy-v2-backups"
 legacy_v2_post_images="${test_root}/legacy-v2-post-images"
 legacy_v2_script="${test_root}/legacy-v2-backup.sh"
 prepare_app "${legacy_v2_app}" "${legacy_v2_post_images}"
+printf 'image-one\n' >"${legacy_v2_post_images}/image-one.jpg"
 /bin/mkdir -p "${legacy_v2_backups}"
 prepare_script \
   "${legacy_v2_app}" \
@@ -574,6 +739,7 @@ legacy_backups="${test_root}/legacy-backups"
 legacy_post_images="${test_root}/legacy-post-images"
 legacy_script="${test_root}/legacy-backup.sh"
 prepare_app "${legacy_app}" "${legacy_post_images}"
+printf 'image-one\n' >"${legacy_post_images}/image-one.jpg"
 /bin/mkdir -p \
   "${legacy_app}/runtime-config/releases/bootstrap-candidate" \
   "${legacy_backups}"

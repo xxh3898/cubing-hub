@@ -136,6 +136,10 @@ DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
 image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
 간주하지 말고 수동 판단한다.
 
+두 one-shot 단계는 candidate API/Web image pair를 subprocess의 Compose
+interpolation에만 주입하고 `--pull never`를 사용한다. Migration 성공 전에는
+`.env`, state/current와 실행 중 application을 바꾸지 않는다.
+
 ## 중단된 runtime config transaction 복구
 
 v2 배포가 강제 종료되거나 host가 재시작되어
@@ -256,7 +260,9 @@ test -f "${runtime_release}/compose.yaml"
 고정 backup bootstrap은 `state`, `current`, content hash를 검증해 active
 release의 backup worker를 실행한다. Worker는 MySQL dump와 게시글 이미지
 snapshot을 같은 run으로 만들고,
-`post_attachments.object_key`가 가리키는 파일이 없으면 실패한다.
+dump에서 파생한 `post_attachments.object_key`가 가리키는 파일이 없으면
+실패한다. Table row count와 object-key reference도 dump에서 파생하며 dump 뒤
+live DB query로 대체하지 않는다.
 성공 결과를 최종 directory로 이동한 뒤에만 오래된 backup을 정리한다.
 Deploy 또는 다른 backup이 공통 lock을 보유하거나 runtime config
 `pending` recovery가 남아 있으면 backup은 운영 data를 읽기 전에 실패한다.

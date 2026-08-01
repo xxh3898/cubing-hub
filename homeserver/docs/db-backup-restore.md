@@ -49,14 +49,19 @@ backup을 시작하지 않는다. Persistent mode `600` lock file은 삭제하�
 
 1. 운영 `db` service 실행 상태 확인
 2. 게시글 이미지 1차 snapshot 생성
-3. 임시 directory에서 `mysqldump --single-transaction` 실행과 구조 검증
+3. 임시 directory에서
+   `mysqldump --single-transaction --complete-insert --skip-extended-insert`
+   실행과 구조 검증
 4. 게시글 이미지 2차 snapshot 생성
-5. `post_attachments.object_key`와 snapshot 파일 대조
-6. DB engine/version, table별 row count, 파일 count·bytes·SHA-256 기록
-7. `manifest.json` 생성 뒤 `SUCCESS` marker를 마지막으로 생성
-8. 검증한 임시 directory를 최종 backup 이름으로 원자 이동
-9. 삭제하지 않는 retention dry-run plan 생성
-10. age ciphertext의 local staging과 iCloud Drive handoff
+5. dump의 제한된 single-row INSERT를 streaming 해석해 같은 transaction
+   snapshot의 table row count와 `post_attachments.object_key` 목록 생성
+6. dump reference와 snapshot 파일 대조
+7. DB engine/version, row-count/reference source·SHA-256, 파일
+   count·bytes·SHA-256 기록
+8. `manifest.json` 생성 뒤 `SUCCESS` marker를 마지막으로 생성
+9. 검증한 임시 directory를 최종 backup 이름으로 원자 이동
+10. 삭제하지 않는 retention dry-run plan 생성
+11. age ciphertext의 local staging과 iCloud Drive handoff
 
 최종 결과는 아래 형식이다.
 
@@ -69,6 +74,7 @@ cubing-hub-production-<UTC yyyyMMddTHHmmssZ>/
     version.txt
     record-counts.tsv
   files/
+    database-references.txt
     sha256.txt
     stats.json
     post-images/
@@ -77,11 +83,18 @@ cubing-hub-production-<UTC yyyyMMddTHHmmssZ>/
 backup이 실패하면 기존 정상 backup은 삭제하지 않는다. 실패 원인을
 확인할 수 있도록 `.cubing-hub-backup.*` 임시 directory를 남긴다.
 
+게시글 image object는 immutable이고 삭제는 DB commit 뒤 수행된다. 두 번의
+copy는 dump 시점 전후의 extra file을 포함할 수 있지만, dump가 참조하는 모든
+object key는 반드시 `files/database-references.txt`와 copied image tree에
+존재해야 한다. Dump grammar, object key 또는 reference file이 불완전하면 worker는
+최신 live DB 값으로 대체하지 않고 실패한다.
+
 ## 보관 정책
 
 - 최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후 첫
   정상 snapshot 1개를 보존 대상으로 계산한다.
-- `SUCCESS`, manifest, dump와 파일 checksum을 다시 검증한 snapshot만
+- `SUCCESS`, manifest, dump·파일·database reference checksum과 reference
+  target을 다시 검증한 snapshot만
   정상본으로 인정한다.
 - 결과는 `data/retention-plan.json`에 `keep`과 `pruneCandidates`로 기록한다.
 - 현재 worker는 dry-run plan만 만들고 실제 backup은 삭제하지 않는다.

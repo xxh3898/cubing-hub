@@ -569,7 +569,10 @@ then
   exit 1
 fi
 /usr/bin/grep -Fq -- \
-  'run --rm --no-deps --entrypoint java api -Dloader.main=com.cubinghub.ops.MigrationMain -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher' \
+  'run --rm --no-deps --pull never --entrypoint java api -Dloader.main=com.cubinghub.ops.MigrationMain -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher' \
+  "${migration_failure_log}"
+/usr/bin/grep -Fxq -- \
+  "migration-images API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_ONE} WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${REVISION_ONE}" \
   "${migration_failure_log}"
 if /usr/bin/grep -q '^compose .* up ' "${migration_failure_log}"; then
   printf 'Migration failure must not start candidate application containers\n' >&2

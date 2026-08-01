@@ -472,9 +472,7 @@ record_counts_file="${work_dir}/database/record-counts.tsv"
 post_images_backup_dir="${work_dir}/files/post-images"
 post_images_manifest="${work_dir}/files/sha256.txt"
 post_images_stats="${work_dir}/files/stats.json"
-object_keys_file="${work_dir}/post-attachment-object-keys.txt"
-missing_files_file="${work_dir}/missing-post-image-files.txt"
-invalid_keys_file="${work_dir}/invalid-post-image-object-keys.txt"
+database_references_file="${work_dir}/files/database-references.txt"
 
 if [[ -e "${final_dir}" ]]; then
   fail "backup with the same timestamp already exists"
@@ -493,8 +491,12 @@ compose exec -T db /bin/sh -ceu '
   export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
   exec mysqldump \
     --user=root \
+    --default-character-set=utf8mb4 \
     --single-transaction \
     --quick \
+    --complete-insert \
+    --skip-extended-insert \
+    --hex-blob \
     --routines \
     --triggers \
     "${MYSQL_DATABASE}"
@@ -510,6 +512,248 @@ then
 fi
 
 /usr/bin/rsync -a "${post_images_host_dir}/" "${post_images_backup_dir}/"
+
+# Row counts and file references must come from the exact transaction snapshot
+# in database/dump. The restricted dump grammar fails closed instead of
+# consulting a newer live database state after mysqldump has completed.
+"${PYTHON_BIN}" - \
+  "${db_dump_file}" \
+  "${record_counts_file}" \
+  "${database_references_file}" \
+  "${post_images_backup_dir}" <<'PY'
+import os
+import pathlib
+import re
+import sys
+
+dump_path = pathlib.Path(sys.argv[1])
+record_counts_path = pathlib.Path(sys.argv[2])
+references_path = pathlib.Path(sys.argv[3])
+post_images_root = pathlib.Path(sys.argv[4])
+
+safe_name_pattern = r"[A-Za-z0-9_]+"
+structure_header = re.compile(
+    rf"^-- Table structure for table `({safe_name_pattern})`$"
+)
+data_header = re.compile(
+    rf"^-- Dumping data for table `({safe_name_pattern})`$"
+)
+create_table = re.compile(rf"^CREATE TABLE `({safe_name_pattern})` \(")
+insert_row = re.compile(
+    rf"^INSERT INTO `({safe_name_pattern})` \(([^)]*)\) VALUES \((.*)\);$"
+)
+
+
+def split_single_row_values(value_text):
+    values = []
+    start = 0
+    index = 0
+    in_string = False
+
+    while index < len(value_text):
+        character = value_text[index]
+        if in_string:
+            if character == "\\":
+                index += 2
+                if index > len(value_text):
+                    raise ValueError("truncated MySQL string escape")
+                continue
+            if character == "'":
+                if index + 1 < len(value_text) and value_text[index + 1] == "'":
+                    index += 2
+                    continue
+                in_string = False
+            index += 1
+            continue
+
+        if character == "'":
+            in_string = True
+        elif character == ",":
+            values.append(value_text[start:index].strip())
+            start = index + 1
+        elif character in "()":
+            raise ValueError("unexpected multi-row or expression grammar")
+        index += 1
+
+    if in_string:
+        raise ValueError("unterminated MySQL string literal")
+    values.append(value_text[start:].strip())
+    if any(value == "" for value in values):
+        raise ValueError("empty value in MySQL INSERT")
+    return values
+
+
+def decode_mysql_string(token):
+    if len(token) < 2 or token[0] != "'" or token[-1] != "'":
+        raise ValueError("object_key must be a MySQL string literal")
+
+    body = token[1:-1]
+    decoded = []
+    escapes = {
+        "0": "\0",
+        "b": "\b",
+        "n": "\n",
+        "r": "\r",
+        "t": "\t",
+        "Z": "\x1a",
+        "\\": "\\",
+        "'": "'",
+        '"': '"',
+    }
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character == "\\":
+            if index + 1 >= len(body):
+                raise ValueError("truncated MySQL string escape")
+            escaped = body[index + 1]
+            decoded.append(escapes.get(escaped, escaped))
+            index += 2
+            continue
+        if character == "'":
+            if index + 1 < len(body) and body[index + 1] == "'":
+                decoded.append("'")
+                index += 2
+                continue
+            raise ValueError("unescaped quote in MySQL string literal")
+        decoded.append(character)
+        index += 1
+    return "".join(decoded)
+
+
+def validate_reference(value):
+    if not value or value.startswith("/"):
+        raise ValueError("post image object key is not relative")
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("post image object key contains a control character")
+    segments = value.split("/")
+    if any(segment in ("", ".", "..") for segment in segments):
+        raise ValueError("post image object key contains an unsafe path segment")
+    return segments
+
+
+base_tables = set()
+created_tables = set()
+record_counts = {}
+references = []
+data_sections = set()
+current_data_table = None
+current_create_table = None
+post_attachment_object_key_declared = False
+
+with dump_path.open("r", encoding="utf-8", newline="") as dump:
+    for line_number, raw_line in enumerate(dump, start=1):
+        line = raw_line.rstrip("\r\n")
+
+        match = structure_header.fullmatch(line)
+        if match:
+            table_name = match.group(1)
+            if table_name in base_tables:
+                raise SystemExit(f"duplicate table structure at line {line_number}")
+            base_tables.add(table_name)
+            record_counts[table_name] = 0
+            current_data_table = None
+            continue
+        if line.startswith("-- Table structure for table "):
+            raise SystemExit(f"unsupported table name at line {line_number}")
+
+        match = data_header.fullmatch(line)
+        if match:
+            table_name = match.group(1)
+            if table_name not in base_tables:
+                raise SystemExit(f"data section precedes structure at line {line_number}")
+            if table_name in data_sections:
+                raise SystemExit(f"duplicate data section at line {line_number}")
+            data_sections.add(table_name)
+            current_data_table = table_name
+            continue
+        if line.startswith("-- Dumping data for table "):
+            raise SystemExit(f"unsupported data table name at line {line_number}")
+        if line.startswith("-- "):
+            current_data_table = None
+
+        match = create_table.match(line)
+        if match and match.group(1) in base_tables:
+            current_create_table = match.group(1)
+            created_tables.add(current_create_table)
+        if current_create_table == "post_attachments" and re.match(
+            r"^\s*`object_key`\s+", line
+        ):
+            post_attachment_object_key_declared = True
+        if current_create_table is not None and line.endswith(";"):
+            current_create_table = None
+
+        if current_data_table is not None and line.startswith("INSERT INTO "):
+            match = insert_row.fullmatch(line)
+            if not match or match.group(1) != current_data_table:
+                raise SystemExit(f"unsupported INSERT grammar at line {line_number}")
+            columns = []
+            for raw_column in match.group(2).split(","):
+                raw_column = raw_column.strip()
+                if not re.fullmatch(rf"`({safe_name_pattern})`", raw_column):
+                    raise SystemExit(f"unsupported INSERT column at line {line_number}")
+                columns.append(raw_column[1:-1])
+            if len(columns) != len(set(columns)):
+                raise SystemExit(f"duplicate INSERT column at line {line_number}")
+            try:
+                values = split_single_row_values(match.group(3))
+            except ValueError as error:
+                raise SystemExit(f"{error} at line {line_number}") from error
+            if len(columns) != len(values):
+                raise SystemExit(f"INSERT column/value mismatch at line {line_number}")
+
+            record_counts[current_data_table] += 1
+            if current_data_table == "post_attachments":
+                if "object_key" not in columns:
+                    raise SystemExit(
+                        f"post_attachments INSERT lacks object_key at line {line_number}"
+                    )
+                try:
+                    object_key = decode_mysql_string(
+                        values[columns.index("object_key")]
+                    )
+                    validate_reference(object_key)
+                except ValueError as error:
+                    raise SystemExit(f"{error} at line {line_number}") from error
+                references.append(object_key)
+
+        if line == "UNLOCK TABLES;":
+            current_data_table = None
+
+if (
+    not base_tables
+    or base_tables != created_tables
+    or base_tables != data_sections
+):
+    raise SystemExit("mysqldump base-table structure inventory is incomplete")
+if "post_attachments" not in base_tables or not post_attachment_object_key_declared:
+    raise SystemExit("post_attachments.object_key is missing from mysqldump structure")
+if len(references) != record_counts["post_attachments"]:
+    raise SystemExit("post attachment row and reference counts disagree")
+
+record_counts_text = "".join(
+    f"{table_name}\t{record_counts[table_name]}\n"
+    for table_name in sorted(record_counts)
+)
+references_text = "".join(f"{reference}\n" for reference in sorted(references))
+for target, content in (
+    (record_counts_path, record_counts_text),
+    (references_path, references_text),
+):
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, target)
+
+missing = 0
+for reference in references:
+    candidate = post_images_root.joinpath(*validate_reference(reference))
+    if not candidate.is_file() or candidate.is_symlink():
+        missing += 1
+if missing:
+    raise SystemExit(
+        f"{missing} post image file(s) referenced by database/dump are missing"
+    )
+PY
 
 "${PYTHON_BIN}" - \
   "${post_images_backup_dir}" \
@@ -561,43 +805,6 @@ PY
 # Variables expand inside the database container, not in this host shell.
 # shellcheck disable=SC2016
 compose exec -T db /bin/sh -ceu '
-  # BACKUP_QUERY=attachment-keys
-  export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
-  exec mysql \
-    --user=root \
-    --batch \
-    --skip-column-names \
-    "${MYSQL_DATABASE}" \
-    --execute "SELECT object_key FROM post_attachments WHERE object_key IS NOT NULL AND CHAR_LENGTH(object_key) > 0 ORDER BY object_key"
-' >"${object_keys_file}"
-
-: >"${missing_files_file}"
-: >"${invalid_keys_file}"
-
-while IFS= read -r object_key; do
-  [[ -z "${object_key}" ]] && continue
-
-  if [[ "${object_key}" == /* || "${object_key}" == *".."* ]]; then
-    printf '%s\n' "${object_key}" >>"${invalid_keys_file}"
-    continue
-  fi
-
-  if [[ ! -f "${post_images_backup_dir}/${object_key}" ]]; then
-    printf '%s\n' "${object_key}" >>"${missing_files_file}"
-  fi
-done <"${object_keys_file}"
-
-if [[ -s "${invalid_keys_file}" ]]; then
-  fail "database contains invalid post image object keys"
-fi
-
-if [[ -s "${missing_files_file}" ]]; then
-  fail "post image files referenced by the database are missing"
-fi
-
-# Variables expand inside the database container, not in this host shell.
-# shellcheck disable=SC2016
-compose exec -T db /bin/sh -ceu '
   # BACKUP_QUERY=version
   export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
   exec mysql \
@@ -607,36 +814,6 @@ compose exec -T db /bin/sh -ceu '
     "${MYSQL_DATABASE}" \
     --execute "SELECT VERSION()"
 ' >"${db_version_file}"
-
-# Variables expand inside the database container, not in this host shell.
-# shellcheck disable=SC2016
-compose exec -T db /bin/sh -ceu '
-  # BACKUP_QUERY=record-counts
-  export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
-  mysql \
-    --user=root \
-    --batch \
-    --skip-column-names \
-    "${MYSQL_DATABASE}" \
-    --execute "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = '\''BASE TABLE'\'' ORDER BY TABLE_NAME" \
-    | while IFS= read -r table_name; do
-        case "${table_name}" in
-          ""|*[!A-Za-z0-9_]*)
-            printf "unsupported table name in backup inventory\n" >&2
-            exit 1
-            ;;
-        esac
-        row_count="$(
-          mysql \
-            --user=root \
-            --batch \
-            --skip-column-names \
-            "${MYSQL_DATABASE}" \
-            --execute "SELECT COUNT(*) FROM \`${table_name}\`"
-        )"
-        printf "%s\t%s\n" "${table_name}" "${row_count}"
-      done
-' >"${record_counts_file}"
 
 application_sha=unknown
 runtime_config_digest=unknown
@@ -656,7 +833,7 @@ completed_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   "${db_version_file}" \
   "${record_counts_file}" \
   "${post_images_stats}" \
-  "${object_keys_file}" <<'PY'
+  "${database_references_file}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -673,7 +850,7 @@ import sys
     version_file_value,
     record_counts_file_value,
     file_stats_value,
-    object_keys_file_value,
+    database_references_file_value,
 ) = sys.argv[1:]
 work_dir = pathlib.Path(work_dir_value)
 dump_file = work_dir / "database" / "dump"
@@ -699,10 +876,23 @@ if not record_counts:
     raise SystemExit("database record count inventory is empty")
 
 file_stats = json.loads(pathlib.Path(file_stats_value).read_text(encoding="utf-8"))
-object_key_count = len(
-    pathlib.Path(object_keys_file_value).read_text(encoding="utf-8").splitlines()
-)
-digest = hashlib.sha256(dump_file.read_bytes()).hexdigest()
+database_references_file = pathlib.Path(database_references_file_value)
+if not database_references_file.is_file() or database_references_file.is_symlink():
+    raise SystemExit("database reference manifest is missing or unsafe")
+database_references = database_references_file.read_text(
+    encoding="utf-8"
+).splitlines()
+if len(database_references) != record_counts.get("post_attachments"):
+    raise SystemExit("database reference and post attachment counts disagree")
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 manifest = {
     "schemaVersion": 1,
     "status": "success",
@@ -720,9 +910,10 @@ manifest = {
         "version": pathlib.Path(version_file_value).read_text(encoding="utf-8").strip(),
         "dumpFile": "database/dump",
         "bytes": dump_file.stat().st_size,
-        "sha256": digest,
+        "sha256": sha256(dump_file),
         "validator": "mysqldump structure and completion marker",
         "recordCounts": dict(sorted(record_counts.items())),
+        "recordCountsSource": "database/dump",
     },
     "files": {
         "enabled": True,
@@ -730,7 +921,12 @@ manifest = {
         "count": int(file_stats["count"]),
         "bytes": int(file_stats["bytes"]),
         "manifest": "files/sha256.txt",
-        "databaseReferenceCount": object_key_count,
+        "databaseReferences": {
+            "source": "database/dump",
+            "manifest": "files/database-references.txt",
+            "count": len(database_references),
+            "sha256": sha256(database_references_file),
+        },
     },
     "redis": {
         "included": False,
@@ -774,6 +970,15 @@ def sha256(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+def safe_relative(value):
+    if not isinstance(value, str) or not value or value.startswith("/"):
+        raise ValueError("unsafe relative path")
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("relative path contains a control character")
+    if any(segment in ("", ".", "..") for segment in value.split("/")):
+        raise ValueError("unsafe relative path segment")
+    return value
+
 for candidate in sorted(root.iterdir()):
     match = pattern.fullmatch(candidate.name)
     if not match or candidate.is_symlink() or not candidate.is_dir():
@@ -796,14 +1001,55 @@ for candidate in sorted(root.iterdir()):
             or manifest.get("environment") != "production"
         ):
             raise ValueError("manifest identity mismatch")
-        dump = candidate / manifest["database"]["dumpFile"]
+        database = manifest.get("database")
+        if not isinstance(database, dict):
+            raise ValueError("database contract missing")
+        if (
+            database.get("engine") != "mysql"
+            or not isinstance(database.get("version"), str)
+            or not database["version"]
+            or database.get("validator")
+            != "mysqldump structure and completion marker"
+            or database.get("dumpFile") != "database/dump"
+            or type(database.get("bytes")) is not int
+            or database["bytes"] < 1
+        ):
+            raise ValueError("database contract mismatch")
+        if database.get("recordCountsSource") != "database/dump":
+            raise ValueError("record count source mismatch")
+        record_counts = database.get("recordCounts")
+        if not isinstance(record_counts, dict) or not record_counts:
+            raise ValueError("record count inventory missing")
+        for table_name, row_count in record_counts.items():
+            if (
+                not re.fullmatch(r"[A-Za-z0-9_]+", table_name)
+                or type(row_count) is not int
+                or row_count < 0
+            ):
+                raise ValueError("record count inventory invalid")
+        if "post_attachments" not in record_counts:
+            raise ValueError("post attachment count missing")
+
+        dump = candidate / database["dumpFile"]
         if not dump.is_file() or dump.is_symlink():
             raise ValueError("dump missing")
-        if dump.stat().st_size != manifest["database"]["bytes"]:
+        if dump.stat().st_size != database["bytes"]:
             raise ValueError("dump size mismatch")
-        if sha256(dump) != manifest["database"]["sha256"]:
+        if sha256(dump) != database["sha256"]:
             raise ValueError("dump checksum mismatch")
-        files = manifest["files"]
+        files = manifest.get("files")
+        if not isinstance(files, dict):
+            raise ValueError("file contract missing")
+        if (
+            files.get("enabled") is not True
+            or files.get("directory") != "files/post-images"
+            or files.get("manifest") != "files/sha256.txt"
+            or type(files.get("count")) is not int
+            or files["count"] < 0
+            or type(files.get("bytes")) is not int
+            or files["bytes"] < 0
+        ):
+            raise ValueError("file contract mismatch")
         file_root = candidate / files["directory"]
         checksum_file = candidate / files["manifest"]
         if not file_root.is_dir() or file_root.is_symlink():
@@ -815,19 +1061,53 @@ for candidate in sorted(root.iterdir()):
             digest, separator, relative = line.partition("  ")
             if separator != "  " or not re.fullmatch(r"[0-9a-f]{64}", digest):
                 raise ValueError("file checksum entry invalid")
+            relative = safe_relative(relative)
+            if relative in listed:
+                raise ValueError("duplicate file checksum entry")
             path = file_root / relative
             if not path.is_file() or path.is_symlink() or sha256(path) != digest:
                 raise ValueError("file checksum mismatch")
             listed[relative] = path.stat().st_size
-        actual = {
-            path.relative_to(file_root).as_posix(): path.stat().st_size
-            for path in file_root.rglob("*")
-            if path.is_file() and not path.is_symlink()
-        }
+        actual = {}
+        for path in file_root.rglob("*"):
+            mode = path.lstat().st_mode
+            if stat.S_ISDIR(mode):
+                continue
+            if not stat.S_ISREG(mode):
+                raise ValueError("file tree contains an unsupported entry")
+            relative = safe_relative(path.relative_to(file_root).as_posix())
+            actual[relative] = path.stat().st_size
         if listed != actual:
             raise ValueError("file inventory mismatch")
         if len(actual) != files["count"] or sum(actual.values()) != files["bytes"]:
             raise ValueError("file aggregate mismatch")
+
+        references = files.get("databaseReferences")
+        if (
+            not isinstance(references, dict)
+            or references.get("source") != "database/dump"
+            or references.get("manifest") != "files/database-references.txt"
+            or type(references.get("count")) is not int
+            or references["count"] < 0
+            or not re.fullmatch(r"[0-9a-f]{64}", references.get("sha256", ""))
+        ):
+            raise ValueError("database reference contract mismatch")
+        reference_file = candidate / references["manifest"]
+        if not reference_file.is_file() or reference_file.is_symlink():
+            raise ValueError("database reference manifest missing")
+        if sha256(reference_file) != references["sha256"]:
+            raise ValueError("database reference checksum mismatch")
+        reference_lines = [
+            safe_relative(line)
+            for line in reference_file.read_text(encoding="utf-8").splitlines()
+        ]
+        if (
+            len(reference_lines) != references["count"]
+            or references["count"] != record_counts["post_attachments"]
+        ):
+            raise ValueError("database reference count mismatch")
+        if any(relative not in actual for relative in reference_lines):
+            raise ValueError("database reference target missing")
         timestamp = dt.datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(
             tzinfo=dt.timezone.utc
         )

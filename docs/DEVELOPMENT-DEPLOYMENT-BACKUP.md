@@ -96,6 +96,10 @@ timeout과 retry를 사용한다. public smoke 전에는 새 state를 성공으�
 - 일반 API container는 `SPRING_FLYWAY_ENABLED=false`로 시작한다.
 - 배포 worker는 exact candidate API image에서
   `com.cubinghub.ops.MigrationMain`만 one-shot으로 실행한다.
+- one-shot subprocess에 candidate API/Web image pair를 함께 주입하고
+  `--pull never`로 이미 revision label을 검증한 local image만 사용한다. 이
+  임시 값은 Compose interpolation에만 적용하며 production `.env`는 migration
+  성공 전까지 현재 image pair를 유지한다.
 - runner는 application service나 `ApplicationRunner`를 시작하지 않고 Flyway
   migration과 Flyway validate만 수행한다.
 - candidate API startup은 `ddl-auto=validate`로 JPA mapping과 실제 schema를
@@ -117,8 +121,11 @@ cubing-hub-production-<UTC timestamp>/
 ├── SUCCESS
 ├── manifest.json
 ├── database/
-│   └── dump
+│   ├── dump
+│   ├── record-counts.tsv
+│   └── version.txt
 └── files/
+    ├── database-references.txt
     ├── sha256.txt
     ├── stats.json
     └── post-images/
@@ -128,13 +135,24 @@ cubing-hub-production-<UTC timestamp>/
 
 1. verified runtime release와 production `db` 확인
 2. 게시글 이미지 1차 `rsync` (`--delete` 없음)
-3. MySQL `--single-transaction` dump와 구조·완료 marker 검증
+3. MySQL `--single-transaction --complete-insert --skip-extended-insert` dump와
+   구조·완료 marker 검증
 4. 게시글 이미지 2차 `rsync` (`--delete` 없음)
-5. 파일별 SHA-256, count, bytes와 DB object key 대조
-6. DB engine/version, table별 row count, application SHA, runtime digest 기록
-7. `manifest.json` 생성
-8. `SUCCESS` 마지막 생성
-9. 같은 filesystem 안에서 최종 directory로 atomic rename
+5. 제한된 single-row INSERT grammar를 streaming 해석해 dump와 같은 snapshot의
+   table별 row count와 `post_attachments.object_key` reference manifest 생성
+6. 모든 dump reference가 image copy에 존재하는지 확인하고 파일별 SHA-256,
+   count, bytes 기록
+7. DB engine/version, row-count/reference source·hash, application SHA와 runtime
+   digest 기록
+8. `manifest.json` 생성
+9. `SUCCESS` 마지막 생성
+10. 같은 filesystem 안에서 최종 directory로 atomic rename
+
+Image는 DB commit 전에 새 object로 저장되고 삭제는 DB commit 뒤 실행되는
+immutable object다. 따라서 두 번의 `rsync`가 dump 시점 전후의 extra file을
+포함할 수는 있지만, restore에 필요한 dump reference의 superset이어야 한다.
+Dump가 참조하는 파일이 하나라도 없거나 예상 밖 SQL grammar·unsafe key가 나오면
+live DB를 다시 조회해 추정하지 않고 snapshot 전체를 실패시킨다.
 
 Redis는 snapshot에 포함하지 않는다. ranking은 MySQL에서 재구축하며 refresh
 token, blacklist와 임시 인증 상태는 복구하지 않는다는 사실을 manifest에
@@ -153,7 +171,8 @@ lock을 사용하므로 동시에 data를 읽거나 Compose를 바꾸지 않는�
 - recent: 최신 정상 snapshot 4개
 - daily: 지난 7 calendar day마다 06:00 이후 첫 정상 snapshot 1개
 - recent/daily 중복 제거
-- `SUCCESS`, manifest, dump/file checksum을 다시 통과한 snapshot만 정상본
+- `SUCCESS`, manifest, dump/file/reference checksum과 모든 dump reference를
+  다시 통과한 snapshot만 정상본
 - symlink, 예상 밖 이름, 불완전 snapshot은 삭제 후보에서 제외
 - 결과: `<backup-root>/retention-plan.json`
 

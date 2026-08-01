@@ -369,8 +369,11 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   const dumpValidation = backupScript.indexOf(
     'if [[ ! -s "${db_dump_file}" ]]',
   );
+  const snapshotInventory = backupScript.indexOf(
+    "record_counts_text = \"\".join(",
+  );
   const attachmentValidation = backupScript.indexOf(
-    'if [[ -s "${missing_files_file}" ]]',
+    "post image file(s) referenced by database/dump are missing",
   );
   const finalMove = backupScript.indexOf(
     '/bin/mv "${work_dir}" "${final_dir}"',
@@ -379,7 +382,8 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   const offsite = backupScript.indexOf("stage_offsite_snapshot() {");
 
   assert.ok(dumpValidation >= 0);
-  assert.ok(attachmentValidation > dumpValidation);
+  assert.ok(snapshotInventory > dumpValidation);
+  assert.ok(attachmentValidation > snapshotInventory);
   assert.ok(finalMove > attachmentValidation);
   assert.ok(retention > finalMove);
   assert.ok(offsite > retention);
@@ -390,7 +394,14 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   assert.match(backupScript, /"schemaVersion": 1/);
   assert.match(backupScript, /"status": "success"/);
   assert.match(backupScript, /"engine": "mysql"/);
+  assert.match(backupScript, /--single-transaction/);
+  assert.match(backupScript, /--complete-insert/);
+  assert.match(backupScript, /--skip-extended-insert/);
+  assert.match(backupScript, /--hex-blob/);
   assert.match(backupScript, /"recordCounts": dict\(sorted\(record_counts\.items\(\)\)\)/);
+  assert.match(backupScript, /"recordCountsSource": "database\/dump"/);
+  assert.match(backupScript, /"databaseReferences": \{/);
+  assert.match(backupScript, /"source": "database\/dump"/);
   assert.match(
     backupScript,
     /"policy": \{"recent": 4, "dailyAtOrAfterKst": "06:00", "dailyDays": 7\}/,
@@ -408,10 +419,8 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   assert.match(backupScript, /backup heartbeat configuration mode must be 600/);
   assert.match(backupScript, /backup heartbeat configuration contains unexpected content/);
   assert.match(backupScript, /Backup heartbeat delivery failed: %s/);
-  assert.match(
-    backupScript,
-    /CHAR_LENGTH\(object_key\) > 0 ORDER BY object_key/,
-  );
+  assert.doesNotMatch(backupScript, /BACKUP_QUERY=attachment-keys/);
+  assert.doesNotMatch(backupScript, /BACKUP_QUERY=record-counts/);
   assert.match(backupScript, /export MYSQL_PWD="\$\{MYSQL_ROOT_PASSWORD\}"/);
   assert.doesNotMatch(backupScript, /--password=/);
   assert.match(
@@ -425,8 +434,13 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
 });
 
 test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
+  const migrationFunction = deployScript.match(
+    /run_one_shot_migration\(\) \{[\s\S]*?\n\}/,
+  )?.[0];
   const pending = deployScript.lastIndexOf("write_pending_state \\");
-  const migration = deployScript.lastIndexOf("if ! run_one_shot_migration; then");
+  const migration = deployScript.lastIndexOf(
+    'if ! run_one_shot_migration "${new_api_image}" "${new_web_image}"; then',
+  );
   const imageWrite = deployScript.lastIndexOf(
     'write_image_env "${new_api_image}" "${new_web_image}"',
   );
@@ -437,10 +451,16 @@ test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
   const successState = deployScript.lastIndexOf("write_success_state \\");
 
   assert.match(compose, /SPRING_FLYWAY_ENABLED: "false"/);
+  assert.ok(migrationFunction);
   assert.match(
-    deployScript,
+    migrationFunction,
     /-Dloader\.main=\$\{MIGRATION_MAIN_CLASS\}[\s\S]*PropertiesLauncher/,
   );
+  assert.match(migrationFunction, /local candidate_api_image="\$1"/);
+  assert.match(migrationFunction, /local candidate_web_image="\$2"/);
+  assert.match(migrationFunction, /export API_IMAGE="\$\{candidate_api_image\}"/);
+  assert.match(migrationFunction, /export WEB_IMAGE="\$\{candidate_web_image\}"/);
+  assert.match(migrationFunction, /compose run \\\n[\s\S]*--pull never/);
   assert.ok(pending >= 0);
   assert.ok(migration > pending);
   assert.ok(imageWrite > migration);
