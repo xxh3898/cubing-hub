@@ -293,6 +293,10 @@ function classifyPaths(paths) {
     paths,
     {
       encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: "",
+      },
     },
   );
 
