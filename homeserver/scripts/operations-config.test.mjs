@@ -26,7 +26,7 @@ const [
   read("./backup-home-server.sh"),
   read("./backup-home-server-bootstrap.sh"),
   read("../docker/frontend.Dockerfile"),
-  read("../launchd/com.cubinghub-backup.plist.example"),
+  read("../launchd/com.homeserver.cubing-hub-backup.plist.example"),
   read("../../.dockerignore"),
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
@@ -365,7 +365,7 @@ test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () =>
   );
 });
 
-test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
+test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () => {
   const dumpValidation = backupScript.indexOf(
     'if [[ ! -s "${db_dump_file}" ]]',
   );
@@ -375,14 +375,39 @@ test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
   const finalMove = backupScript.indexOf(
     '/bin/mv "${work_dir}" "${final_dir}"',
   );
-  const retention = backupScript.indexOf("kept=0");
+  const retention = backupScript.indexOf('"mode": "dry-run"');
+  const offsite = backupScript.indexOf("stage_offsite_snapshot() {");
 
   assert.ok(dumpValidation >= 0);
   assert.ok(attachmentValidation > dumpValidation);
   assert.ok(finalMove > attachmentValidation);
   assert.ok(retention > finalMove);
-  assert.match(backupScript, /readonly BACKUP_RETENTION_COUNT=3/);
-  assert.match(backupScript, /if \[\[ "\$#" -ne 0 \]\]; then/);
+  assert.ok(offsite > retention);
+  assert.match(
+    backupScript,
+    /Usage: backup-cubing-hub\.sh \[--trigger scheduled\|predeploy\]/,
+  );
+  assert.match(backupScript, /"schemaVersion": 1/);
+  assert.match(backupScript, /"status": "success"/);
+  assert.match(backupScript, /"engine": "mysql"/);
+  assert.match(backupScript, /"recordCounts": dict\(sorted\(record_counts\.items\(\)\)\)/);
+  assert.match(
+    backupScript,
+    /"policy": \{"recent": 4, "dailyAtOrAfterKst": "06:00", "dailyDays": 7\}/,
+  );
+  assert.match(backupScript, /printf 'snapshot complete\\n' >"\$\{work_dir\}\/SUCCESS"/);
+  assert.match(backupScript, /"\$\{AGE_BIN\}" -R "\$\{AGE_RECIPIENT_FILE\}"/);
+  assert.match(backupScript, /\.XXXXXX\.partial/);
+  assert.match(backupScript, /iCloud handoff checksum mismatch/);
+  assert.match(backupScript, /age recipient file mode must be 600/);
+  assert.match(backupScript, /prepare_private_directory "\$\{BACKUP_ROOT\}"/);
+  assert.match(
+    backupScript,
+    /readonly HEARTBEAT_CONFIG_FILE="\$\{APP_DIR\}\/backup-heartbeats\.conf"/,
+  );
+  assert.match(backupScript, /backup heartbeat configuration mode must be 600/);
+  assert.match(backupScript, /backup heartbeat configuration contains unexpected content/);
+  assert.match(backupScript, /Backup heartbeat delivery failed: %s/);
   assert.match(
     backupScript,
     /CHAR_LENGTH\(object_key\) > 0 ORDER BY object_key/,
@@ -391,11 +416,40 @@ test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
   assert.doesNotMatch(backupScript, /--password=/);
   assert.match(
     backupScript,
-    /\^cubing-hub-production-\[0-9\]\{8\}T\[0-9\]\{6\}Z\$/,
+    /cubing-hub-production-\(\\d\{8\}T\\d\{6\}Z\)/,
   );
   assert.doesNotMatch(
     backupScript,
-    /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+    /rm -rf|find[^\n]*-delete|down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+  );
+});
+
+test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
+  const pending = deployScript.lastIndexOf("write_pending_state \\");
+  const migration = deployScript.lastIndexOf("if ! run_one_shot_migration; then");
+  const imageWrite = deployScript.lastIndexOf(
+    'write_image_env "${new_api_image}" "${new_web_image}"',
+  );
+  const publicSmoke = deployScript.indexOf(
+    "elif ! public_smoke; then",
+    imageWrite,
+  );
+  const successState = deployScript.lastIndexOf("write_success_state \\");
+
+  assert.match(compose, /SPRING_FLYWAY_ENABLED: "false"/);
+  assert.match(
+    deployScript,
+    /-Dloader\.main=\$\{MIGRATION_MAIN_CLASS\}[\s\S]*PropertiesLauncher/,
+  );
+  assert.ok(pending >= 0);
+  assert.ok(migration > pending);
+  assert.ok(imageWrite > migration);
+  assert.ok(publicSmoke > imageWrite);
+  assert.ok(successState > publicSmoke);
+  assert.match(runbook, /candidate API image의 one-shot Flyway migration·validate/);
+  assert.match(
+    runbook,
+    /최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후/,
   );
 });
 
@@ -427,8 +481,25 @@ test("should_excludeCredentialsAndGeneratedFilesFromDockerBuildContext", () => {
 test("should_runScheduledBackupFromRepositoryIndependentPath", () => {
   assert.match(
     launchAgent,
+    /<string>com\.homeserver\.cubing-hub\.backup<\/string>/,
+  );
+  assert.match(
+    launchAgent,
     /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub-bootstrap\.sh/,
   );
+  assert.equal(launchAgent.match(/<key>Hour<\/key>/g)?.length, 4);
+  assert.equal(launchAgent.match(/<key>Minute<\/key>/g)?.length, 4);
+  for (const hour of [0, 6, 12, 18]) {
+    assert.match(
+      launchAgent,
+      new RegExp(`<key>Hour</key>\\s*<integer>${hour}</integer>`),
+    );
+  }
+  assert.equal(
+    launchAgent.match(/<key>Minute<\/key>\s*<integer>5<\/integer>/g)?.length,
+    4,
+  );
+  assert.doesNotMatch(launchAgent, /<key>KeepAlive<\/key>/);
   assert.doesNotMatch(launchAgent, /__REPO_DIR__|cd /);
 });
 

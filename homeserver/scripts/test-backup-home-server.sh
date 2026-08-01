@@ -8,6 +8,8 @@ readonly SCRIPT_DIR="$(
 )"
 readonly SOURCE_SCRIPT="${SCRIPT_DIR}/backup-home-server.sh"
 readonly PRODUCTION_BACKUP_ROOT=/Users/homeserver/Server/backups/cubing-hub/data
+readonly PRODUCTION_OFFSITE_ROOT=/Users/homeserver/Server/backups/cubing-hub/offsite
+readonly PRODUCTION_ICLOUD_ROOT='/Users/homeserver/Library/Mobile Documents/com~apple~CloudDocs/HomeServerBackups/cubing-hub'
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 readonly APPLICATION_SHA=1111111111111111111111111111111111111111
 readonly PREVIOUS_SHA=2222222222222222222222222222222222222222
@@ -25,7 +27,10 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mock_docker="${test_root}/docker"
+mock_age="${test_root}/age"
+mock_curl="${test_root}/curl"
 docker_log="${test_root}/docker.log"
+heartbeat_log="${test_root}/heartbeat.log"
 
 {
   printf '%s\n' \
@@ -43,8 +48,14 @@ docker_log="${test_root}/docker.log"
     '  printf '\''{"services":{"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
     '  printf "db\n"' \
-    'elif [[ " $* " == *"mysqldump"* ]]; then' \
-    '  printf "%s\n" "-- mock MySQL dump"' \
+    'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
+    '  printf "%s\n" "CREATE TABLE \`users\` (id BIGINT);" "-- Dump completed on 2026-08-01 00:00:00"' \
+    'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
+    '  printf "8.0.46\n"' \
+    'elif [[ "$*" == *"BACKUP_QUERY=record-counts"* ]]; then' \
+    '  printf "post_attachments\t0\nusers\t1\n"' \
+    'elif [[ "$*" == *"BACKUP_QUERY=attachment-keys"* ]]; then' \
+    '  :' \
     'elif [[ " $* " == *" exec -T db /bin/sh -ceu "* ]]; then' \
     '  :' \
     'else' \
@@ -53,6 +64,24 @@ docker_log="${test_root}/docker.log"
     'fi'
 } >"${mock_docker}"
 /bin/chmod 700 "${mock_docker}"
+
+{
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -Eeuo pipefail' \
+    'printf "age-encryption.org/v1\n"' \
+    '/bin/cat'
+} >"${mock_age}"
+/bin/chmod 700 "${mock_age}"
+
+{
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -Eeuo pipefail' \
+    'printf "%s\n" "$*" >>"${HEARTBEAT_LOG}"'
+} >"${mock_curl}"
+/bin/chmod 700 "${mock_curl}"
+: >"${heartbeat_log}"
 
 prepare_script() {
   local app_dir="$1"
@@ -71,9 +100,13 @@ prepare_script() {
 
   /usr/bin/sed \
     -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${mock_docker}#" \
+    -e "s#readonly AGE_BIN=/opt/homebrew/bin/age#readonly AGE_BIN=${mock_age}#" \
+    -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${mock_curl}#" \
     -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
     -e "s#readonly BACKUP_BOOTSTRAP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_BOOTSTRAP_SCRIPT=${target_script}#" \
     -e "s#readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}#readonly BACKUP_ROOT=${backup_root}#" \
+    -e "s#readonly OFFSITE_STAGING_ROOT=${PRODUCTION_OFFSITE_ROOT}#readonly OFFSITE_STAGING_ROOT=${backup_root}-offsite#" \
+    -e "s#readonly ICLOUD_ROOT='${PRODUCTION_ICLOUD_ROOT}'#readonly ICLOUD_ROOT='${backup_root}-icloud'#" \
     "${SOURCE_SCRIPT}" >"${target_script}"
   if ! /usr/bin/grep -Fqx "readonly BACKUP_ROOT=${backup_root}" "${target_script}"; then
     printf 'Test backup path substitution failed: %s\n' "${backup_root}" >&2
@@ -148,27 +181,259 @@ prepare_app() {
   /bin/mkdir -p "${app_dir}" "${post_images_dir}"
   printf 'API_IMAGE=example-api\nWEB_IMAGE=example-web\nPOST_IMAGES_HOST_DIR=%s\n' \
     "${post_images_dir}" >"${app_dir}/.env"
+  printf 'age1testrecipient000000000000000000000000000000000000000000000\n' \
+    >"${app_dir}/backup-age-recipient-v1.txt"
+  /bin/chmod 600 "${app_dir}/backup-age-recipient-v1.txt"
+}
+
+seed_retention_matrix() {
+  local backup_root="$1"
+  local expected_file="$2"
+
+  /usr/bin/python3 - "${backup_root}" "${expected_file}" <<'PY'
+import datetime as dt
+import hashlib
+import json
+import os
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+expected_path = pathlib.Path(sys.argv[2])
+root.mkdir(parents=True, exist_ok=True)
+kst = dt.timezone(dt.timedelta(hours=9))
+now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+prefix = "cubing-hub-production-"
+
+def name_for(timestamp):
+    return prefix + timestamp.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+def write_valid(timestamp):
+    name = name_for(timestamp)
+    snapshot = root / name
+    (snapshot / "database").mkdir(parents=True)
+    (snapshot / "files" / "post-images").mkdir(parents=True)
+    dump = b"retention fixture\n"
+    (snapshot / "database" / "dump").write_bytes(dump)
+    (snapshot / "files" / "sha256.txt").write_text("", encoding="utf-8")
+    manifest = {
+        "schemaVersion": 1,
+        "status": "success",
+        "project": "cubing-hub",
+        "environment": "production",
+        "database": {
+            "dumpFile": "database/dump",
+            "bytes": len(dump),
+            "sha256": hashlib.sha256(dump).hexdigest(),
+        },
+        "files": {
+            "enabled": True,
+            "directory": "files/post-images",
+            "manifest": "files/sha256.txt",
+            "count": 0,
+            "bytes": 0,
+        },
+    }
+    (snapshot / "manifest.json").write_text(
+        json.dumps(manifest) + "\n", encoding="utf-8"
+    )
+    (snapshot / "SUCCESS").write_text("snapshot complete\n", encoding="utf-8")
+    return name
+
+recent_seed = [write_valid(now - dt.timedelta(seconds=offset)) for offset in (1, 2, 3)]
+daily_keep = []
+prune_expected = []
+today = now.astimezone(kst).date()
+for offset in range(1, 9):
+    target = today - dt.timedelta(days=offset)
+    before = dt.datetime.combine(target, dt.time(5, 55), tzinfo=kst)
+    first = dt.datetime.combine(target, dt.time(6, 5), tzinfo=kst)
+    later = dt.datetime.combine(target, dt.time(12, 5), tzinfo=kst)
+    before_name = write_valid(before)
+    first_name = write_valid(first)
+    later_name = write_valid(later)
+    if offset <= 7:
+        daily_keep.append(first_name)
+        prune_expected.extend([before_name, later_name])
+    else:
+        prune_expected.extend([before_name, first_name, later_name])
+
+invalid_time = dt.datetime.combine(
+    today - dt.timedelta(days=9), dt.time(6, 5), tzinfo=kst
+)
+invalid_name = name_for(invalid_time)
+(root / invalid_name).mkdir()
+(root / invalid_name / "manifest.json").write_text("{}\n", encoding="utf-8")
+
+symlink_time = dt.datetime.combine(
+    today - dt.timedelta(days=10), dt.time(6, 5), tzinfo=kst
+)
+symlink_name = name_for(symlink_time)
+os.symlink(recent_seed[0], root / symlink_name)
+
+expected_path.write_text(
+    json.dumps(
+        {
+            "recentSeed": recent_seed,
+            "dailyKeep": daily_keep,
+            "pruneExpected": prune_expected,
+            "invalidName": invalid_name,
+            "symlinkName": symlink_name,
+        }
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+}
+
+assert_retention_matrix() {
+  local backup_root="$1"
+  local expected_file="$2"
+
+  /usr/bin/python3 - \
+    "${backup_root}" \
+    "${backup_root}/retention-plan.json" \
+    "${expected_file}" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+plan = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+expected = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+keep = set(plan["keep"])
+prune = set(plan["pruneCandidates"])
+invalid = set(plan["invalidIgnored"])
+
+assert set(expected["recentSeed"]) <= keep
+assert set(expected["dailyKeep"]) <= keep
+assert set(expected["pruneExpected"]) <= prune
+assert expected["invalidName"] in invalid
+assert expected["symlinkName"] not in keep | prune | invalid
+assert keep.isdisjoint(prune)
+assert len(keep) == 11
+for name in expected["pruneExpected"]:
+    assert (root / name).is_dir(), "dry-run retention must not delete candidates"
+assert (root / expected["symlinkName"]).is_symlink()
+PY
+}
+
+assert_snapshot_contract() {
+  local backup_root="$1"
+  local expected_trigger="$2"
+  local snapshot
+
+  snapshot="$(
+    /usr/bin/find "${backup_root}" \
+      -mindepth 1 \
+      -maxdepth 2 \
+      -type f \
+      -name manifest.json \
+      -exec /usr/bin/grep -l \
+        "\"trigger\": \"${expected_trigger}\"" {} +
+  )"
+  test "$(printf '%s\n' "${snapshot}" | /usr/bin/grep -c .)" = 1
+  snapshot="${snapshot%/manifest.json}"
+  test -n "${snapshot}"
+  test -f "${snapshot}/SUCCESS"
+  test -f "${snapshot}/manifest.json"
+  test -f "${snapshot}/database/dump"
+  test -f "${snapshot}/files/sha256.txt"
+  test -f "${backup_root}/retention-plan.json"
+  "${PYTHON_BIN:-/usr/bin/python3}" - \
+    "${snapshot}" \
+    "${backup_root}/retention-plan.json" \
+    "${expected_trigger}" \
+    "${APPLICATION_SHA}" \
+    "${CONFIG_DIGEST}" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+snapshot = pathlib.Path(sys.argv[1])
+plan_path = pathlib.Path(sys.argv[2])
+trigger, application_sha, config_digest = sys.argv[3:]
+manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+dump = snapshot / manifest["database"]["dumpFile"]
+assert manifest["schemaVersion"] == 1
+assert manifest["status"] == "success"
+assert manifest["project"] == "cubing-hub"
+assert manifest["environment"] == "production"
+assert manifest["trigger"] == trigger
+assert manifest["source"]["applicationSha"] == application_sha
+assert manifest["source"]["runtimeConfigDigest"] == config_digest
+assert manifest["database"]["engine"] == "mysql"
+assert manifest["database"]["version"] == "8.0.46"
+assert manifest["database"]["recordCounts"] == {"post_attachments": 0, "users": 1}
+assert manifest["database"]["bytes"] == dump.stat().st_size
+assert manifest["database"]["sha256"] == hashlib.sha256(dump.read_bytes()).hexdigest()
+assert manifest["files"]["enabled"] is True
+assert manifest["files"]["count"] >= 0
+assert manifest["redis"]["included"] is False
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+assert plan["mode"] == "dry-run"
+assert plan["policy"] == {
+    "dailyAtOrAfterKst": "06:00",
+    "dailyDays": 7,
+    "recent": 4,
+}
+assert snapshot.name in plan["keep"]
+assert isinstance(plan["pruneCandidates"], list)
+PY
+  test "$(
+    /usr/bin/find "${backup_root}-icloud" \
+      -mindepth 1 \
+      -maxdepth 1 \
+      -type f \
+      -name 'cubing-hub-production-*.tar.age' \
+      | /usr/bin/wc -l \
+      | /usr/bin/tr -d ' '
+  )" = 1
+  test "$(
+    /usr/bin/find "${backup_root}-offsite" \
+      -mindepth 1 \
+      -maxdepth 1 \
+      -print \
+      | /usr/bin/wc -l \
+      | /usr/bin/tr -d ' '
+  )" = 0
 }
 
 v2_app="${test_root}/v2-app"
 v2_backups="${test_root}/v2-backups"
 v2_post_images="${test_root}/v2-post-images"
 v2_script="${test_root}/v2-backup.sh"
+v2_retention_expected="${test_root}/v2-retention-expected.json"
 prepare_app "${v2_app}" "${v2_post_images}"
+printf '%s\n' \
+  'LOCAL_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-local-test' \
+  'ICLOUD_STAGE_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-icloud-test' \
+  >"${v2_app}/backup-heartbeats.conf"
+/bin/chmod 600 "${v2_app}/backup-heartbeats.conf"
+printf 'image-one\n' >"${v2_post_images}/image-one.jpg"
 /bin/mkdir -p "${v2_backups}"
+seed_retention_matrix "${v2_backups}" "${v2_retention_expected}"
 prepare_script "${v2_app}" "${v2_backups}" "${v2_script}"
 prepare_runtime_state "${v2_app}" "${v2_script}"
 
 COMPOSE_PROJECT_NAME=ambient-project \
 POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \
 DOCKER_LOG="${docker_log}" \
+HEARTBEAT_LOG="${heartbeat_log}" \
 MOCK_POST_IMAGES_DIR="${v2_post_images}" \
   "${v2_script}" >/dev/null
 expected_release="${v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${expected_release}" "${docker_log}"
 /usr/bin/grep -Fq -- "--file ${expected_release}/compose.yaml" "${docker_log}"
-test "$(find "${v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 1
+test "$(find "${v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" -ge 1
+assert_snapshot_contract "${v2_backups}" scheduled
+assert_retention_matrix "${v2_backups}" "${v2_retention_expected}"
+test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 2
+/usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
+/usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"
 
 legacy_v2_app="${test_root}/legacy-v2-app"
 legacy_v2_backups="${test_root}/legacy-v2-backups"
@@ -185,10 +450,11 @@ prepare_runtime_state "${legacy_v2_app}" "${legacy_v2_script}" false
 : >"${docker_log}"
 DOCKER_LOG="${docker_log}" \
 MOCK_POST_IMAGES_DIR="${legacy_v2_post_images}" \
-  "${legacy_v2_script}" >/dev/null
+  "${legacy_v2_script}" --trigger predeploy >/dev/null
 legacy_v2_release="${legacy_v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--file ${legacy_v2_release}/compose.yaml" "${docker_log}"
 test "$(find "${legacy_v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 1
+assert_snapshot_contract "${legacy_v2_backups}" predeploy
 
 unsafe_app="${test_root}/unsafe-app"
 unsafe_backups="${test_root}/unsafe-backups"
@@ -254,6 +520,32 @@ then
   exit 1
 fi
 test "$(find "${symlink_state_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 0
+
+invalid_heartbeat_app="${test_root}/invalid-heartbeat-app"
+invalid_heartbeat_backups="${test_root}/invalid-heartbeat-backups"
+invalid_heartbeat_post_images="${test_root}/invalid-heartbeat-post-images"
+invalid_heartbeat_script="${test_root}/invalid-heartbeat-backup.sh"
+prepare_app "${invalid_heartbeat_app}" "${invalid_heartbeat_post_images}"
+/bin/mkdir -p "${invalid_heartbeat_backups}"
+prepare_script \
+  "${invalid_heartbeat_app}" \
+  "${invalid_heartbeat_backups}" \
+  "${invalid_heartbeat_script}"
+prepare_runtime_state "${invalid_heartbeat_app}" "${invalid_heartbeat_script}"
+printf '%s\n' \
+  'LOCAL_HEARTBEAT_URL=https://heartbeat.invalid/api/push/local' \
+  'ICLOUD_STAGE_HEARTBEAT_URL=https://heartbeat.invalid/api/push/icloud' \
+  >"${invalid_heartbeat_app}/backup-heartbeats.conf"
+/bin/chmod 644 "${invalid_heartbeat_app}/backup-heartbeats.conf"
+
+if DOCKER_LOG="${docker_log}" \
+  MOCK_POST_IMAGES_DIR="${invalid_heartbeat_post_images}" \
+  "${invalid_heartbeat_script}" >/dev/null 2>&1
+then
+  printf 'backup unexpectedly accepted an insecure heartbeat config mode\n' >&2
+  exit 1
+fi
+test "$(find "${invalid_heartbeat_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 0
 
 orphan_app="${test_root}/orphan-app"
 orphan_backups="${test_root}/orphan-backups"

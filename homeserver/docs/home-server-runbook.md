@@ -115,8 +115,9 @@ migration·backup·rollback 계획으로 진행한다.
 1. 신규 API/web image pull
 2. Compose render
 3. 신규 MySQL·Redis volume 시작과 health 확인
-4. API/web 시작
-5. Flyway, API health, web health 확인
+4. candidate API image의 one-shot Flyway migration·validate
+5. API/web 시작과 Compose health 확인
+6. public Web·deep link·API·asset smoke 확인
 
 두 번째 배포부터는 다음 순서로 진행한다.
 
@@ -125,9 +126,11 @@ migration·backup·rollback 계획으로 진행한다.
    network·upload bind 계약과 Compose render
 3. 운영 DB 실행 상태 확인
 4. MySQL dump와 게시글 이미지 backup
-5. `.env`의 API/Web image를 같은 신규 SHA로 교체
-6. Compose 적용과 health 확인
-7. 실패 시 이전 API/Web SHA와 runtime config를 함께 복구
+5. candidate API image의 one-shot Flyway migration·validate
+6. `.env`의 API/Web image를 같은 신규 SHA로 교체
+7. Compose 적용과 health 확인
+8. public Web·deep link·API·asset smoke 확인
+9. 실패 시 이전 API/Web SHA와 runtime config를 함께 복구하고 public smoke 재확인
 
 DB migration은 image rollback과 별개다. Flyway migration 뒤 이전
 image가 새 schema와 호환되지 않으면 자동 rollback 결과를 성공으로
@@ -258,8 +261,12 @@ snapshot을 같은 run으로 만들고,
 Deploy 또는 다른 backup이 공통 lock을 보유하거나 runtime config
 `pending` recovery가 남아 있으면 backup은 운영 data를 읽기 전에 실패한다.
 
-성공한 backup은 기본으로 최신 3개만 보관한다. 실패한 run은 조사할 수
-있도록 임시 directory를 남기며 기존 정상 backup을 삭제하지 않는다.
+Worker는 최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후
+첫 정상 snapshot 1개의 보존 대상을 `retention-plan.json`에 계산한다. 현재는
+dry-run만 수행하며 backup을 삭제하지 않는다. 실패한 run은 조사할 수 있도록
+임시 directory를 남기며 기존 정상 snapshot을 변경하지 않는다. 정상
+snapshot은 age로 암호화한 뒤 local staging과 iCloud Drive project directory로
+전달하며 heartbeat는 local publish와 iCloud handoff 뒤에 각각 전송한다.
 
 ## 첫 배포 검증
 

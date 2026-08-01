@@ -224,6 +224,7 @@ npm run build
 
 ### 핵심 설계 문서
 
+- [개발·배포·백업 운영 플레이북](docs/DEVELOPMENT-DEPLOYMENT-BACKUP.md)
 - [Project Overview](docs/Project%20Overview.md)
 - [Screen Specification](docs/Screen%20Specification.md)
 - [API Specification](docs/API%20Specification.md)
@@ -245,6 +246,6 @@ npm run build
 
 - 랭킹 `nickname` 검색용 Redis secondary index 확장 여부 판단
 - 운영 Redis rebuild trigger와 장애 복구 정책 고도화
-- Mac mini 첫 배포와 공개 smoke 검증
-- 운영 backup/restore rehearsal과 Uptime Kuma 연결
+- 새 배포 계약의 Mac mini 설치와 실제 공개 smoke 검증
+- snapshot·age/iCloud·heartbeat 활성화와 격리 restore drill
 - 추가 benchmark(`/api/home`, 더 큰 사용자/기록 분포) 필요 여부 검토

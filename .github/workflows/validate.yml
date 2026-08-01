@@ -122,6 +122,7 @@ jobs:
             homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
             homeserver/scripts/deploy-home-server.sh \
+            homeserver/scripts/fixtures/mock-cubing-hub-curl.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
             homeserver/scripts/test-backup-home-server.sh \
             homeserver/scripts/test-detect-runtime-config-change.sh \

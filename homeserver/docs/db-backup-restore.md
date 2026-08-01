@@ -48,24 +48,30 @@ backup을 시작하지 않는다. Persistent mode `600` lock file은 삭제하�
 스크립트는 다음 순서로 실행한다.
 
 1. 운영 `db` service 실행 상태 확인
-2. 임시 directory에서 `mysqldump --single-transaction` 실행
-3. 게시글 이미지 directory snapshot 생성
-4. `post_attachments.object_key`와 snapshot 파일 대조
-5. manifest 생성
-6. 검증한 임시 directory를 최종 backup 이름으로 이동
-7. 성공한 backup 중 최신 3개를 제외한 이전 backup 정리
+2. 게시글 이미지 1차 snapshot 생성
+3. 임시 directory에서 `mysqldump --single-transaction` 실행과 구조 검증
+4. 게시글 이미지 2차 snapshot 생성
+5. `post_attachments.object_key`와 snapshot 파일 대조
+6. DB engine/version, table별 row count, 파일 count·bytes·SHA-256 기록
+7. `manifest.json` 생성 뒤 `SUCCESS` marker를 마지막으로 생성
+8. 검증한 임시 directory를 최종 backup 이름으로 원자 이동
+9. 삭제하지 않는 retention dry-run plan 생성
+10. age ciphertext의 local staging과 iCloud Drive handoff
 
 최종 결과는 아래 형식이다.
 
 ```text
 cubing-hub-production-<UTC yyyyMMddTHHmmssZ>/
-  db.sql
+  SUCCESS
   manifest.json
-  post-images/
-  post-images-files.txt
-  post-attachment-object-keys.txt
-  missing-post-image-files.txt
-  invalid-post-image-object-keys.txt
+  database/
+    dump
+    version.txt
+    record-counts.tsv
+  files/
+    sha256.txt
+    stats.json
+    post-images/
 ```
 
 backup이 실패하면 기존 정상 backup은 삭제하지 않는다. 실패 원인을
@@ -73,40 +79,58 @@ backup이 실패하면 기존 정상 backup은 삭제하지 않는다. 실패 �
 
 ## 보관 정책
 
-- 성공한 backup은 최신 3개만 보관한다.
-- 정리 대상은
-  `cubing-hub-production-YYYYMMDDTHHMMSSZ` 형식의 project backup
-  directory로 제한한다.
-- 새 backup을 최종 위치로 이동하기 전에는 정리하지 않는다.
-- 다른 프로젝트 backup이나 예상하지 못한 이름의 directory를 삭제하지
-  않는다.
+- 최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후 첫
+  정상 snapshot 1개를 보존 대상으로 계산한다.
+- `SUCCESS`, manifest, dump와 파일 checksum을 다시 검증한 snapshot만
+  정상본으로 인정한다.
+- 결과는 `data/retention-plan.json`에 `keep`과 `pruneCandidates`로 기록한다.
+- 현재 worker는 dry-run plan만 만들고 실제 backup은 삭제하지 않는다.
+- symlink, 예상 밖 이름, 불완전 snapshot과 다른 프로젝트 backup은
+  정리 후보에도 넣지 않는다.
+- 최초 7일 관찰, remote decrypt·restore drill과 별도 삭제 승인 전에는
+  `pruneCandidates`를 실행하지 않는다.
 
 ## LaunchAgent
 
-`homeserver/launchd/com.cubinghub-backup.plist.example`은 매일
-04:10에 repository 밖의 고정 backup bootstrap을 실행한다.
+`homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example`은 Mac의
+local timezone이 Asia/Seoul인 전제에서 매일 00:05, 06:05, 12:05, 18:05에
+repository 밖의 고정 backup bootstrap을 실행한다. `KeepAlive`는 사용하지
+않는다.
 
 ```bash
 mkdir -p /Users/homeserver/Library/LaunchAgents \
   /Users/homeserver/Library/Logs
 
-cp homeserver/launchd/com.cubinghub-backup.plist.example \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+cp homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example \
+  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
 
 plutil -lint \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
 
 launchctl bootstrap \
   "gui/$(id -u)" \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
 ```
+
+## age·iCloud와 heartbeat
+
+검증된 snapshot만 age public recipient로 암호화해 local offsite staging에
+기록한 뒤 iCloud Drive의 프로젝트 전용 directory로 전달한다. raw dump와
+이미지는 iCloud에 직접 복사하지 않는다. `.partial` 복사본과 local
+ciphertext의 SHA-256이 같을 때만 final `.tar.age` 이름으로 바꾼다. 이
+handoff는 Apple server의 remote upload 완료 판정과는 다르다.
+
+선택적 `backup-heartbeats.conf`는 mode `0600` regular file이어야 하며
+`LOCAL_HEARTBEAT_URL`, `ICLOUD_STAGE_HEARTBEAT_URL` 두 key만 허용한다. 실제
+URL은 Git, 문서, 로그에 기록하지 않는다. 상세 계약과 복구 순서는
+`docs/DEVELOPMENT-DEPLOYMENT-BACKUP.md`를 따른다.
 
 ## 복구 rehearsal
 
 복구는 운영 volume에 바로 덮어쓰지 않는다.
 
 1. 별도 MySQL volume과 별도 이미지 directory를 준비한다.
-2. `db.sql`을 격리 MySQL에 복구한다.
+2. `database/dump`를 격리 MySQL에 복구한다.
 3. Flyway history, FK, charset/collation, 핵심 row count를 확인한다.
 4. 이미지 snapshot과 `post_attachments.object_key`를 다시 대조한다.
 5. 검증용 API를 `ddl-auto=validate`로 시작한다.
