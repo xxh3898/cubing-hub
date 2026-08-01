@@ -41,10 +41,17 @@ jobs:
         id: classify
         env:
           EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
           BEFORE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -Eeuo pipefail
+
+          if [[ "${REF_NAME}" == "refs/heads/main" ]]; then
+            ./scripts/classify-ci-paths.sh \
+              ".github/workflows/validate.yml"
+            exit 0
+          fi
 
           case "${EVENT_NAME}" in
             pull_request)

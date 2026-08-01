@@ -67,6 +67,30 @@ test("should_keepStableRequiredJobsWhileSkippingUnrelatedHeavyWork", () => {
   );
 });
 
+test("should_forceFullValidationForMainReleaseArtifactConsumer", () => {
+  const fullReleaseGuard =
+    'if [[ "${REF_NAME}" == "refs/heads/main" ]]; then';
+  const guardOffset = validateWorkflow.indexOf(fullReleaseGuard);
+  const eventCaseOffset = validateWorkflow.indexOf(
+    'case "${EVENT_NAME}" in',
+  );
+
+  assert.match(validateWorkflow, /REF_NAME: \$\{\{ github\.ref \}\}/);
+  assert.ok(guardOffset >= 0, "Missing main release full-validation guard");
+  assert.ok(
+    guardOffset < eventCaseOffset,
+    "Main release guard must run before path-aware event classification",
+  );
+  assert.match(
+    validateWorkflow.slice(guardOffset, eventCaseOffset),
+    /\.\/scripts\/classify-ci-paths\.sh \\\n\s+"\.github\/workflows\/validate\.yml"[\s\S]*exit 0/,
+  );
+  assert.match(
+    workflowJob(deployWorkflow, "publish"),
+    /- name: Download backend jar[\s\S]*name: backend-jar-\$\{\{ github\.sha \}\}/,
+  );
+});
+
 test("should_classifyComponentInfrastructureAndUnknownPathsSafely", () => {
   assert.deepEqual(classifyPaths(["frontend/src/App.jsx"]), {
     backend: "false",

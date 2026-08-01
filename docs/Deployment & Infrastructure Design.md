@@ -152,6 +152,12 @@ workflow-level `paths`로 Validate 자체를 생략하지 않는다. 따라서 b
 요구하는 다섯 context는 경로와 관계없이 항상 존재한다. path classifier와 workflow는
 이 repository가 독립적으로 소유하며 다른 project workflow에 runtime 의존하지 않는다.
 
+`deploy.yml`이 `main` push에서 reusable Validate를 호출하는 현재 release 경로는
+API·Web 동일 SHA pair 발행에 필요한 backend jar artifact를 항상 생성해야 한다.
+따라서 `refs/heads/main`에서는 component 경로와 관계없이 전체 검증을 실행한다.
+PR과 `dev` push만 path-aware heavy-step 선택을 사용하며, main의 중복 Validate 제거는
+별도 CD 통일 범위에서 publish artifact 계약과 함께 변경한다.
+
 ### Publish
 
 1. `main`과 `MAC_MINI_DEPLOY_ENABLED=true` 조건 확인
