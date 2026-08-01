@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [validateWorkflow, deployWorkflow, benchmarkWorkflow] =
+const [
+  validateWorkflow,
+  deployWorkflow,
+  benchmarkWorkflow,
+  pathClassifier,
+] =
   await Promise.all([
     read("../../.github/workflows/validate.yml"),
     read("../../.github/workflows/deploy.yml"),
     read("../../.github/workflows/performance-benchmark.yml"),
+    read("../../scripts/classify-ci-paths.sh"),
   ]);
 
 test("should_validateDevPushAndMainPullRequestsBeforeRelease", () => {
@@ -25,6 +32,109 @@ test("should_validateDevPushAndMainPullRequestsBeforeRelease", () => {
   );
 });
 
+test("should_keepStableRequiredJobsWhileSkippingUnrelatedHeavyWork", () => {
+  assert.match(validateWorkflow, /changes:\n    name: Detect changes/);
+
+  for (const jobId of [
+    "infrastructure",
+    "backend",
+    "frontend",
+    "api-image",
+    "web-image",
+  ]) {
+    const job = workflowJob(validateWorkflow, jobId);
+
+    assert.match(job, /^    needs:\n      - changes/m);
+    assert.match(job, /^    if: \$\{\{ always\(\) \}\}$/m);
+    assert.match(
+      job,
+      /- name: Fail when change detection fails\n        if: needs\.changes\.result != 'success'\n        run: exit 1/,
+    );
+    assert.match(job, /- name: Skip unrelated/);
+  }
+
+  assert.match(
+    validateWorkflow,
+    /mapfile -d '' -t changed_paths < <\([\s\S]*git diff[\s\S]*--no-renames[\s\S]*--name-only[\s\S]*-z/,
+  );
+  assert.match(
+    validateWorkflow,
+    /\.\/scripts\/classify-ci-paths\.sh "\$\{changed_paths\[@\]\}"/,
+  );
+  assert.match(
+    validateWorkflow,
+    /\.\/scripts\/classify-ci-paths\.sh \\\n\s+"\.github\/workflows\/validate\.yml"/,
+  );
+});
+
+test("should_classifyComponentInfrastructureAndUnknownPathsSafely", () => {
+  assert.deepEqual(classifyPaths(["frontend/src/App.jsx"]), {
+    backend: "false",
+    frontend: "true",
+    infrastructure: "false",
+    api_image: "false",
+    web_image: "true",
+  });
+  assert.deepEqual(classifyPaths(["backend/src/main/java/App.java"]), {
+    backend: "true",
+    frontend: "false",
+    infrastructure: "false",
+    api_image: "true",
+    web_image: "false",
+  });
+  assert.deepEqual(
+    classifyPaths(["homeserver/docker/backend.Dockerfile"]),
+    {
+      backend: "true",
+      frontend: "false",
+      infrastructure: "true",
+      api_image: "true",
+      web_image: "false",
+    },
+  );
+  assert.deepEqual(
+    classifyPaths(["homeserver/nginx/home-server.conf"]),
+    {
+      backend: "false",
+      frontend: "false",
+      infrastructure: "true",
+      api_image: "false",
+      web_image: "true",
+    },
+  );
+  assert.deepEqual(
+    classifyPaths(["homeserver/scripts/backup-home-server.sh"]),
+    {
+      backend: "false",
+      frontend: "false",
+      infrastructure: "true",
+      api_image: "false",
+      web_image: "false",
+    },
+  );
+  assert.deepEqual(classifyPaths(["AGENTS.md"]), {
+    backend: "false",
+    frontend: "false",
+    infrastructure: "false",
+    api_image: "false",
+    web_image: "false",
+  });
+  assert.deepEqual(classifyPaths(["new-runtime/tool.toml"]), {
+    backend: "true",
+    frontend: "true",
+    infrastructure: "true",
+    api_image: "true",
+    web_image: "true",
+  });
+  assert.deepEqual(classifyPaths(["frontend/src/큐브.jsx"]), {
+    backend: "false",
+    frontend: "true",
+    infrastructure: "false",
+    api_image: "false",
+    web_image: "true",
+  });
+});
+
 test("should_buildBackendArtifactBeforeApiImage", () => {
   assert.match(
     validateWorkflow,
@@ -36,7 +146,7 @@ test("should_buildBackendArtifactBeforeApiImage", () => {
   );
   assert.match(
     workflowJob(validateWorkflow, "api-image"),
-    /^    needs:\n      - backend/m,
+    /^    needs:\n      - changes\n      - backend/m,
   );
   assert.match(
     workflowJob(validateWorkflow, "api-image"),
@@ -175,6 +285,26 @@ test("should_haveNoActiveAwsEc2OrSelfHostedDeploymentPath", () => {
 
 function read(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
+}
+
+function classifyPaths(paths) {
+  const result = spawnSync(
+    new URL("../../scripts/classify-ci-paths.sh", import.meta.url).pathname,
+    paths,
+    {
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+  assert.match(pathClassifier, /^#!\/bin\/sh\n\nset -eu$/m);
+
+  return Object.fromEntries(
+    result.stdout
+      .trim()
+      .split("\n")
+      .map((line) => line.split("=")),
+  );
 }
 
 function workflowJob(workflow, jobId) {

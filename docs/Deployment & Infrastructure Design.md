@@ -134,10 +134,23 @@
 
 ### Validate
 
-1. backend/frontend와 infra 검증 실행
-2. backend jar artifact 생성
-3. API/web ARM64 image build
-4. registry push 없이 build 결과만 확인
+1. `Detect changes`가 PR base 또는 dev push 이전 SHA와 현재 SHA의 변경 경로를 분류
+2. `Infrastructure checks`, `Backend checks`, `Frontend checks`,
+   `API ARM64 image`, `Web ARM64 image` required job은 항상 생성
+3. frontend 변경은 frontend와 Web image, backend 변경은 backend와 API image만
+   heavy step 실행
+4. Compose, runtime config, Nginx, deploy·backup script와 운영 문서는
+   infrastructure 검증 실행
+5. 관련 없는 required job은 명시적 safe skip으로 성공 처리하고 change detection
+   실패는 다섯 job 모두에 실패로 전파
+6. classifier·workflow 변경, base SHA 부재와 분류되지 않은 새 runtime/build
+   경로는 전체 검증으로 fail-safe fallback
+7. backend 실행 시 jar artifact를 생성하고 영향받은 API/web ARM64 image를
+   registry push 없이 build해 확인
+
+workflow-level `paths`로 Validate 자체를 생략하지 않는다. 따라서 branch protection이
+요구하는 다섯 context는 경로와 관계없이 항상 존재한다. path classifier와 workflow는
+이 repository가 독립적으로 소유하며 다른 project workflow에 runtime 의존하지 않는다.
 
 ### Publish
 
