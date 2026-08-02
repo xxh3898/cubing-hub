@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 readonly DOCKER_BIN=/usr/local/bin/docker
 readonly PYTHON_BIN=/usr/bin/python3
+readonly CURL_BIN=/usr/bin/curl
 readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub
 readonly PROJECT_NAME=cubing-hub
 readonly LEGACY_COMPOSE_FILE="${APP_DIR}/compose.yaml"
@@ -21,6 +22,12 @@ readonly RUNTIME_CONFIG_REPOSITORY=ghcr.io/xxh3898/cubing-hub-runtime-config
 readonly ZERO_SHA=0000000000000000000000000000000000000000
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 readonly HEALTH_TIMEOUT_SECONDS=240
+readonly MIGRATION_MAIN_CLASS=com.cubinghub.ops.MigrationMain
+readonly MIGRATION_JAR=/app/app.jar
+readonly PUBLIC_WEB_URL=https://cubing-hub.com
+readonly PUBLIC_DEEP_LINK_URL=https://cubing-hub.com/rankings
+readonly PUBLIC_API_HEALTH_URL=https://api.cubing-hub.com/actuator/health
+readonly PUBLIC_API_REPRESENTATIVE_URL='https://api.cubing-hub.com/api/rankings?eventType=WCA_333&page=1&size=1'
 
 usage() {
   printf '%s\n' \
@@ -125,6 +132,9 @@ fi
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   fail "Python is not executable: ${PYTHON_BIN}"
+fi
+if [[ ! -x "${CURL_BIN}" ]]; then
+  fail "curl is not executable: ${CURL_BIN}"
 fi
 
 if [[ ! -f "${ENV_FILE}" ]]; then
@@ -564,7 +574,12 @@ def protected_api_environment(service):
             name in protected_api_environment_names
             or name.startswith(protected_api_environment_prefixes)
         )
+        and name != "SPRING_FLYWAY_ENABLED"
     }
+
+candidate_api_environment = service_environment(candidate_services["api"], "API")
+if candidate_api_environment.get("SPRING_FLYWAY_ENABLED") != "false":
+    fail("normal API startup must keep Flyway disabled")
 
 if (
     protected_api_environment(candidate_services["api"])
@@ -1067,6 +1082,64 @@ if seen != required_services:
 '
 }
 
+run_one_shot_migration() {
+  local candidate_api_image="$1"
+  local candidate_web_image="$2"
+
+  (
+    export API_IMAGE="${candidate_api_image}"
+    export WEB_IMAGE="${candidate_web_image}"
+
+    compose run \
+      --rm \
+      --no-deps \
+      --pull never \
+      --entrypoint java \
+      api \
+      "-Dloader.main=${MIGRATION_MAIN_CLASS}" \
+      -cp "${MIGRATION_JAR}" \
+      org.springframework.boot.loader.launch.PropertiesLauncher
+  )
+}
+
+public_get() {
+  "${CURL_BIN}" \
+    --fail \
+    --silent \
+    --show-error \
+    --location \
+    --connect-timeout 5 \
+    --max-time 20 \
+    --retry 3 \
+    --retry-delay 2 \
+    "$1"
+}
+
+public_smoke() {
+  local asset_path
+  local html
+
+  html="$(public_get "${PUBLIC_WEB_URL}/")" || return 1
+  [[ -n "${html}" ]] || return 1
+  public_get "${PUBLIC_DEEP_LINK_URL}" >/dev/null || return 1
+  public_get "${PUBLIC_API_HEALTH_URL}" \
+    | /usr/bin/grep -q '"status"[[:space:]]*:[[:space:]]*"UP"' \
+    || return 1
+  public_get "${PUBLIC_API_REPRESENTATIVE_URL}" >/dev/null || return 1
+
+  asset_path="$(
+    printf '%s' "${html}" \
+      | /usr/bin/grep -Eo 'src="/assets/[^"?]+\.js([?][^"]*)?"' \
+      | /usr/bin/head -n 1 \
+      | /usr/bin/sed -E 's/^src="([^"]+)"$/\1/'
+  )"
+  if [[ ! "${asset_path}" =~ ^/assets/[A-Za-z0-9._/-]+\.js([?][A-Za-z0-9._~%&=+-]+)?$ ]]; then
+    printf 'Cubing Hub public smoke could not resolve a safe JavaScript asset\n' >&2
+    return 1
+  fi
+  public_get "${PUBLIC_WEB_URL}${asset_path}" >/dev/null || return 1
+}
+
 recover_pending_transaction() {
   local previous_sha
   local previous_digest
@@ -1135,6 +1208,9 @@ recover_pending_transaction() {
     if ! deployment_service_set_is_healthy; then
       fail "completed target services are not all healthy and running"
     fi
+    if ! public_smoke; then
+      fail "completed target did not pass public smoke"
+    fi
 
     expected_current="releases/$("/usr/bin/basename" "${recovery_release}")"
     if [[ ! -L "${RUNTIME_CONFIG_CURRENT}" ]] \
@@ -1198,6 +1274,9 @@ recover_pending_transaction() {
   fi
   if ! deployment_service_set_is_healthy; then
     fail "runtime config recovery restored an unhealthy service set"
+  fi
+  if ! public_smoke; then
+    fail "runtime config recovery restored a publicly unavailable service set"
   fi
 
   if [[ -n "${state_sha}" ]]; then
@@ -1399,7 +1478,11 @@ if [[ -n "${previous_sha}" ]]; then
   if [[ ! -x "${active_backup_script}" || -L "${active_backup_script}" ]]; then
     fail "verified production backup script is missing or unsafe"
   fi
-  "${active_backup_script}"
+  if [[ "${legacy_mode}" == true ]]; then
+    "${active_backup_script}"
+  else
+    "${active_backup_script}" --trigger predeploy
+  fi
 fi
 
 if [[ "${legacy_mode}" == false ]]; then
@@ -1411,8 +1494,14 @@ if [[ "${legacy_mode}" == false ]]; then
     "${candidate_config_digest}"
 fi
 
-write_image_env "${new_api_image}" "${new_web_image}"
 active_compose_file="${candidate_compose_file}"
+if ! run_one_shot_migration "${new_api_image}" "${new_web_image}"; then
+  printf 'Cubing Hub one-shot migration failed; existing application remains active\n' >&2
+  printf 'Database migration is not rolled back automatically\n' >&2
+  exit 1
+fi
+
+write_image_env "${new_api_image}" "${new_web_image}"
 
 if compose up \
   --detach \
@@ -1424,6 +1513,8 @@ if compose up \
 then
   if ! deployment_service_set_is_healthy; then
     printf 'Cubing Hub deployment did not produce a healthy service set\n' >&2
+  elif ! public_smoke; then
+    printf 'Cubing Hub deployment did not pass public smoke\n' >&2
   else
     if [[ "${legacy_mode}" == false ]]; then
       write_success_state \
@@ -1461,6 +1552,8 @@ if [[ -n "${previous_sha}" ]]; then
   then
     if ! deployment_service_set_is_healthy; then
       printf 'Application image rollback restored an unhealthy service set\n' >&2
+    elif ! public_smoke; then
+      printf 'Application image rollback did not restore public availability\n' >&2
     else
       if [[ "${legacy_mode}" == false ]]; then
         /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"

@@ -7,6 +7,7 @@ PROJECT_ROOT="$(
 )"
 SOURCE_SCRIPT="${PROJECT_ROOT}/homeserver/scripts/deploy-home-server.sh"
 MOCK_DOCKER="${PROJECT_ROOT}/homeserver/scripts/fixtures/mock-cubing-hub-docker.sh"
+MOCK_CURL="${PROJECT_ROOT}/homeserver/scripts/fixtures/mock-cubing-hub-curl.sh"
 
 REVISION_ONE=1111111111111111111111111111111111111111
 REVISION_TWO=2222222222222222222222222222222222222222
@@ -29,6 +30,8 @@ test_script="${test_root}/deploy-cubing-hub.sh"
 backup_script="${test_root}/backup.sh"
 runtime_backup_script="${test_root}/runtime-backup.sh"
 backup_log="${test_root}/backup.log"
+backup_args_log="${test_root}/backup-args.log"
+curl_log="${test_root}/curl.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
 runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
 /bin/mkdir -p "${app_dir}"
@@ -48,18 +51,22 @@ runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
 printf '%s\n' \
   '#!/bin/bash' \
   'printf "%s\n" "${BASH_SOURCE[0]}" >>"${FAKE_BACKUP_LOG}"' \
+  'printf "%s\n" "$*" >>"${FAKE_BACKUP_ARGS_LOG}"' \
   >"${backup_script}"
 /bin/cp "${backup_script}" "${runtime_backup_script}"
 /bin/chmod 700 "${backup_script}" "${runtime_backup_script}"
 : >"${backup_log}"
+: >"${backup_args_log}"
+: >"${curl_log}"
 
 /usr/bin/sed \
   -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${MOCK_DOCKER}#" \
+  -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${MOCK_CURL}#" \
   -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
   -e "s#readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_SCRIPT=${backup_script}#" \
   "${SOURCE_SCRIPT}" \
   >"${test_script}"
-/bin/chmod 700 "${test_script}" "${MOCK_DOCKER}"
+/bin/chmod 700 "${test_script}" "${MOCK_DOCKER}" "${MOCK_CURL}"
 
 run_deploy() {
   local target_revision="$1"
@@ -76,6 +83,11 @@ run_deploy() {
         FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX="${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" \
         FAKE_RUNTIME_SYMLINK="${FAKE_RUNTIME_SYMLINK:-false}" \
         FAKE_BACKUP_LOG="${backup_log}" \
+        FAKE_BACKUP_ARGS_LOG="${backup_args_log}" \
+        FAKE_CURL_LOG="${curl_log}" \
+        FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
+        FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
+        FAKE_MIGRATION_FAIL="${FAKE_MIGRATION_FAIL:-false}" \
         FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${REVISION_ONE}}" \
         FAKE_CONFIG_PROJECT="${FAKE_CONFIG_PROJECT:-cubing-hub}" \
         FAKE_REVISION_ONE="${REVISION_ONE}" \
@@ -105,6 +117,7 @@ run_deploy() {
         FAKE_CANDIDATE_DB_HEALTHCHECK_JSON="${FAKE_CANDIDATE_DB_HEALTHCHECK_JSON:-}" \
         FAKE_CANDIDATE_DB_IMAGE="${FAKE_CANDIDATE_DB_IMAGE:-}" \
         FAKE_CANDIDATE_DDL_AUTO="${FAKE_CANDIDATE_DDL_AUTO:-}" \
+        FAKE_CANDIDATE_FLYWAY_ENABLED="${FAKE_CANDIDATE_FLYWAY_ENABLED:-}" \
         FAKE_CANDIDATE_MYSQL_COMMAND_JSON="${FAKE_CANDIDATE_MYSQL_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_MYSQL_VOLUME_EXTRA="${FAKE_CANDIDATE_MYSQL_VOLUME_EXTRA:-}" \
         FAKE_CANDIDATE_REAL_IP_SOURCE="${FAKE_CANDIDATE_REAL_IP_SOURCE:-}" \
@@ -126,6 +139,10 @@ run_recovery() {
     FAKE_REVISION_ONE="${REVISION_ONE}" \
     FAKE_REVISION_TWO="${REVISION_TWO}" \
     FAKE_REVISION_THREE="${REVISION_THREE}" \
+    FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
+    FAKE_CURL_LOG="${curl_log}" \
+    FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
+    FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
     /bin/bash "${test_script}" recover
 }
 
@@ -191,6 +208,8 @@ test ! -e "${app_dir}/runtime-config/pending"
 /usr/bin/tail -n 1 "${backup_log}" \
   | /usr/bin/grep -Fxq \
       "${bootstrap_candidate}/scripts/backup-cubing-hub.sh"
+/usr/bin/tail -n 1 "${backup_args_log}" \
+  | /usr/bin/grep -Fxq -- '--trigger predeploy'
 /bin/chmod 700 "${backup_script}"
 
 legacy_v2_scripts="${test_root}/legacy-v2-scripts"
@@ -529,6 +548,69 @@ verified_current_target="$(
   /usr/bin/readlink "${current_link}"
 )"
 
+migration_failure_log="${test_root}/migration-failure-docker.log"
+: >"${migration_failure_log}"
+set +e
+FAKE_CONFIG_REVISION="${REVISION_ONE}" \
+FAKE_DOCKER_LOG="${migration_failure_log}" \
+FAKE_MIGRATION_FAIL=true \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST_THREE}" \
+    test-user \
+    >/dev/null 2>&1
+migration_failure_exit_code="$?"
+set -e
+if [[ "${migration_failure_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${pending_file}" ]]
+then
+  printf 'Migration failure must retain a recoverable pending transaction\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fq -- \
+  'run --rm --no-deps --pull never --entrypoint java api -Dloader.main=com.cubinghub.ops.MigrationMain -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher' \
+  "${migration_failure_log}"
+/usr/bin/grep -Fxq -- \
+  "migration-images API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_ONE} WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${REVISION_ONE}" \
+  "${migration_failure_log}"
+if /usr/bin/grep -q '^compose .* up ' "${migration_failure_log}"; then
+  printf 'Migration failure must not start candidate application containers\n' >&2
+  exit 1
+fi
+test "$(/usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}')" \
+  = "${verified_state_sha}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" \
+  = "${verified_env_sha}"
+test "$(/usr/bin/readlink "${current_link}")" = "${verified_current_target}"
+run_recovery
+test ! -e "${pending_file}"
+
+public_smoke_failure_marker="${test_root}/fail-public-smoke-once"
+set +e
+FAKE_CONFIG_REVISION="${REVISION_ONE}" \
+FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${public_smoke_failure_marker}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST_THREE}" \
+    test-user \
+    >/dev/null 2>&1
+public_smoke_failure_exit_code="$?"
+set -e
+if [[ "${public_smoke_failure_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${public_smoke_failure_marker}" ]] \
+  || [[ -e "${pending_file}" ]]
+then
+  printf 'Public smoke failure must roll application images back and clear pending\n' >&2
+  exit 1
+fi
+test "$(/usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}')" \
+  = "${verified_state_sha}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" \
+  = "${verified_env_sha}"
+test "$(/usr/bin/readlink "${current_link}")" = "${verified_current_target}"
+
 expect_artifact_preflight_failure() {
   local label="$1"
   local exit_code
@@ -606,6 +688,8 @@ FAKE_CANDIDATE_DATABASE_NAME=cubing_hub_alternate \
   expect_protected_failure "database MYSQL environment drift"
 FAKE_CANDIDATE_DDL_AUTO=create-drop \
   expect_protected_failure "data-sensitive API environment drift"
+FAKE_CANDIDATE_FLYWAY_ENABLED=true \
+  expect_protected_failure "automatic API Flyway execution"
 FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT=',"SPRING_PROFILES_INCLUDE":"migration"' \
   expect_protected_failure "Spring profile environment drift"
 FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT=',"SPRING_SQL_INIT_MODE":"always"' \

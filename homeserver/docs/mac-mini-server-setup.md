@@ -118,8 +118,10 @@ stale PID 방식으로 복구하지 않는다.
 - 기존 RDS와 MacBook Docker volume 데이터는 가져오지 않는다.
 - 첫 배포는 신규 MySQL·Redis named volume과 빈 이미지 directory로
   시작한다.
-- API가 처음 올라올 때 Flyway `V1`, `V2`가 schema를 만들고
-  `ddl-auto=validate`가 mapping을 확인한다.
+- 배포 worker가 candidate API image의 `MigrationMain`을 one-shot으로 실행해
+  Flyway migration·validate를 완료한 뒤 API/Web을 전환한다.
+- 일반 API container는 Flyway를 끄고 `ddl-auto=validate`로 mapping과 실제
+  schema를 확인한다.
 - 첫 배포 뒤 핵심 business table, Redis key, 이미지 directory가 비어
   있는지 확인한다.
 
