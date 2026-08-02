@@ -130,8 +130,12 @@ launchctl bootstrap \
 검증된 snapshot만 age public recipient로 암호화해 local offsite staging에
 기록한 뒤 iCloud Drive의 프로젝트 전용 directory로 전달한다. raw dump와
 이미지는 iCloud에 직접 복사하지 않는다. `.partial` 복사본과 local
-ciphertext의 SHA-256이 같을 때만 final `.tar.age` 이름으로 바꾼다. 이
-handoff는 Apple server의 remote upload 완료 판정과는 다르다.
+ciphertext의 SHA-256 일치, final rename 성공, symlink가 아닌 final regular
+file의 SHA-256 재일치까지 확인한 뒤에만 handoff 성공으로 기록한다. Final 검증
+전 실패하면 local ciphertext를 보존하고 iCloud-stage heartbeat를 생략한다.
+검증된 final 뒤 local ciphertext 정리만 실패하면 generic 경고를 남기고 handoff
+성공은 유지한다. 이 handoff는 Apple server의 remote upload 완료 판정과는
+다르다.
 
 선택적 `backup-heartbeats.conf`는 mode `0600` regular file이어야 하며
 `LOCAL_HEARTBEAT_URL`, `ICLOUD_STAGE_HEARTBEAT_URL` 두 key만 허용한다. 실제

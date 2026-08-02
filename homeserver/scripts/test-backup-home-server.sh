@@ -29,8 +29,10 @@ trap cleanup EXIT INT TERM
 mock_docker="${test_root}/docker"
 mock_age="${test_root}/age"
 mock_curl="${test_root}/curl"
+mock_final_move="${test_root}/fail-final-move"
 docker_log="${test_root}/docker.log"
 heartbeat_log="${test_root}/heartbeat.log"
+final_move_log="${test_root}/final-move.log"
 default_dump_file="${test_root}/default-dump.sql"
 
 write_mysql_dump_fixture() {
@@ -121,10 +123,21 @@ export MOCK_DUMP_FILE="${default_dump_file}"
 /bin/chmod 700 "${mock_curl}"
 : >"${heartbeat_log}"
 
+{
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -Eeuo pipefail' \
+    'printf "%s\n" "$*" >>"${FINAL_MOVE_LOG}"' \
+    'exit 75'
+} >"${mock_final_move}"
+/bin/chmod 700 "${mock_final_move}"
+: >"${final_move_log}"
+
 prepare_script() {
   local app_dir="$1"
   local backup_root="$2"
   local target_script="$3"
+  local final_move_bin="${4:-/bin/mv}"
 
   if ! /usr/bin/grep -Fqx \
     "readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}" \
@@ -145,9 +158,17 @@ prepare_script() {
     -e "s#readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}#readonly BACKUP_ROOT=${backup_root}#" \
     -e "s#readonly OFFSITE_STAGING_ROOT=${PRODUCTION_OFFSITE_ROOT}#readonly OFFSITE_STAGING_ROOT=${backup_root}-offsite#" \
     -e "s#readonly ICLOUD_ROOT='${PRODUCTION_ICLOUD_ROOT}'#readonly ICLOUD_ROOT='${backup_root}-icloud'#" \
+    -e "s#/bin/mv \"\${offsite_partial}\" \"\${icloud_final}\"#${final_move_bin} \"\${offsite_partial}\" \"\${icloud_final}\"#" \
     "${SOURCE_SCRIPT}" >"${target_script}"
   if ! /usr/bin/grep -Fqx "readonly BACKUP_ROOT=${backup_root}" "${target_script}"; then
     printf 'Test backup path substitution failed: %s\n' "${backup_root}" >&2
+    exit 1
+  fi
+  if [[ "$(/usr/bin/grep -Fc \
+      "${final_move_bin} \"\${offsite_partial}\" \"\${icloud_final}\"" \
+      "${target_script}")" != 1 ]]
+  then
+    printf 'Final iCloud move injection contract did not match exactly once\n' >&2
     exit 1
   fi
   /bin/chmod 700 "${target_script}"
@@ -399,6 +420,8 @@ PY
 assert_snapshot_contract() {
   local backup_root="$1"
   local expected_trigger="$2"
+  local expected_offsite_state="${3:-published}"
+  local retained_ciphertext
   local snapshot
 
   snapshot="$(
@@ -468,23 +491,53 @@ assert plan["policy"] == {
 assert snapshot.name in plan["keep"]
 assert isinstance(plan["pruneCandidates"], list)
 PY
-  test "$(
-    /usr/bin/find "${backup_root}-icloud" \
-      -mindepth 1 \
-      -maxdepth 1 \
-      -type f \
-      -name 'cubing-hub-production-*.tar.age' \
-      | /usr/bin/wc -l \
-      | /usr/bin/tr -d ' '
-  )" = 1
-  test "$(
-    /usr/bin/find "${backup_root}-offsite" \
-      -mindepth 1 \
-      -maxdepth 1 \
-      -print \
-      | /usr/bin/wc -l \
-      | /usr/bin/tr -d ' '
-  )" = 0
+  case "${expected_offsite_state}" in
+    published)
+      test "$(
+        /usr/bin/find "${backup_root}-icloud" \
+          -mindepth 1 \
+          -maxdepth 1 \
+          -type f \
+          -name 'cubing-hub-production-*.tar.age' \
+          | /usr/bin/wc -l \
+          | /usr/bin/tr -d ' '
+      )" = 1
+      test "$(
+        /usr/bin/find "${backup_root}-offsite" \
+          -mindepth 1 \
+          -maxdepth 1 \
+          -print \
+          | /usr/bin/wc -l \
+          | /usr/bin/tr -d ' '
+      )" = 0
+      ;;
+    publish-failed)
+      test "$(
+        /usr/bin/find "${backup_root}-icloud" \
+          -mindepth 1 \
+          -maxdepth 1 \
+          -print \
+          | /usr/bin/wc -l \
+          | /usr/bin/tr -d ' '
+      )" = 0
+      retained_ciphertext="$(
+        /usr/bin/find "${backup_root}-offsite" \
+          -mindepth 1 \
+          -maxdepth 1 \
+          -type f \
+          -name 'cubing-hub-production-*.tar.age'
+      )"
+      test "$(printf '%s\n' "${retained_ciphertext}" | /usr/bin/grep -c .)" = 1
+      /usr/bin/head -n 1 "${retained_ciphertext}" \
+        | /usr/bin/grep -Fqx 'age-encryption.org/v1'
+      ;;
+    *)
+      printf 'Unsupported expected offsite state: %s\n' \
+        "${expected_offsite_state}" \
+        >&2
+      exit 1
+      ;;
+  esac
 }
 
 v2_app="${test_root}/v2-app"
@@ -524,6 +577,118 @@ assert_retention_matrix "${v2_backups}" "${v2_retention_expected}"
 test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 2
 /usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
 /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"
+
+final_move_scheduled_app="${test_root}/final-move-scheduled-app"
+final_move_scheduled_backups="${test_root}/final-move-scheduled-backups"
+final_move_scheduled_post_images="${test_root}/final-move-scheduled-post-images"
+final_move_scheduled_script="${test_root}/final-move-scheduled-backup.sh"
+final_move_scheduled_output="${test_root}/final-move-scheduled.out"
+prepare_app \
+  "${final_move_scheduled_app}" \
+  "${final_move_scheduled_post_images}"
+printf 'image-one\n' >"${final_move_scheduled_post_images}/image-one.jpg"
+/bin/mkdir -p "${final_move_scheduled_backups}"
+printf '%s\n' \
+  'LOCAL_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-local-test' \
+  'ICLOUD_STAGE_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-icloud-test' \
+  >"${final_move_scheduled_app}/backup-heartbeats.conf"
+/bin/chmod 600 "${final_move_scheduled_app}/backup-heartbeats.conf"
+prepare_script \
+  "${final_move_scheduled_app}" \
+  "${final_move_scheduled_backups}" \
+  "${final_move_scheduled_script}" \
+  "${mock_final_move}"
+prepare_runtime_state \
+  "${final_move_scheduled_app}" \
+  "${final_move_scheduled_script}"
+: >"${heartbeat_log}"
+: >"${final_move_log}"
+
+if DOCKER_LOG="${docker_log}" \
+  HEARTBEAT_LOG="${heartbeat_log}" \
+  FINAL_MOVE_LOG="${final_move_log}" \
+  MOCK_POST_IMAGES_DIR="${final_move_scheduled_post_images}" \
+  "${final_move_scheduled_script}" >"${final_move_scheduled_output}" 2>&1
+then
+  printf 'scheduled backup accepted a failed final iCloud move\n' >&2
+  exit 1
+fi
+test "$(/usr/bin/wc -l <"${final_move_log}" | /usr/bin/tr -d ' ')" = 1
+/usr/bin/grep -Fq \
+  'Offsite stage failed: iCloud final publish failed' \
+  "${final_move_scheduled_output}"
+/usr/bin/grep -Fq \
+  'local snapshot succeeded but offsite staging failed' \
+  "${final_move_scheduled_output}"
+if /usr/bin/grep -Fq 'OFFSITE_QUEUED=' "${final_move_scheduled_output}"; then
+  printf 'scheduled backup announced a failed iCloud handoff\n' >&2
+  exit 1
+fi
+assert_snapshot_contract \
+  "${final_move_scheduled_backups}" \
+  scheduled \
+  publish-failed
+test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 1
+/usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
+if /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"; then
+  printf 'scheduled backup sent iCloud heartbeat after final move failure\n' >&2
+  exit 1
+fi
+
+final_move_predeploy_app="${test_root}/final-move-predeploy-app"
+final_move_predeploy_backups="${test_root}/final-move-predeploy-backups"
+final_move_predeploy_post_images="${test_root}/final-move-predeploy-post-images"
+final_move_predeploy_script="${test_root}/final-move-predeploy-backup.sh"
+final_move_predeploy_output="${test_root}/final-move-predeploy.out"
+prepare_app \
+  "${final_move_predeploy_app}" \
+  "${final_move_predeploy_post_images}"
+printf 'image-one\n' >"${final_move_predeploy_post_images}/image-one.jpg"
+/bin/mkdir -p "${final_move_predeploy_backups}"
+printf '%s\n' \
+  'LOCAL_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-local-test' \
+  'ICLOUD_STAGE_HEARTBEAT_URL=https://heartbeat.invalid/api/push/cubing-icloud-test' \
+  >"${final_move_predeploy_app}/backup-heartbeats.conf"
+/bin/chmod 600 "${final_move_predeploy_app}/backup-heartbeats.conf"
+prepare_script \
+  "${final_move_predeploy_app}" \
+  "${final_move_predeploy_backups}" \
+  "${final_move_predeploy_script}" \
+  "${mock_final_move}"
+prepare_runtime_state \
+  "${final_move_predeploy_app}" \
+  "${final_move_predeploy_script}"
+: >"${heartbeat_log}"
+: >"${final_move_log}"
+
+DOCKER_LOG="${docker_log}" \
+HEARTBEAT_LOG="${heartbeat_log}" \
+FINAL_MOVE_LOG="${final_move_log}" \
+MOCK_POST_IMAGES_DIR="${final_move_predeploy_post_images}" \
+  "${final_move_predeploy_script}" \
+    --trigger predeploy \
+    >"${final_move_predeploy_output}" 2>&1
+test "$(/usr/bin/wc -l <"${final_move_log}" | /usr/bin/tr -d ' ')" = 1
+/usr/bin/grep -Fq \
+  'Offsite stage failed: iCloud final publish failed' \
+  "${final_move_predeploy_output}"
+/usr/bin/grep -Fq \
+  'Predeploy continues because the verified local snapshot succeeded' \
+  "${final_move_predeploy_output}"
+if /usr/bin/grep -Fq 'OFFSITE_QUEUED=' "${final_move_predeploy_output}"; then
+  printf 'predeploy backup announced a failed iCloud handoff\n' >&2
+  exit 1
+fi
+assert_snapshot_contract \
+  "${final_move_predeploy_backups}" \
+  predeploy \
+  publish-failed
+test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 1
+/usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
+if /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"; then
+  printf 'predeploy backup sent iCloud heartbeat after final move failure\n' >&2
+  exit 1
+fi
 
 missing_reference_app="${test_root}/missing-reference-app"
 missing_reference_backups="${test_root}/missing-reference-backups"

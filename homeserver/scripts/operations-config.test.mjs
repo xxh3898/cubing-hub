@@ -380,6 +380,10 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   );
   const retention = backupScript.indexOf('"mode": "dry-run"');
   const offsite = backupScript.indexOf("stage_offsite_snapshot() {");
+  const offsiteEnd = backupScript.indexOf(
+    "\nprintf 'Backup completed",
+    offsite,
+  );
 
   assert.ok(dumpValidation >= 0);
   assert.ok(snapshotInventory > dumpValidation);
@@ -387,6 +391,58 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   assert.ok(finalMove > attachmentValidation);
   assert.ok(retention > finalMove);
   assert.ok(offsite > retention);
+  assert.ok(offsiteEnd > offsite);
+  const offsiteFunction = backupScript.slice(offsite, offsiteEnd);
+  const finalPublish = offsiteFunction.indexOf(
+    'if ! /bin/mv "${offsite_partial}" "${icloud_final}"; then',
+  );
+  const partialRelease = offsiteFunction.indexOf(
+    "offsite_partial=",
+    finalPublish,
+  );
+  const finalRegularFileCheck = offsiteFunction.indexOf(
+    'if [[ ! -f "${icloud_final}" || -L "${icloud_final}" ]]; then',
+    partialRelease,
+  );
+  const finalChecksum = offsiteFunction.indexOf(
+    'if ! icloud_final_sha="$(',
+    finalRegularFileCheck,
+  );
+  const localCiphertextCleanup = offsiteFunction.indexOf(
+    'if ! /bin/unlink "${ciphertext}"; then',
+    finalChecksum,
+  );
+  const offsiteSuccess = offsiteFunction.indexOf(
+    "offsite_staged=true",
+    localCiphertextCleanup,
+  );
+  const offsiteQueued = offsiteFunction.indexOf(
+    "printf 'OFFSITE_QUEUED=%s\\n'",
+    offsiteSuccess,
+  );
+  assert.ok(finalPublish >= 0);
+  assert.ok(partialRelease > finalPublish);
+  assert.ok(finalRegularFileCheck > partialRelease);
+  assert.ok(finalChecksum > finalRegularFileCheck);
+  assert.ok(localCiphertextCleanup > finalChecksum);
+  assert.ok(offsiteSuccess > localCiphertextCleanup);
+  assert.ok(offsiteQueued > offsiteSuccess);
+  assert.match(
+    offsiteFunction,
+    /Offsite stage failed: iCloud final publish failed/,
+  );
+  assert.match(
+    offsiteFunction,
+    /Offsite stage failed: iCloud final checksum mismatch/,
+  );
+  assert.match(
+    offsiteFunction,
+    /Offsite stage warning: local ciphertext cleanup failed/,
+  );
+  assert.doesNotMatch(
+    offsiteFunction,
+    /^\s*\/bin\/mv "\$\{offsite_partial\}" "\$\{icloud_final\}"$/m,
+  );
   assert.match(
     backupScript,
     /Usage: backup-cubing-hub\.sh \[--trigger scheduled\|predeploy\]/,
