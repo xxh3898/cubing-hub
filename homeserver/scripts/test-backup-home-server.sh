@@ -367,6 +367,22 @@ missing_reference_manifest_path.write_text(
     json.dumps(missing_reference_manifest) + "\n", encoding="utf-8"
 )
 
+unreadable_time = dt.datetime.combine(
+    today - dt.timedelta(days=12), dt.time(6, 5), tzinfo=kst
+)
+unreadable_name = write_valid(unreadable_time)
+unreadable_manifest_path = root / unreadable_name / "manifest.json"
+unreadable_manifest_sha256 = hashlib.sha256(
+    unreadable_manifest_path.read_bytes()
+).hexdigest()
+unreadable_manifest_path.chmod(0)
+try:
+    unreadable_manifest_path.read_text(encoding="utf-8")
+except OSError:
+    pass
+else:
+    raise RuntimeError("Unreadable retention fixture is readable")
+
 expected_path.write_text(
     json.dumps(
         {
@@ -376,6 +392,8 @@ expected_path.write_text(
             "invalidName": invalid_name,
             "missingReferenceName": missing_reference_name,
             "symlinkName": symlink_name,
+            "unreadableName": unreadable_name,
+            "unreadableManifestSha256": unreadable_manifest_sha256,
         }
     )
     + "\n",
@@ -392,6 +410,7 @@ assert_retention_matrix() {
     "${backup_root}" \
     "${backup_root}/retention-plan.json" \
     "${expected_file}" <<'PY'
+import hashlib
 import json
 import pathlib
 import sys
@@ -408,12 +427,21 @@ assert set(expected["dailyKeep"]) <= keep
 assert set(expected["pruneExpected"]) <= prune
 assert expected["invalidName"] in invalid
 assert expected["missingReferenceName"] in invalid
+assert expected["unreadableName"] in invalid
 assert expected["symlinkName"] not in keep | prune | invalid
+assert expected["unreadableName"] not in keep | prune
 assert keep.isdisjoint(prune)
 assert len(keep) == 11
 for name in expected["pruneExpected"]:
     assert (root / name).is_dir(), "dry-run retention must not delete candidates"
 assert (root / expected["symlinkName"]).is_symlink()
+unreadable_manifest = root / expected["unreadableName"] / "manifest.json"
+assert unreadable_manifest.is_file()
+assert unreadable_manifest.stat().st_mode & 0o777 == 0
+unreadable_manifest.chmod(0o600)
+assert hashlib.sha256(unreadable_manifest.read_bytes()).hexdigest() == (
+    expected["unreadableManifestSha256"]
+)
 PY
 }
 
@@ -572,8 +600,8 @@ if /usr/bin/grep -Eq 'BACKUP_QUERY=(attachment-keys|record-counts)' "${docker_lo
   exit 1
 fi
 test "$(find "${v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" -ge 1
-assert_snapshot_contract "${v2_backups}" scheduled
 assert_retention_matrix "${v2_backups}" "${v2_retention_expected}"
+assert_snapshot_contract "${v2_backups}" scheduled
 test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 2
 /usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
 /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"

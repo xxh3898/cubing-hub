@@ -100,6 +100,12 @@ object key는 반드시 `files/database-references.txt`와 copied image tree에
 - 현재 worker는 dry-run plan만 만들고 실제 backup은 삭제하지 않는다.
 - symlink, 예상 밖 이름, 불완전 snapshot과 다른 프로젝트 backup은
   정리 후보에도 넣지 않는다.
+- 이름이 일치하는 개별 snapshot의 metadata·dump·file·database reference를
+  권한 문제나 동시 disappearance로 읽지 못하면 `invalidIgnored`에만 기록하고
+  `keep`과 `pruneCandidates`에서 제외한다. Worker는 해당 snapshot을 수정하거나
+  삭제하지 않는다.
+- Backup root 열거와 retention plan 임시 파일 생성·flush·원자 교체 실패는
+  fail-closed로 전체 backup을 실패시킨다.
 - 최초 7일 관찰, remote decrypt·restore drill과 별도 삭제 승인 전에는
   `pruneCandidates`를 실행하지 않는다.
 
@@ -110,20 +116,78 @@ local timezone이 Asia/Seoul인 전제에서 매일 00:05, 06:05, 12:05, 18:05�
 repository 밖의 고정 backup bootstrap을 실행한다. `KeepAlive`는 사용하지
 않는다.
 
+이 저장소는 과거 `com.cubinghub.backup` label과
+`com.cubinghub.backup.plist`의 04:10 schedule을 사용했다. 기존 설치를 새 label로
+전환할 때는 두 schedule이 동시에 남지 않도록 아래 exact old/new target을 먼저
+확인한다. 이 명령은 실제 LaunchAgent 운영 변경이므로 별도 승인 뒤에만 실행한다.
+
 ```bash
+(
+set -e
+
+launch_domain="gui/$(id -u)"
+legacy_service="${launch_domain}/com.cubinghub.backup"
+current_service="${launch_domain}/com.homeserver.cubing-hub.backup"
+legacy_plist='/Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist'
+legacy_archive='/Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist.disabled'
+current_plist='/Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist'
+
+printf 'legacy_service=%s\ncurrent_service=%s\n' \
+  "${legacy_service}" "${current_service}"
+printf 'legacy_plist=%s\nlegacy_archive=%s\ncurrent_plist=%s\n' \
+  "${legacy_plist}" "${legacy_archive}" "${current_plist}"
+
+if launchctl print "${current_service}" >/dev/null 2>&1 \
+  || [[ -e "${current_plist}" || -L "${current_plist}" ]]; then
+  printf '%s\n' 'STOP: current LaunchAgent already exists; inspect before changing it' >&2
+  exit 1
+fi
+
+if launchctl print "${legacy_service}" >/dev/null 2>&1; then
+  launchctl bootout "${legacy_service}"
+fi
+
+if [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  if [[ ! -f "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+    printf '%s\n' 'STOP: legacy plist is not a regular non-symlink file' >&2
+    exit 1
+  fi
+  if [[ -e "${legacy_archive}" || -L "${legacy_archive}" ]]; then
+    printf '%s\n' 'STOP: legacy archive already exists; no overwrite allowed' >&2
+    exit 1
+  fi
+  /bin/mv -n "${legacy_plist}" "${legacy_archive}"
+fi
+
+if launchctl print "${legacy_service}" >/dev/null 2>&1 \
+  || [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  printf '%s\n' 'STOP: legacy LaunchAgent transition is incomplete' >&2
+  exit 1
+fi
+
 mkdir -p /Users/homeserver/Library/LaunchAgents \
   /Users/homeserver/Library/Logs
 
 cp homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example \
-  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
+  "${current_plist}"
 
-plutil -lint \
-  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
+plutil -lint "${current_plist}"
 
-launchctl bootstrap \
-  "gui/$(id -u)" \
-  /Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist
+launchctl bootstrap "${launch_domain}" "${current_plist}"
+
+launchctl print "${current_service}" >/dev/null
+if launchctl print "${legacy_service}" >/dev/null 2>&1 \
+  || [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  printf '%s\n' 'STOP: legacy LaunchAgent became active again' >&2
+  exit 1
+fi
+)
 ```
+
+새 schedule에 문제가 생기면 새 service만 exact target으로 bootout한 뒤
+`com.homeserver.cubing-hub.backup.plist`를 별도 no-clobber `.disabled` 경로로
+격리한다. Legacy archive는 복구 근거로 보존하되, 이전 worker와 04:10 schedule의
+안전성을 다시 검증하기 전에는 `com.cubinghub.backup`을 자동 bootstrap하지 않는다.
 
 ## age·iCloud와 heartbeat
 

@@ -17,6 +17,7 @@ const [
   runtimeConfigDetector,
   setupGuide,
   runbook,
+  backupRestoreGuide,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -32,6 +33,7 @@ const [
   read("./detect-runtime-config-change.sh"),
   read("../docs/mac-mini-server-setup.md"),
   read("../docs/home-server-runbook.md"),
+  read("../docs/db-backup-restore.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -577,6 +579,73 @@ test("should_runScheduledBackupFromRepositoryIndependentPath", () => {
   );
   assert.doesNotMatch(launchAgent, /<key>KeepAlive<\/key>/);
   assert.doesNotMatch(launchAgent, /__REPO_DIR__|cd /);
+});
+
+test("should_retireLegacyLaunchAgentBeforeBootstrappingCurrentSchedule_when_upgrading", () => {
+  const currentPreflight = backupRestoreGuide.indexOf(
+    'if launchctl print "${current_service}" >/dev/null 2>&1',
+  );
+  const legacyBootout = backupRestoreGuide.indexOf(
+    'launchctl bootout "${legacy_service}"',
+  );
+  const legacyArchive = backupRestoreGuide.indexOf(
+    '/bin/mv -n "${legacy_plist}" "${legacy_archive}"',
+  );
+  const currentCopy = backupRestoreGuide.indexOf(
+    "cp homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example",
+  );
+  const currentBootstrap = backupRestoreGuide.indexOf(
+    'launchctl bootstrap "${launch_domain}" "${current_plist}"',
+  );
+  const currentPostcheck = backupRestoreGuide.indexOf(
+    'launchctl print "${current_service}" >/dev/null',
+    currentBootstrap,
+  );
+  const legacyPostcheck = backupRestoreGuide.indexOf(
+    'launchctl print "${legacy_service}" >/dev/null 2>&1',
+    currentPostcheck,
+  );
+
+  assert.match(
+    backupRestoreGuide,
+    /legacy_service="\$\{launch_domain\}\/com\.cubinghub\.backup"/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /current_service="\$\{launch_domain\}\/com\.homeserver\.cubing-hub\.backup"/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy_plist='\/Users\/homeserver\/Library\/LaunchAgents\/com\.cubinghub\.backup\.plist'/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy_archive='\/Users\/homeserver\/Library\/LaunchAgents\/com\.cubinghub\.backup\.plist\.disabled'/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /current_plist='\/Users\/homeserver\/Library\/LaunchAgents\/com\.homeserver\.cubing-hub\.backup\.plist'/,
+  );
+  assert.match(backupRestoreGuide, /```bash\n\(\nset -e\n/);
+  assert.ok(currentPreflight >= 0);
+  assert.ok(legacyBootout > currentPreflight);
+  assert.ok(legacyArchive > legacyBootout);
+  assert.ok(currentCopy > legacyArchive);
+  assert.ok(currentBootstrap > currentCopy);
+  assert.ok(currentPostcheck > currentBootstrap);
+  assert.ok(legacyPostcheck > currentPostcheck);
+  assert.match(
+    backupRestoreGuide,
+    /legacy archive already exists; no overwrite allowed/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy plist is not a regular non-symlink file/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /이전 worker와 04:10 schedule의[\s\S]*자동 bootstrap하지 않는다/,
+  );
 });
 
 function read(path) {
