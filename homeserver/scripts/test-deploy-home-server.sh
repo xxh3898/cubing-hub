@@ -29,6 +29,8 @@ test_script="${test_root}/deploy-cubing-hub.sh"
 backup_script="${test_root}/backup.sh"
 runtime_backup_script="${test_root}/runtime-backup.sh"
 backup_log="${test_root}/backup.log"
+event_log="${test_root}/homeops-events.log"
+event_reporter="${test_root}/report-homeops-event.py"
 runtime_compose="${test_root}/runtime-compose.yaml"
 runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
 /bin/mkdir -p "${app_dir}"
@@ -52,11 +54,20 @@ printf '%s\n' \
 /bin/cp "${backup_script}" "${runtime_backup_script}"
 /bin/chmod 700 "${backup_script}" "${runtime_backup_script}"
 : >"${backup_log}"
+: >"${event_log}"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'printf "%s " "$1" >>"${HOMEOPS_EVENT_LOG}"' \
+  '/bin/cat >>"${HOMEOPS_EVENT_LOG}"' \
+  'printf "\n" >>"${HOMEOPS_EVENT_LOG}"' \
+  >"${event_reporter}"
+/bin/chmod 700 "${event_reporter}"
 
 /usr/bin/sed \
   -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${MOCK_DOCKER}#" \
   -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
   -e "s#readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_SCRIPT=${backup_script}#" \
+  -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
   "${SOURCE_SCRIPT}" \
   >"${test_script}"
 /bin/chmod 700 "${test_script}" "${MOCK_DOCKER}"
@@ -76,6 +87,7 @@ run_deploy() {
         FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX="${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" \
         FAKE_RUNTIME_SYMLINK="${FAKE_RUNTIME_SYMLINK:-false}" \
         FAKE_BACKUP_LOG="${backup_log}" \
+        HOMEOPS_EVENT_LOG="${event_log}" \
         FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${REVISION_ONE}}" \
         FAKE_CONFIG_PROJECT="${FAKE_CONFIG_PROJECT:-cubing-hub}" \
         FAKE_REVISION_ONE="${REVISION_ONE}" \
@@ -690,5 +702,8 @@ fi
 /usr/bin/grep -Fxq \
   "API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_THREE}" \
   "${app_dir}/.env"
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Eq '"status":"(SUCCESS|ROLLED_BACK|FAILED)"' "${event_log}"
 
 printf 'Cubing Hub focused deploy v2 tests passed\n'

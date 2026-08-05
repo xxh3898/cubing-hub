@@ -6,6 +6,7 @@ umask 077
 
 readonly DOCKER_BIN=/usr/local/bin/docker
 readonly PYTHON_BIN=/usr/bin/python3
+readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py
 readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub
 readonly PROJECT_NAME=cubing-hub
 readonly LEGACY_COMPOSE_FILE="${APP_DIR}/compose.yaml"
@@ -23,6 +24,49 @@ readonly BACKUP_RETENTION_COUNT=3
 work_dir=
 final_dir=
 active_compose_file=
+homeops_backup_started_at=
+homeops_backup_event_key=
+
+report_homeops_backup() {
+  local status="$1"
+  local finished_at="$2"
+  local logical_location="${3:-}"
+  local size_bytes="${4:-}"
+  local payload
+
+  if [[ -z "${homeops_backup_event_key}" ]]; then
+    return
+  fi
+  if [[ ! -f "${HOMEOPS_EVENT_REPORTER}" || -L "${HOMEOPS_EVENT_REPORTER}" || ! -x "${HOMEOPS_EVENT_REPORTER}" ]]; then
+    printf 'HomeOps backup event reporter is unavailable\n' >&2
+    return
+  fi
+  payload="$(
+    "${PYTHON_BIN}" - \
+      "${homeops_backup_event_key}" "${status}" "${homeops_backup_started_at}" \
+      "${finished_at}" "${logical_location}" "${size_bytes}" <<'PY'
+import json, sys
+event_key, status, started_at, finished_at, logical_location, size_bytes = sys.argv[1:]
+print(json.dumps({
+    "eventKey": event_key,
+    "project": "cubing-hub",
+    "databaseType": "MYSQL",
+    "logicalLocation": logical_location or None,
+    "status": status,
+    "startedAt": started_at,
+    "finishedAt": finished_at or None,
+    "sizeBytes": int(size_bytes) if size_bytes else None,
+    "failureSummary": "backup worker exited unsuccessfully" if status == "FAILED" else None,
+}, separators=(",", ":")))
+PY
+  )" || {
+    printf 'HomeOps backup event payload could not be generated\n' >&2
+    return
+  }
+  if ! printf '%s' "${payload}" | "${HOMEOPS_EVENT_REPORTER}" backups; then
+    printf 'HomeOps backup event could not be retained\n' >&2
+  fi
+}
 
 usage() {
   printf 'Usage: backup-cubing-hub.sh\n' >&2
@@ -34,9 +78,25 @@ fail() {
 }
 
 cleanup() {
+  local exit_status="$?"
+  local finished_at
+  local logical_location=
+  local size_bytes=
+
+  if [[ -n "${homeops_backup_event_key}" ]]; then
+    finished_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    if [[ "${exit_status}" -eq 0 && -n "${final_dir}" && -d "${final_dir}" ]]; then
+      logical_location="cubing-hub/data/$(/usr/bin/basename "${final_dir}")"
+      size_bytes="$(/usr/bin/du -sk "${final_dir}" | /usr/bin/awk '{ print $1 * 1024 }')"
+      report_homeops_backup SUCCESS "${finished_at}" "${logical_location}" "${size_bytes}"
+    else
+      report_homeops_backup FAILED "${finished_at}" "" ""
+    fi
+  fi
   if [[ -n "${work_dir}" && -d "${work_dir}" ]]; then
     printf 'Partial backup remains for inspection: %s\n' "${work_dir}" >&2
   fi
+  return "${exit_status}"
 }
 
 trap cleanup EXIT
@@ -309,6 +369,9 @@ fi
 /bin/mkdir -p "${BACKUP_ROOT}"
 
 timestamp="$(/bin/date -u '+%Y%m%dT%H%M%SZ')"
+homeops_backup_started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+homeops_backup_event_key="cubing-hub:backup:${timestamp}"
+report_homeops_backup RUNNING "" "cubing-hub/data/cubing-hub-production-${timestamp}" ""
 work_dir="$(
   /usr/bin/mktemp -d "${BACKUP_ROOT}/.cubing-hub-backup.XXXXXX"
 )"

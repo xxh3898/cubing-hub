@@ -26,6 +26,8 @@ trap cleanup EXIT INT TERM
 
 mock_docker="${test_root}/docker"
 docker_log="${test_root}/docker.log"
+event_log="${test_root}/homeops-events.log"
+event_reporter="${test_root}/report-homeops-event.py"
 
 {
   printf '%s\n' \
@@ -53,6 +55,14 @@ docker_log="${test_root}/docker.log"
     'fi'
 } >"${mock_docker}"
 /bin/chmod 700 "${mock_docker}"
+: >"${event_log}"
+{
+  printf '#!/bin/bash\n'
+  printf 'printf "%%s " "$1" >>"%s"\n' "${event_log}"
+  printf '/bin/cat >>"%s"\n' "${event_log}"
+  printf 'printf "\\n" >>"%s"\n' "${event_log}"
+} >"${event_reporter}"
+/bin/chmod 700 "${event_reporter}"
 
 prepare_script() {
   local app_dir="$1"
@@ -74,6 +84,7 @@ prepare_script() {
     -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
     -e "s#readonly BACKUP_BOOTSTRAP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_BOOTSTRAP_SCRIPT=${target_script}#" \
     -e "s#readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}#readonly BACKUP_ROOT=${backup_root}#" \
+    -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
     "${SOURCE_SCRIPT}" >"${target_script}"
   if ! /usr/bin/grep -Fqx "readonly BACKUP_ROOT=${backup_root}" "${target_script}"; then
     printf 'Test backup path substitution failed: %s\n' "${backup_root}" >&2
@@ -293,9 +304,13 @@ prepare_script "${legacy_app}" "${legacy_backups}" "${legacy_script}"
 : >"${docker_log}"
 DOCKER_LOG="${docker_log}" \
 MOCK_POST_IMAGES_DIR="${legacy_post_images}" \
+HOMEOPS_EVENT_LOG="${event_log}" \
   "${legacy_script}" >/dev/null
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${legacy_app}" "${docker_log}"
 /usr/bin/grep -Fq -- "--file ${legacy_app}/compose.yaml" "${docker_log}"
+/usr/bin/grep -Fq 'backups {"eventKey":"cubing-hub:backup:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"
 
 printf 'Cubing Hub production backup selection tests passed\n'

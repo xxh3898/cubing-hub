@@ -14,6 +14,8 @@
 
 ## CI 배포
 
+배포 worker는 실제 적용을 시작할 때와 종료할 때 HomeOps runtime-config의 고정 event reporter에 `RUNNING` 및 `SUCCESS`/`FAILED`/`ROLLED_BACK` metadata를 전달한다. Reporter는 HomeOps `.env`의 전용 ingestion secret과 `smoke.origin`을 읽고 전송 전 local spool에 기록한다. HomeOps 또는 reporter가 unavailable이어도 Cubing Hub 배포·rollback 판정은 바뀌지 않는다. Reporter·secret·spool 설치와 운영 활성화는 HomeOps runbook의 별도 승인 절차다.
+
 GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에서
 아래 논리 명령만 호출한다.
 
