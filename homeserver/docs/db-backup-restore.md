@@ -50,65 +50,170 @@ Backup worker는 HomeOps에 실제 경로가 아닌 `cubing-hub/data/...` logica
 스크립트는 다음 순서로 실행한다.
 
 1. 운영 `db` service 실행 상태 확인
-2. 임시 directory에서 `mysqldump --single-transaction` 실행
-3. 게시글 이미지 directory snapshot 생성
-4. `post_attachments.object_key`와 snapshot 파일 대조
-5. manifest 생성
-6. 검증한 임시 directory를 최종 backup 이름으로 이동
-7. 성공한 backup 중 최신 3개를 제외한 이전 backup 정리
+2. 게시글 이미지 1차 snapshot 생성
+3. 임시 directory에서
+   `mysqldump --single-transaction --complete-insert --skip-extended-insert`
+   실행과 구조 검증
+4. 게시글 이미지 2차 snapshot 생성
+5. dump의 제한된 single-row INSERT를 streaming 해석해 같은 transaction
+   snapshot의 table row count와 `post_attachments.object_key` 목록 생성
+6. dump reference와 snapshot 파일 대조
+7. DB engine/version, row-count/reference source·SHA-256, 파일
+   count·bytes·SHA-256 기록
+8. `manifest.json` 생성 뒤 `SUCCESS` marker를 마지막으로 생성
+9. 검증한 임시 directory를 최종 backup 이름으로 원자 이동
+10. 삭제하지 않는 retention dry-run plan 생성
+11. age ciphertext의 local staging과 iCloud Drive handoff
 
 최종 결과는 아래 형식이다.
 
 ```text
 cubing-hub-production-<UTC yyyyMMddTHHmmssZ>/
-  db.sql
+  SUCCESS
   manifest.json
-  post-images/
-  post-images-files.txt
-  post-attachment-object-keys.txt
-  missing-post-image-files.txt
-  invalid-post-image-object-keys.txt
+  database/
+    dump
+    version.txt
+    record-counts.tsv
+  files/
+    database-references.txt
+    sha256.txt
+    stats.json
+    post-images/
 ```
 
 backup이 실패하면 기존 정상 backup은 삭제하지 않는다. 실패 원인을
 확인할 수 있도록 `.cubing-hub-backup.*` 임시 directory를 남긴다.
 
+게시글 image object는 immutable이고 삭제는 DB commit 뒤 수행된다. 두 번의
+copy는 dump 시점 전후의 extra file을 포함할 수 있지만, dump가 참조하는 모든
+object key는 반드시 `files/database-references.txt`와 copied image tree에
+존재해야 한다. Dump grammar, object key 또는 reference file이 불완전하면 worker는
+최신 live DB 값으로 대체하지 않고 실패한다.
+
 ## 보관 정책
 
-- 성공한 backup은 최신 3개만 보관한다.
-- 정리 대상은
-  `cubing-hub-production-YYYYMMDDTHHMMSSZ` 형식의 project backup
-  directory로 제한한다.
-- 새 backup을 최종 위치로 이동하기 전에는 정리하지 않는다.
-- 다른 프로젝트 backup이나 예상하지 못한 이름의 directory를 삭제하지
-  않는다.
+- 최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후 첫
+  정상 snapshot 1개를 보존 대상으로 계산한다.
+- `SUCCESS`, manifest, dump·파일·database reference checksum과 reference
+  target을 다시 검증한 snapshot만
+  정상본으로 인정한다.
+- 결과는 `data/retention-plan.json`에 `keep`과 `pruneCandidates`로 기록한다.
+- 현재 worker는 dry-run plan만 만들고 실제 backup은 삭제하지 않는다.
+- symlink, 예상 밖 이름, 불완전 snapshot과 다른 프로젝트 backup은
+  정리 후보에도 넣지 않는다.
+- 이름이 일치하는 개별 snapshot의 metadata·dump·file·database reference를
+  권한 문제나 동시 disappearance로 읽지 못하면 `invalidIgnored`에만 기록하고
+  `keep`과 `pruneCandidates`에서 제외한다. Worker는 해당 snapshot을 수정하거나
+  삭제하지 않는다.
+- Backup root 열거와 retention plan 임시 파일 생성·flush·원자 교체 실패는
+  fail-closed로 전체 backup을 실패시킨다.
+- 최초 7일 관찰, remote decrypt·restore drill과 별도 삭제 승인 전에는
+  `pruneCandidates`를 실행하지 않는다.
 
 ## LaunchAgent
 
-`homeserver/launchd/com.cubinghub-backup.plist.example`은 매일
-04:10에 repository 밖의 고정 backup bootstrap을 실행한다.
+`homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example`은 Mac의
+local timezone이 Asia/Seoul인 전제에서 매일 00:05, 06:05, 12:05, 18:05에
+repository 밖의 고정 backup bootstrap을 실행한다. `KeepAlive`는 사용하지
+않는다.
+
+이 저장소는 과거 `com.cubinghub.backup` label과
+`com.cubinghub.backup.plist`의 04:10 schedule을 사용했다. 기존 설치를 새 label로
+전환할 때는 두 schedule이 동시에 남지 않도록 아래 exact old/new target을 먼저
+확인한다. 이 명령은 실제 LaunchAgent 운영 변경이므로 별도 승인 뒤에만 실행한다.
 
 ```bash
+(
+set -e
+
+launch_domain="gui/$(id -u)"
+legacy_service="${launch_domain}/com.cubinghub.backup"
+current_service="${launch_domain}/com.homeserver.cubing-hub.backup"
+legacy_plist='/Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist'
+legacy_archive='/Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist.disabled'
+current_plist='/Users/homeserver/Library/LaunchAgents/com.homeserver.cubing-hub.backup.plist'
+
+printf 'legacy_service=%s\ncurrent_service=%s\n' \
+  "${legacy_service}" "${current_service}"
+printf 'legacy_plist=%s\nlegacy_archive=%s\ncurrent_plist=%s\n' \
+  "${legacy_plist}" "${legacy_archive}" "${current_plist}"
+
+if launchctl print "${current_service}" >/dev/null 2>&1 \
+  || [[ -e "${current_plist}" || -L "${current_plist}" ]]; then
+  printf '%s\n' 'STOP: current LaunchAgent already exists; inspect before changing it' >&2
+  exit 1
+fi
+
+if launchctl print "${legacy_service}" >/dev/null 2>&1; then
+  launchctl bootout "${legacy_service}"
+fi
+
+if [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  if [[ ! -f "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+    printf '%s\n' 'STOP: legacy plist is not a regular non-symlink file' >&2
+    exit 1
+  fi
+  if [[ -e "${legacy_archive}" || -L "${legacy_archive}" ]]; then
+    printf '%s\n' 'STOP: legacy archive already exists; no overwrite allowed' >&2
+    exit 1
+  fi
+  /bin/mv -n "${legacy_plist}" "${legacy_archive}"
+fi
+
+if launchctl print "${legacy_service}" >/dev/null 2>&1 \
+  || [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  printf '%s\n' 'STOP: legacy LaunchAgent transition is incomplete' >&2
+  exit 1
+fi
+
 mkdir -p /Users/homeserver/Library/LaunchAgents \
   /Users/homeserver/Library/Logs
 
-cp homeserver/launchd/com.cubinghub-backup.plist.example \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+cp homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example \
+  "${current_plist}"
 
-plutil -lint \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+plutil -lint "${current_plist}"
 
-launchctl bootstrap \
-  "gui/$(id -u)" \
-  /Users/homeserver/Library/LaunchAgents/com.cubinghub.backup.plist
+launchctl bootstrap "${launch_domain}" "${current_plist}"
+
+launchctl print "${current_service}" >/dev/null
+if launchctl print "${legacy_service}" >/dev/null 2>&1 \
+  || [[ -e "${legacy_plist}" || -L "${legacy_plist}" ]]; then
+  printf '%s\n' 'STOP: legacy LaunchAgent became active again' >&2
+  exit 1
+fi
+)
 ```
+
+새 schedule에 문제가 생기면 새 service만 exact target으로 bootout한 뒤
+`com.homeserver.cubing-hub.backup.plist`를 별도 no-clobber `.disabled` 경로로
+격리한다. Legacy archive는 복구 근거로 보존하되, 이전 worker와 04:10 schedule의
+안전성을 다시 검증하기 전에는 `com.cubinghub.backup`을 자동 bootstrap하지 않는다.
+
+## age·iCloud와 heartbeat
+
+검증된 snapshot만 age public recipient로 암호화해 local offsite staging에
+기록한 뒤 iCloud Drive의 프로젝트 전용 directory로 전달한다. raw dump와
+이미지는 iCloud에 직접 복사하지 않는다. `.partial` 복사본과 local
+ciphertext의 SHA-256 일치, final rename 성공, symlink가 아닌 final regular
+file의 SHA-256 재일치까지 확인한 뒤에만 handoff 성공으로 기록한다. Final 검증
+전 실패하면 local ciphertext를 보존하고 iCloud-stage heartbeat를 생략한다.
+검증된 final 뒤 local ciphertext 정리만 실패하면 generic 경고를 남기고 handoff
+성공은 유지한다. 이 handoff는 Apple server의 remote upload 완료 판정과는
+다르다.
+
+선택적 `backup-heartbeats.conf`는 mode `0600` regular file이어야 하며
+`LOCAL_HEARTBEAT_URL`, `ICLOUD_STAGE_HEARTBEAT_URL` 두 key만 허용한다. 실제
+URL은 Git, 문서, 로그에 기록하지 않는다. 상세 계약과 복구 순서는
+`docs/DEVELOPMENT-DEPLOYMENT-BACKUP.md`를 따른다.
 
 ## 복구 rehearsal
 
 복구는 운영 volume에 바로 덮어쓰지 않는다.
 
 1. 별도 MySQL volume과 별도 이미지 directory를 준비한다.
-2. `db.sql`을 격리 MySQL에 복구한다.
+2. `database/dump`를 격리 MySQL에 복구한다.
 3. Flyway history, FK, charset/collation, 핵심 row count를 확인한다.
 4. 이미지 snapshot과 `post_attachments.object_key`를 다시 대조한다.
 5. 검증용 API를 `ddl-auto=validate`로 시작한다.

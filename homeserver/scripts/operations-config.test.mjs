@@ -17,6 +17,7 @@ const [
   runtimeConfigDetector,
   setupGuide,
   runbook,
+  backupRestoreGuide,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -26,12 +27,13 @@ const [
   read("./backup-home-server.sh"),
   read("./backup-home-server-bootstrap.sh"),
   read("../docker/frontend.Dockerfile"),
-  read("../launchd/com.cubinghub-backup.plist.example"),
+  read("../launchd/com.homeserver.cubing-hub-backup.plist.example"),
   read("../../.dockerignore"),
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
   read("../docs/mac-mini-server-setup.md"),
   read("../docs/home-server-runbook.md"),
+  read("../docs/db-backup-restore.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -365,37 +367,167 @@ test("should_executeOnlyVerifiedReleaseScripts_when_runtimeConfigChanges", () =>
   );
 });
 
-test("should_validateBackupBeforeKeepingThreeSuccessfulSnapshots", () => {
+test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () => {
   const dumpValidation = backupScript.indexOf(
     'if [[ ! -s "${db_dump_file}" ]]',
   );
+  const snapshotInventory = backupScript.indexOf(
+    "record_counts_text = \"\".join(",
+  );
   const attachmentValidation = backupScript.indexOf(
-    'if [[ -s "${missing_files_file}" ]]',
+    "post image file(s) referenced by database/dump are missing",
   );
   const finalMove = backupScript.indexOf(
     '/bin/mv "${work_dir}" "${final_dir}"',
   );
-  const retention = backupScript.indexOf("kept=0");
+  const retention = backupScript.indexOf('"mode": "dry-run"');
+  const offsite = backupScript.indexOf("stage_offsite_snapshot() {");
+  const offsiteEnd = backupScript.indexOf(
+    "\nprintf 'Backup completed",
+    offsite,
+  );
 
   assert.ok(dumpValidation >= 0);
-  assert.ok(attachmentValidation > dumpValidation);
+  assert.ok(snapshotInventory > dumpValidation);
+  assert.ok(attachmentValidation > snapshotInventory);
   assert.ok(finalMove > attachmentValidation);
   assert.ok(retention > finalMove);
-  assert.match(backupScript, /readonly BACKUP_RETENTION_COUNT=3/);
-  assert.match(backupScript, /if \[\[ "\$#" -ne 0 \]\]; then/);
+  assert.ok(offsite > retention);
+  assert.ok(offsiteEnd > offsite);
+  const offsiteFunction = backupScript.slice(offsite, offsiteEnd);
+  const finalPublish = offsiteFunction.indexOf(
+    'if ! /bin/mv "${offsite_partial}" "${icloud_final}"; then',
+  );
+  const partialRelease = offsiteFunction.indexOf(
+    "offsite_partial=",
+    finalPublish,
+  );
+  const finalRegularFileCheck = offsiteFunction.indexOf(
+    'if [[ ! -f "${icloud_final}" || -L "${icloud_final}" ]]; then',
+    partialRelease,
+  );
+  const finalChecksum = offsiteFunction.indexOf(
+    'if ! icloud_final_sha="$(',
+    finalRegularFileCheck,
+  );
+  const localCiphertextCleanup = offsiteFunction.indexOf(
+    'if ! /bin/unlink "${ciphertext}"; then',
+    finalChecksum,
+  );
+  const offsiteSuccess = offsiteFunction.indexOf(
+    "offsite_staged=true",
+    localCiphertextCleanup,
+  );
+  const offsiteQueued = offsiteFunction.indexOf(
+    "printf 'OFFSITE_QUEUED=%s\\n'",
+    offsiteSuccess,
+  );
+  assert.ok(finalPublish >= 0);
+  assert.ok(partialRelease > finalPublish);
+  assert.ok(finalRegularFileCheck > partialRelease);
+  assert.ok(finalChecksum > finalRegularFileCheck);
+  assert.ok(localCiphertextCleanup > finalChecksum);
+  assert.ok(offsiteSuccess > localCiphertextCleanup);
+  assert.ok(offsiteQueued > offsiteSuccess);
+  assert.match(
+    offsiteFunction,
+    /Offsite stage failed: iCloud final publish failed/,
+  );
+  assert.match(
+    offsiteFunction,
+    /Offsite stage failed: iCloud final checksum mismatch/,
+  );
+  assert.match(
+    offsiteFunction,
+    /Offsite stage warning: local ciphertext cleanup failed/,
+  );
+  assert.doesNotMatch(
+    offsiteFunction,
+    /^\s*\/bin\/mv "\$\{offsite_partial\}" "\$\{icloud_final\}"$/m,
+  );
   assert.match(
     backupScript,
-    /CHAR_LENGTH\(object_key\) > 0 ORDER BY object_key/,
+    /Usage: backup-cubing-hub\.sh \[--trigger scheduled\|predeploy\]/,
   );
+  assert.match(backupScript, /"schemaVersion": 1/);
+  assert.match(backupScript, /"status": "success"/);
+  assert.match(backupScript, /"engine": "mysql"/);
+  assert.match(backupScript, /--single-transaction/);
+  assert.match(backupScript, /--complete-insert/);
+  assert.match(backupScript, /--skip-extended-insert/);
+  assert.match(backupScript, /--hex-blob/);
+  assert.match(backupScript, /"recordCounts": dict\(sorted\(record_counts\.items\(\)\)\)/);
+  assert.match(backupScript, /"recordCountsSource": "database\/dump"/);
+  assert.match(backupScript, /"databaseReferences": \{/);
+  assert.match(backupScript, /"source": "database\/dump"/);
+  assert.match(
+    backupScript,
+    /"policy": \{"recent": 4, "dailyAtOrAfterKst": "06:00", "dailyDays": 7\}/,
+  );
+  assert.match(backupScript, /printf 'snapshot complete\\n' >"\$\{work_dir\}\/SUCCESS"/);
+  assert.match(backupScript, /"\$\{AGE_BIN\}" -R "\$\{AGE_RECIPIENT_FILE\}"/);
+  assert.match(backupScript, /\.XXXXXX\.partial/);
+  assert.match(backupScript, /iCloud handoff checksum mismatch/);
+  assert.match(backupScript, /age recipient file mode must be 600/);
+  assert.match(backupScript, /prepare_private_directory "\$\{BACKUP_ROOT\}"/);
+  assert.match(
+    backupScript,
+    /readonly HEARTBEAT_CONFIG_FILE="\$\{APP_DIR\}\/backup-heartbeats\.conf"/,
+  );
+  assert.match(backupScript, /backup heartbeat configuration mode must be 600/);
+  assert.match(backupScript, /backup heartbeat configuration contains unexpected content/);
+  assert.match(backupScript, /Backup heartbeat delivery failed: %s/);
+  assert.doesNotMatch(backupScript, /BACKUP_QUERY=attachment-keys/);
+  assert.doesNotMatch(backupScript, /BACKUP_QUERY=record-counts/);
   assert.match(backupScript, /export MYSQL_PWD="\$\{MYSQL_ROOT_PASSWORD\}"/);
   assert.doesNotMatch(backupScript, /--password=/);
   assert.match(
     backupScript,
-    /\^cubing-hub-production-\[0-9\]\{8\}T\[0-9\]\{6\}Z\$/,
+    /cubing-hub-production-\(\\d\{8\}T\\d\{6\}Z\)/,
   );
   assert.doesNotMatch(
     backupScript,
-    /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+    /rm -rf|find[^\n]*-delete|down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+  );
+});
+
+test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
+  const migrationFunction = deployScript.match(
+    /run_one_shot_migration\(\) \{[\s\S]*?\n\}/,
+  )?.[0];
+  const pending = deployScript.lastIndexOf("write_pending_state \\");
+  const migration = deployScript.lastIndexOf(
+    'if ! run_one_shot_migration "${new_api_image}" "${new_web_image}"; then',
+  );
+  const imageWrite = deployScript.lastIndexOf(
+    'write_image_env "${new_api_image}" "${new_web_image}"',
+  );
+  const publicSmoke = deployScript.indexOf(
+    "elif ! public_smoke; then",
+    imageWrite,
+  );
+  const successState = deployScript.lastIndexOf("write_success_state \\");
+
+  assert.match(compose, /SPRING_FLYWAY_ENABLED: "false"/);
+  assert.ok(migrationFunction);
+  assert.match(
+    migrationFunction,
+    /-Dloader\.main=\$\{MIGRATION_MAIN_CLASS\}[\s\S]*PropertiesLauncher/,
+  );
+  assert.match(migrationFunction, /local candidate_api_image="\$1"/);
+  assert.match(migrationFunction, /local candidate_web_image="\$2"/);
+  assert.match(migrationFunction, /export API_IMAGE="\$\{candidate_api_image\}"/);
+  assert.match(migrationFunction, /export WEB_IMAGE="\$\{candidate_web_image\}"/);
+  assert.match(migrationFunction, /compose run \\\n[\s\S]*--pull never/);
+  assert.ok(pending >= 0);
+  assert.ok(migration > pending);
+  assert.ok(imageWrite > migration);
+  assert.ok(publicSmoke > imageWrite);
+  assert.ok(successState > publicSmoke);
+  assert.match(runbook, /candidate API image의 one-shot Flyway migration·validate/);
+  assert.match(
+    runbook,
+    /최근 정상 snapshot 4개와 지난 7 calendar day마다 KST 06:00 이후/,
   );
 });
 
@@ -427,9 +559,93 @@ test("should_excludeCredentialsAndGeneratedFilesFromDockerBuildContext", () => {
 test("should_runScheduledBackupFromRepositoryIndependentPath", () => {
   assert.match(
     launchAgent,
+    /<string>com\.homeserver\.cubing-hub\.backup<\/string>/,
+  );
+  assert.match(
+    launchAgent,
     /\/Users\/homeserver\/Server\/scripts\/backup\/backup-cubing-hub-bootstrap\.sh/,
   );
+  assert.equal(launchAgent.match(/<key>Hour<\/key>/g)?.length, 4);
+  assert.equal(launchAgent.match(/<key>Minute<\/key>/g)?.length, 4);
+  for (const hour of [0, 6, 12, 18]) {
+    assert.match(
+      launchAgent,
+      new RegExp(`<key>Hour</key>\\s*<integer>${hour}</integer>`),
+    );
+  }
+  assert.equal(
+    launchAgent.match(/<key>Minute<\/key>\s*<integer>5<\/integer>/g)?.length,
+    4,
+  );
+  assert.doesNotMatch(launchAgent, /<key>KeepAlive<\/key>/);
   assert.doesNotMatch(launchAgent, /__REPO_DIR__|cd /);
+});
+
+test("should_retireLegacyLaunchAgentBeforeBootstrappingCurrentSchedule_when_upgrading", () => {
+  const currentPreflight = backupRestoreGuide.indexOf(
+    'if launchctl print "${current_service}" >/dev/null 2>&1',
+  );
+  const legacyBootout = backupRestoreGuide.indexOf(
+    'launchctl bootout "${legacy_service}"',
+  );
+  const legacyArchive = backupRestoreGuide.indexOf(
+    '/bin/mv -n "${legacy_plist}" "${legacy_archive}"',
+  );
+  const currentCopy = backupRestoreGuide.indexOf(
+    "cp homeserver/launchd/com.homeserver.cubing-hub-backup.plist.example",
+  );
+  const currentBootstrap = backupRestoreGuide.indexOf(
+    'launchctl bootstrap "${launch_domain}" "${current_plist}"',
+  );
+  const currentPostcheck = backupRestoreGuide.indexOf(
+    'launchctl print "${current_service}" >/dev/null',
+    currentBootstrap,
+  );
+  const legacyPostcheck = backupRestoreGuide.indexOf(
+    'launchctl print "${legacy_service}" >/dev/null 2>&1',
+    currentPostcheck,
+  );
+
+  assert.match(
+    backupRestoreGuide,
+    /legacy_service="\$\{launch_domain\}\/com\.cubinghub\.backup"/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /current_service="\$\{launch_domain\}\/com\.homeserver\.cubing-hub\.backup"/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy_plist='\/Users\/homeserver\/Library\/LaunchAgents\/com\.cubinghub\.backup\.plist'/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy_archive='\/Users\/homeserver\/Library\/LaunchAgents\/com\.cubinghub\.backup\.plist\.disabled'/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /current_plist='\/Users\/homeserver\/Library\/LaunchAgents\/com\.homeserver\.cubing-hub\.backup\.plist'/,
+  );
+  assert.match(backupRestoreGuide, /```bash\n\(\nset -e\n/);
+  assert.ok(currentPreflight >= 0);
+  assert.ok(legacyBootout > currentPreflight);
+  assert.ok(legacyArchive > legacyBootout);
+  assert.ok(currentCopy > legacyArchive);
+  assert.ok(currentBootstrap > currentCopy);
+  assert.ok(currentPostcheck > currentBootstrap);
+  assert.ok(legacyPostcheck > currentPostcheck);
+  assert.match(
+    backupRestoreGuide,
+    /legacy archive already exists; no overwrite allowed/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /legacy plist is not a regular non-symlink file/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /이전 worker와 04:10 schedule의[\s\S]*자동 bootstrap하지 않는다/,
+  );
 });
 
 function read(path) {

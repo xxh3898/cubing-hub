@@ -85,7 +85,21 @@ case "${command_name}" in
     ;;
   compose)
     arguments=" $* "
-    if [[ "${arguments}" == *" up "* ]] \
+    if [[ "${arguments}" == *" run "* ]] \
+      && [[ "${arguments}" == *"com.cubinghub.ops.MigrationMain"* ]] \
+      && [[ -n "${FAKE_DOCKER_LOG:-}" ]]
+    then
+      printf 'migration-images API_IMAGE=%s WEB_IMAGE=%s\n' \
+        "${API_IMAGE:-unset}" \
+        "${WEB_IMAGE:-unset}" \
+        >>"${FAKE_DOCKER_LOG}"
+    fi
+    if [[ "${arguments}" == *" run "* ]] \
+      && [[ "${arguments}" == *"com.cubinghub.ops.MigrationMain"* ]] \
+      && [[ "${FAKE_MIGRATION_FAIL:-false}" == true ]]
+    then
+      exit 1
+    elif [[ "${arguments}" == *" up "* ]] \
       && [[ -n "${FAKE_FAIL_APP_UP_ONCE_FILE:-}" ]] \
       && [[ ! -e "${FAKE_FAIL_APP_UP_ONCE_FILE}" ]]
     then
@@ -134,10 +148,8 @@ case "${command_name}" in
       api_database_user="${FAKE_RENDER_API_DATABASE_USER:-${database_user}}"
       api_database_password="${FAKE_RENDER_API_DATABASE_PASSWORD:-${database_password}}"
       ddl_auto="${FAKE_RENDER_DDL_AUTO:-validate}"
-      flyway_environment=
-      if [[ -n "${FAKE_RENDER_FLYWAY_ENABLED:-}" ]]; then
-        flyway_environment=',"SPRING_FLYWAY_ENABLED":"'"${FAKE_RENDER_FLYWAY_ENABLED}"'"'
-      fi
+      flyway_enabled="${FAKE_RENDER_FLYWAY_ENABLED:-false}"
+      flyway_environment=',"SPRING_FLYWAY_ENABLED":"'"${flyway_enabled}"'"'
       datasource_url="${FAKE_RENDER_DATASOURCE_URL:-jdbc:mysql://db:3306/${database_name}?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}"
       mysql_command_json="${FAKE_RENDER_MYSQL_COMMAND_JSON:-[\"--character-set-server=utf8mb4\",\"--collation-server=utf8mb4_0900_ai_ci\"]}"
       db_entrypoint_json="${FAKE_RENDER_DB_ENTRYPOINT_JSON:-null}"
@@ -220,6 +232,8 @@ case "${command_name}" in
         db_entrypoint_json="${FAKE_CANDIDATE_DB_ENTRYPOINT_JSON:-${db_entrypoint_json}}"
         redis_command_json="${FAKE_CANDIDATE_REDIS_COMMAND_JSON:-${redis_command_json}}"
         ddl_auto="${FAKE_CANDIDATE_DDL_AUTO:-${ddl_auto}}"
+        flyway_enabled="${FAKE_CANDIDATE_FLYWAY_ENABLED:-${flyway_enabled}}"
+        flyway_environment=',"SPRING_FLYWAY_ENABLED":"'"${flyway_enabled}"'"'
       fi
       printf \
         '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","entrypoint":%s,"environment":{"MYSQL_DATABASE":"%s","MYSQL_USER":"%s","MYSQL_PASSWORD":"%s","MYSQL_ROOT_PASSWORD":"%s"},"command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"redis":{"image":"%s","restart":"unless-stopped","command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"api":{"image":"%s","command":%s,"entrypoint":%s,"user":%s,"privileged":%s,"ports":%s,"pid":%s,"restart":"unless-stopped","init":true,"read_only":true,"pids_limit":256,"security_opt":["no-new-privileges:true"],"tmpfs":%s,"extra_hosts":%s,"configs":%s,"secrets":%s,"env_file":%s,"environment":{"SPRING_PROFILES_ACTIVE":"prod","SPRING_DATASOURCE_URL":"%s","DB_USERNAME":"%s","DB_PASSWORD":"%s","REDIS_HOST":"redis","REDIS_PORT":"6379","JWT_SECRET":"%s","JWT_EXPIRATION":"1800000","JWT_REFRESH_EXPIRATION":"604800000","CORS_ALLOWED_ORIGINS":"https://cubing-hub.com,https://www.cubing-hub.com","SPRING_JPA_HIBERNATE_DDL_AUTO":"%s"%s,"AUTH_REFRESH_COOKIE_SECURE":"true","SMTP_HOST":"%s","SMTP_PORT":"587","SMTP_USERNAME":"","SMTP_PASSWORD":"%s","SMTP_AUTH":"true","SMTP_STARTTLS_ENABLE":"true","SMTP_FROM_ADDRESS":"","FEEDBACK_DISCORD_WEBHOOK_URL":"","RANKING_REDIS_REBUILD_MODE":"disabled","MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE":"health","MONITORING_PROMETHEUS_PERMIT_ALL":"false","POST_IMAGES_LOCAL_ROOT_PATH":"%s","POST_IMAGES_KEY_PREFIX":"community/posts","POST_IMAGES_PUBLIC_BASE_URL":"https://api.cubing-hub.com/uploads"%s},"networks":{"application":%s,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}%s],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"web":{"image":"%s","command":%s,"entrypoint":%s,"restart":"%s","init":true,"read_only":true,"pids_limit":100,"security_opt":["no-new-privileges:true"],"tmpfs":["/var/cache/nginx:size=32m,mode=0755","/var/run:size=4m,mode=0755","/tmp:size=16m,mode=1777"],"scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}},"networks":{"application":%s,"outbound":%s,"edge":%s},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"%s},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
