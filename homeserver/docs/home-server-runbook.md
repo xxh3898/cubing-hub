@@ -14,6 +14,8 @@
 
 ## CI 배포
 
+배포 worker는 실제 적용을 시작할 때와 종료할 때 HomeOps runtime-config의 고정 event reporter에 `RUNNING` 및 `SUCCESS`/`FAILED`/`ROLLED_BACK` metadata를 전달한다. Reporter는 HomeOps `.env`의 전용 ingestion secret과 `smoke.origin`을 읽고 전송 전 local spool에 기록한다. HomeOps 또는 reporter가 unavailable이어도 Cubing Hub 배포·rollback 판정은 바뀌지 않는다. Reporter·secret·spool 설치와 운영 활성화는 HomeOps runbook의 별도 승인 절차다.
+
 GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에서
 아래 논리 명령만 호출한다.
 
@@ -155,6 +157,33 @@ v2 배포가 강제 종료되거나 host가 재시작되어
 script로 recovery를 전달한다. Recovery는 pending key와 SHA/digest 형식,
 마지막 검증 state, Compose·Nginx·deploy/backup script allowlist와 content
 hash를 먼저 대조한다.
+
+배포 worker는 `RUNNING` 전송 전에
+`runtime-config/homeops-deployment`에 event key, 시작 시각, target SHA를
+원자 저장한다. 따라서 application/runtime image pull처럼 transaction pending
+생성 전 단계에서 host restart 또는 `SIGKILL`이 발생해도 `recover`가 중단
+lifecycle을 `FAILED`로 닫을 수 있다. v2 worker는 검증된 previous/target pair를
+담은 operational `pending`을 첫 data-service mutation보다 먼저 저장한다. 이
+context만 남고 operational `pending`이 없다면 recovery는 운영 service를
+변경하지 않고 event만 종료한다. Legacy worker에는 이 별도 context를 적용하지
+않는다. 다음 정상 v2 배포도 유효한 context-only lifecycle을 먼저 `FAILED`로
+종료할 수 있으며, operational `pending`이 유효한 상태에서 별도 context가
+malformed이거나 target SHA가 다르면 그 context는 보존하고 새 recovery telemetry만
+생략한 채 operational recovery를 계속한다.
+
+새 pending state도 중단 시점의 HomeOps deployment event key와 시작 시각을
+보존한다. Operational pending이 있으면 recovery는 남아 있는 lifecycle을
+`FAILED`로 닫고 고유한 recovery lifecycle을 시작한다. Recovery lifecycle용
+context 원자 저장에 실패하면 새 telemetry event는 시작하지 않지만 실제
+transaction recovery는 계속한다. Target pair 확정은 `SUCCESS`, previous pair
+또는 bootstrap 복원은 `ROLLED_BACK`, recovery 실패는 `FAILED`로 기록한다.
+기존 4-key pending state도 telemetry context 없이 계속 복구할 수 있다.
+
+Operational `pending`의 생성 시점은 mutation 위험에 맞춘다. first deployment는
+DB/Redis bootstrap이 첫 mutation이므로 그 전에 pending을 쓴다. 기존 update는
+DB running-service preflight와 predeploy logical backup이 read-only/backup 단계이므로
+그 성공 뒤, one-shot migration 직전에 pending을 쓴다. 따라서 기존 update의 DB
+미기동 또는 backup 실패는 이후 deploy를 막는 stale pending을 남기지 않는다.
 
 - 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
   검증된 target release로 stale `current` pointer를 원자 조정하고 pending

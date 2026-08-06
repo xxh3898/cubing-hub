@@ -14,7 +14,16 @@ if [[ -n "${FAKE_DOCKER_LOG:-}" ]]; then
 fi
 
 case "${command_name}" in
-  login|logout|pull|rm)
+  pull)
+    if [[ -n "${FAKE_HOMEOPS_CONTEXT_CAPTURE:-}" ]] \
+      && [[ "$*" == *cubing-hub-api* ]]
+    then
+      /bin/cp "${FAKE_HOMEOPS_CONTEXT_FILE}" "${FAKE_HOMEOPS_CONTEXT_CAPTURE}"
+      exit 1
+    fi
+    exit 0
+    ;;
+  login|logout|rm)
     exit 0
     ;;
   create)
@@ -85,7 +94,11 @@ case "${command_name}" in
     ;;
   compose)
     arguments=" $* "
-    if [[ "${arguments}" == *" run "* ]] \
+    if [[ "${arguments}" == *" config --images db redis "* ]]; then
+      printf '%s\n' \
+        "${FAKE_RENDER_DB_IMAGE:-mysql:8.0.46}" \
+        "${FAKE_RENDER_REDIS_IMAGE:-redis:7.2.14-alpine}"
+    elif [[ "${arguments}" == *" run "* ]] \
       && [[ "${arguments}" == *"com.cubinghub.ops.MigrationMain"* ]] \
       && [[ -n "${FAKE_DOCKER_LOG:-}" ]]
     then
@@ -98,6 +111,12 @@ case "${command_name}" in
       && [[ "${arguments}" == *"com.cubinghub.ops.MigrationMain"* ]] \
       && [[ "${FAKE_MIGRATION_FAIL:-false}" == true ]]
     then
+      exit 1
+    elif [[ "${arguments}" == *" up "* ]] \
+      && [[ "${arguments}" == *" db redis "* ]] \
+      && [[ -n "${FAKE_PENDING_CAPTURE_ON_DATA_UP:-}" ]]
+    then
+      /bin/cp "${FAKE_PENDING_FILE}" "${FAKE_PENDING_CAPTURE_ON_DATA_UP}"
       exit 1
     elif [[ "${arguments}" == *" up "* ]] \
       && [[ -n "${FAKE_FAIL_APP_UP_ONCE_FILE:-}" ]] \
@@ -288,7 +307,10 @@ case "${command_name}" in
         "${edge_json}" \
         "${mysql_volume_extra}"
     elif [[ "${arguments}" == *" ps --status running --services "* ]]; then
-      printf 'db\nredis\napi\nweb\n'
+      printf '%s\n' "${FAKE_RUNNING_SERVICES:-db
+redis
+api
+web}"
     fi
     ;;
   *)

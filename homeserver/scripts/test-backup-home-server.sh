@@ -29,8 +29,11 @@ trap cleanup EXIT INT TERM
 mock_docker="${test_root}/docker"
 mock_age="${test_root}/age"
 mock_curl="${test_root}/curl"
+mock_du="${test_root}/du"
 mock_final_move="${test_root}/fail-final-move"
 docker_log="${test_root}/docker.log"
+event_log="${test_root}/homeops-events.log"
+event_reporter="${test_root}/report-homeops-event.py"
 heartbeat_log="${test_root}/heartbeat.log"
 final_move_log="${test_root}/final-move.log"
 default_dump_file="${test_root}/default-dump.sql"
@@ -87,7 +90,7 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     '  fi' \
     '  printf '\''{"services":{"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
-    '  printf "db\n"' \
+    '  printf "%s\n" "${FAKE_RUNNING_SERVICES:-db}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
     '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
@@ -104,6 +107,14 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     'fi'
 } >"${mock_docker}"
 /bin/chmod 700 "${mock_docker}"
+: >"${event_log}"
+{
+  printf '#!/bin/bash\n'
+  printf 'printf "%%s " "$1" >>"%s"\n' "${event_log}"
+  printf '/bin/cat >>"%s"\n' "${event_log}"
+  printf 'printf "\\n" >>"%s"\n' "${event_log}"
+} >"${event_reporter}"
+/bin/chmod 700 "${event_reporter}"
 
 {
   printf '%s\n' \
@@ -122,6 +133,17 @@ export MOCK_DUMP_FILE="${default_dump_file}"
 } >"${mock_curl}"
 /bin/chmod 700 "${mock_curl}"
 : >"${heartbeat_log}"
+
+{
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -Eeuo pipefail' \
+    'if [[ "${FAIL_HOMEOPS_SIZE:-false}" == true ]]; then' \
+    '  exit 75' \
+    'fi' \
+    'exec /usr/bin/du "$@"'
+} >"${mock_du}"
+/bin/chmod 700 "${mock_du}"
 
 {
   printf '%s\n' \
@@ -153,9 +175,11 @@ prepare_script() {
     -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${mock_docker}#" \
     -e "s#readonly AGE_BIN=/opt/homebrew/bin/age#readonly AGE_BIN=${mock_age}#" \
     -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${mock_curl}#" \
+    -e "s#readonly DU_BIN=/usr/bin/du#readonly DU_BIN=${mock_du}#" \
     -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
     -e "s#readonly BACKUP_BOOTSTRAP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_BOOTSTRAP_SCRIPT=${target_script}#" \
     -e "s#readonly BACKUP_ROOT=${PRODUCTION_BACKUP_ROOT}#readonly BACKUP_ROOT=${backup_root}#" \
+    -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
     -e "s#readonly OFFSITE_STAGING_ROOT=${PRODUCTION_OFFSITE_ROOT}#readonly OFFSITE_STAGING_ROOT=${backup_root}-offsite#" \
     -e "s#readonly ICLOUD_ROOT='${PRODUCTION_ICLOUD_ROOT}'#readonly ICLOUD_ROOT='${backup_root}-icloud'#" \
     -e "s#/bin/mv \"\${offsite_partial}\" \"\${icloud_final}\"#${final_move_bin} \"\${offsite_partial}\" \"\${icloud_final}\"#" \
@@ -572,6 +596,7 @@ v2_app="${test_root}/v2-app"
 v2_backups="${test_root}/v2-backups"
 v2_post_images="${test_root}/v2-post-images"
 v2_script="${test_root}/v2-backup.sh"
+v2_output="${test_root}/v2-backup.out"
 v2_retention_expected="${test_root}/v2-retention-expected.json"
 prepare_app "${v2_app}" "${v2_post_images}"
 printf '%s\n' \
@@ -585,12 +610,40 @@ seed_retention_matrix "${v2_backups}" "${v2_retention_expected}"
 prepare_script "${v2_app}" "${v2_backups}" "${v2_script}"
 prepare_runtime_state "${v2_app}" "${v2_script}"
 
+preflight_failure_app="${test_root}/preflight-failure-app"
+preflight_failure_backups="${test_root}/preflight-failure-backups"
+preflight_failure_post_images="${test_root}/preflight-failure-post-images"
+preflight_failure_script="${test_root}/preflight-failure-backup.sh"
+/bin/mkdir -p "${preflight_failure_backups}"
+prepare_app "${preflight_failure_app}" "${preflight_failure_post_images}"
+prepare_script \
+  "${preflight_failure_app}" \
+  "${preflight_failure_backups}" \
+  "${preflight_failure_script}"
+: >"${event_log}"
+set +e
+DOCKER_LOG="${docker_log}" \
+HOMEOPS_EVENT_LOG="${event_log}" \
+FAKE_RUNNING_SERVICES=redis \
+MOCK_POST_IMAGES_DIR="${preflight_failure_post_images}" \
+  "${preflight_failure_script}" >/dev/null 2>&1
+preflight_failure_exit_code="$?"
+set -e
+if [[ "${preflight_failure_exit_code}" -ne 1 ]]; then
+  printf 'Backup DB preflight failure must fail\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fq 'backups {"eventKey":"cubing-hub:backup:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+
 COMPOSE_PROJECT_NAME=ambient-project \
 POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \
 DOCKER_LOG="${docker_log}" \
 HEARTBEAT_LOG="${heartbeat_log}" \
+FAIL_HOMEOPS_SIZE=true \
 MOCK_POST_IMAGES_DIR="${v2_post_images}" \
-  "${v2_script}" >/dev/null
+  "${v2_script}" >"${v2_output}" 2>&1
 expected_release="${v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${expected_release}" "${docker_log}"
@@ -605,6 +658,9 @@ assert_snapshot_contract "${v2_backups}" scheduled
 test "$(/usr/bin/wc -l <"${heartbeat_log}" | /usr/bin/tr -d ' ')" = 2
 /usr/bin/grep -Fq '/api/push/cubing-local-test' "${heartbeat_log}"
 /usr/bin/grep -Fq '/api/push/cubing-icloud-test' "${heartbeat_log}"
+/usr/bin/grep -Fq 'HomeOps backup size could not be measured' "${v2_output}"
+/usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"
+/usr/bin/grep -Fq '"sizeBytes":null' "${event_log}"
 
 final_move_scheduled_app="${test_root}/final-move-scheduled-app"
 final_move_scheduled_backups="${test_root}/final-move-scheduled-backups"
@@ -944,9 +1000,13 @@ prepare_script "${legacy_app}" "${legacy_backups}" "${legacy_script}"
 : >"${docker_log}"
 DOCKER_LOG="${docker_log}" \
 MOCK_POST_IMAGES_DIR="${legacy_post_images}" \
+HOMEOPS_EVENT_LOG="${event_log}" \
   "${legacy_script}" >/dev/null
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${legacy_app}" "${docker_log}"
 /usr/bin/grep -Fq -- "--file ${legacy_app}/compose.yaml" "${docker_log}"
+/usr/bin/grep -Fq 'backups {"eventKey":"cubing-hub:backup:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"
 
 printf 'Cubing Hub production backup selection tests passed\n'

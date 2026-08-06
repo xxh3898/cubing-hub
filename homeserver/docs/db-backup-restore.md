@@ -41,6 +41,8 @@ backup을 시작하지 않는다. Persistent mode `600` lock file은 삭제하�
 
 ## 백업 실행
 
+Backup worker는 HomeOps에 실제 경로가 아닌 `cubing-hub/data/...` logical identifier와 결과 metadata만 전달한다. HomeOps는 backup을 실행하거나 archive를 읽지 않으며, event 전송 실패는 검증된 backup 생성과 retention을 차단하지 않는다.
+
 ```bash
 /Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
