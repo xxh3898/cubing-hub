@@ -158,11 +158,25 @@ script로 recovery를 전달한다. Recovery는 pending key와 SHA/digest 형식
 마지막 검증 state, Compose·Nginx·deploy/backup script allowlist와 content
 hash를 먼저 대조한다.
 
-새 pending state는 중단 시점의 HomeOps deployment event key와 시작 시각도
-보존한다. Recovery는 남아 있는 lifecycle을 `FAILED`로 닫고 고유한 recovery
-lifecycle을 시작한다. Target pair 확정은 `SUCCESS`, previous pair 또는
-bootstrap 복원은 `ROLLED_BACK`, recovery 실패는 `FAILED`로 기록한다. 기존
-4-key pending state도 telemetry context 없이 계속 복구할 수 있다.
+배포 worker는 `RUNNING` 전송 전에
+`runtime-config/homeops-deployment`에 event key, 시작 시각, target SHA를
+원자 저장한다. 따라서 application/runtime image pull처럼 transaction pending
+생성 전 단계에서 host restart 또는 `SIGKILL`이 발생해도 `recover`가 중단
+lifecycle을 `FAILED`로 닫을 수 있다. v2 worker는 검증된 previous/target pair를
+담은 operational `pending`을 첫 data-service mutation보다 먼저 저장한다. 이
+context만 남고 operational `pending`이 없다면 recovery는 운영 service를
+변경하지 않고 event만 종료한다. Legacy worker에는 이 별도 context를 적용하지
+않는다. 다음 정상 v2 배포도 유효한 context-only lifecycle을 먼저 `FAILED`로
+종료할 수 있으며, context 검증·정리에 실패하면 새 telemetry만 생략하고 배포
+자체는 계속한다.
+
+새 pending state도 중단 시점의 HomeOps deployment event key와 시작 시각을
+보존한다. Operational pending이 있으면 recovery는 남아 있는 lifecycle을
+`FAILED`로 닫고 고유한 recovery lifecycle을 시작한다. Recovery lifecycle용
+context 원자 저장에 실패하면 새 telemetry event는 시작하지 않지만 실제
+transaction recovery는 계속한다. Target pair 확정은 `SUCCESS`, previous pair
+또는 bootstrap 복원은 `ROLLED_BACK`, recovery 실패는 `FAILED`로 기록한다.
+기존 4-key pending state도 telemetry context 없이 계속 복구할 수 있다.
 
 - 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
   검증된 target release로 stale `current` pointer를 원자 조정하고 pending

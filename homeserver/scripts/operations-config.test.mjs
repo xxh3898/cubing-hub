@@ -189,6 +189,22 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     deployScript,
     /cubing-hub:deploy-recovery:[\s\S]*report_homeops_deployment RUNNING/,
   );
+  assert.match(
+    deployScript,
+    /HomeOps recovery context could not be retained; continuing operational recovery/,
+  );
+  const durableHomeOpsContext = deployScript.lastIndexOf(
+    "if write_homeops_context \\",
+  );
+  const deploymentRunning = deployScript.lastIndexOf(
+    'report_homeops_deployment RUNNING "" || true',
+  );
+  const applicationImagePull = deployScript.indexOf(
+    'pull "${new_api_image}"',
+  );
+  assert.ok(durableHomeOpsContext >= 0);
+  assert.ok(durableHomeOpsContext < deploymentRunning);
+  assert.ok(deploymentRunning < applicationImagePull);
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
@@ -504,6 +520,9 @@ test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
     /run_one_shot_migration\(\) \{[\s\S]*?\n\}/,
   )?.[0];
   const pending = deployScript.lastIndexOf("write_pending_state \\");
+  const runningServicePreflight = deployScript.indexOf(
+    'running_services="$(compose ps --status running --services)"',
+  );
   const migration = deployScript.lastIndexOf(
     'if ! run_one_shot_migration "${new_api_image}" "${new_web_image}"; then',
   );
@@ -528,6 +547,7 @@ test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
   assert.match(migrationFunction, /export WEB_IMAGE="\$\{candidate_web_image\}"/);
   assert.match(migrationFunction, /compose run \\\n[\s\S]*--pull never/);
   assert.ok(pending >= 0);
+  assert.ok(runningServicePreflight > pending);
   assert.ok(migration > pending);
   assert.ok(imageWrite > migration);
   assert.ok(publicSmoke > imageWrite);

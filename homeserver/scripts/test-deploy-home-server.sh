@@ -12,6 +12,7 @@ MOCK_CURL="${PROJECT_ROOT}/homeserver/scripts/fixtures/mock-cubing-hub-curl.sh"
 REVISION_ONE=1111111111111111111111111111111111111111
 REVISION_TWO=2222222222222222222222222222222222222222
 REVISION_THREE=3333333333333333333333333333333333333333
+ZERO_SHA=0000000000000000000000000000000000000000
 CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 CONFIG_DIGEST_TWO=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 CONFIG_DIGEST_THREE=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -34,6 +35,7 @@ event_log="${test_root}/homeops-events.log"
 event_reporter="${test_root}/report-homeops-event.py"
 mock_rm="${test_root}/rm"
 mock_date="${test_root}/date"
+mock_homeops_context_mv="${test_root}/homeops-context-mv"
 backup_args_log="${test_root}/backup-args.log"
 curl_log="${test_root}/curl.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
@@ -85,6 +87,16 @@ printf '%s\n' \
   'exec /bin/date "$@"' \
   >"${mock_date}"
 /bin/chmod 700 "${mock_date}"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'last_argument=' \
+  'for last_argument in "$@"; do :; done' \
+  'if [[ "${FAIL_HOMEOPS_CONTEXT_WRITE:-false}" == true && "${last_argument}" == */homeops-deployment ]]; then' \
+  '  exit 75' \
+  'fi' \
+  'exec /bin/mv "$@"' \
+  >"${mock_homeops_context_mv}"
+/bin/chmod 700 "${mock_homeops_context_mv}"
 : >"${backup_args_log}"
 : >"${curl_log}"
 
@@ -93,6 +105,7 @@ printf '%s\n' \
   -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${MOCK_CURL}#" \
   -e "s#readonly RM_BIN=/bin/rm#readonly RM_BIN=${mock_rm}#" \
   -e "s#readonly DATE_BIN=/bin/date#readonly DATE_BIN=${mock_date}#" \
+  -e "s#readonly HOMEOPS_CONTEXT_MV_BIN=/bin/mv#readonly HOMEOPS_CONTEXT_MV_BIN=${mock_homeops_context_mv}#" \
   -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
   -e "s#readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_SCRIPT=${backup_script}#" \
   -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
@@ -120,6 +133,9 @@ run_deploy() {
         FAKE_CURL_LOG="${curl_log}" \
         FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
         FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
+        FAKE_RUNNING_SERVICES="${FAKE_RUNNING_SERVICES:-}" \
+        FAKE_PENDING_CAPTURE_ON_DATA_UP="${FAKE_PENDING_CAPTURE_ON_DATA_UP:-}" \
+        FAKE_PENDING_FILE="${app_dir}/runtime-config/pending" \
         FAKE_MIGRATION_FAIL="${FAKE_MIGRATION_FAIL:-false}" \
         FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${REVISION_ONE}}" \
         FAKE_CONFIG_PROJECT="${FAKE_CONFIG_PROJECT:-cubing-hub}" \
@@ -128,6 +144,9 @@ run_deploy() {
         FAKE_REVISION_THREE="${REVISION_THREE}" \
         FAKE_VALIDATION_TARGET_API_IMAGE="ghcr.io/xxh3898/cubing-hub-api:${target_revision}" \
         FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
+        FAKE_HOMEOPS_CONTEXT_CAPTURE="${FAKE_HOMEOPS_CONTEXT_CAPTURE:-}" \
+        FAKE_HOMEOPS_CONTEXT_FILE="${app_dir}/runtime-config/homeops-deployment" \
+        FAIL_HOMEOPS_CONTEXT_WRITE="${FAIL_HOMEOPS_CONTEXT_WRITE:-false}" \
         FAIL_HOMEOPS_DEPLOYMENT_START_TIME="${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" \
         TMPDIR="${FAKE_TMPDIR:-}" \
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
@@ -177,6 +196,7 @@ run_recovery() {
     FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
     FAKE_CURL_LOG="${curl_log}" \
     HOMEOPS_EVENT_LOG="${event_log}" \
+    FAIL_HOMEOPS_CONTEXT_WRITE="${FAIL_HOMEOPS_CONTEXT_WRITE:-false}" \
     FAIL_HOMEOPS_DEPLOYMENT_START_TIME="${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
@@ -189,7 +209,113 @@ current_link="${app_dir}/runtime-config/current"
 initialization_marker="${app_dir}/.runtime-config-v2-initialized"
 bootstrap_failure_marker="${test_root}/fail-bootstrap-app-up-once"
 bootstrap_docker_log="${test_root}/bootstrap-docker.log"
+homeops_context_file="${app_dir}/runtime-config/homeops-deployment"
+homeops_context_capture="${test_root}/homeops-context-before-pull"
 : >"${bootstrap_docker_log}"
+: >"${event_log}"
+
+set +e
+FAKE_HOMEOPS_CONTEXT_CAPTURE="${homeops_context_capture}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST}" \
+    test-user \
+    >/dev/null 2>&1
+pre_pull_failure_exit_code="$?"
+set -e
+if [[ "${pre_pull_failure_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${homeops_context_capture}" ]] \
+  || [[ -e "${homeops_context_file}" ]]
+then
+  printf 'Application pull failure must observe durable HomeOps context and clean it on normal exit\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fxq \
+  "TARGET_APPLICATION_REVISION=${REVISION_ONE}" \
+  "${homeops_context_capture}"
+/usr/bin/grep -Fq 'HOMEOPS_DEPLOYMENT_EVENT_KEY=cubing-hub:deploy:' \
+  "${homeops_context_capture}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+: >"${event_log}"
+/bin/cp "${homeops_context_capture}" "${homeops_context_file}"
+/bin/chmod 600 "${homeops_context_file}"
+replacement_homeops_context_capture="${test_root}/homeops-context-after-stale-finalization"
+set +e
+FAKE_HOMEOPS_CONTEXT_CAPTURE="${replacement_homeops_context_capture}" \
+  run_deploy \
+    "${REVISION_THREE}" \
+    update \
+    "${CONFIG_DIGEST}" \
+    test-user \
+    >/dev/null 2>&1
+stale_context_replacement_exit_code="$?"
+set -e
+if [[ "${stale_context_replacement_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${replacement_homeops_context_capture}" ]] \
+  || [[ -e "${homeops_context_file}" ]]
+then
+  printf 'A stale valid HomeOps context must be finalized without blocking the next deployment\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fxq \
+  "TARGET_APPLICATION_REVISION=${REVISION_THREE}" \
+  "${replacement_homeops_context_capture}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_ONE}:" \
+  "${event_log}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_THREE}:" \
+  "${event_log}"
+: >"${event_log}"
+/bin/cp "${homeops_context_capture}" "${homeops_context_file}"
+/bin/chmod 600 "${homeops_context_file}"
+run_recovery
+test ! -e "${homeops_context_file}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_ONE}:" \
+  "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+: >"${event_log}"
+
+data_bootstrap_pending_capture="${test_root}/pending-before-data-bootstrap"
+data_bootstrap_failure_log="${test_root}/data-bootstrap-failure.log"
+/usr/bin/sed \
+  -e "s#^API_IMAGE=.*#API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${ZERO_SHA}#" \
+  -e "s#^WEB_IMAGE=.*#WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${ZERO_SHA}#" \
+  "${app_dir}/.env" >"${app_dir}/.env.bootstrap-pending"
+/bin/mv "${app_dir}/.env.bootstrap-pending" "${app_dir}/.env"
+set +e
+FAKE_RUNNING_SERVICES=redis \
+FAKE_PENDING_CAPTURE_ON_DATA_UP="${data_bootstrap_pending_capture}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST}" \
+    test-user \
+    >"${data_bootstrap_failure_log}" 2>&1
+data_bootstrap_failure_exit_code="$?"
+set -e
+if [[ "${data_bootstrap_failure_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${data_bootstrap_pending_capture}" ]] \
+  || [[ ! -f "${app_dir}/runtime-config/pending" ]]
+then
+  printf 'Data-service bootstrap failure must retain the operational pending transaction\n' >&2
+  /bin/cat "${data_bootstrap_failure_log}" >&2
+  exit 1
+fi
+/usr/bin/grep -Fxq "PREVIOUS_APPLICATION_REVISION=${ZERO_SHA}" \
+  "${data_bootstrap_pending_capture}"
+/usr/bin/grep -Fxq "TARGET_APPLICATION_REVISION=${REVISION_ONE}" \
+  "${data_bootstrap_pending_capture}"
+run_recovery
+test ! -e "${app_dir}/runtime-config/pending"
+/usr/bin/sed \
+  -e "s#^API_IMAGE=.*#API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_TWO}#" \
+  -e "s#^WEB_IMAGE=.*#WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${REVISION_TWO}#" \
+  "${app_dir}/.env" >"${app_dir}/.env.after-bootstrap-recovery"
+/bin/mv "${app_dir}/.env.after-bootstrap-recovery" "${app_dir}/.env"
 : >"${event_log}"
 
 # The first v2 update must use the artifact worker without requiring the fixed
@@ -503,6 +629,32 @@ run_recovery
 test ! -e "${pending_file}"
 /usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy-recovery:' "${event_log}"
 /usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"
+
+write_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_THREE}" \
+  "${CONFIG_DIGEST}"
+/usr/bin/sed \
+  -e "s#^API_IMAGE=.*#API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_THREE}#" \
+  -e "s#^WEB_IMAGE=.*#WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${REVISION_THREE}#" \
+  "${app_dir}/.env" >"${app_dir}/.env.recovery-context-failure"
+/bin/mv "${app_dir}/.env.recovery-context-failure" "${app_dir}/.env"
+: >"${event_log}"
+FAIL_HOMEOPS_CONTEXT_WRITE=true run_recovery
+test ! -e "${pending_file}"
+test ! -e "${homeops_context_file}"
+/usr/bin/grep -Fxq \
+  "API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_TWO}" \
+  "${app_dir}/.env"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_THREE}:2026-08-06T00:00:00Z" \
+  "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+if /usr/bin/grep -Fq 'cubing-hub:deploy-recovery:' "${event_log}"; then
+  printf 'Failed recovery context persistence must not start an untracked recovery event\n' >&2
+  exit 1
+fi
 
 release_one="${app_dir}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 release_two="${app_dir}/runtime-config/releases/${CONFIG_DIGEST_TWO#sha256:}"
