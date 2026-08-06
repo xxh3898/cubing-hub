@@ -181,6 +181,14 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     deployScript,
     /write_pending_state[\s\S]*"\$\{previous_sha:-\$\{ZERO_SHA\}\}"/,
   );
+  assert.match(
+    deployScript,
+    /HOMEOPS_DEPLOYMENT_EVENT_KEY[\s\S]*HOMEOPS_DEPLOYMENT_STARTED_AT/,
+  );
+  assert.match(
+    deployScript,
+    /cubing-hub:deploy-recovery:[\s\S]*report_homeops_deployment RUNNING/,
+  );
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,

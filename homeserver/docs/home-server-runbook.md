@@ -158,6 +158,12 @@ script로 recovery를 전달한다. Recovery는 pending key와 SHA/digest 형식
 마지막 검증 state, Compose·Nginx·deploy/backup script allowlist와 content
 hash를 먼저 대조한다.
 
+새 pending state는 중단 시점의 HomeOps deployment event key와 시작 시각도
+보존한다. Recovery는 남아 있는 lifecycle을 `FAILED`로 닫고 고유한 recovery
+lifecycle을 시작한다. Target pair 확정은 `SUCCESS`, previous pair 또는
+bootstrap 복원은 `ROLLED_BACK`, recovery 실패는 `FAILED`로 기록한다. 기존
+4-key pending state도 telemetry context 없이 계속 복구할 수 있다.
+
 - 성공 state가 이미 target pair라면 `.env`와 실행 service를 검증한 뒤
   검증된 target release로 stale `current` pointer를 원자 조정하고 pending
   marker를 정리한다.

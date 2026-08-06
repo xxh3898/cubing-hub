@@ -176,6 +176,8 @@ run_recovery() {
     FAKE_REVISION_THREE="${REVISION_THREE}" \
     FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
     FAKE_CURL_LOG="${curl_log}" \
+    HOMEOPS_EVENT_LOG="${event_log}" \
+    FAIL_HOMEOPS_DEPLOYMENT_START_TIME="${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
     /bin/bash "${test_script}" recover
@@ -400,13 +402,46 @@ if /usr/bin/find "${app_dir}/runtime-config/releases" -name '.current.*' | /usr/
 fi
 
 pending_file="${app_dir}/runtime-config/pending"
-{
-  printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${REVISION_TWO}"
-  printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
-  printf 'TARGET_APPLICATION_REVISION=%s\n' "${REVISION_THREE}"
-  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
-} >"${pending_file}"
-/bin/chmod 600 "${pending_file}"
+write_pending_fixture() {
+  local previous_revision="$1"
+  local previous_digest="$2"
+  local target_revision="$3"
+  local target_digest="$4"
+  local started_at=2026-08-06T00:00:00Z
+
+  {
+    printf 'HOMEOPS_DEPLOYMENT_EVENT_KEY=cubing-hub:deploy:%s:%s\n' \
+      "${target_revision}" "${started_at}"
+    printf 'HOMEOPS_DEPLOYMENT_STARTED_AT=%s\n' "${started_at}"
+    printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${previous_revision}"
+    printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${previous_digest}"
+    printf 'TARGET_APPLICATION_REVISION=%s\n' "${target_revision}"
+    printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${target_digest}"
+  } >"${pending_file}"
+  /bin/chmod 600 "${pending_file}"
+}
+
+write_legacy_pending_fixture() {
+  local previous_revision="$1"
+  local previous_digest="$2"
+  local target_revision="$3"
+  local target_digest="$4"
+
+  {
+    printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${previous_revision}"
+    printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${previous_digest}"
+    printf 'TARGET_APPLICATION_REVISION=%s\n' "${target_revision}"
+    printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${target_digest}"
+  } >"${pending_file}"
+  /bin/chmod 600 "${pending_file}"
+}
+
+write_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_THREE}" \
+  "${CONFIG_DIGEST}"
+: >"${event_log}"
 /usr/bin/sed \
   -e "s#^API_IMAGE=.*#API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_THREE}#" \
   -e "s#^WEB_IMAGE=.*#WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:${REVISION_THREE}#" \
@@ -448,16 +483,26 @@ test ! -e "${pending_file}"
   "API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_TWO}" \
   "${app_dir}/.env"
 /usr/bin/grep -Fxq "APPLICATION_REVISION=${REVISION_TWO}" "${state_file}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_THREE}:2026-08-06T00:00:00Z" \
+  "${event_log}"
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy-recovery:' "${event_log}"
+if ! /usr/bin/grep -Fq '"status":"ROLLED_BACK"' "${event_log}"; then
+  printf 'Successful recovery to the previous pair must report ROLLED_BACK\n' >&2
+  /bin/cat "${event_log}" >&2
+  exit 1
+fi
 
-{
-  printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${REVISION_TWO}"
-  printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
-  printf 'TARGET_APPLICATION_REVISION=%s\n' "${REVISION_TWO}"
-  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
-} >"${pending_file}"
-/bin/chmod 600 "${pending_file}"
+write_legacy_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}"
+: >"${event_log}"
 run_recovery
 test ! -e "${pending_file}"
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy-recovery:' "${event_log}"
+/usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"
 
 release_one="${app_dir}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 release_two="${app_dir}/runtime-config/releases/${CONFIG_DIGEST_TWO#sha256:}"
@@ -474,12 +519,11 @@ target_content_sha="$(
       "${release_two}/scripts/deploy-cubing-hub.sh"
   } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
 )"
-{
-  printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${REVISION_TWO}"
-  printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
-  printf 'TARGET_APPLICATION_REVISION=%s\n' "${REVISION_THREE}"
-  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST_TWO}"
-} >"${pending_file}"
+write_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_THREE}" \
+  "${CONFIG_DIGEST_TWO}"
 /usr/bin/sed \
   -e "s#^APPLICATION_REVISION=.*#APPLICATION_REVISION=${REVISION_THREE}#" \
   -e "s#^RUNTIME_CONFIG_DIGEST=.*#RUNTIME_CONFIG_DIGEST=${CONFIG_DIGEST_TWO}#" \
@@ -533,12 +577,21 @@ then
   printf 'Completed target recovery must preserve pending while services are unhealthy\n' >&2
   exit 1
 fi
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy-recovery:' "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+: >"${event_log}"
 run_recovery
 
 test "$(/bin/cat "${initialization_marker}")" = RUNTIME_CONFIG_V2=initialized
 test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" \
   = "releases/${CONFIG_DIGEST_TWO#sha256:}"
 test ! -e "${pending_file}"
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy-recovery:' "${event_log}"
+if ! /usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"; then
+  printf 'Successful completed-target recovery must report SUCCESS\n' >&2
+  /bin/cat "${event_log}" >&2
+  exit 1
+fi
 
 /usr/bin/sed \
   -e "s#^APPLICATION_REVISION=.*#APPLICATION_REVISION=${REVISION_TWO}#" \

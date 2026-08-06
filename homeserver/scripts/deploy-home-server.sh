@@ -206,6 +206,10 @@ logged_in=false
 homeops_deployment_started_at=
 homeops_deployment_event_key=
 homeops_rollback_succeeded=false
+homeops_success_status=SUCCESS
+pending_has_homeops_context=false
+normalized_sha=
+previous_sha=
 
 report_homeops_deployment() {
   local status="$1"
@@ -321,7 +325,7 @@ cleanup() {
     if ! finished_at="$("${DATE_BIN}" -u '+%Y-%m-%dT%H:%M:%SZ')"; then
       printf 'HomeOps deployment completion time could not be generated\n' >&2
     elif [[ "${exit_status}" -eq 0 ]]; then
-      report_homeops_deployment SUCCESS "${finished_at}" || true
+      report_homeops_deployment "${homeops_success_status}" "${finished_at}" || true
     elif [[ "${homeops_rollback_succeeded}" == true ]]; then
       report_homeops_deployment ROLLED_BACK "${finished_at}" || true
     else
@@ -955,12 +959,16 @@ write_pending_state() {
   local previous_config_digest="$2"
   local target_sha="$3"
   local target_config_digest="$4"
+  local homeops_event_key="${5:-}"
+  local homeops_started_at="${6:-}"
 
   /bin/mkdir -p "${RUNTIME_CONFIG_ROOT}"
   pending_temp="$(
     /usr/bin/mktemp "${RUNTIME_CONFIG_ROOT}/.pending.tmp.XXXXXX"
   )"
   {
+    printf 'HOMEOPS_DEPLOYMENT_EVENT_KEY=%s\n' "${homeops_event_key}"
+    printf 'HOMEOPS_DEPLOYMENT_STARTED_AT=%s\n' "${homeops_started_at}"
     printf 'PREVIOUS_APPLICATION_REVISION=%s\n' "${previous_sha}"
     printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${previous_config_digest}"
     printf 'TARGET_APPLICATION_REVISION=%s\n' "${target_sha}"
@@ -1060,9 +1068,80 @@ validate_pending_state() {
     /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${RUNTIME_CONFIG_PENDING}" \
       | LC_ALL=C /usr/bin/sort
   )"
-  if [[ "${keys}" != $'PREVIOUS_APPLICATION_REVISION\nPREVIOUS_RUNTIME_CONFIG_DIGEST\nTARGET_APPLICATION_REVISION\nTARGET_RUNTIME_CONFIG_DIGEST' ]]; then
+  pending_has_homeops_context=false
+  if [[ "${keys}" == $'HOMEOPS_DEPLOYMENT_EVENT_KEY\nHOMEOPS_DEPLOYMENT_STARTED_AT\nPREVIOUS_APPLICATION_REVISION\nPREVIOUS_RUNTIME_CONFIG_DIGEST\nTARGET_APPLICATION_REVISION\nTARGET_RUNTIME_CONFIG_DIGEST' ]]; then
+    pending_has_homeops_context=true
+  elif [[ "${keys}" != $'PREVIOUS_APPLICATION_REVISION\nPREVIOUS_RUNTIME_CONFIG_DIGEST\nTARGET_APPLICATION_REVISION\nTARGET_RUNTIME_CONFIG_DIGEST' ]]; then
     fail "runtime config pending state keys are invalid"
   fi
+}
+
+initialize_homeops_recovery_event() {
+  local persisted_event_key=
+  local persisted_started_at=
+  local recovery_event_key
+  local recovery_started_at
+  local recovery_previous_digest
+  local recovery_previous_sha
+  local recovery_target_digest
+  local recovery_target_sha
+
+  validate_pending_state
+  recovery_previous_sha="$(read_pending_value PREVIOUS_APPLICATION_REVISION)"
+  recovery_previous_digest="$(read_pending_value PREVIOUS_RUNTIME_CONFIG_DIGEST)"
+  recovery_target_sha="$(read_pending_value TARGET_APPLICATION_REVISION)"
+  recovery_target_digest="$(read_pending_value TARGET_RUNTIME_CONFIG_DIGEST)"
+  if [[ ! "${recovery_previous_sha}" =~ ^[0-9a-f]{40}$ ]] \
+    || [[ ! "${recovery_target_sha}" =~ ^[0-9a-f]{40}$ ]] \
+    || [[ ! "${recovery_previous_digest}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || [[ ! "${recovery_target_digest}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || [[ "${recovery_target_digest}" == "${ZERO_DIGEST}" ]]
+  then
+    fail "runtime config pending state values are invalid"
+  fi
+
+  if [[ "${pending_has_homeops_context}" == true ]]; then
+    persisted_event_key="$(read_pending_value HOMEOPS_DEPLOYMENT_EVENT_KEY)"
+    persisted_started_at="$(read_pending_value HOMEOPS_DEPLOYMENT_STARTED_AT)"
+    if [[ -n "${persisted_event_key}" || -n "${persisted_started_at}" ]]; then
+      if [[ ! "${persisted_started_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+        || {
+          [[ "${persisted_event_key}" != "cubing-hub:deploy:${recovery_target_sha}:${persisted_started_at}" ]] \
+            && [[ ! "${persisted_event_key}" =~ ^cubing-hub:deploy-recovery:${recovery_target_sha}:${persisted_started_at}:[0-9]+$ ]];
+        }
+      then
+        fail "runtime config pending HomeOps context is invalid"
+      fi
+    fi
+  fi
+
+  if ! recovery_started_at="$("${DATE_BIN}" -u '+%Y-%m-%dT%H:%M:%SZ')"; then
+    printf 'HomeOps recovery start time could not be generated\n' >&2
+    return
+  fi
+
+  normalized_sha="${recovery_target_sha}"
+  previous_sha=
+  if [[ "${recovery_previous_sha}" != "${ZERO_SHA}" ]]; then
+    previous_sha="${recovery_previous_sha}"
+  fi
+  if [[ -n "${persisted_event_key}" ]]; then
+    homeops_deployment_event_key="${persisted_event_key}"
+    homeops_deployment_started_at="${persisted_started_at}"
+    report_homeops_deployment FAILED "${recovery_started_at}" || true
+  fi
+
+  recovery_event_key="cubing-hub:deploy-recovery:${recovery_target_sha}:${recovery_started_at}:$$"
+  write_pending_state \
+    "${recovery_previous_sha}" \
+    "${recovery_previous_digest}" \
+    "${recovery_target_sha}" \
+    "${recovery_target_digest}" \
+    "${recovery_event_key}" \
+    "${recovery_started_at}"
+  homeops_deployment_event_key="${recovery_event_key}"
+  homeops_deployment_started_at="${recovery_started_at}"
+  report_homeops_deployment RUNNING "" || true
 }
 
 validate_state_file() {
@@ -1324,6 +1403,7 @@ recover_pending_transaction() {
       fail "bootstrap recovery could not stop interrupted app services"
     fi
     /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
+    homeops_success_status=ROLLED_BACK
     printf 'Interrupted Cubing Hub bootstrap cleared with app services stopped\n'
     return 0
   fi
@@ -1376,10 +1456,12 @@ recover_pending_transaction() {
     write_initialization_marker
   fi
   /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
+  homeops_success_status=ROLLED_BACK
   printf 'Cubing Hub runtime config transaction recovered to: %s\n' "${previous_sha}"
 }
 
 if [[ "${recovery_mode}" == true ]]; then
+  initialize_homeops_recovery_event
   recover_pending_transaction
   exit 0
 fi
@@ -1585,7 +1667,9 @@ if [[ "${legacy_mode}" == false ]]; then
     "${previous_sha:-${ZERO_SHA}}" \
     "${previous_config_digest}" \
     "${normalized_sha}" \
-    "${candidate_config_digest}"
+    "${candidate_config_digest}" \
+    "${homeops_deployment_event_key}" \
+    "${homeops_deployment_started_at}"
 fi
 
 active_compose_file="${candidate_compose_file}"
