@@ -58,6 +58,7 @@ printf '%s\n' \
   '#!/bin/bash' \
   'printf "%s\n" "${BASH_SOURCE[0]}" >>"${FAKE_BACKUP_LOG}"' \
   'printf "%s\n" "$*" >>"${FAKE_BACKUP_ARGS_LOG}"' \
+  'if [[ "${FAKE_BACKUP_FAIL:-false}" == true ]]; then exit 1; fi' \
   >"${backup_script}"
 /bin/cp "${backup_script}" "${runtime_backup_script}"
 /bin/chmod 700 "${backup_script}" "${runtime_backup_script}"
@@ -130,6 +131,7 @@ run_deploy() {
         FAKE_BACKUP_LOG="${backup_log}" \
         HOMEOPS_EVENT_LOG="${event_log}" \
         FAKE_BACKUP_ARGS_LOG="${backup_args_log}" \
+        FAKE_BACKUP_FAIL="${FAKE_BACKUP_FAIL:-false}" \
         FAKE_CURL_LOG="${curl_log}" \
         FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
         FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
@@ -759,6 +761,51 @@ fi
 /bin/rm -f -- "${app_dir}/runtime-config/current"
 /bin/ln -s "releases/${CONFIG_DIGEST#sha256:}" "${app_dir}/runtime-config/current"
 
+write_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_THREE}" \
+  "${CONFIG_DIGEST}"
+printf 'UNKNOWN=value\n' >"${homeops_context_file}"
+: >"${event_log}"
+run_recovery
+test ! -e "${pending_file}"
+test -f "${homeops_context_file}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_THREE}:2026-08-06T00:00:00Z" \
+  "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+if /usr/bin/grep -Fq 'cubing-hub:deploy-recovery:' "${event_log}"; then
+  printf 'Invalid optional HomeOps context must not create an untracked recovery event\n' >&2
+  exit 1
+fi
+/bin/rm -f -- "${homeops_context_file}"
+
+write_pending_fixture \
+  "${REVISION_TWO}" \
+  "${CONFIG_DIGEST}" \
+  "${REVISION_THREE}" \
+  "${CONFIG_DIGEST}"
+{
+  printf 'HOMEOPS_DEPLOYMENT_EVENT_KEY=cubing-hub:deploy:%s:2026-08-06T00:00:00Z\n' \
+    "${REVISION_TWO}"
+  printf 'HOMEOPS_DEPLOYMENT_STARTED_AT=2026-08-06T00:00:00Z\n'
+  printf 'TARGET_APPLICATION_REVISION=%s\n' "${REVISION_TWO}"
+} >"${homeops_context_file}"
+/bin/chmod 600 "${homeops_context_file}"
+: >"${event_log}"
+run_recovery
+test ! -e "${pending_file}"
+test -f "${homeops_context_file}"
+/usr/bin/grep -Fq \
+  "cubing-hub:deploy:${REVISION_THREE}:2026-08-06T00:00:00Z" \
+  "${event_log}"
+if /usr/bin/grep -Fq 'cubing-hub:deploy-recovery:' "${event_log}"; then
+  printf 'Mismatched optional HomeOps context must not create an untracked recovery event\n' >&2
+  exit 1
+fi
+/bin/rm -f -- "${homeops_context_file}"
+
 printf 'UNKNOWN=value\n' >"${pending_file}"
 set +e
 run_recovery >/dev/null 2>&1
@@ -769,6 +816,57 @@ if [[ "${recovery_exit_code}" -ne 1 || ! -f "${pending_file}" ]]; then
   exit 1
 fi
 /bin/rm -f -- "${pending_file}"
+
+update_preflight_log="${test_root}/update-preflight-docker.log"
+: >"${update_preflight_log}"
+set +e
+FAKE_DOCKER_LOG="${update_preflight_log}" \
+FAKE_RUNNING_SERVICES=redis \
+FAKE_CONFIG_REVISION="${REVISION_ONE}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST_THREE}" \
+    test-user \
+    >/dev/null 2>&1
+missing_db_update_exit_code="$?"
+set -e
+if [[ "${missing_db_update_exit_code}" -ne 1 ]] \
+  || [[ -e "${pending_file}" ]] \
+  || [[ -e "${homeops_context_file}" ]]
+then
+  printf 'Existing update DB preflight failure must not leave a pending transaction\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -Fq 'MigrationMain' "${update_preflight_log}"; then
+  printf 'Existing update DB preflight failure must not run migration\n' >&2
+  exit 1
+fi
+
+: >"${update_preflight_log}"
+set +e
+FAKE_DOCKER_LOG="${update_preflight_log}" \
+FAKE_BACKUP_FAIL=true \
+FAKE_CONFIG_REVISION="${REVISION_ONE}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST_THREE}" \
+    test-user \
+    >/dev/null 2>&1
+backup_failure_update_exit_code="$?"
+set -e
+if [[ "${backup_failure_update_exit_code}" -ne 1 ]] \
+  || [[ -e "${pending_file}" ]] \
+  || [[ -e "${homeops_context_file}" ]]
+then
+  printf 'Existing update backup failure must not leave a pending transaction\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -Fq 'MigrationMain' "${update_preflight_log}"; then
+  printf 'Existing update backup failure must not run migration\n' >&2
+  exit 1
+fi
 
 set +e
 FAKE_SERVICE_HEALTH=unhealthy \

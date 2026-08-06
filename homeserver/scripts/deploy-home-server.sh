@@ -1071,7 +1071,7 @@ remove_homeops_context_if_owned() {
   fi
   persisted_event_key="$(
     read_homeops_context_value HOMEOPS_DEPLOYMENT_EVENT_KEY
-  )" || return
+  )" || return 0
   if [[ "${persisted_event_key}" != "${homeops_deployment_event_key}" ]]; then
     return
   fi
@@ -1227,6 +1227,7 @@ initialize_homeops_recovery_event() {
   local context_event_key=
   local context_started_at=
   local context_target_sha=
+  local context_is_usable=true
 
   validate_pending_state
   recovery_previous_sha="$(read_pending_value PREVIOUS_APPLICATION_REVISION)"
@@ -1259,22 +1260,27 @@ initialize_homeops_recovery_event() {
 
   if [[ -e "${RUNTIME_CONFIG_HOMEOPS_CONTEXT}" || -L "${RUNTIME_CONFIG_HOMEOPS_CONTEXT}" ]]; then
     if ! validate_homeops_context; then
-      fail "HomeOps deployment context is invalid"
-    fi
-    context_event_key="$(
+      printf 'HomeOps deployment context is invalid; continuing operational recovery without new telemetry\n' >&2
+      context_is_usable=false
+    elif ! context_event_key="$(
       read_homeops_context_value HOMEOPS_DEPLOYMENT_EVENT_KEY
-    )"
-    context_started_at="$(
-      read_homeops_context_value HOMEOPS_DEPLOYMENT_STARTED_AT
-    )"
-    context_target_sha="$(
-      read_homeops_context_value TARGET_APPLICATION_REVISION
-    )"
-    if [[ "${context_target_sha}" != "${recovery_target_sha}" ]]; then
-      fail "HomeOps deployment context does not match the pending target"
+    )" \
+      || ! context_started_at="$(
+        read_homeops_context_value HOMEOPS_DEPLOYMENT_STARTED_AT
+      )" \
+      || ! context_target_sha="$(
+        read_homeops_context_value TARGET_APPLICATION_REVISION
+      )"
+    then
+      printf 'HomeOps deployment context could not be read; continuing operational recovery without new telemetry\n' >&2
+      context_is_usable=false
+    elif [[ "${context_target_sha}" != "${recovery_target_sha}" ]]; then
+      printf 'HomeOps deployment context does not match the pending target; continuing operational recovery without new telemetry\n' >&2
+      context_is_usable=false
+    else
+      persisted_event_key="${context_event_key}"
+      persisted_started_at="${context_started_at}"
     fi
-    persisted_event_key="${context_event_key}"
-    persisted_started_at="${context_started_at}"
   fi
 
   if ! recovery_started_at="$("${DATE_BIN}" -u '+%Y-%m-%dT%H:%M:%SZ')"; then
@@ -1295,7 +1301,11 @@ initialize_homeops_recovery_event() {
   fi
 
   recovery_event_key="cubing-hub:deploy-recovery:${recovery_target_sha}:${recovery_started_at}:$$"
-  if write_homeops_context \
+  if [[ "${context_is_usable}" == false ]]; then
+    printf 'HomeOps recovery context is unusable; continuing operational recovery without new telemetry\n' >&2
+    homeops_deployment_event_key=
+    homeops_deployment_started_at=
+  elif write_homeops_context \
     "${recovery_event_key}" \
     "${recovery_started_at}" \
     "${recovery_target_sha}"
@@ -1304,7 +1314,7 @@ initialize_homeops_recovery_event() {
     homeops_deployment_started_at="${recovery_started_at}"
     report_homeops_deployment RUNNING "" || true
   else
-    printf 'HomeOps recovery context could not be retained; continuing operational recovery\n' >&2
+    printf 'HomeOps recovery context could not be retained; continuing operational recovery without new telemetry\n' >&2
     homeops_deployment_event_key=
     homeops_deployment_started_at=
   fi
@@ -1836,7 +1846,7 @@ validation_baseline_compose_file=
 validation_baseline_api_image=
 validation_baseline_web_image=
 
-if [[ "${legacy_mode}" == false ]]; then
+if [[ "${legacy_mode}" == false && -z "${previous_sha}" ]]; then
   previous_config_digest="${current_config_digest:-${ZERO_DIGEST}}"
   write_pending_state \
     "${previous_sha:-${ZERO_SHA}}" \
@@ -1886,6 +1896,17 @@ if [[ -n "${previous_sha}" ]]; then
   else
     "${active_backup_script}" --trigger predeploy
   fi
+fi
+
+if [[ "${legacy_mode}" == false && -n "${previous_sha}" ]]; then
+  previous_config_digest="${current_config_digest:-${ZERO_DIGEST}}"
+  write_pending_state \
+    "${previous_sha}" \
+    "${previous_config_digest}" \
+    "${normalized_sha}" \
+    "${candidate_config_digest}" \
+    "${homeops_deployment_event_key}" \
+    "${homeops_deployment_started_at}"
 fi
 
 active_compose_file="${candidate_compose_file}"

@@ -193,6 +193,22 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     deployScript,
     /HomeOps recovery context could not be retained; continuing operational recovery/,
   );
+  assert.match(
+    deployScript,
+    /HomeOps deployment context is invalid; continuing operational recovery without new telemetry/,
+  );
+  assert.match(
+    deployScript,
+    /HomeOps recovery context is unusable; continuing operational recovery without new telemetry/,
+  );
+  const recoveryInitializer = deployScript.match(
+    /initialize_homeops_recovery_event\(\) \{[\s\S]*?\n\}/,
+  )?.[0];
+  assert.ok(recoveryInitializer);
+  assert.doesNotMatch(
+    recoveryInitializer,
+    /fail "HomeOps deployment context is invalid"/,
+  );
   const durableHomeOpsContext = deployScript.lastIndexOf(
     "if write_homeops_context \\",
   );
@@ -519,9 +535,17 @@ test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
   const migrationFunction = deployScript.match(
     /run_one_shot_migration\(\) \{[\s\S]*?\n\}/,
   )?.[0];
-  const pending = deployScript.lastIndexOf("write_pending_state \\");
+  const bootstrapPending = deployScript.indexOf(
+    'if [[ "${legacy_mode}" == false && -z "${previous_sha}" ]]; then',
+  );
+  const updatePending = deployScript.indexOf(
+    'if [[ "${legacy_mode}" == false && -n "${previous_sha}" ]]; then',
+  );
   const runningServicePreflight = deployScript.indexOf(
     'running_services="$(compose ps --status running --services)"',
+  );
+  const predeployBackup = deployScript.indexOf(
+    '"${active_backup_script}" --trigger predeploy',
   );
   const migration = deployScript.lastIndexOf(
     'if ! run_one_shot_migration "${new_api_image}" "${new_web_image}"; then',
@@ -546,9 +570,12 @@ test("should_runOneShotFlywayBeforeCutoverAndGateSuccessOnPublicSmoke", () => {
   assert.match(migrationFunction, /export API_IMAGE="\$\{candidate_api_image\}"/);
   assert.match(migrationFunction, /export WEB_IMAGE="\$\{candidate_web_image\}"/);
   assert.match(migrationFunction, /compose run \\\n[\s\S]*--pull never/);
-  assert.ok(pending >= 0);
-  assert.ok(runningServicePreflight > pending);
-  assert.ok(migration > pending);
+  assert.ok(bootstrapPending >= 0);
+  assert.ok(updatePending >= 0);
+  assert.ok(runningServicePreflight > bootstrapPending);
+  assert.ok(predeployBackup > runningServicePreflight);
+  assert.ok(updatePending > predeployBackup);
+  assert.ok(migration > updatePending);
   assert.ok(imageWrite > migration);
   assert.ok(publicSmoke > imageWrite);
   assert.ok(successState > publicSmoke);
