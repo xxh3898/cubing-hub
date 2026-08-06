@@ -179,6 +179,12 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   fail "Python is not executable: ${PYTHON_BIN}"
 fi
 
+started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+timestamp="$(/bin/date -u '+%Y%m%dT%H%M%SZ')"
+homeops_backup_started_at="${started_at}"
+homeops_backup_event_key="cubing-hub:backup:${timestamp}"
+report_homeops_backup RUNNING "" "cubing-hub/data/cubing-hub-production-${timestamp}" "" || true
+
 validate_heartbeat_url() {
   local value="$1"
 
@@ -528,11 +534,6 @@ fi
 
 prepare_private_directory "${BACKUP_ROOT}"
 
-started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
-timestamp="$(/bin/date -u '+%Y%m%dT%H%M%SZ')"
-homeops_backup_started_at="${started_at}"
-homeops_backup_event_key="cubing-hub:backup:${timestamp}"
-report_homeops_backup RUNNING "" "cubing-hub/data/cubing-hub-production-${timestamp}" "" || true
 work_dir="$(
   /usr/bin/mktemp -d "${BACKUP_ROOT}/.cubing-hub-backup.XXXXXX"
 )"

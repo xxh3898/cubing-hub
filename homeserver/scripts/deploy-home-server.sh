@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 readonly DOCKER_BIN=/usr/local/bin/docker
 readonly PYTHON_BIN=/usr/bin/python3
+readonly RM_BIN=/bin/rm
 readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py
 readonly CURL_BIN=/usr/bin/curl
 readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub
@@ -257,23 +258,16 @@ PY
 # shellcheck disable=SC2329
 cleanup() {
   local exit_status="$?"
+  local cleanup_failed=false
   local finished_at=
 
-  if [[ -n "${homeops_deployment_event_key}" ]]; then
-    if ! finished_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"; then
-      printf 'HomeOps deployment completion time could not be generated\n' >&2
-    elif [[ "${exit_status}" -eq 0 ]]; then
-      report_homeops_deployment SUCCESS "${finished_at}" || true
-    elif [[ "${homeops_rollback_succeeded}" == true ]]; then
-      report_homeops_deployment ROLLED_BACK "${finished_at}" || true
-    else
-      report_homeops_deployment FAILED "${finished_at}" || true
-    fi
-  fi
   registry_token=
 
-  if [[ -n "${env_temp}" && -e "${env_temp}" ]]; then
-    /bin/unlink "${env_temp}"
+  if [[ -n "${env_temp}" && -e "${env_temp}" ]] \
+    && ! "${RM_BIN}" -f -- "${env_temp}"
+  then
+    printf 'Deployment cleanup failed to remove temporary environment file\n' >&2
+    cleanup_failed=true
   fi
 
   if [[ -n "${config_container_id}" ]]; then
@@ -286,15 +280,21 @@ cleanup() {
     "${current_link_temp}" \
     "${initialization_temp}"
   do
-    if [[ -n "${cleanup_path}" && -e "${cleanup_path}" ]]; then
-      /bin/rm -f -- "${cleanup_path}"
+    if [[ -n "${cleanup_path}" && -e "${cleanup_path}" ]] \
+      && ! "${RM_BIN}" -f -- "${cleanup_path}"
+    then
+      printf 'Deployment cleanup failed to remove temporary runtime-config path\n' >&2
+      cleanup_failed=true
     fi
   done
 
   if [[ -n "${release_temp}" && -d "${release_temp}" ]] \
     && [[ "$(/usr/bin/basename "${release_temp}")" == .tmp.* ]]
   then
-    /bin/rm -rf -- "${release_temp}"
+    if ! "${RM_BIN}" -rf -- "${release_temp}"; then
+      printf 'Deployment cleanup failed to remove temporary runtime-config release\n' >&2
+      cleanup_failed=true
+    fi
   fi
 
   if [[ "${logged_in}" == true ]]; then
@@ -306,7 +306,26 @@ cleanup() {
   fi
 
   if [[ "$(/usr/bin/basename "${docker_config_dir}")" == cubing-hub-docker-config.* ]]; then
-    /bin/rm -rf -- "${docker_config_dir}"
+    if ! "${RM_BIN}" -rf -- "${docker_config_dir}"; then
+      printf 'Deployment cleanup failed to remove temporary Docker credentials\n' >&2
+      cleanup_failed=true
+    fi
+  fi
+
+  if [[ "${cleanup_failed}" == true && "${exit_status}" -eq 0 ]]; then
+    exit_status=1
+  fi
+
+  if [[ -n "${homeops_deployment_event_key}" ]]; then
+    if ! finished_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"; then
+      printf 'HomeOps deployment completion time could not be generated\n' >&2
+    elif [[ "${exit_status}" -eq 0 ]]; then
+      report_homeops_deployment SUCCESS "${finished_at}" || true
+    elif [[ "${homeops_rollback_succeeded}" == true ]]; then
+      report_homeops_deployment ROLLED_BACK "${finished_at}" || true
+    else
+      report_homeops_deployment FAILED "${finished_at}" || true
+    fi
   fi
   return "${exit_status}"
 }
@@ -1368,6 +1387,9 @@ normalized_sha="$(
   printf '%s' "${commit_sha}" \
     | /usr/bin/tr '[:upper:]' '[:lower:]'
 )"
+homeops_deployment_started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+homeops_deployment_event_key="cubing-hub:deploy:${normalized_sha}:${homeops_deployment_started_at}"
+report_homeops_deployment RUNNING "" || true
 new_api_image="${API_IMAGE_REPOSITORY}:${normalized_sha}"
 new_web_image="${WEB_IMAGE_REPOSITORY}:${normalized_sha}"
 current_api_image="$(read_env_value API_IMAGE)"
@@ -1540,10 +1562,6 @@ if ! /usr/bin/grep -qx db <<<"${running_services}"; then
     --wait-timeout "${HEALTH_TIMEOUT_SECONDS}" \
     db redis
 fi
-
-homeops_deployment_started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
-homeops_deployment_event_key="cubing-hub:deploy:${normalized_sha}:${homeops_deployment_started_at}"
-report_homeops_deployment RUNNING "" || true
 
 if [[ -n "${previous_sha}" ]]; then
   if [[ ! -x "${active_backup_script}" || -L "${active_backup_script}" ]]; then

@@ -288,7 +288,10 @@ case "${command_name}" in
         "${edge_json}" \
         "${mysql_volume_extra}"
     elif [[ "${arguments}" == *" ps --status running --services "* ]]; then
-      printf 'db\nredis\napi\nweb\n'
+      printf '%s\n' "${FAKE_RUNNING_SERVICES:-db
+redis
+api
+web}"
     fi
     ;;
   *)

@@ -90,7 +90,7 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     '  fi' \
     '  printf '\''{"services":{"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
-    '  printf "db\n"' \
+    '  printf "%s\n" "${FAKE_RUNNING_SERVICES:-db}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
     '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
@@ -609,6 +609,33 @@ printf 'image-one\n' >"${v2_post_images}/image-one.jpg"
 seed_retention_matrix "${v2_backups}" "${v2_retention_expected}"
 prepare_script "${v2_app}" "${v2_backups}" "${v2_script}"
 prepare_runtime_state "${v2_app}" "${v2_script}"
+
+preflight_failure_app="${test_root}/preflight-failure-app"
+preflight_failure_backups="${test_root}/preflight-failure-backups"
+preflight_failure_post_images="${test_root}/preflight-failure-post-images"
+preflight_failure_script="${test_root}/preflight-failure-backup.sh"
+/bin/mkdir -p "${preflight_failure_backups}"
+prepare_app "${preflight_failure_app}" "${preflight_failure_post_images}"
+prepare_script \
+  "${preflight_failure_app}" \
+  "${preflight_failure_backups}" \
+  "${preflight_failure_script}"
+: >"${event_log}"
+set +e
+DOCKER_LOG="${docker_log}" \
+HOMEOPS_EVENT_LOG="${event_log}" \
+FAKE_RUNNING_SERVICES=redis \
+MOCK_POST_IMAGES_DIR="${preflight_failure_post_images}" \
+  "${preflight_failure_script}" >/dev/null 2>&1
+preflight_failure_exit_code="$?"
+set -e
+if [[ "${preflight_failure_exit_code}" -ne 1 ]]; then
+  printf 'Backup DB preflight failure must fail\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fq 'backups {"eventKey":"cubing-hub:backup:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
 
 COMPOSE_PROJECT_NAME=ambient-project \
 POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \

@@ -32,6 +32,7 @@ runtime_backup_script="${test_root}/runtime-backup.sh"
 backup_log="${test_root}/backup.log"
 event_log="${test_root}/homeops-events.log"
 event_reporter="${test_root}/report-homeops-event.py"
+mock_rm="${test_root}/rm"
 backup_args_log="${test_root}/backup-args.log"
 curl_log="${test_root}/curl.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
@@ -66,12 +67,22 @@ printf '%s\n' \
   'printf "\n" >>"${HOMEOPS_EVENT_LOG}"' \
   >"${event_reporter}"
 /bin/chmod 700 "${event_reporter}"
+: >"${test_root}/cleanup-rm.log"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'if [[ "${FAIL_DEPLOY_CLEANUP:-false}" == true && "$*" == *cubing-hub-docker-config.* ]]; then' \
+  '  exit 75' \
+  'fi' \
+  'exec /bin/rm "$@"' \
+  >"${mock_rm}"
+/bin/chmod 700 "${mock_rm}"
 : >"${backup_args_log}"
 : >"${curl_log}"
 
 /usr/bin/sed \
   -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${MOCK_DOCKER}#" \
   -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${MOCK_CURL}#" \
+  -e "s#readonly RM_BIN=/bin/rm#readonly RM_BIN=${mock_rm}#" \
   -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
   -e "s#readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_SCRIPT=${backup_script}#" \
   -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
@@ -107,6 +118,7 @@ run_deploy() {
         FAKE_REVISION_THREE="${REVISION_THREE}" \
         FAKE_VALIDATION_TARGET_API_IMAGE="ghcr.io/xxh3898/cubing-hub-api:${target_revision}" \
         FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
+        TMPDIR="${FAKE_TMPDIR:-}" \
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_FAIL_APP_UP_ONCE_FILE="${FAKE_FAIL_APP_UP_ONCE_FILE:-}" \
         FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT="${FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT:-}" \
@@ -165,6 +177,7 @@ initialization_marker="${app_dir}/.runtime-config-v2-initialized"
 bootstrap_failure_marker="${test_root}/fail-bootstrap-app-up-once"
 bootstrap_docker_log="${test_root}/bootstrap-docker.log"
 : >"${bootstrap_docker_log}"
+: >"${event_log}"
 
 # The first v2 update must use the artifact worker without requiring the fixed
 # pre-v2 backup fallback to be executable.
@@ -190,6 +203,9 @@ test ! -e "${state_file}"
 test ! -e "${current_link}"
 test ! -e "${initialization_marker}"
 test ! -e "${app_dir}/runtime-config/pending"
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Eq '"status":"(FAILED|ROLLED_BACK)"' "${event_log}"
 /usr/bin/grep -Fxq \
   "API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:${REVISION_TWO}" \
   "${app_dir}/.env"
@@ -210,6 +226,25 @@ run_deploy \
   update \
   "${CONFIG_DIGEST}" \
   test-user
+
+: >"${event_log}"
+set +e
+FAKE_TMPDIR="${test_root}" \
+FAIL_DEPLOY_CLEANUP=true \
+  run_deploy "${REVISION_ONE}" keep test-user >/dev/null 2>&1
+cleanup_failure_exit_code="$?"
+set -e
+if [[ "${cleanup_failure_exit_code}" -ne 1 ]]; then
+  printf 'Successful deploy with credential cleanup failure must fail\n' >&2
+  exit 1
+fi
+/usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy:' "${event_log}"
+/usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
+/usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
+if /usr/bin/grep -Fq '"status":"SUCCESS"' "${event_log}"; then
+  printf 'Credential cleanup failure must not report deployment success\n' >&2
+  exit 1
+fi
 
 test -f "${state_file}"
 test "$(/bin/cat "${initialization_marker}")" = RUNTIME_CONFIG_V2=initialized
