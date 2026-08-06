@@ -33,6 +33,7 @@ backup_log="${test_root}/backup.log"
 event_log="${test_root}/homeops-events.log"
 event_reporter="${test_root}/report-homeops-event.py"
 mock_rm="${test_root}/rm"
+mock_date="${test_root}/date"
 backup_args_log="${test_root}/backup-args.log"
 curl_log="${test_root}/curl.log"
 runtime_compose="${test_root}/runtime-compose.yaml"
@@ -76,6 +77,14 @@ printf '%s\n' \
   'exec /bin/rm "$@"' \
   >"${mock_rm}"
 /bin/chmod 700 "${mock_rm}"
+printf '%s\n' \
+  '#!/bin/bash' \
+  'if [[ "${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" == true ]]; then' \
+  '  exit 75' \
+  'fi' \
+  'exec /bin/date "$@"' \
+  >"${mock_date}"
+/bin/chmod 700 "${mock_date}"
 : >"${backup_args_log}"
 : >"${curl_log}"
 
@@ -83,6 +92,7 @@ printf '%s\n' \
   -e "s#readonly DOCKER_BIN=/usr/local/bin/docker#readonly DOCKER_BIN=${MOCK_DOCKER}#" \
   -e "s#readonly CURL_BIN=/usr/bin/curl#readonly CURL_BIN=${MOCK_CURL}#" \
   -e "s#readonly RM_BIN=/bin/rm#readonly RM_BIN=${mock_rm}#" \
+  -e "s#readonly DATE_BIN=/bin/date#readonly DATE_BIN=${mock_date}#" \
   -e "s#readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub#readonly APP_DIR=${app_dir}#" \
   -e "s#readonly BACKUP_SCRIPT=/Users/homeserver/Server/scripts/backup/backup-cubing-hub.sh#readonly BACKUP_SCRIPT=${backup_script}#" \
   -e "s#readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py#readonly HOMEOPS_EVENT_REPORTER=${event_reporter}#" \
@@ -118,6 +128,7 @@ run_deploy() {
         FAKE_REVISION_THREE="${REVISION_THREE}" \
         FAKE_VALIDATION_TARGET_API_IMAGE="ghcr.io/xxh3898/cubing-hub-api:${target_revision}" \
         FAKE_DOCKER_LOG="${FAKE_DOCKER_LOG:-}" \
+        FAIL_HOMEOPS_DEPLOYMENT_START_TIME="${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" \
         TMPDIR="${FAKE_TMPDIR:-}" \
         FAKE_FAIL_CP="${FAKE_FAIL_CP:-false}" \
         FAKE_FAIL_APP_UP_ONCE_FILE="${FAKE_FAIL_APP_UP_ONCE_FILE:-}" \
@@ -258,6 +269,14 @@ test ! -e "${app_dir}/runtime-config/pending"
 /usr/bin/tail -n 1 "${backup_args_log}" \
   | /usr/bin/grep -Fxq -- '--trigger predeploy'
 /bin/chmod 700 "${backup_script}"
+
+: >"${event_log}"
+FAIL_HOMEOPS_DEPLOYMENT_START_TIME=true \
+  run_deploy "${REVISION_ONE}" keep test-user
+if [[ -s "${event_log}" ]]; then
+  printf 'HomeOps start-time failure must not emit incomplete deployment events\n' >&2
+  exit 1
+fi
 
 legacy_v2_scripts="${test_root}/legacy-v2-scripts"
 /bin/mv "${bootstrap_candidate}/scripts" "${legacy_v2_scripts}"

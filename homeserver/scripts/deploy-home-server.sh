@@ -5,6 +5,7 @@ set -Eeuo pipefail
 readonly DOCKER_BIN=/usr/local/bin/docker
 readonly PYTHON_BIN=/usr/bin/python3
 readonly RM_BIN=/bin/rm
+readonly DATE_BIN=/bin/date
 readonly HOMEOPS_EVENT_REPORTER=/Users/homeserver/Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py
 readonly CURL_BIN=/usr/bin/curl
 readonly APP_DIR=/Users/homeserver/Server/apps/cubing-hub
@@ -317,7 +318,7 @@ cleanup() {
   fi
 
   if [[ -n "${homeops_deployment_event_key}" ]]; then
-    if ! finished_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"; then
+    if ! finished_at="$("${DATE_BIN}" -u '+%Y-%m-%dT%H:%M:%SZ')"; then
       printf 'HomeOps deployment completion time could not be generated\n' >&2
     elif [[ "${exit_status}" -eq 0 ]]; then
       report_homeops_deployment SUCCESS "${finished_at}" || true
@@ -1387,9 +1388,13 @@ normalized_sha="$(
   printf '%s' "${commit_sha}" \
     | /usr/bin/tr '[:upper:]' '[:lower:]'
 )"
-homeops_deployment_started_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
-homeops_deployment_event_key="cubing-hub:deploy:${normalized_sha}:${homeops_deployment_started_at}"
-report_homeops_deployment RUNNING "" || true
+if ! homeops_deployment_started_at="$("${DATE_BIN}" -u '+%Y-%m-%dT%H:%M:%SZ')"; then
+  printf 'HomeOps deployment start time could not be generated\n' >&2
+  homeops_deployment_started_at=
+else
+  homeops_deployment_event_key="cubing-hub:deploy:${normalized_sha}:${homeops_deployment_started_at}"
+  report_homeops_deployment RUNNING "" || true
+fi
 new_api_image="${API_IMAGE_REPOSITORY}:${normalized_sha}"
 new_web_image="${WEB_IMAGE_REPOSITORY}:${normalized_sha}"
 current_api_image="$(read_env_value API_IMAGE)"
