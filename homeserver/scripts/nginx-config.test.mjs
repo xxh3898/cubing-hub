@@ -11,20 +11,29 @@ const realIpConfig = await readFile(
   "utf8",
 );
 
-test("should_trustOnlyPinnedSharedConnector_when_realIpIsEnabled", () => {
-  assert.match(realIpConfig, /set_real_ip_from 172\.18\.0\.2;/);
-  assert.match(realIpConfig, /real_ip_header CF-Connecting-IP;/);
-  assert.match(realIpConfig, /real_ip_recursive off;/);
+test("should_trustSharedEdgeNetwork_when_realIpIsEnabled", () => {
+  assert.match(
+    realIpConfig,
+    /set_real_ip_from 172\.18\.0\.0\/16;/,
+  );
+  assert.match(
+    realIpConfig,
+    /real_ip_header CF-Connecting-IP;/,
+  );
+  assert.match(
+    realIpConfig,
+    /real_ip_recursive off;/,
+  );
   assert.doesNotMatch(
     realIpConfig,
-    /set_real_ip_from (?:0\.0\.0\.0\/0|10\.0\.0\.0\/8|172\.18\.0\.0\/16|192\.168\.0\.0\/16);/,
+    /set_real_ip_from (?:0\.0\.0\.0\/0|10\.0\.0\.0\/8|172\.16\.0\.0\/12|192\.168\.0\.0\/16);/,
   );
 });
 
-test("should_honorForwardedSchemeOnlyFromPinnedConnector", () => {
+test("should_honorForwardedSchemeOnlyFromTrustedEdgeNetwork", () => {
   assert.match(
     nginxConfig,
-    /map \$realip_remote_addr \$trusted_tunnel_request \{[\s\S]*172\.18\.0\.2 1;[\s\S]*default 0;[\s\S]*\}/,
+    /geo \$trusted_tunnel_request \{[\s\S]*default 0;[\s\S]*172\.18\.0\.0\/16 1;[\s\S]*\}/,
   );
   assert.match(
     nginxConfig,
