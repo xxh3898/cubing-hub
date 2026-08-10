@@ -203,6 +203,7 @@ frontend/coverage/
 .env
 .env.local
 homeserver/.env
+homeserver/.env.smoke
 homeserver/.deploy-state/
 homeserver/docker-compose.workbench.yml
 

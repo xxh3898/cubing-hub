@@ -2,17 +2,20 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
 related:
   - docs/07-operations/deployment-runbook.md
+  - homeserver/docs/release-smoke-runbook.md
 ---
 
 # Mac mini 운영 Runbook
 
 > 중앙 문서 체계의 역할과 승인 경계는 [Deployment Runbook Gateway](../../docs/07-operations/deployment-runbook.md)에서 확인한다. 이 문서가 command-level 운영 절차의 Source of Truth다.
+
+> main merge 전 browser/device 검증은 production deployment 절차가 아니라 별도 [V2.1 Release Smoke Runbook](release-smoke-runbook.md)을 따른다. 해당 smoke stack은 production container, DB, Redis, volume, network, `.env`를 사용하지 않는다.
 
 ## 배포 전 확인
 
