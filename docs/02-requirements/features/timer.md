@@ -100,11 +100,11 @@ solve stop
 - retry는 같은 `clientSubmissionId`와 snapshot을 사용한다.
 - server save 뒤 response만 유실됐어도 retry가 기존 Record를 반환하고 duplicate를 만들지 않아야 한다.
 - 실패나 reload 뒤에는 자동 submit하지 않고 stopped solve와 재시도·버리기 선택을 제공한다.
-- canonical save가 확정된 뒤에는 next scramble이 UI에 정상 commit될 때까지 Timer input을 잠근다. recent history·statistics refresh의 지연이나 실패가 이전 scramble을 다시 측정 가능하게 만들면 안 된다.
+- canonical save가 확정된 뒤에는 next scramble이 UI에 정상 commit될 때까지 Timer input을 잠근다. 현재 event context의 유효한 scramble commit만 lock을 해제하며 stale·invalidated response, pending recovery, unsupported event, scramble failure는 해제할 수 없다. recent history·statistics refresh의 지연이나 실패가 이전 scramble을 다시 측정 가능하게 만들면 안 된다.
 - pending에는 schema version, userId, eventType, timeMs, penalty, scramble, Input Method, `clientSubmissionId`, recovery용 savedAt만 저장한다.
 - access token, refresh token과 credential은 저장하지 않는다.
 - storage key와 snapshot userId가 현재 authenticated user와 일치할 때만 복구한다.
-- logout이나 명시적 session clear는 현재 user의 pending을 제거한다. access token 만료, refresh network failure, passive auth loss만으로 pending을 제거하지 않으며 같은 userId가 다시 인증되면 recovery할 수 있어야 한다. 다른 account pending을 읽거나 제출하지 않는다.
+- logout이나 명시적 session clear는 현재 user의 pending을 제거한다. access token 만료, refresh network failure, passive auth loss만으로 pending을 제거하지 않으며 같은 userId가 다시 인증되면 recovery할 수 있어야 한다. `userId`가 있는 authenticated-origin pending은 같은 account가 인증된 경우에만 Record API로 재시도할 수 있고, 인증이 없는 동안 guest 저장으로 전환하거나 API를 호출하지 않는다. 다른 account pending을 읽거나 제출하지 않는다.
 - malformed JSON, schema mismatch, invalid field는 server에 제출하지 않고 일반 안내와 명시적 discard를 제공한다. corrupt pending이 남아 있는 동안 Timer input도 비활성화해 새 solve가 해당 entry를 덮어쓰지 못하게 한다.
 - sessionStorage page session과 명시적 discard를 사용하며 V2.1에서 임의의 시간 만료 정책을 추가하지 않는다. `savedAt`은 recovery metadata이지 `occurred_at`이 아니다.
 - 여러 solve를 쌓는 offline queue와 background sync는 만들지 않는다.
