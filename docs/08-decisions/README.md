@@ -10,7 +10,7 @@ related: []
 ---
 # Architecture Decision Records
 
-ADR은 구현에서 확인된 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다.
+ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다. `accepted`는 사용자가 결정을 승인했다는 뜻이며 구현 완료를 의미하지 않는다.
 
 | ADR | 상태 | 결정 |
 | --- | --- | --- |
@@ -19,6 +19,9 @@ ADR은 구현에서 확인된 중요한 기술 결정과 trade-off를 보존한�
 | [ADR-0003](adr-0003-memory-access-token-http-only-refresh-cookie.md) | accepted | memory access token과 HttpOnly refresh cookie 사용 |
 | [ADR-0004](adr-0004-forward-only-flyway-migrations.md) | accepted | applied Flyway를 변경하지 않는 forward-only migration |
 | [ADR-0005](adr-0005-exact-revision-deployment-unit.md) | accepted | exact application revision과 runtime config digest pair 배포 |
+| [ADR-0006](adr-0006-practice-record-future-lifecycle-boundary.md) | accepted | Practice Record와 future lifecycle aggregate 분리 |
+| [ADR-0007](adr-0007-canonical-timer-time-input-provenance.md) | accepted | Practice Timer canonical time과 Input Method provenance 분리 |
+| [ADR-0008](adr-0008-record-submission-idempotency.md) | accepted | client submission identity 기반 Record 저장 idempotency |
 
 과거 최초 결정일을 신뢰성 있게 특정하지 못해, 기존 구현을 ADR로 공식 기록한 2026-08-10을 created로 사용한다.
 
