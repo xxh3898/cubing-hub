@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
@@ -150,6 +150,17 @@ function createPendingSnapshot(overrides = {}) {
     savedAt: '2026-08-10T13:00:00.000Z',
     ...overrides,
   }
+}
+
+function createDeferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return { promise, reject, resolve }
 }
 
 function createCurrentPendingSnapshotExpectation() {
@@ -365,6 +376,86 @@ describe('TimerPage', () => {
     expect(saveRecord.mock.calls[1][0]).toEqual(originalPayload)
     expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
     expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1)
+  })
+
+  it('should_keep_the_recovered_pending_scramble_visible_when_an_earlier_fresh_request_resolves', async () => {
+    const pendingSnapshot = createPendingSnapshot({ scramble: 'PENDING SCRAMBLE' })
+    const initialScrambleRequest = createDeferred()
+
+    savePendingTimerSolve(pendingSnapshot)
+    timerState = createIdleTimer({ restoreStoppedSolve: vi.fn() })
+    vi.mocked(getScramble)
+      .mockReset()
+      .mockImplementationOnce(() => initialScrambleRequest.promise)
+      .mockResolvedValueOnce({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'NEXT SCRAMBLE',
+        },
+      })
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: createCanonicalRecord({ scramble: 'PENDING SCRAMBLE' }),
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByRole('button', { name: '저장 재시도' })).toBeInTheDocument()
+    expect(screen.getByText('PENDING SCRAMBLE')).toBeInTheDocument()
+    expect(saveRecord).not.toHaveBeenCalled()
+
+    await act(async () => {
+      initialScrambleRequest.resolve({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'FRESH SCRAMBLE',
+        },
+      })
+      await initialScrambleRequest.promise
+    })
+
+    expect(screen.getByText('PENDING SCRAMBLE')).toBeInTheDocument()
+    expect(screen.queryByText('FRESH SCRAMBLE')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '저장 재시도' }))
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalledWith(expect.objectContaining({
+        clientSubmissionId: CLIENT_SUBMISSION_ID,
+        scramble: 'PENDING SCRAMBLE',
+      }))
+    })
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
+    expect(await screen.findByText('NEXT SCRAMBLE')).toBeInTheDocument()
+  })
+
+  it('should_replace_a_recovered_scramble_with_a_fresh_scramble_after_the_account_changes', async () => {
+    const initialScrambleRequest = createDeferred()
+
+    savePendingTimerSolve(createPendingSnapshot({ scramble: 'ACCOUNT A PENDING SCRAMBLE' }))
+    timerState = createIdleTimer({ restoreStoppedSolve: vi.fn() })
+    vi.mocked(getScramble)
+      .mockReset()
+      .mockImplementationOnce(() => initialScrambleRequest.promise)
+      .mockResolvedValueOnce({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'ACCOUNT B FRESH SCRAMBLE',
+        },
+      })
+
+    const page = render(<TimerPage />)
+
+    expect(await screen.findByText('ACCOUNT A PENDING SCRAMBLE')).toBeInTheDocument()
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      currentUser: { userId: 2 },
+    })
+    page.rerender(<TimerPage />)
+
+    expect(await screen.findByText('ACCOUNT B FRESH SCRAMBLE')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '저장 재시도' })).not.toBeInTheDocument()
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
   })
 
   it('should_accept_a_plus_two_server_state_after_a_response_lost_replay_and_clear_the_pending_snapshot', async () => {
