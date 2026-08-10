@@ -11,6 +11,7 @@ related:
   - docs/01-domain/ranking-rules.md
   - docs/03-architecture/ranking-architecture.md
   - docs/08-decisions/adr-0002-redis-ranking-read-model.md
+  - docs/08-decisions/adr-0009-practice-event-capability.md
 ---
 # Ranking
 
@@ -26,7 +27,7 @@ related:
 - 로그인 사용자의 myRanking
 - Redis 기본 조회와 MySQL fallback
 
-현재 API는 넓은 EventType을 수용할 수 있지만 모든 event를 같은 `time_ms` lower-is-better 모델로 지원할 수 있는지는 확정되지 않았다.
+현재 API는 넓은 EventType을 수용할 수 있지만 V2.1 Practice Ranking capability는 WCA_333에만 부여한다.
 
 ## 요구사항
 
@@ -43,7 +44,9 @@ related:
 - idempotent Record retry가 duplicate Record나 중복 PB·Redis 반영을 만들지 않아야 한다.
 - Input Method만으로 Ranking eligibility나 Verification Level을 바꾸지 않는다.
 - Event Code, Result Kind, Practice Timer, Scramble, Practice Ranking capability를 구분한다.
-- WCA_333FM, WCA_333MBF 등을 일반 time ranking 대상으로 확정하기 전에 production data audit과 event 정책 결정을 완료한다.
+- WCA_333은 TIME lower-is-better Practice Ranking을 지원한다.
+- WCA_333 외 event 요청은 empty ranking이 아니라 400 unsupported Practice event로 응답한다.
+- WCA_333FM, WCA_333MBF 등을 일반 time ranking으로 취급하지 않으며 future capability 결정 전에는 활성화하지 않는다.
 
 ## V2.1 비목표
 

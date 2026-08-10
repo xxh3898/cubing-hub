@@ -22,6 +22,7 @@ ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off
 | [ADR-0006](adr-0006-practice-record-future-lifecycle-boundary.md) | accepted | Practice Record와 future lifecycle aggregate 분리 |
 | [ADR-0007](adr-0007-canonical-timer-time-input-provenance.md) | accepted | Practice Timer canonical time과 Input Method provenance 분리 |
 | [ADR-0008](adr-0008-record-submission-idempotency.md) | accepted | client submission identity 기반 Record 저장 idempotency |
+| [ADR-0009](adr-0009-practice-event-capability.md) | accepted | EventType identity와 WCA_333 Practice capability 분리 |
 
 과거 최초 결정일을 신뢰성 있게 특정하지 못해, 기존 구현을 ADR로 공식 기록한 2026-08-10을 created로 사용한다.
 

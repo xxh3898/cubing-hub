@@ -36,6 +36,8 @@ performance.now()
 
 Practice Record의 Input Method provenance를 V2.1에 도입한다. 현재 값은 UNKNOWN, KEYBOARD, TOUCH를 기준으로 하며 legacy row는 UNKNOWN 의미를 가질 수 있어야 한다. Future hardware 값은 실제 지원 시 추가하고 DB ENUM에 미리 예약하지 않는다.
 
+Java application enum은 `InputMethod`를 사용하고 DB는 `VARCHAR(32) NULL`을 DB default 없이 사용한다. New Timer는 항상 명시 값을 보내고 legacy null·optional request 누락은 application boundary에서 UNKNOWN으로 정규화한다. Unknown wire value를 UNKNOWN으로 silently downgrade하지 않고 400으로 거절한다. Future writer는 모든 reader가 새 값을 이해한 뒤 활성화한다.
+
 Timer Core와 current Keyboard/Touch adapter의 책임을 분리하는 방향을 사용한다. Input Method는 Verification Level이 아니다.
 
 ## Alternatives
@@ -45,6 +47,8 @@ Timer Core와 current Keyboard/Touch adapter의 책임을 분리하는 방향을
 - fractional millisecond를 API와 DB에 그대로 저장
 - WCA Competition 표시 정밀도를 Practice Timer에 바로 적용
 - future hardware 값을 지금 DB ENUM에 모두 추가
+- MySQL ENUM으로 Input Method를 저장
+- 알 수 없는 future value를 UNKNOWN으로 자동 치환
 - 각 input adapter가 별도 Timer 상태 machine을 소유
 
 ## Consequences
@@ -53,6 +57,6 @@ Timer Core와 current Keyboard/Touch adapter의 책임을 분리하는 방향을
 - Record와 API는 integer millisecond 계약을 유지한다.
 - keyboard와 touch가 같은 Timer Core를 재사용하면서 provenance를 구분할 수 있다.
 - future physical timer adapter가 들어갈 경계를 남기지만 실제 device protocol과 permission UX는 별도 설계가 필요하다.
-- legacy UNKNOWN 처리와 additive API/schema rollout이 필요하다.
+- nullable expand column, legacy UNKNOWN 처리와 additive API/schema rollout이 필요하다.
 - Smart Timer나 Smart Cube 입력만으로 Verified badge를 부여할 수 없다.
-- exact persistence type과 request·response field는 구현 전 data·API 설계에서 결정한다.
+- Input Method는 Record create 뒤 불변이며 response에는 normalized non-null value를 제공한다.

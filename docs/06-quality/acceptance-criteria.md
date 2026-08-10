@@ -41,12 +41,18 @@ related:
 - 정지 이후 화면, create payload, Record raw time이 같은 canonical value다.
 - Keyboard와 Touch가 같은 Timer Core를 사용하며 Input Method를 구분한다.
 - legacy 또는 미지정 Input Method는 UNKNOWN 의미를 안전하게 유지한다.
+- unknown Input Method wire value를 UNKNOWN으로 silently downgrade하지 않고 400으로 거절한다.
 - Input Method를 Verification Level로 해석하지 않는다.
-- 같은 client submission retry가 duplicate Record를 만들지 않는다.
-- retry와 payload conflict, concurrent duplicate를 구분해 검증한다.
-- single pending authenticated solve는 credential을 저장하지 않고 같은 사용자 범위에서만 복구된다.
+- Updated Timer는 stop에서 UUID v4 clientSubmissionId를 한 번 만들고 retry에서 유지한다.
+- 같은 user·identity·payload replay는 같은 201 canonical Record를 반환하고 duplicate Record를 만들지 않는다.
+- 같은 user·identity·다른 payload는 409이며 concurrent duplicate는 DB unique constraint로 방어한다.
+- 최초 normalized payload fingerprint는 이후 penalty PATCH와 무관하게 conflict 판정에 사용된다.
+- single pending authenticated solve는 credential을 저장하지 않고 같은 userId 범위에서만 복구된다.
+- pending reload는 자동 submit하지 않고 retry·discard를 제공하며 이미 저장된 solve는 idempotent replay 뒤 정리된다.
 - create response는 server-authoritative Record 표현을 제공하면서 기존 consumer와 additive compatibility를 유지한다.
-- event-filtered history와 stable tie-break pagination이 정확한 최근 Record를 반환한다.
+- DNF create response의 effectiveTimeMs는 null이고 createdAt은 server 값이다.
+- WCA_333만 V2.1 Practice Timer·Scramble·Record·Ranking을 지원하며 다른 known EventType은 400이다.
+- event-filtered history와 `created_at DESC, id DESC` tie-break pagination이 정확한 최근 Record를 반환한다.
 - rolling Ao5/Ao12가 PLUS_TWO, DNF 1개, DNF 2개 이상, best/worst 제거 규칙과 일치한다.
 - idempotent create 뒤 PB, `user_pbs`, Redis Ranking이 한 번만 갱신된다.
 - Event Result Kind와 Practice Timer·Scramble·Ranking capability가 구분된다.
@@ -56,6 +62,7 @@ related:
 - 이미 적용된 migration 파일을 수정하지 않는다.
 - 실제 기존 schema에 신규 forward-only migration을 적용한다.
 - 대표 기존 row, PB FK와 legacy nullable value를 보존한다.
+- input_method, client submission identity·payload hash column과 named index를 검증한다.
 - 이전 application과 새 application의 expand-and-contract compatibility를 검토한다.
 - clean `create-drop` schema 성공만으로 migration upgrade를 완료했다고 판단하지 않는다.
 - migration이 application rollback으로 자동 복구되지 않음을 명시한다.

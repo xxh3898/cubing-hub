@@ -12,6 +12,7 @@ related:
   - docs/02-requirements/features/timer.md
   - docs/08-decisions/adr-0006-practice-record-future-lifecycle-boundary.md
   - docs/08-decisions/adr-0007-canonical-timer-time-input-provenance.md
+  - docs/08-decisions/adr-0009-practice-event-capability.md
 ---
 # Solve Model
 
@@ -63,7 +64,9 @@ TOUCH
 - Stackmat, Smart Timer, Smart Cube 값을 DB ENUM에 미리 선등록하지 않는다.
 - Input Method는 Record 생성 뒤 변경하지 않는 provenance다.
 
-정확한 persistence type, request field와 rollout은 구현 전 data·API 설계에서 확정한다.
+Java application enum은 `InputMethod`를 사용하고 DB는 `VARCHAR(32)` nullable column으로 확장한다. 새 Timer는 항상 현재 값을 쓰고, legacy null·미지정 request는 API에서 UNKNOWN으로 정규화한다. Input Method는 Record 생성 뒤 수정하지 않는다.
+
+알 수 없는 API enum 값은 UNKNOWN으로 조용히 바꾸지 않고 400으로 거절한다. Future 값은 reader가 먼저 이해하도록 배포한 뒤 writer에서 활성화한다. 정확한 column과 rollout은 [Data Dictionary](../04-data/data-dictionary.md)와 [Migration Policy](../04-data/migration-policy.md)를 따른다.
 
 ## Canonical elapsed time
 
@@ -96,21 +99,28 @@ WCA Competition의 hundredth 처리나 event별 공식 result 규칙을 현재 P
 
 Record 저장, penalty 변경, 삭제로 최선 기록이 달라지면 해당 사용자·event PB를 다시 계산한다. rankable Record가 없으면 PB를 제거한다. MySQL과 Redis 역할은 [Ranking Rules](ranking-rules.md)를 따른다.
 
+## Submission identity
+
+`clientSubmissionId`는 authenticated Practice Record create command의 retry identity다. Record의 public ID나 정렬 기준이 아니며 사용자 범위에서만 유일하다. UUID 자체로 chronological ordering을 만들지 않는다.
+
+같은 identity의 payload 충돌 판정을 위해 최초 server-normalized logical payload의 fingerprint를 불변 보존한다. logical payload는 eventType, canonical timeMs, penalty, exact scramble, normalized Input Method로 구성한다. `created_at`과 이후 penalty PATCH 결과는 최초 create payload에 포함하지 않는다.
+
 ## Event capability 경계
 
 Event code가 존재한다는 사실만으로 해당 event가 `time_ms` Practice Record와 lower-is-better ranking을 지원한다는 의미는 아니다.
 
-V2.1 구현 전에 application domain에서 다음 능력을 구분한다.
+V2.1 application domain은 다음 능력을 구분한다.
 
 ```text
 Event Code
 Result Kind
 Practice Timer Capability
 Scramble Capability
+Practice Record Capability
 Practice Ranking Capability
 ```
 
-지원 제한은 production event distribution을 확인한 뒤 결정한다. dynamic event table은 V2.1 목표가 아니다.
+WCA_333은 TIME 결과의 Practice Timer·Scramble·Record·Ranking을 지원한다. 그 밖의 EventType은 코드로 존재하지만 V2.1 public Practice flow에서는 미지원이다. Future event는 capability를 명시적으로 추가할 때만 활성화하며 dynamic event table은 V2.1 목표가 아니다.
 
 ## Future lifecycle 경계
 

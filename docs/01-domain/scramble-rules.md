@@ -10,6 +10,7 @@ related:
   - docs/01-domain/solve-model.md
   - docs/02-requirements/features/timer.md
   - docs/02-requirements/features/daily-challenge.md
+  - docs/08-decisions/adr-0009-practice-event-capability.md
 ---
 # Scramble Rules
 
@@ -21,7 +22,7 @@ Event code 존재, 내부 generator 능력, public Scramble API 지원, Practice
 
 ## 현재 public 지원 범위
 
-현재 `ScrambleService`와 public Practice Timer가 지원하는 event는 WCA_333이다. 미지원 event 요청은 실제 scramble 대신 error로 처리한다.
+현재와 V2.1의 `ScrambleService`·public Practice Timer 지원 event는 WCA_333이다. 같은 application-domain Practice capability를 사용하며 미지원 event 요청은 실제 scramble 대신 400 error로 처리한다.
 
 내부 `ScrambleGenerator`에는 다음 문자열 생성 로직이 존재한다.
 
@@ -59,4 +60,4 @@ Practice Record는 solve에 사용한 exact scramble 문자열 snapshot을 보�
 - Input Method나 scramble source만으로 Verification Level을 판단하지 않는다.
 - generator algorithm 변경은 기존 daily scramble 재현성에 영향을 주므로 requirement·test와 함께 검토한다.
 
-public event 지원 제한은 production Record 분포를 확인한 뒤 [PRD](../00-product/prd.md)의 pre-implementation gate에서 결정한다.
+EventType 코드는 public 지원 목록이 아니다. Future scramble 지원은 generator 존재만으로 활성화하지 않고 [ADR-0009](../08-decisions/adr-0009-practice-event-capability.md)의 capability를 명시적으로 추가한 뒤 제공한다.

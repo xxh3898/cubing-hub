@@ -18,7 +18,7 @@ related:
 
 Ranking은 지원되는 event별로 사용자당 하나의 completed Practice solve PB를 비교하는 Cubing Hub 내부 순위다. raw solve 전체, Daily Challenge submission, Verified lifecycle, Competition Result, External WCA Result를 자동으로 함께 정렬하지 않는다.
 
-어떤 event가 Practice Ranking을 지원하는지는 Event Code 존재 여부와 분리한다. 현재 API의 넓은 EventType과 실제 capability 사이의 차이는 V2.1 pre-implementation gate에서 결정한다.
+어떤 event가 Practice Ranking을 지원하는지는 Event Code 존재 여부와 분리한다. V2.1 Practice Ranking은 WCA_333만 지원한다. 다른 EventType 요청은 비어 있는 Ranking처럼 표현하지 않고 unsupported Practice event 400 응답으로 거절한다.
 
 ## 정렬 규칙
 

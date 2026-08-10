@@ -1,6 +1,6 @@
 ---
 doc_type: product
-status: draft
+status: active
 created: 2026-08-10
 updated: 2026-08-10
 owner: xxh3898
@@ -13,12 +13,15 @@ related:
   - docs/02-requirements/features/timer.md
   - docs/02-requirements/user-flows.md
   - docs/06-quality/acceptance-criteria.md
+  - docs/08-decisions/adr-0009-practice-event-capability.md
 ---
 # Product Requirements Document
 
 ## 상태
 
-제품 Vision과 V2.1 Foundation 방향은 승인됐다. 다만 Practice Record가 지원할 event 범위는 production data audit 뒤 결정해야 하므로 이 문서는 `draft`를 유지한다. 승인된 기준과 미결정 gate를 구분해 구현 준비에 사용한다.
+제품 Vision과 V2.1 Foundation 범위, Practice event 지원 범위가 승인되어 이 문서는 현재 구현 계약인 `active`다. 사용자는 2026-08-10 현재 DB에 `records`와 `user_pbs` data가 없다고 확인했으며, 이 세션에서는 production query를 실행하지 않았다. 이 확인을 근거로 기존 data 분포 audit을 Event Support 결정의 blocker에서 제거했다.
+
+정확한 Java symbol, SQL, REST Docs와 frontend module은 구현에서 검증하지만, 그 세부 작업이 남았다는 이유만으로 아래 제품 요구사항을 미정으로 보지 않는다.
 
 ## Product Definition
 
@@ -65,16 +68,16 @@ V2.1은 Daily Challenge, Verification, Competition을 구현하는 단계가 아
 | --- | --- | --- | --- | --- |
 | Timer canonical elapsed time | 표시와 저장 결과 일치 | stopped 표시는 floor, 저장은 round | `performance.now()` elapsed를 stop에서 `Math.round()`한 integer millisecond로 한 번 확정 | WCA competition hundredth 정책 |
 | Timer Core / Input Adapter | future input 추가 시 상태 전이 재사용 | state, clock, keyboard, touch가 한 hook에 결합 | device-neutral Timer Core와 Keyboard/Touch adapter 책임 분리 | 실제 hardware 연결 |
-| Input Method provenance | 측정 입력 출처 보존 | Record에 입력 방식이 없음 | UNKNOWN, KEYBOARD, TOUCH를 현재 값으로 사용하고 legacy unknown 허용 | future hardware 값을 DB enum에 선등록 |
-| Record submission idempotency | 응답 유실 재시도 중복 방지 | client in-flight guard만 존재 | `clientSubmissionId`와 server-side idempotency 경계 도입 | 다중 offline queue |
-| Canonical Record create response | server 결과를 consumer가 재계산하지 않음 | create가 ID만 반환 | 기존 client를 깨지 않는 additive evolution으로 authoritative Record 표현 반환 | exact response schema 선확정 |
+| Input Method provenance | 측정 입력 출처 보존 | Record에 입력 방식이 없음 | DB VARCHAR + application enum으로 UNKNOWN, KEYBOARD, TOUCH를 기록하고 legacy null을 UNKNOWN으로 정규화 | future hardware 값을 DB enum에 선등록 |
+| Record submission idempotency | 응답 유실 재시도 중복 방지 | client in-flight guard만 존재 | UUID v4 `clientSubmissionId`, user-scoped unique와 immutable payload fingerprint 도입 | 범용 idempotency framework, 다중 offline queue |
+| Canonical Record create response | server 결과를 consumer가 재계산하지 않음 | create가 ID만 반환 | 기존 `data.id`를 보존하면서 raw·effective time, penalty, scramble, provenance, server timestamp를 additive하게 반환 | endpoint 전체 재설계 |
 | Event-filtered Record history | event별 최근 기록을 정확히 조회 | 전체 page를 받은 뒤 client가 event filter | server-side event filter 경계 추가 | 새로운 analytics API |
 | Stable Record ordering | pagination 누락·중복 방지 | created timestamp만으로 순서가 겹칠 수 있음 | stable tie-break를 포함한 ordering 계약 | cursor pagination 전환 |
 | Ao5 / Ao12 domain rule | 계산 의미를 code 밖에서도 검증 | frontend code/test가 사실상 규칙 | 최근 같은 event의 rolling average 규칙과 fixture를 공식화 | Session 도입, WCA-compliant 표기 |
 | Practice Record invariant | future lifecycle와 PB 의미 보호 | Record가 future context를 구분하지 못함 | Record를 completed Practice solve로 정의 | catch-all context enum |
-| Event capability / result kind | event별 유효 결과와 기능 지원 구분 | 넓은 EventType과 time-only ranking이 결합 | Event Code, Result Kind, Timer, Scramble, Practice Ranking capability를 application domain에서 구분 | dynamic event table |
+| Event capability / result kind | event별 유효 결과와 기능 지원 구분 | 넓은 EventType과 time-only ranking이 결합 | WCA_333만 TIME Practice Timer·Scramble·Record·Ranking으로 지원하고 capability를 application domain에서 관리 | enum 삭제, dynamic event table |
 | Single pending authenticated solve | 일시적 failure와 reload에서 한 solve 보호 | 저장 실패 snapshot이 memory에만 있음 | sessionStorage 수준의 단일 pending solve 복구 | 여러 solve offline 기록 |
-| Real Flyway upgrade compatibility test | 실제 schema upgrade 안전성 확인 | test profile은 Flyway disabled, Hibernate create-drop | 기존 schema에서 forward-only migration과 기존 row 보존을 검증할 quality gate 정의 | 이번 단계의 test/config 구현 |
+| Real Flyway upgrade compatibility test | 실제 schema upgrade 안전성 확인 | test profile은 Flyway disabled, Hibernate create-drop | Dedicated MySQL Testcontainers test로 V2 → latest, representative legacy row와 Hibernate validate 검증 | CI DB infrastructure 재설계 |
 | PB / user_pbs / Redis 책임 보존 | 기존 ranking 정합성 유지 | future context가 섞이면 PB 의미가 흐려질 수 있음 | MySQL records·user_pbs를 Source of Truth로, Redis를 rebuild 가능한 Read Model로 유지 | Redis를 Source of Truth로 전환 |
 
 ## Foundation Principles
@@ -103,7 +106,15 @@ Daily Challenge, Verification, Competition, External WCA Result는 future separa
 
 ## Idempotency와 Pending Recovery
 
-로그인 Timer는 solve마다 client submission identity를 만들고 server retry가 중복 Record를 만들지 않도록 한다. Browser에는 한 건의 pending solve만 복구 가능하게 보존한다. 식별자 format, 저장 column과 exact conflict response는 구현 전 API·data 설계에서 확정한다.
+로그인 Timer는 solve stop에서 UUID v4 `clientSubmissionId`를 만들고 같은 retry에서 유지한다. Request body field는 cached legacy client와의 additive rollout 동안 optional이며, 갱신된 Timer는 항상 보낸다.
+
+- 같은 사용자·identity·server-normalized logical payload는 기존 canonical Record를 같은 201 응답으로 반환한다.
+- 같은 사용자·identity에 다른 logical payload를 사용하면 409 Conflict다.
+- DB unique constraint가 concurrent duplicate의 최종 방어선이다.
+- mutable penalty가 변경된 뒤에도 최초 request를 판별할 수 있도록 normalized payload fingerprint를 불변 보존한다.
+- Browser에는 사용자별 한 건의 pending solve만 sessionStorage에 복구 가능하게 보존한다.
+
+API 공통 계약은 [API Conventions](../05-api/conventions.md), persistence와 rollout은 [Migration Policy](../04-data/migration-policy.md)를 따른다.
 
 결정 이유는 [ADR-0008](../08-decisions/adr-0008-record-submission-idempotency.md)을 따른다.
 
@@ -115,19 +126,14 @@ Daily Challenge, Verification, Competition, External WCA Result는 future separa
 
 ## Event Capability
 
-현재 public Practice Timer와 Scramble service는 WCA_333 중심이지만 Record API는 더 넓은 EventType을 받을 수 있다. WCA_333FM, WCA_333MBF 같은 event를 일반 `time_ms` lower-is-better 결과로 확정하지 않는다.
+V2.1 public Practice flow는 WCA_333만 지원한다.
 
-V2.1 구현 전에 application domain에서 다음 능력을 분리한다.
+| Event Code | Result Kind | Timer | Scramble | Practice Record | Practice Ranking |
+| --- | --- | --- | --- | --- | --- |
+| WCA_333 | TIME | 지원 | 지원 | 지원 | 지원 |
+| 그 밖의 EventType | Practice capability 미부여 | 미지원 | 미지원 | 미지원 | 미지원 |
 
-```text
-Event Code
-Result Kind
-Practice Timer Capability
-Scramble Capability
-Practice Ranking Capability
-```
-
-Practice Record creation을 WCA_333으로 제한할지는 production event distribution을 확인한 뒤 결정한다.
+EventType 코드는 삭제하지 않는다. Event Code 존재와 Practice 지원 여부를 분리하며, WCA_333FM과 WCA_333MBF를 일반 `time_ms` lower-is-better 결과로 취급하지 않는다. Future event는 Result Kind와 각 capability를 명시적으로 추가한 뒤에만 활성화한다. Dynamic event table과 admin-configurable event system은 V2.1 범위가 아니다. 결정 이유는 [ADR-0009](../08-decisions/adr-0009-practice-event-capability.md)를 따른다.
 
 ## EXTENSION POINT ONLY
 
@@ -189,18 +195,18 @@ V2.1은 다음 기능을 구현하지 않고, 나중에 추가할 때 현재 Rec
 
 ## Known Open Questions
 
-- production에 비-WCA_333 Record나 PB가 존재하는가
-- 현재 API consumer가 public Timer 밖의 EventType으로 Record를 생성하는가
-- 어떤 event를 TIME Practice Record와 Practice Ranking 대상으로 허용할 것인가
-- canonical create response의 exact field와 idempotency conflict contract는 무엇인가
-- future export에서 stable logical identity와 timestamp를 어떻게 표현할 것인가
+다음은 V2.1 구현 blocker가 아니라 해당 future 범위에서 결정할 질문이다.
 
-## Pre-implementation Gates
+- future event를 추가할 때 Result Kind와 capability를 어떤 evidence로 승인할 것인가
+- versioned export에서 stable logical identity와 timestamp를 어떻게 표현할 것인가
+- legacy client transition 뒤 `clientSubmissionId`를 언제 required request field로 전환할 것인가
 
-1. production을 변경하지 않는 SELECT-only audit로 records와 user_pbs의 event distribution, 전체 row 수, null created_at을 확인한다.
-2. audit 결과를 근거로 Practice Record creation·ranking capability를 확정한다.
-3. optional input provenance, submission identity, canonical create response의 API compatibility와 rollout 순서를 설계한다.
-4. forward-only migration, old/new application compatibility, actual upgrade test 계획을 승인한다.
-5. 그 뒤에만 backend/frontend/Flyway 구현 계획과 별도 실행 승인을 진행한다.
+## Pre-implementation Gate 결과
 
-이 gate가 닫히기 전에는 V2.1 application code와 migration 구현을 시작하지 않는다.
+1. 사용자 확인 기준 현재 `records`, `user_pbs` data가 없으므로 event distribution audit blocker를 제거했다.
+2. V2.1 Practice Timer·Scramble·Record·Ranking event를 WCA_333으로 확정했다.
+3. Input Method, idempotency, canonical create response와 pending recovery의 API·data·architecture 계약을 문서화했다.
+4. forward-only additive migration, old application compatibility와 실제 MySQL upgrade test 방식을 확정했다.
+5. application code, test와 migration을 변경하려면 별도 구현 승인과 branch 준비가 필요하다.
+
+제품·기술 결정 gate는 닫혔으며 실행 승인 전에는 application code와 migration을 변경하지 않는다.

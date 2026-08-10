@@ -40,25 +40,40 @@ related:
 - fractional elapsed input에서도 stopped display, API payload, stored raw time이 같은 canonical integer millisecond인지 검증한다.
 - legacy UNKNOWN, KEYBOARD, TOUCH provenance를 구분하고 future hardware 값을 미리 허용했다고 가정하지 않는다.
 - 같은 submission identity retry, payload conflict와 concurrent duplicate를 구분한다.
+- UUID v4 validation, optional legacy request와 normalized payload fingerprint를 검증한다.
 - idempotent retry가 Record, PB, Redis projection을 한 번만 반영하는지 검증한다.
-- event-filtered history와 timestamp tie-break pagination의 누락·중복을 검증한다.
+- WCA_333 capability와 Timer·Scramble·Record·Ranking의 unsupported event 400 parity를 검증한다.
+- event-filtered history와 `created_at DESC, id DESC` tie-break pagination의 누락·중복을 검증한다.
 - canonical create response가 기존 client와 additive compatibility를 유지하는지 검증한다.
-- Ao5/Ao12는 domain rule과 공유 가능한 fixture로 frontend 계산 결과를 검증한다.
+- Ao5/Ao12는 PLUS_TWO effective value, DNF 1개·2개와 integer rounding을 명시한 domain fixture로 frontend 계산 결과를 검증한다.
 
 ## Migration Upgrade Gap
 
 현재 `application-test.yaml`은 Flyway를 비활성화하고 Hibernate `create-drop`으로 schema를 만든다. 이 test profile만으로는 이미 적용된 schema에서 새 forward-only migration을 실행하는 upgrade path를 증명할 수 없다.
 
-V2.1 schema 변경을 구현할 때는 별도 실제 DB migration test가 다음을 검증해야 한다.
+V2.1 schema 변경은 별도 `RecordFoundationMigrationIntegrationTest` 성격의 MySQL Testcontainers test로 검증한다. 현재 dependency에 Flyway API와 MySQL Testcontainers가 이미 있으므로 새 runtime이나 CI service를 추가하지 않는다.
 
 ```text
-기존 schema와 대표 기존 row
-→ 신규 forward-only migration 적용
-→ 기존 row·PB 관계 보존
-→ new application compatibility 확인
+programmatic Flyway target=V2
+→ 대표 user·Record·user_pbs legacy fixture insert
+→ Flyway latest 적용
+→ 같은 datasource로 Spring context + Hibernate validate
+→ schema·mapping·constraint invariant 확인
 ```
 
-검증 범위에는 migration 순서·checksum, legacy nullable value, unique/index, old/new application compatibility가 포함된다. clean schema 생성 성공을 upgrade 성공으로 대신하지 않는다.
+Dedicated context initializer가 application bean 생성 전에 위 migration과 fixture를 준비하고, context에서는 Flyway를 끄고 `ddl-auto=validate`를 사용한다. Global `application-test.yaml`을 migration test에 맞춰 바꾸거나 별도 장기 실행 profile을 운영하지 않는다.
+
+검증 범위에는 다음이 포함된다.
+
+- migration 순서·checksum과 latest version
+- target column type·nullability와 named index
+- legacy Record·PB FK와 raw/effective invariant 보존
+- null input_method를 UNKNOWN으로 읽는 new mapping
+- 같은 user·clientSubmissionId unique constraint와 다른 user scope
+- 여러 null clientSubmissionId를 허용하는 old application compatibility
+- V2.1 entity가 migrated schema에서 application context를 시작하는지
+
+Current production data가 없더라도 representative legacy fixture를 넣는다. 이는 현재 row count에 의존하지 않고 old image rollback과 future non-empty upgrade path를 계속 검증하기 위한 golden fixture다. Clean schema 생성 성공을 upgrade 성공으로 대신하지 않는다.
 
 이번 Documentation / Decision Gate에서는 Testcontainers, Flyway test 설정, application test와 CI를 변경하지 않는다.
 

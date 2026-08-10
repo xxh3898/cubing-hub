@@ -20,6 +20,8 @@ related:
 
 changed path classifier가 backend, frontend, infrastructure, API image, Web image 검증 범위를 결정한다.
 
+현재 `feat/* → dev` pull request 자체는 Validate를 시작하지 않는다. V2.1은 backend, Flyway, frontend가 연결된 변경이므로 merge 뒤 dev push에서 처음 검증하는 것보다, 별도 승인된 workflow 변경으로 `pull_request` target에 dev를 추가해 feature PR head를 merge 전에 검증하는 방향을 권장한다. 이 문서 작업에서는 workflow를 변경하지 않는다.
+
 ## Backend gate
 
 CI는 Java 17에서 다음을 실행한다.
