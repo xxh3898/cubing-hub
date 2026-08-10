@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'cubing-hub.guest-timer-records.v1'
 const MAX_RECORDS_PER_EVENT = 100
+const INPUT_METHODS = new Set(['UNKNOWN', 'KEYBOARD', 'TOUCH'])
 
 function getStorage() {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -40,6 +41,10 @@ function calculateEffectiveTimeMs(timeMs, penalty) {
   return timeMs
 }
 
+function normalizeInputMethod(inputMethod) {
+  return INPUT_METHODS.has(inputMethod) ? inputMethod : 'UNKNOWN'
+}
+
 function buildGuestRecord(snapshot) {
   const penalty = snapshot.penalty ?? 'NONE'
 
@@ -50,13 +55,19 @@ function buildGuestRecord(snapshot) {
     effectiveTimeMs: calculateEffectiveTimeMs(snapshot.timeMs, penalty),
     penalty,
     scramble: snapshot.scramble,
+    inputMethod: normalizeInputMethod(snapshot.inputMethod),
     createdAt: new Date().toISOString(),
   }
 }
 
 function getEventRecords(store, eventType) {
   const eventRecords = store[eventType]
-  return Array.isArray(eventRecords) ? eventRecords : []
+  return Array.isArray(eventRecords)
+    ? eventRecords.map((record) => ({
+        ...record,
+        inputMethod: normalizeInputMethod(record?.inputMethod),
+      }))
+    : []
 }
 
 function writeEventRecords(eventType, records) {

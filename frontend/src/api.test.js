@@ -299,15 +299,6 @@ const genericCases = [
     expectedErrorMessage: '스크램블 조회 실패',
   },
   {
-    name: 'saveRecord',
-    fn: saveRecord,
-    method: 'post',
-    args: [{ eventType: 'WCA_333', timeMs: 8123 }],
-    expectedCallArgs: ['/api/records', { eventType: 'WCA_333', timeMs: 8123 }],
-    errorFactory: () => createResponseError('기록 저장 실패'),
-    expectedErrorMessage: '기록 저장 실패',
-  },
-  {
     name: 'updateRecordPenalty',
     fn: updateRecordPenalty,
     method: 'patch',
@@ -328,6 +319,17 @@ const genericCases = [
 ]
 
 const requestErrorCases = [
+  {
+    name: 'saveRecord',
+    fn: saveRecord,
+    method: 'post',
+    args: [{ eventType: 'WCA_333', timeMs: 8123 }],
+    expectedCallArgs: ['/api/records', { eventType: 'WCA_333', timeMs: 8123 }],
+    errorFactory: () => createResponseError('clientSubmissionId가 다른 기록 요청에 이미 사용되었습니다.', 409),
+    expectedErrorMessage: 'clientSubmissionId가 다른 기록 요청에 이미 사용되었습니다.',
+    expectedStatus: 409,
+    expectedIsNetworkError: false,
+  },
   {
     name: 'login',
     fn: login,

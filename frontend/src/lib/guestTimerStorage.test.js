@@ -24,6 +24,7 @@ describe('guestTimerStorage', () => {
       timeMs: 8123,
       penalty: 'NONE',
       scramble: "R U R' U'",
+      inputMethod: 'TOUCH',
     })
 
     const records = getGuestTimerRecords('WCA_333')
@@ -36,6 +37,7 @@ describe('guestTimerStorage', () => {
       effectiveTimeMs: 8123,
       penalty: 'NONE',
       scramble: "R U R' U'",
+      inputMethod: 'TOUCH',
     })
   })
 
@@ -45,6 +47,7 @@ describe('guestTimerStorage', () => {
       timeMs: 8123,
       penalty: 'NONE',
       scramble: "R U R' U'",
+      inputMethod: 'TOUCH',
     })
 
     updateGuestTimerRecordPenalty('WCA_333', savedRecord.id, 'PLUS_TWO')
@@ -120,6 +123,25 @@ describe('guestTimerStorage', () => {
       id: savedRecord.id,
       penalty: 'NONE',
       effectiveTimeMs: 8123,
+    })
+  })
+
+  it('should_read_legacy_guest_records_with_unknown_input_method_without_rewriting_storage', () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      WCA_333: [{
+        id: 'guest-legacy',
+        eventType: 'WCA_333',
+        timeMs: 8123,
+        effectiveTimeMs: 8123,
+        penalty: 'NONE',
+        scramble: "R U R' U'",
+        createdAt: '2026-08-10T13:00:00.000Z',
+      }],
+    }))
+
+    expect(getGuestTimerRecords('WCA_333')[0]).toMatchObject({
+      id: 'guest-legacy',
+      inputMethod: 'UNKNOWN',
     })
   })
 

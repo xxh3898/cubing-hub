@@ -38,13 +38,11 @@ ProtectedRoute와 AdminRoute가 화면 접근을 제어하지만 server authoriz
 - multipart request는 browser가 boundary를 설정하도록 기본 Content-Type을 제거한다.
 - page는 api module을 통해 backend endpoint를 호출한다.
 
-## 현재 Timer와 local state
+## Timer와 local state
 
-guest Timer history는 browser localStorage를 사용한다. keyboard와 pointer 입력은 한 hook의 Timer 상태 전이를 공유한다. 현재 상태, clock, keyboard, touch 처리와 animation 책임은 완전히 분리되어 있지 않다.
+guest Timer history는 browser localStorage를 사용한다. authenticated Timer의 단일 pending solve는 user-scoped sessionStorage에만 보존한다. V2.1 Timer는 browser event를 직접 알지 않는 reducer/state machine과 browser orchestration을 분리한다.
 
-## V2.1 Timer 목표 구조
-
-아래는 사용자 승인된 구현 목표이며 현재 frontend에는 아직 반영되지 않았다.
+## V2.1 Timer Core / Input Adapter
 
 ```text
 Keyboard Adapter ─┐
@@ -54,7 +52,7 @@ Touch Adapter ────┘
 
 - Pure `timerMachine` reducer는 idle, holding, ready, running, stopped 상태와 transition만 소유한다.
 - `useCubeTimer` core hook은 reducer, hold timeout, injected clock provider와 requestAnimationFrame lifecycle을 조합한다. Default clock은 `performance.now()`다.
-- Keyboard/Touch adapter는 browser event를 `PRESS`, `RELEASE`, `CANCEL` command와 UNKNOWN·KEYBOARD·TOUCH provenance로 변환한다. Internal `HOLD_READY`, `TICK`, `RESET`은 core가 처리한다.
+- Keyboard/Touch adapter는 browser event를 `PRESS`, `RELEASE`, `CANCEL` command와 KEYBOARD·TOUCH provenance로 변환한다. UNKNOWN은 legacy 또는 provenance 없는 Record의 normalized 의미이며 adapter가 hardware value처럼 발행하지 않는다. Internal `HOLD_READY`, `TICK`, `RESET`은 core가 처리한다.
 - Reducer는 browser global을 직접 읽지 않고 hook이 읽은 monotonic `now`를 event payload로 받는다.
 - solve를 시작한 initial press provenance를 stopped snapshot까지 유지하고, stop adapter는 provenance를 바꾸지 않는다.
 - RAF는 running 표시만 갱신한다. Stop에서는 elapsed를 `Math.round()`한 integer millisecond로 한 번 확정하고 stopped rendering, guest save, pending snapshot과 request가 같은 값을 사용한다.
@@ -78,7 +76,7 @@ Frontend label 목록은 EventType 표현을 유지하되 각 option에 `support
 - retry는 같은 client submission identity를 유지해 같은 server operation을 가리킨다. Response가 유실된 이미 저장된 solve도 server replay 뒤 정리된다.
 - access token, refresh token, credential은 browser storage에 저장하지 않는다.
 - 현재 userId가 key와 snapshot에 모두 일치할 때만 복구한다. Logout·session clear는 현재 user key를 제거하고 다른 account key를 읽지 않는다.
-- malformed JSON, unknown schema version, invalid event·time·UUID는 해당 snapshot을 제거하고 recoverable notice로 처리한다.
+- malformed JSON, unknown schema version, invalid event·time·UUID는 server에 제출하지 않고 recoverable notice와 explicit discard로 처리한다.
 - arbitrary time expiry는 두지 않는다. sessionStorage lifecycle과 explicit discard가 stale pending 경계이며 savedAt은 occurrence timestamp가 아니다.
 - 여러 solve를 쌓는 offline queue와 background sync는 V2.1 범위가 아니다.
 
