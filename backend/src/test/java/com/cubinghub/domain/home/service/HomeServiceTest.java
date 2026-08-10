@@ -98,7 +98,7 @@ class HomeServiceTest {
                 user.getMainEvent(),
                 new MyProfileSummaryResponse(2, 9344, 10183)
         ));
-        when(recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(0, 5)))
+        when(recordRepository.findByUserIdOrderByCreatedAtDescIdDesc(user.getId(), PageRequest.of(0, 5)))
                 .thenReturn(new PageImpl<>(List.of(firstRecord, secondRecord), PageRequest.of(0, 5), 2));
 
         HomeResponse response = homeService.getHome(user.getEmail());
@@ -109,7 +109,7 @@ class HomeServiceTest {
         assertThat(response.getRecentRecords()).hasSize(2);
         assertThat(response.getRecentRecords().get(0).getScramble()).isEqualTo("first scramble");
         assertThat(response.getRecentPosts()).hasSize(1);
-        verify(recordRepository).findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(0, 5));
+        verify(recordRepository).findByUserIdOrderByCreatedAtDescIdDesc(user.getId(), PageRequest.of(0, 5));
     }
 
     @Test

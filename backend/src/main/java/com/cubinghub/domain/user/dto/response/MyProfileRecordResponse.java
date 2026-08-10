@@ -1,6 +1,7 @@
 package com.cubinghub.domain.user.dto.response;
 
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.InputMethod;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import java.time.Instant;
@@ -14,6 +15,7 @@ public class MyProfileRecordResponse {
     private final Integer timeMs;
     private final Integer effectiveTimeMs;
     private final Penalty penalty;
+    private final InputMethod inputMethod;
     private final Instant createdAt;
 
     public MyProfileRecordResponse(
@@ -22,6 +24,7 @@ public class MyProfileRecordResponse {
             Integer timeMs,
             Integer effectiveTimeMs,
             Penalty penalty,
+            InputMethod inputMethod,
             Instant createdAt
     ) {
         this.id = id;
@@ -29,6 +32,7 @@ public class MyProfileRecordResponse {
         this.timeMs = timeMs;
         this.effectiveTimeMs = effectiveTimeMs;
         this.penalty = penalty;
+        this.inputMethod = inputMethod;
         this.createdAt = createdAt;
     }
 
@@ -39,6 +43,7 @@ public class MyProfileRecordResponse {
                 record.getTimeMs(),
                 record.getEffectiveTimeMs(),
                 record.getPenalty(),
+                record.getInputMethod(),
                 record.getCreatedAt()
         );
     }

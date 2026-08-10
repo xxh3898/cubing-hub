@@ -1,10 +1,12 @@
 package com.cubinghub.domain.record.dto.request;
 
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.InputMethod;
 import com.cubinghub.domain.record.entity.Penalty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,4 +31,12 @@ public class RecordSaveRequest {
 
     @NotBlank(message = "Scramble is required")
     private String scramble;
+
+    private InputMethod inputMethod;
+
+    private UUID clientSubmissionId;
+
+    public InputMethod normalizedInputMethod() {
+        return inputMethod == null ? InputMethod.UNKNOWN : inputMethod;
+    }
 }

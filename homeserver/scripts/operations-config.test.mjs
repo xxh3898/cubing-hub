@@ -18,6 +18,11 @@ const [
   setupGuide,
   runbook,
   backupRestoreGuide,
+  smokeCompose,
+  smokeEnvExample,
+  smokeNginx,
+  smokeScript,
+  smokeRunbook,
 ] = await Promise.all([
   read("../docker-compose.yml"),
   read("../docker-compose.admin.yml"),
@@ -34,6 +39,11 @@ const [
   read("../docs/mac-mini-server-setup.md"),
   read("../docs/home-server-runbook.md"),
   read("../docs/db-backup-restore.md"),
+  read("../docker-compose.smoke.yml"),
+  read("../.env.smoke.example"),
+  read("../nginx/smoke.conf"),
+  read("./smoke-v2-1.sh"),
+  read("../docs/release-smoke-runbook.md"),
 ]);
 
 test("should_isolateDataServicesAndGiveOnlyApiOutboundAccess_when_productionRuns", () => {
@@ -590,6 +600,75 @@ test("should_keepAdminDatabaseAccessOnLoopbackOnly", () => {
   assert.match(adminCompose, /127\.0\.0\.1:3307:3307/);
   assert.match(adminCompose, /TCP:db:3306/);
   assert.doesNotMatch(serviceBlock(compose, "db"), /\n\s+ports:/);
+});
+
+test("should_keepV21SmokeEnvironmentDisposableAndIsolatedFromProduction", () => {
+  assert.match(smokeCompose, /^name: cubing-hub-smoke$/m);
+  assert.doesNotMatch(smokeCompose, /\bcontainer_name:|\bexternal:|\bedge\b/);
+  assert.doesNotMatch(
+    smokeCompose,
+    /POST_IMAGES_HOST_DIR|API_IMAGE|WEB_IMAGE|\/Users\/homeserver\/Server|env_file:/,
+  );
+  assert.match(
+    smokeCompose,
+    /dockerfile: homeserver\/docker\/backend\.Dockerfile/,
+  );
+  assert.match(
+    smokeCompose,
+    /dockerfile: homeserver\/docker\/frontend\.Dockerfile/,
+  );
+  assert.match(
+    smokeCompose,
+    /127\.0\.0\.1:18080:80/,
+  );
+
+  for (const serviceName of ["mysql", "redis", "mailpit", "api"]) {
+    assert.doesNotMatch(serviceBlock(smokeCompose, serviceName), /\n\s+ports:/);
+  }
+
+  assert.match(
+    serviceBlock(smokeCompose, "mysql"),
+    /source: smoke-mysql-data/,
+  );
+  assert.match(
+    serviceBlock(smokeCompose, "api"), /source: smoke-post-images/);
+  assert.match(smokeCompose, /smoke-application:\n    internal: true/);
+  assert.match(serviceBlock(smokeCompose, "api-build"), /smoke-build/);
+  assert.doesNotMatch(serviceBlock(smokeCompose, "api-build"), /docker\.sock/);
+  assert.match(
+    smokeNginx,
+    /upstream cubinghub_smoke_api \{\n    server api:8080;/,
+  );
+  assert.match(smokeNginx, /location \/api/);
+  assert.doesNotMatch(smokeNginx, /cloudflare|cubing-hub\.com/);
+  assert.match(
+    smokeEnvExample,
+    /SMOKE_ORIGIN=http:\/\/smoke\.localhost:18080/,
+  );
+  for (const variableName of [
+    "SMOKE_DB_PASSWORD",
+    "SMOKE_MYSQL_ROOT_PASSWORD",
+    "SMOKE_JWT_SECRET",
+  ]) {
+    assert.match(
+      smokeEnvExample,
+      new RegExp(`^${variableName}=replace-with-`, "m"),
+    );
+  }
+  assert.doesNotMatch(
+    smokeEnvExample,
+    /\/Users\/homeserver\/Server|api\.cubing-hub\.com|ghp_|github_pat_|BEGIN .*PRIVATE KEY/,
+  );
+  assert.match(smokeScript, /readonly PROJECT_NAME="cubing-hub-smoke"/);
+  assert.match(smokeScript, /--project-name "\$\{PROJECT_NAME\}"/);
+  assert.match(smokeScript, /Replace every smoke credential placeholder/);
+  assert.match(
+    smokeScript,
+    /destroy\)\n    compose --profile build down --volumes --remove-orphans/,
+  );
+  assert.doesNotMatch(smokeScript, /docker\.sock|docker system prune|volume prune/);
+  assert.match(smokeRunbook, /smoke-v2-1\.sh up/);
+  assert.match(smokeRunbook, /Tailscale Serve 변경은 별도 승인/);
 });
 
 test("should_failFrontendBuildWithoutProductionApiUrl", () => {

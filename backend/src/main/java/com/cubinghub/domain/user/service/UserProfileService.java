@@ -2,7 +2,9 @@ package com.cubinghub.domain.user.service;
 
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
+import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Record;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
 import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
@@ -32,6 +34,7 @@ public class UserProfileService {
     private final RecordRepository recordRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final PracticeEventCapabilities eventCapabilities;
 
     public MyProfileResponse getMyProfile(String email) {
         User user = findUserByEmail(email);
@@ -45,14 +48,24 @@ public class UserProfileService {
         );
     }
 
-    public MyRecordPageResponse getMyRecords(String email, Integer page, Integer size) {
+    public MyRecordPageResponse getMyRecords(String email, EventType eventType, Integer page, Integer size) {
         validatePageRequest(page, size);
 
         User user = findUserByEmail(email);
-        Page<Record> records = recordRepository.findByUserIdOrderByCreatedAtDesc(
-                user.getId(),
-                PageRequest.of(page - 1, size)
-        );
+        Page<Record> records;
+        if (eventType == null) {
+            records = recordRepository.findByUserIdOrderByCreatedAtDescIdDesc(
+                    user.getId(),
+                    PageRequest.of(page - 1, size)
+            );
+        } else {
+            eventCapabilities.requirePracticeRecordSupported(eventType);
+            records = recordRepository.findByUserIdAndEventTypeOrderByCreatedAtDescIdDesc(
+                    user.getId(),
+                    eventType,
+                    PageRequest.of(page - 1, size)
+            );
+        }
         List<MyProfileRecordResponse> items = new ArrayList<>(records.getNumberOfElements());
 
         for (Record record : records.getContent()) {

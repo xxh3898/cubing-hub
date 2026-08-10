@@ -1,6 +1,7 @@
 package com.cubinghub.domain.user.controller;
 
 import com.cubinghub.common.response.ApiResponse;
+import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
 import com.cubinghub.domain.user.dto.request.UpdateMyProfileRequest;
 import com.cubinghub.domain.user.dto.response.MyRecordPageResponse;
@@ -42,6 +43,7 @@ public class UserProfileController {
     @GetMapping("/records")
     public ResponseEntity<ApiResponse<MyRecordPageResponse>> getMyRecords(
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) EventType eventType,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size
     ) {
@@ -49,7 +51,7 @@ public class UserProfileController {
                 ApiResponse.success(
                         HttpStatus.OK,
                         "내 기록을 조회했습니다.",
-                        userProfileService.getMyRecords(userDetails.getUsername(), page, size)
+                        userProfileService.getMyRecords(userDetails.getUsername(), eventType, page, size)
                 )
         );
     }

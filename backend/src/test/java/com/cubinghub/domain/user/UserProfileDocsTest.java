@@ -114,6 +114,7 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
 
         mockMvc.perform(get("/api/users/me/records")
                         .header("Authorization", "Bearer " + accessToken)
+                        .param("eventType", EventType.WCA_333.name())
                         .param("page", "1")
                         .param("size", "2"))
                 .andExpect(status().isOk())
@@ -126,6 +127,7 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
                                 headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
                         ),
                         queryParameters(
+                                parameterWithName("eventType").optional().description("Practice 종목 필터 (V2.1은 WCA_333 지원)"),
                                 parameterWithName("page").optional().description("1부터 시작하는 페이지 번호 (기본값 1)"),
                                 parameterWithName("size").optional().description("페이지 크기 (기본값 10, 최대 100)")
                         ),
@@ -139,6 +141,7 @@ class UserProfileDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("data.items[].timeMs").type(JsonFieldType.NUMBER).description("원본 측정 시간 (밀리초)"),
                                 fieldWithPath("data.items[].effectiveTimeMs").type(JsonFieldType.NUMBER).optional().description("페널티 반영 시간 (DNF면 null)"),
                                 fieldWithPath("data.items[].penalty").type(JsonFieldType.STRING).description("페널티 정보"),
+                                fieldWithPath("data.items[].inputMethod").type(JsonFieldType.STRING).description("정규화된 입력 방식"),
                                 fieldWithPath("data.items[].createdAt").type(JsonFieldType.STRING).description("기록 생성 시각"),
                                 fieldWithPath("data.page").type(JsonFieldType.NUMBER).description("현재 페이지 번호 (1부터 시작)"),
                                 fieldWithPath("data.size").type(JsonFieldType.NUMBER).description("페이지 크기"),

@@ -432,7 +432,7 @@ export async function saveRecord(payload) {
     const response = await apiClient.post('/api/records', payload)
     return unwrapResponse(response)
   } catch (error) {
-    throw new Error(toErrorMessage(error))
+    throw toRequestError(error)
   }
 }
 

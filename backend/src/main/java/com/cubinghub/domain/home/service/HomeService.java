@@ -56,7 +56,7 @@ public class HomeService {
             throw ex;
         }
 
-        List<HomeRecentRecordResponse> recentRecords = recordRepository.findByUserIdOrderByCreatedAtDesc(
+        List<HomeRecentRecordResponse> recentRecords = recordRepository.findByUserIdOrderByCreatedAtDescIdDesc(
                         profile.getUserId(),
                         PageRequest.of(0, RECENT_RECORD_LIMIT)
                 ).getContent().stream()

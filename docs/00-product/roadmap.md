@@ -7,6 +7,7 @@ owner: xxh3898
 project: cubing-hub
 tags: []
 related:
+  - docs/00-product/vision.md
   - docs/00-product/prd.md
   - docs/00-product/market-validation.md
 ---
@@ -14,43 +15,45 @@ related:
 
 ## 상태
 
-개발 순서와 일정은 확정되지 않았다. 따라서 이 문서는 날짜형 roadmap이 아니라 의사결정 gate를 관리한다.
+단계 순서와 선행 관계는 2026-08-10 사용자 결정으로 승인됐다. 출시 날짜, sprint 수, 월별 일정, 미래 기능의 상세 범위와 시장 검증 결과는 확정되지 않았으므로 `draft`를 유지한다.
 
-## 현재 유지 트랙
+이 문서는 일정 약속이 아니라 제품·기술 gate의 순서를 관리한다.
 
-- V1 기능의 정확성, 보안, 데이터 정합성, 배포·복구 가능성 유지
+## 단계 순서
+
+```text
+V2.1 Timer / Record Foundation
+→ V2.2 Growth & Profile
+→ V2.3 Daily Challenge
+→ Validation Gate
+→ Verified Record PoC
+→ Competition
+→ Organizer / Ecosystem
+```
+
+## Phase 기준
+
+| Phase | Goal | Why now | Dependencies | In scope concept | Explicitly not included | Exit criteria |
+| --- | --- | --- | --- | --- | --- | --- |
+| V2.1 Timer / Record Foundation | Practice solve의 시간·입력·저장·조회 계약 안정화 | 이후 Growth와 Participation이 신뢰할 Record 기반 필요 | current Timer/Record 조사와 accepted product·domain decision | canonical time, WCA_333 Practice capability, input provenance, idempotency, pending solve, history·average, migration upgrade test | Session, Daily Challenge, device 연결, verification, competition | [PRD](prd.md)의 V2.1 acceptance와 migration·API compatibility gate 충족 |
+| V2.2 Growth & Profile | Record를 성장 이해와 장기 활동 이력으로 연결 | Core Loop의 Record → Improve → Profile 구간 강화 | V2.1 canonical Record와 event별 history | trend, PB progression, event별 성장·profile 표현의 검증 가능한 최소 범위 | challenge, verification, competition 운영 | 사용자가 성장 변화와 다음 Practice 행동을 이해하는지 검증 가능 |
+| V2.3 Daily Challenge | 같은 조건의 반복 참여 가설 검증 | Participate 가치를 낮은 운영 복잡도로 시험 | V2.1 Record 경계, V2.2 feedback, challenge 정책 결정 | issued scramble, cadence, attempt·submission의 최소 concept | Verified 판정, Competition·Organizer 전체 기능 | 반복 참여·retention 가설을 측정할 수 있고 abuse·timezone 경계가 정의됨 |
+| Validation Gate | V2.1~V2.3이 실제 Cuber 문제를 해결하는지 판단 | 신뢰·운영 비용이 큰 기능 전 증거 필요 | 사용자 인터뷰와 usage evidence | Growth, Daily Challenge, portability, verification 수요 평가 | 자동 다음 phase 진입 | 계속·수정·중단 결정과 근거가 기록됨 |
+| Verified Record PoC | 제한된 조건에서 evidence와 review 가치 검증 | 수요 확인 전 full verification system은 과도함 | Validation Gate 통과, privacy·retention·review 정책 | server-issued scramble, physical timer, one-take video, manual review 후보 검토 | WCA Official 표현, 범용 moderation platform | 제한된 PoC의 신뢰·운영비·privacy 결과가 평가됨 |
+| Competition | advanced participation 문제를 별도 domain으로 검증 | Challenge·Verified 결과 없이 먼저 만들면 범위가 불명확함 | 사용자 검증, verification boundary, competition rule 결정 | 선택한 competition 유형의 최소 result·operation | 모든 공식·비공식 대회 유형, Organizer ecosystem 전체 | 참가자 가치와 운영·정정·audit 책임을 감당할 수 있음 |
+| Organizer / Ecosystem | Organizer·Partner·Brand 확장의 사용자 가치를 검증 | Primary User 가치가 먼저 증명되어야 함 | Competition 결과와 ecosystem research | 운영 도구 또는 partnership의 검증된 최소 범위 | Primary User 변경, 독립 운영권·data 경계 완화 | Cuber 가치, 운영 가능성, 독립성과 data 책임이 함께 충족됨 |
+
+## 공통 Gate
+
+- 각 phase는 앞 단계의 결과를 자동 승인으로 간주하지 않는다.
+- 제품 정책, schema, API, privacy, moderation, 운영 변경은 해당 단계에서 별도 결정한다.
+- current와 future를 구분하고 draft 후보를 구현 일정으로 표현하지 않는다.
+- 상세 ticket과 일정은 phase 진입 결정 뒤 별도 계획에서 관리한다.
+- acceptance criteria와 rollback 범위가 없으면 delivery 단계로 이동하지 않는다.
+
+## 계속 유지할 트랙
+
+- V1 기능의 정확성, 보안, data 정합성, 배포·복구 가능성
 - generated REST Docs와 실제 endpoint 계약의 일치
-- 문서와 코드가 함께 갱신되는 체계 유지
-
-## Discovery 트랙
-
-1. 참고 서비스 research의 사실을 주기적으로 갱신한다.
-2. Cubing Hub 사용자 또는 잠재 사용자 인터뷰로 문제 강도를 확인한다.
-3. 현재 V1 사용 흐름에서 이탈과 반복 사용 동기를 확인한다.
-4. 후보별 최소 검증 방법을 정한다.
-5. Vision과 PRD를 별도 논의로 확정한다.
-
-## 후보 트랙
-
-아래 순서는 우선순위가 아니다.
-
-- Daily Challenge
-- Verified Record
-- Competition
-- Organizer
-- 기존 timer, ranking, learning, community의 강화
-
-각 후보는 문제, 사용자, 성공 조건, 운영 부담을 검증한 뒤에만 delivery 단계로 이동한다.
-
-## Decision Gates
-
-- Gate A: 핵심 사용자와 문제가 증거로 설명되는가
-- Gate B: 후보가 기존 Core Loop를 강화하는가
-- Gate C: 법적·운영·데이터 책임을 감당할 수 있는가
-- Gate D: acceptance criteria와 rollback 범위가 정의됐는가
-
-## Open Questions
-
-- 어떤 discovery를 먼저 실행할 것인가
-- 제품 분석을 위한 최소 event와 개인정보 경계는 무엇인가
-- 파트너 인터뷰와 최종 사용자 인터뷰의 순서를 어떻게 둘 것인가
+- 문서, code, test, migration, workflow의 동기화
+- [Market Validation](market-validation.md)의 사용자 문제·가설 검증

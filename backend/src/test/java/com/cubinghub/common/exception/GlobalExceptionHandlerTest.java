@@ -100,6 +100,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("해석할 수 없는 JSON enum 값은 generic 500이 아니라 400으로 응답한다")
+    void should_return_bad_request_when_request_body_cannot_be_read() throws Exception {
+        mockMvc.perform(post("/test/not-readable")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"value\":\"UNKNOWN\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 형식입니다."))
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
     @DisplayName("AuthenticationException은 401로 응답한다")
     void should_return_unauthorized_when_authentication_exception_is_thrown() throws Exception {
         mockMvc.perform(get("/test/authentication"))
@@ -147,6 +159,11 @@ class GlobalExceptionHandlerTest {
             return request.name();
         }
 
+        @PostMapping("/test/not-readable")
+        String notReadable(@RequestBody EnumRequest request) {
+            return request.value().name();
+        }
+
         @GetMapping("/test/missing-cookie")
         String missingCookie(@CookieValue("refresh_token") String refreshToken) {
             return refreshToken;
@@ -164,5 +181,12 @@ class GlobalExceptionHandlerTest {
     }
 
     private record ValidationRequest(@NotBlank(message = "name is required") String name) {
+    }
+
+    private record EnumRequest(KnownValue value) {
+    }
+
+    private enum KnownValue {
+        KNOWN
     }
 }

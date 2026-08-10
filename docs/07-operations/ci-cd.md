@@ -9,12 +9,30 @@ tags: []
 related:
   - .github/workflows/validate.yml
   - .github/workflows/deploy.yml
+  - homeserver/scripts/workflow-config.test.mjs
 ---
 # CI/CD
 
 ## Validation
 
-validate workflow는 dev push와 main pull request에서 시작하고 workflow_call도 지원한다. changed path classifier가 필요한 backend, frontend, infrastructure, image job을 선택한다.
+Validate workflow는 다음 event에서 시작한다.
+
+- dev push
+- dev 대상 pull request
+- main 대상 pull request
+- 다른 workflow의 workflow_call
+
+changed path classifier가 필요한 backend, frontend, infrastructure, image job을 선택한다.
+
+Branch flow는 다음 pre-merge validation을 사용한다.
+
+```text
+feat/* → dev PR
+→ Validate before merge
+
+dev → main PR
+→ Validate before merge
+```
 
 - backend: Java 17 test, JaCoCo report, REST Docs, build
 - frontend: Node.js 20 install, lint, test, build
@@ -28,7 +46,8 @@ main push는 deploy workflow의 release validation을 시작한다. deployment f
 ## 승인 경계
 
 - dev push는 CI 실행
-- PR 생성은 remote collaboration
+- dev 또는 main 대상 PR은 pre-merge Validate 실행
+- PR 생성은 remote collaboration이며 merge 권한을 포함하지 않음
 - main merge는 release workflow 시작
 - production variable이 enable된 경우 merge가 실제 deploy로 이어질 수 있음
 
