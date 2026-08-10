@@ -1,4 +1,18 @@
+---
+doc_type: operation
+status: active
+created: 2026-06-19
+updated: 2026-08-10
+owner: xxh3898
+project: cubing-hub
+tags: []
+related:
+  - docs/07-operations/backup-restore.md
+---
+
 # DB와 이미지 백업·복구
+
+> 중앙 문서 체계의 책임 경계는 [Backup and Restore Gateway](../../docs/07-operations/backup-restore.md)에서 확인한다. 이 문서가 command-level backup·restore 절차의 Source of Truth다.
 
 ## 기준 데이터
 
@@ -206,7 +220,7 @@ file의 SHA-256 재일치까지 확인한 뒤에만 handoff 성공으로 기록�
 선택적 `backup-heartbeats.conf`는 mode `0600` regular file이어야 하며
 `LOCAL_HEARTBEAT_URL`, `ICLOUD_STAGE_HEARTBEAT_URL` 두 key만 허용한다. 실제
 URL은 Git, 문서, 로그에 기록하지 않는다. 상세 계약과 복구 순서는
-`docs/DEVELOPMENT-DEPLOYMENT-BACKUP.md`를 따른다.
+아래 `복구 rehearsal`과 중앙 [Backup and Restore Gateway](../../docs/07-operations/backup-restore.md)의 승인 경계를 함께 따른다.
 
 ## 복구 rehearsal
 

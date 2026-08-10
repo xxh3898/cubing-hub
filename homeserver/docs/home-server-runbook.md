@@ -1,4 +1,18 @@
+---
+doc_type: operation
+status: active
+created: 2026-06-19
+updated: 2026-08-10
+owner: xxh3898
+project: cubing-hub
+tags: []
+related:
+  - docs/07-operations/deployment-runbook.md
+---
+
 # Mac mini 운영 Runbook
+
+> 중앙 문서 체계의 역할과 승인 경계는 [Deployment Runbook Gateway](../../docs/07-operations/deployment-runbook.md)에서 확인한다. 이 문서가 command-level 운영 절차의 Source of Truth다.
 
 ## 배포 전 확인
 
