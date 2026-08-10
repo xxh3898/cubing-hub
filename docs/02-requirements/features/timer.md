@@ -2,7 +2,7 @@
 doc_type: requirement
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -100,10 +100,11 @@ solve stop
 - retry는 같은 `clientSubmissionId`와 snapshot을 사용한다.
 - server save 뒤 response만 유실됐어도 retry가 기존 Record를 반환하고 duplicate를 만들지 않아야 한다.
 - 실패나 reload 뒤에는 자동 submit하지 않고 stopped solve와 재시도·버리기 선택을 제공한다.
+- canonical save가 확정된 뒤에는 next scramble이 UI에 정상 commit될 때까지 Timer input을 잠근다. 현재 event context의 유효한 scramble commit만 lock을 해제하며 stale·invalidated response, pending recovery, unsupported event, scramble failure는 해제할 수 없다. recent history·statistics refresh의 지연이나 실패가 이전 scramble을 다시 측정 가능하게 만들면 안 된다.
 - pending에는 schema version, userId, eventType, timeMs, penalty, scramble, Input Method, `clientSubmissionId`, recovery용 savedAt만 저장한다.
 - access token, refresh token과 credential은 저장하지 않는다.
 - storage key와 snapshot userId가 현재 authenticated user와 일치할 때만 복구한다.
-- logout이나 명시적 session clear는 현재 user의 pending을 제거한다. 다른 account pending을 읽거나 제출하지 않는다.
+- logout이나 명시적 session clear는 현재 user의 pending을 제거한다. access token 만료, refresh network failure, passive auth loss만으로 pending을 제거하지 않으며 같은 userId가 다시 인증되면 recovery할 수 있어야 한다. `userId`가 있는 authenticated-origin pending은 같은 account가 인증된 경우에만 Record API로 재시도할 수 있고, 인증이 없는 동안 guest 저장으로 전환하거나 API를 호출하지 않는다. 다른 account pending을 읽거나 제출하지 않는다.
 - malformed JSON, schema mismatch, invalid field는 server에 제출하지 않고 일반 안내와 명시적 discard를 제공한다. corrupt pending이 남아 있는 동안 Timer input도 비활성화해 새 solve가 해당 entry를 덮어쓰지 못하게 한다.
 - sessionStorage page session과 명시적 discard를 사용하며 V2.1에서 임의의 시간 만료 정책을 추가하지 않는다. `savedAt`은 recovery metadata이지 `occurred_at`이 아니다.
 - 여러 solve를 쌓는 offline queue와 background sync는 만들지 않는다.
@@ -130,6 +131,7 @@ Ao5와 Ao12는 최근 같은 event의 completed Practice Record를 대상으로 
 - canonical ordering은 `created_at DESC, id DESC`이며 같은 timestamp에서도 순서가 결정적이어야 한다.
 - eventType을 생략하는 기존 all-event history contract는 유지한다.
 - Timer는 선택 event의 최근 12개를 server에서 직접 요청해 Ao5/Ao12를 계산한다.
+- statistics/history async response는 request를 시작한 event와 현재 event context가 같을 때만 반영한다. event 변경 뒤 stale response가 이전 event의 Ao를 되살리면 안 된다.
 - Record 생성 응답은 기존 client compatibility를 깨지 않는 additive evolution으로 server-authoritative 표현을 제공해야 한다.
 
 ## V2.1 Event Support
