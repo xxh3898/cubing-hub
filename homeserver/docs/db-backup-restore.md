@@ -1,4 +1,18 @@
+---
+doc_type: operation
+status: active
+created: 2026-06-19
+updated: 2026-08-10
+owner: xxh3898
+project: cubing-hub
+tags: []
+related:
+  - docs/07-operations/backup-restore.md
+---
+
 # DB와 이미지 백업·복구
+
+> 중앙 문서 체계의 책임 경계는 [Backup and Restore Gateway](../../docs/07-operations/backup-restore.md)에서 확인한다. 이 문서가 command-level backup·restore 절차의 Source of Truth다.
 
 ## 기준 데이터
 

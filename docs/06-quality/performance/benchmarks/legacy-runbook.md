@@ -1,3 +1,17 @@
+---
+doc_type: archive
+status: deprecated
+created: 2026-04-20
+updated: 2026-08-10
+owner: xxh3898
+project: cubing-hub
+tags: []
+related:
+  - docs/06-quality/performance/README.md
+---
+
+> 2026-04 당시 실행 절차를 보존한 역사 자료입니다. 경로와 local 환경 가정은 현재 기준이 아니며 새 측정은 [Performance Evidence](../README.md)에서 시작합니다.
+
 # 성능 벤치마크 실행 문서
 
 ## 랭킹 벤치마크
