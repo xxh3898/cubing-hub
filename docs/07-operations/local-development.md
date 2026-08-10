@@ -2,12 +2,13 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
 related:
   - docs/07-operations/environments.md
+  - homeserver/docs/release-smoke-runbook.md
   - AGENTS.md
 ---
 # Local Development
@@ -27,6 +28,10 @@ version과 task는 repository configuration이 Source of Truth다.
 Mac mini host에는 Java나 Node.js를 새로 설치하거나 version을 바꾸지 않는다. 현재 repository에는 backend·frontend 전체 검증용 개발 container wrapper가 없으므로 이 host에서는 CI 결과를 전체 검증 기준으로 사용한다.
 
 root docker-compose.yml은 기존 local helper이며 fixed container name과 host port를 사용한다. 실행 전 다른 project·production resource와 겹치지 않는지 확인하고, 운영 .env·network·volume을 참조하지 않는다. 이 문서 작업에서는 실행하지 않았다.
+
+## Release smoke와 구분
+
+V2.1 release smoke는 local development helper가 아니라 최신 `dev` release candidate를 production Dockerfile 경로로 실행하는 별도 Compose project다. smoke stack은 production Compose·`.env`·network·volume을 참조하지 않으며, command와 manual browser/device 절차는 [Smoke Runbook](../../homeserver/docs/release-smoke-runbook.md)을 따른다.
 
 ## Secret
 
