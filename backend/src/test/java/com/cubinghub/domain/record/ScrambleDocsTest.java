@@ -56,7 +56,7 @@ class ScrambleDocsTest extends RestDocsIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("아직 구현되지 않은 종목입니다."))
+                .andExpect(jsonPath("$.message").value("지원하지 않는 Practice 종목입니다."))
                 .andExpect(jsonPath("$.data").value(nullValue()))
                 .andDo(document("scramble/get/bad-request",
                         queryParameters(

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.dto.response.ScrambleResponse;
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import java.time.LocalDate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,7 @@ import org.springframework.http.HttpStatus;
 @DisplayName("ScrambleService 단위 테스트")
 class ScrambleServiceTest {
 
-    private final ScrambleService scrambleService = new ScrambleService();
+    private final ScrambleService scrambleService = new ScrambleService(new PracticeEventCapabilities());
 
     @Test
     @DisplayName("지원 종목이면 scramble을 생성한다")
@@ -44,6 +45,6 @@ class ScrambleServiceTest {
         assertThat(thrown).isInstanceOf(CustomApiException.class);
         CustomApiException exception = (CustomApiException) thrown;
         assertThat(exception.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(exception.getMessage()).isEqualTo("아직 구현되지 않은 종목입니다.");
+        assertThat(exception.getMessage()).isEqualTo("지원하지 않는 Practice 종목입니다.");
     }
 }

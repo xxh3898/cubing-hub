@@ -10,6 +10,7 @@ import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.auth.repository.RefreshTokenService;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.RecordSummaryQueryResult;
 import com.cubinghub.domain.user.dto.request.ChangePasswordRequest;
@@ -53,7 +54,13 @@ class UserProfileServiceTest {
 
     @BeforeEach
     void setUp() {
-        userProfileService = new UserProfileService(userRepository, recordRepository, passwordEncoder, refreshTokenService);
+        userProfileService = new UserProfileService(
+                userRepository,
+                recordRepository,
+                passwordEncoder,
+                refreshTokenService,
+                new PracticeEventCapabilities()
+        );
     }
 
     @Test
@@ -83,10 +90,10 @@ class UserProfileServiceTest {
         var dnfRecord = TestFixtures.createRecord(12L, user, EventType.WCA_333, 9500, Penalty.DNF, "dnf");
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(1, 2)))
+        when(recordRepository.findByUserIdOrderByCreatedAtDescIdDesc(user.getId(), PageRequest.of(1, 2)))
                 .thenReturn(new PageImpl<>(List.of(dnfRecord, plusTwoRecord), PageRequest.of(1, 2), 5));
 
-        MyRecordPageResponse response = userProfileService.getMyRecords(user.getEmail(), 2, 2);
+        MyRecordPageResponse response = userProfileService.getMyRecords(user.getEmail(), null, 2, 2);
 
         assertThat(response.getItems()).hasSize(2);
         assertThat(response.getItems().get(0).getPenalty()).isEqualTo(Penalty.DNF);
@@ -98,6 +105,54 @@ class UserProfileServiceTest {
         assertThat(response.getTotalPages()).isEqualTo(3);
         assertThat(response.isHasNext()).isTrue();
         assertThat(response.isHasPrevious()).isTrue();
+    }
+
+    @Test
+    @DisplayName("내 기록 event filter는 지원 Practice event repository query를 사용한다")
+    void should_query_records_by_event_when_supported_filter_is_present() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        var record = TestFixtures.createRecord(11L, user, EventType.WCA_333, 9000, Penalty.NONE, "filtered");
+
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(recordRepository.findByUserIdAndEventTypeOrderByCreatedAtDescIdDesc(
+                user.getId(),
+                EventType.WCA_333,
+                PageRequest.of(0, 12)
+        )).thenReturn(new PageImpl<>(List.of(record), PageRequest.of(0, 12), 1));
+
+        MyRecordPageResponse response = userProfileService.getMyRecords(
+                user.getEmail(),
+                EventType.WCA_333,
+                1,
+                12
+        );
+
+        assertThat(response.getItems()).singleElement()
+                .extracting(item -> item.getEventType())
+                .isEqualTo(EventType.WCA_333);
+    }
+
+    @Test
+    @DisplayName("내 기록 event filter는 미지원 Practice event를 repository 조회 전에 거절한다")
+    void should_reject_unsupported_event_before_querying_filtered_records() {
+        User user = TestFixtures.createUser(1L, "tester@cubinghub.com", "Tester", UserRole.ROLE_USER, UserStatus.ACTIVE);
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords(
+                user.getEmail(),
+                EventType.WCA_222,
+                1,
+                12
+        ));
+
+        assertThat(thrown)
+                .isInstanceOf(CustomApiException.class)
+                .hasMessage("지원하지 않는 Practice 종목입니다.");
+        verify(recordRepository, never()).findByUserIdAndEventTypeOrderByCreatedAtDescIdDesc(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -179,7 +234,7 @@ class UserProfileServiceTest {
     void should_throw_unauthorized_exception_when_my_records_user_does_not_exist() {
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
-        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("missing@cubinghub.com", 1, 10));
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("missing@cubinghub.com", null, 1, 10));
 
         assertThat(thrown)
                 .isInstanceOf(CustomApiException.class)
@@ -239,7 +294,7 @@ class UserProfileServiceTest {
     @Test
     @DisplayName("내 기록 조회 page가 1보다 작으면 예외를 던진다")
     void should_throw_illegal_argument_exception_when_page_is_less_than_one() {
-        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", 0, 10));
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", null, 0, 10));
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
@@ -249,7 +304,7 @@ class UserProfileServiceTest {
     @Test
     @DisplayName("내 기록 조회 size가 1보다 작으면 예외를 던진다")
     void should_throw_illegal_argument_exception_when_size_is_less_than_one() {
-        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", 1, 0));
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", null, 1, 0));
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)
@@ -259,7 +314,7 @@ class UserProfileServiceTest {
     @Test
     @DisplayName("내 기록 조회 size가 범위를 벗어나면 예외를 던진다")
     void should_throw_illegal_argument_exception_when_size_is_out_of_range() {
-        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", 1, 101));
+        Throwable thrown = catchThrowable(() -> userProfileService.getMyRecords("tester@cubinghub.com", null, 1, 101));
 
         assertThat(thrown)
                 .isInstanceOf(IllegalArgumentException.class)

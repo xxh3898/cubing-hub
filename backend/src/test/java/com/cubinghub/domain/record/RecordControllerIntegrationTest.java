@@ -7,11 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.InputMethod;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.entity.UserPB;
@@ -26,6 +28,7 @@ import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +95,8 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
                 .timeMs(12500)
                 .penalty(Penalty.NONE)
                 .scramble("R U R' U' R F R2 U' R' U' R U R' F'")
+                .inputMethod(InputMethod.KEYBOARD)
+                .clientSubmissionId(UUID.fromString("d9428888-122b-4d3e-a58e-790c4e5f97ad"))
                 .build();
 
         mockMvc.perform(post("/api/records")
@@ -100,7 +105,15 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("기록이 저장되었습니다."))
-                .andExpect(jsonPath("$.data.id").exists());
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.eventType").value("WCA_333"))
+                .andExpect(jsonPath("$.data.timeMs").value(12500))
+                .andExpect(jsonPath("$.data.penalty").value("NONE"))
+                .andExpect(jsonPath("$.data.effectiveTimeMs").value(12500))
+                .andExpect(jsonPath("$.data.scramble").value("R U R' U' R F R2 U' R' U' R U R' F'"))
+                .andExpect(jsonPath("$.data.inputMethod").value("KEYBOARD"))
+                .andExpect(jsonPath("$.data.createdAt").exists())
+                .andExpect(jsonPath("$.data.clientSubmissionId").doesNotExist());
 
         entityManager.flush();
         entityManager.clear();
@@ -109,11 +122,218 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
         assertThat(recordRepository.findAll()).hasSize(1);
         Record savedRecord = recordRepository.findAll().get(0);
         assertThat(savedRecord.getTimeMs()).isEqualTo(12500);
+        assertThat(savedRecord.getInputMethod()).isEqualTo(InputMethod.KEYBOARD);
+        assertThat(savedRecord.getClientSubmissionId()).isEqualTo(request.getClientSubmissionId().toString());
+        assertThat(savedRecord.getClientSubmissionPayloadHash()).hasSize(32);
         assertThat(savedRecord.getUser().getId()).isEqualTo(testUser.getId());
 
         UserPB pb = userPBRepository.findByUserAndEventType(foundUser, EventType.WCA_333).orElseThrow();
         assertThat(pb.getBestTimeMs()).isEqualTo(12500);
         assertThat(pb.getRecord().getId()).isEqualTo(savedRecord.getId());
+    }
+
+    @Test
+    @DisplayName("legacy 기록 저장 요청은 optional provenance와 submission ID 없이 저장된다")
+    void should_create_legacy_record_when_optional_foundation_fields_are_missing() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(13000)
+                .penalty(Penalty.NONE)
+                .scramble("legacy scramble")
+                .build();
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.inputMethod").value("UNKNOWN"));
+
+        Record savedRecord = recordRepository.findAll().get(0);
+        assertThat(savedRecord.getInputMethod()).isEqualTo(InputMethod.UNKNOWN);
+        assertThat(savedRecord.getClientSubmissionId()).isNull();
+        assertThat(savedRecord.getClientSubmissionPayloadHash()).isNull();
+    }
+
+    @Test
+    @DisplayName("동일 submission ID와 동일 payload replay는 기존 Record를 반환한다")
+    void should_replay_existing_record_when_submission_payload_matches() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(12500)
+                .penalty(Penalty.NONE)
+                .scramble("idempotent scramble")
+                .inputMethod(InputMethod.TOUCH)
+                .clientSubmissionId(UUID.fromString("d9428888-122b-4d3e-a58e-790c4e5f97ad"))
+                .build();
+
+        var firstResult = mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String firstBody = firstResult.getResponse().getContentAsString();
+        String firstLocation = firstResult.getResponse().getHeader("Location");
+        long firstRecordId = objectMapper.readTree(firstBody).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", firstLocation))
+                .andExpect(jsonPath("$.data.id").value(firstRecordId));
+
+        assertThat(recordRepository.count()).isEqualTo(1);
+        assertThat(userPBRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("최초 submission fingerprint는 이후 penalty PATCH와 무관하게 replay를 판정한다")
+    void should_replay_original_submission_after_penalty_is_updated() throws Exception {
+        UUID submissionId = UUID.fromString("d9428888-122b-4d3e-a58e-790c4e5f97ad");
+        RecordSaveRequest createRequest = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(12500)
+                .penalty(Penalty.NONE)
+                .scramble("immutable fingerprint")
+                .inputMethod(InputMethod.KEYBOARD)
+                .clientSubmissionId(submissionId)
+                .build();
+        String createBody = mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long recordId = objectMapper.readTree(createBody).path("data").path("id").asLong();
+        RecordPenaltyUpdateRequest penaltyRequest = RecordPenaltyUpdateRequest.builder()
+                .penalty(Penalty.PLUS_TWO)
+                .build();
+
+        mockMvc.perform(patch("/api/records/{recordId}", recordId)
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(penaltyRequest)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(recordId))
+                .andExpect(jsonPath("$.data.penalty").value("PLUS_TWO"))
+                .andExpect(jsonPath("$.data.effectiveTimeMs").value(14500));
+
+        assertThat(recordRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("동일 submission ID와 다른 payload는 409를 반환하고 mutation을 만들지 않는다")
+    void should_return_conflict_when_submission_id_is_reused_for_different_payload() throws Exception {
+        UUID submissionId = UUID.fromString("d9428888-122b-4d3e-a58e-790c4e5f97ad");
+        RecordSaveRequest first = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(12500)
+                .penalty(Penalty.NONE)
+                .scramble("conflict scramble")
+                .inputMethod(InputMethod.KEYBOARD)
+                .clientSubmissionId(submissionId)
+                .build();
+        RecordSaveRequest conflict = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(12501)
+                .penalty(Penalty.NONE)
+                .scramble("conflict scramble")
+                .inputMethod(InputMethod.KEYBOARD)
+                .clientSubmissionId(submissionId)
+                .build();
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(conflict)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message")
+                        .value("clientSubmissionId가 다른 기록 요청에 이미 사용되었습니다."));
+
+        assertThat(recordRepository.count()).isEqualTo(1);
+        assertThat(userPBRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("미지원 Practice event 기록 저장 요청은 400을 반환한다")
+    void should_return_bad_request_when_practice_event_is_not_supported() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_222)
+                .timeMs(12500)
+                .penalty(Penalty.NONE)
+                .scramble("R U")
+                .build();
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("지원하지 않는 Practice 종목입니다."));
+
+        assertThat(recordRepository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("알 수 없는 EventType 문자열은 500이 아니라 400을 반환한다")
+    void should_return_bad_request_when_event_type_cannot_be_deserialized() throws Exception {
+        assertMalformedRequestIsBadRequest("""
+                {"eventType":"UNKNOWN_EVENT","timeMs":12500,"penalty":"NONE","scramble":"R U"}
+                """);
+    }
+
+    @Test
+    @DisplayName("알 수 없는 InputMethod 문자열은 500이 아니라 400을 반환한다")
+    void should_return_bad_request_when_input_method_cannot_be_deserialized() throws Exception {
+        assertMalformedRequestIsBadRequest("""
+                {"eventType":"WCA_333","timeMs":12500,"penalty":"NONE","scramble":"R U",\
+                "inputMethod":"STACKMAT"}
+                """);
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 clientSubmissionId 문자열은 500이 아니라 400을 반환한다")
+    void should_return_bad_request_when_submission_id_cannot_be_deserialized() throws Exception {
+        assertMalformedRequestIsBadRequest("""
+                {"eventType":"WCA_333","timeMs":12500,"penalty":"NONE","scramble":"R U",\
+                "clientSubmissionId":"not-a-uuid"}
+                """);
+    }
+
+    @Test
+    @DisplayName("UUID v4가 아닌 clientSubmissionId는 400을 반환한다")
+    void should_return_bad_request_when_submission_id_is_not_uuid_v4() throws Exception {
+        RecordSaveRequest request = RecordSaveRequest.builder()
+                .eventType(EventType.WCA_333)
+                .timeMs(12500)
+                .penalty(Penalty.NONE)
+                .scramble("R U")
+                .clientSubmissionId(UUID.fromString("f47ac10b-58cc-11cf-a447-001122334455"))
+                .build();
+
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("clientSubmissionId는 UUID v4 형식이어야 합니다."));
     }
 
     @Test
@@ -216,7 +436,9 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.message").value("기록이 저장되었습니다."));
+                .andExpect(jsonPath("$.message").value("기록이 저장되었습니다."))
+                .andExpect(jsonPath("$.data.effectiveTimeMs").value(nullValue()))
+                .andExpect(jsonPath("$.data.inputMethod").value("UNKNOWN"));
 
         entityManager.flush();
         entityManager.clear();
@@ -514,5 +736,15 @@ class RecordControllerIntegrationTest extends JpaIntegrationTest {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("기록을 찾을 수 없습니다."));
+    }
+
+    private void assertMalformedRequestIsBadRequest(String body) throws Exception {
+        mockMvc.perform(post("/api/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("잘못된 요청 형식입니다."));
     }
 }

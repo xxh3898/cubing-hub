@@ -1,11 +1,12 @@
 package com.cubinghub.domain.record.controller;
 
 import com.cubinghub.common.response.ApiResponse;
-import com.cubinghub.common.response.IdResponse;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
+import com.cubinghub.domain.record.dto.response.RecordCreateResponse;
 import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
 import com.cubinghub.domain.record.service.RecordService;
+import com.cubinghub.domain.record.service.RecordSubmissionService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -27,15 +28,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecordController {
 
     private final RecordService recordService;
+    private final RecordSubmissionService recordSubmissionService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<IdResponse>> saveRecord(
+    public ResponseEntity<ApiResponse<RecordCreateResponse>> saveRecord(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid RecordSaveRequest request
     ) {
-        Long recordId = recordService.saveRecord(userDetails.getUsername(), request);
-        return ResponseEntity.created(URI.create("/api/records/" + recordId))
-                .body(ApiResponse.success(HttpStatus.CREATED, "기록이 저장되었습니다.", new IdResponse(recordId)));
+        RecordCreateResponse response = recordSubmissionService.submit(userDetails.getUsername(), request);
+        return ResponseEntity.created(URI.create("/api/records/" + response.getId()))
+                .body(ApiResponse.success(HttpStatus.CREATED, "기록이 저장되었습니다.", response));
     }
 
     @PatchMapping("/{recordId}")

@@ -9,10 +9,11 @@ tags: []
 related:
   - docs/04-data/data-dictionary.md
   - backend/src/main/resources/db/migration/V1__init_schema.sql
+  - backend/src/main/resources/db/migration/V3__add_record_foundation_fields.sql
 ---
 # ERD
 
-Flyway V1과 V2 기준으로 현재 MySQL schema에는 9개 table이 있다.
+Flyway V1부터 V3 기준으로 현재 MySQL schema에는 9개 table이 있다.
 
 ```mermaid
 erDiagram
@@ -44,6 +45,9 @@ erDiagram
       int time_ms
       enum penalty
       text scramble
+      varchar input_method
+      char client_submission_id
+      binary client_submission_payload_hash
     }
     USER_PBS {
       bigint id PK

@@ -22,6 +22,7 @@ import com.cubinghub.integration.JpaIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private User testUser;
     private String accessToken;
@@ -107,6 +111,7 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.message").value("내 기록을 조회했습니다."))
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].id").exists())
+                .andExpect(jsonPath("$.data.items[0].inputMethod").value("UNKNOWN"))
                 .andExpect(jsonPath("$.data.items[0].createdAt").exists())
                 .andExpect(jsonPath("$.data.page").value(1))
                 .andExpect(jsonPath("$.data.size").value(2))
@@ -114,6 +119,59 @@ class UserProfileIntegrationTest extends JpaIntegrationTest {
                 .andExpect(jsonPath("$.data.totalPages").value(2))
                 .andExpect(jsonPath("$.data.hasNext").value(true))
                 .andExpect(jsonPath("$.data.hasPrevious").value(false));
+    }
+
+    @Test
+    @DisplayName("eventType 필터는 해당 Practice event 기록만 안정된 순서로 반환한다")
+    void should_filter_my_records_by_event_type_with_stable_ordering() throws Exception {
+        Record olderId = saveRecord(testUser, EventType.WCA_333, 10000, Penalty.NONE, "first-333");
+        Record newerId = saveRecord(testUser, EventType.WCA_333, 11000, Penalty.NONE, "second-333");
+        saveRecord(testUser, EventType.WCA_222, 5000, Penalty.NONE, "legacy-222");
+        recordRepository.flush();
+        entityManager.createNativeQuery("""
+                        UPDATE records
+                        SET created_at = '2026-08-10 11:15:30.123000'
+                        WHERE id IN (:firstId, :secondId)
+                        """)
+                .setParameter("firstId", olderId.getId())
+                .setParameter("secondId", newerId.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        mockMvc.perform(get("/api/users/me/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("eventType", "WCA_333")
+                        .param("page", "1")
+                        .param("size", "12")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.items[0].id").value(newerId.getId()))
+                .andExpect(jsonPath("$.data.items[1].id").value(olderId.getId()))
+                .andExpect(jsonPath("$.data.items[0].eventType").value("WCA_333"))
+                .andExpect(jsonPath("$.data.items[1].eventType").value("WCA_333"));
+    }
+
+    @Test
+    @DisplayName("미지원 Practice event 기록 필터 요청은 400을 반환한다")
+    void should_return_bad_request_when_history_event_is_not_supported() throws Exception {
+        mockMvc.perform(get("/api/users/me/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("eventType", "WCA_222")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("지원하지 않는 Practice 종목입니다."));
+    }
+
+    @Test
+    @DisplayName("알 수 없는 history EventType 문자열은 500이 아니라 400을 반환한다")
+    void should_return_bad_request_when_history_event_type_is_invalid() throws Exception {
+        mockMvc.perform(get("/api/users/me/records")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("eventType", "UNKNOWN_EVENT")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("eventType 파라미터 형식이 올바르지 않습니다."));
     }
 
     @Test

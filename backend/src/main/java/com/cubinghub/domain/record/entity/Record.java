@@ -16,7 +16,13 @@ import lombok.NoArgsConstructor;
 @Getter
 @Table(name = "records", indexes = {
         @Index(name = "idx_record_event_time", columnList = "event_type, time_ms"),
-        @Index(name = "idx_record_user_created_at", columnList = "user_id, created_at")
+        @Index(name = "idx_record_user_created_at", columnList = "user_id, created_at"),
+        @Index(name = "idx_record_user_event_created_at_id", columnList = "user_id, event_type, created_at, id")
+}, uniqueConstraints = {
+        @UniqueConstraint(
+                name = "uk_record_user_client_submission",
+                columnNames = {"user_id", "client_submission_id"}
+        )
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Record extends BaseTimeEntity {
@@ -49,13 +55,37 @@ public class Record extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String scramble;
 
+    @Convert(converter = InputMethodConverter.class)
+    @Column(name = "input_method", length = 32)
+    private InputMethod inputMethod;
+
+    @Column(name = "client_submission_id", columnDefinition = "CHAR(36)", length = 36)
+    private String clientSubmissionId;
+
+    @Column(name = "client_submission_payload_hash", columnDefinition = "BINARY(32)", length = 32)
+    private byte[] clientSubmissionPayloadHash;
+
     @Builder
-    public Record(User user, EventType eventType, Integer timeMs, Penalty penalty, String scramble) {
+    public Record(
+            User user,
+            EventType eventType,
+            Integer timeMs,
+            Penalty penalty,
+            String scramble,
+            InputMethod inputMethod,
+            String clientSubmissionId,
+            byte[] clientSubmissionPayloadHash
+    ) {
         this.user = user;
         this.eventType = eventType;
         this.timeMs = timeMs;
         this.penalty = penalty;
         this.scramble = scramble;
+        this.inputMethod = inputMethod;
+        this.clientSubmissionId = clientSubmissionId;
+        this.clientSubmissionPayloadHash = clientSubmissionPayloadHash == null
+                ? null
+                : clientSubmissionPayloadHash.clone();
     }
 
     public void updatePenalty(Penalty penalty) {
@@ -64,5 +94,13 @@ public class Record extends BaseTimeEntity {
 
     public Integer getEffectiveTimeMs() {
         return penalty.applyTo(timeMs);
+    }
+
+    public InputMethod getInputMethod() {
+        return inputMethod == null ? InputMethod.UNKNOWN : inputMethod;
+    }
+
+    public byte[] getClientSubmissionPayloadHash() {
+        return clientSubmissionPayloadHash == null ? null : clientSubmissionPayloadHash.clone();
     }
 }

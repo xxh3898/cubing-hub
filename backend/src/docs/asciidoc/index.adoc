@@ -232,6 +232,7 @@ include::{snippets}/record/create/request-fields.adoc[]
 
 ==== 응답
 include::{snippets}/record/create/http-response.adoc[]
+include::{snippets}/record/create/response-fields.adoc[]
 
 ==== 실패 응답
 ===== 유효하지 않은 기록 저장 요청

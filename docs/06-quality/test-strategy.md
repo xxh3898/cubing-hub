@@ -51,7 +51,7 @@ related:
 
 현재 `application-test.yaml`은 Flyway를 비활성화하고 Hibernate `create-drop`으로 schema를 만든다. 이 test profile만으로는 이미 적용된 schema에서 새 forward-only migration을 실행하는 upgrade path를 증명할 수 없다.
 
-V2.1 schema 변경은 별도 `RecordFoundationMigrationIntegrationTest` 성격의 MySQL Testcontainers test로 검증한다. 현재 dependency에 Flyway API와 MySQL Testcontainers가 이미 있으므로 새 runtime이나 CI service를 추가하지 않는다.
+V2.1 schema 변경은 별도 `RecordFoundationMigrationIntegrationTest` MySQL Testcontainers test로 검증한다. 현재 dependency의 Flyway API와 MySQL Testcontainers를 사용하므로 새 runtime이나 CI service를 추가하지 않는다.
 
 ```text
 programmatic Flyway target=V2
@@ -75,7 +75,7 @@ Dedicated context initializer가 application bean 생성 전에 위 migration과
 
 Current production data가 없더라도 representative legacy fixture를 넣는다. 이는 현재 row count에 의존하지 않고 old image rollback과 future non-empty upgrade path를 계속 검증하기 위한 golden fixture다. Clean schema 생성 성공을 upgrade 성공으로 대신하지 않는다.
 
-이번 Documentation / Decision Gate에서는 Testcontainers, Flyway test 설정, application test와 CI를 변경하지 않는다.
+이 전용 test는 V2→V3 upgrade 뒤 application context를 `ddl-auto=validate`로 시작한다. 일반 test profile의 Flyway disabled·Hibernate create-drop 계약은 변경하지 않는다.
 
 ## Infrastructure
 
