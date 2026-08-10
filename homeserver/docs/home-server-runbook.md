@@ -319,7 +319,7 @@ snapshot은 age로 암호화한 뒤 local staging과 iCloud Drive project direct
 
 ## 첫 배포 검증
 
-1. Flyway history에 `V1`, `V2`가 성공 상태인지 확인한다.
+1. Flyway history에 `V1`, `V2`, `V3`가 성공 상태인지 확인한다.
 2. 회원, 기록, 게시글, 첨부 table이 빈 상태인지 확인한다.
 3. Redis key가 빈 상태인지 확인한다.
 4. 회원가입, 로그인, refresh, 기록 저장, 랭킹 반영을 확인한다.

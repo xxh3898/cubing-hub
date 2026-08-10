@@ -40,7 +40,7 @@ related:
 
 ## V2.1 Timer / Record 목표 구조
 
-아래 Record Foundation backend 경계는 V3 migration, application service와 executable test에 반영됐다. Timer Core, stopped time canonicalization, frontend provenance wiring과 pending solve recovery는 다음 Timer Foundation slice의 책임이다.
+아래 Record Foundation backend 경계는 V3 migration, application service와 executable test에 반영됐다. Timer Core, stopped time canonicalization, frontend provenance wiring과 pending solve recovery도 Timer Foundation slice에서 이 backend contract를 소비하도록 구현됐다.
 
 ### Practice Record boundary
 
@@ -54,7 +54,7 @@ related:
 - user-scoped identity는 DB `UNIQUE(user_id, client_submission_id)`로 최종 보장한다. identity가 없는 legacy request는 기존 non-idempotent create로 처리한다.
 - server는 `v1`, eventType, canonical timeMs, penalty, exact scramble, normalized Input Method 순서로 각 UTF-8 byte length를 4-byte big-endian integer로 붙인 `v1` sequence를 만들고 SHA-256 fingerprint를 계산해 최초 create payload와 함께 불변 보존한다. JSON serialization 결과에는 의존하지 않는다.
 - 같은 user·identity·fingerprint는 기존 Record를 반환하고, fingerprint가 다르면 409 Conflict다. 현재 penalty가 이후 PATCH로 바뀌어도 최초 fingerprint 비교에는 영향을 주지 않는다.
-- 일반 replay는 Record create와 같은 201 Created, 같은 Location과 canonical body를 반환한다. 이렇게 해야 기존 client의 status contract를 바꾸지 않는다.
+- 일반 replay는 Record create와 같은 201 Created, 같은 Location과 현재 canonical Record body를 반환한다. 최초 create 뒤 penalty PATCH가 있으면 response의 penalty와 effective time은 최초 request와 달라질 수 있다. 이렇게 해야 기존 client의 status contract를 바꾸지 않는다.
 - pre-check replay는 repository mutation 전에 반환한다. Concurrent race에서는 Record insert를 flush해 unique 위반을 PB·Redis 계산보다 먼저 확정한다.
 - unique loser의 `DataIntegrityViolationException`은 이미 rollback-only인 transaction 안에서 처리하지 않는다. Non-transactional submission coordinator가 create transaction 실패를 받은 뒤 새 read transaction에서 winner를 조회하고 fingerprint를 비교한다.
 - replay와 unique loser는 PB 재계산과 Redis sync를 실행하지 않는다. Winner만 현재 PB·Redis 흐름을 한 번 수행한다.
