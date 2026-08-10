@@ -16,14 +16,14 @@ const [
     read("../../scripts/classify-ci-paths.sh"),
   ]);
 
-test("should_validateDevPushAndMainPullRequestsBeforeRelease", () => {
+test("should_validateDevPushAndDevAndMainPullRequestsBeforeRelease", () => {
   assert.match(
     validateWorkflow,
     /push:\n    branches:\n      - dev/,
   );
   assert.match(
     validateWorkflow,
-    /pull_request:\n    branches:\n      - main/,
+    /pull_request:\n    branches:\n      - dev\n      - main/,
   );
   assert.match(validateWorkflow, /workflow_call:/);
   assert.match(

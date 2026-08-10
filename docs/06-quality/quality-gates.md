@@ -15,12 +15,13 @@ related:
 ## CI trigger
 
 - dev push
+- dev 대상 pull request
 - main 대상 pull request
 - 다른 workflow의 workflow_call
 
 changed path classifier가 backend, frontend, infrastructure, API image, Web image 검증 범위를 결정한다.
 
-현재 `feat/* → dev` pull request 자체는 Validate를 시작하지 않는다. V2.1은 backend, Flyway, frontend가 연결된 변경이므로 merge 뒤 dev push에서 처음 검증하는 것보다, 별도 승인된 workflow 변경으로 `pull_request` target에 dev를 추가해 feature PR head를 merge 전에 검증하는 방향을 권장한다. 이 문서 작업에서는 workflow를 변경하지 않는다.
+이 trigger 계약으로 `feat/* → dev`와 `dev → main` pull request는 모두 merge 전에 Validate를 실행한다. Dev push validation도 integration branch의 merge 결과를 계속 검증한다.
 
 ## Backend gate
 
