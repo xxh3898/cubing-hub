@@ -3,6 +3,7 @@ package com.cubinghub.domain.record;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.entity.InputMethod;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.entity.UserPB;
@@ -14,6 +15,7 @@ import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,8 @@ class RecordDocsTest extends RestDocsIntegrationTest {
                 .timeMs(12500)
                 .penalty(Penalty.NONE)
                 .scramble("R U R' U' R F R2 U' R' U' R U R' F'")
+                .inputMethod(InputMethod.KEYBOARD)
+                .clientSubmissionId(UUID.fromString("d9428888-122b-4d3e-a58e-790c4e5f97ad"))
                 .build();
 
         ResultActions result = mockMvc.perform(post("/api/records")
@@ -94,18 +98,33 @@ class RecordDocsTest extends RestDocsIntegrationTest {
                 .andExpect(jsonPath("$.status").value(201))
                 .andExpect(jsonPath("$.message").value("기록이 저장되었습니다."))
                 .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.eventType").value("WCA_333"))
+                .andExpect(jsonPath("$.data.timeMs").value(12500))
+                .andExpect(jsonPath("$.data.penalty").value("NONE"))
+                .andExpect(jsonPath("$.data.effectiveTimeMs").value(12500))
+                .andExpect(jsonPath("$.data.inputMethod").value("KEYBOARD"))
+                .andExpect(jsonPath("$.data.createdAt").exists())
                 .andDo(document("record/create",
                         requestFields(
                                 fieldWithPath("eventType").description("WCA 종목 코드 (e.g. WCA_333)"),
                                 fieldWithPath("timeMs").description("측정 시간 (밀리초)"),
                                 fieldWithPath("penalty").description("페널티 정보 (NONE, PLUS_TWO, DNF)"),
-                                fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열")
+                                fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열"),
+                                fieldWithPath("inputMethod").optional().description("입력 방식 (UNKNOWN, KEYBOARD, TOUCH; 누락 시 UNKNOWN)"),
+                                fieldWithPath("clientSubmissionId").optional().description("재시도 중복 방지용 UUID v4")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
                                 fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
                                 fieldWithPath("data").type(JsonFieldType.OBJECT).description("생성된 리소스 정보"),
-                                fieldWithPath("data.id").description("생성된 기록 ID")
+                                fieldWithPath("data.id").description("생성된 기록 ID"),
+                                fieldWithPath("data.eventType").description("Practice 종목 코드"),
+                                fieldWithPath("data.timeMs").description("원본 측정 시간 (밀리초)"),
+                                fieldWithPath("data.penalty").description("적용 페널티"),
+                                fieldWithPath("data.effectiveTimeMs").optional().description("페널티 반영 시간 (DNF면 null)"),
+                                fieldWithPath("data.scramble").description("저장된 스크램블 snapshot"),
+                                fieldWithPath("data.inputMethod").description("정규화된 입력 방식"),
+                                fieldWithPath("data.createdAt").description("서버가 생성한 기록 저장 시각")
                         )
                 ));
     }
@@ -134,7 +153,9 @@ class RecordDocsTest extends RestDocsIntegrationTest {
                                 fieldWithPath("eventType").description("WCA 종목 코드 (e.g. WCA_333)"),
                                 fieldWithPath("timeMs").description("측정 시간 (밀리초)"),
                                 fieldWithPath("penalty").description("페널티 정보 (NONE, PLUS_TWO, DNF)"),
-                                fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열")
+                                fieldWithPath("scramble").description("해당 측정에 사용된 스크램블 문자열"),
+                                fieldWithPath("inputMethod").optional().description("입력 방식 (누락 시 UNKNOWN)"),
+                                fieldWithPath("clientSubmissionId").optional().description("재시도 중복 방지용 UUID v4")
                         ),
                         responseFields(
                                 fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),

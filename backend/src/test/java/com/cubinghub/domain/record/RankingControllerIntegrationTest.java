@@ -168,6 +168,26 @@ class RankingControllerIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("미지원 Practice event 랭킹 요청은 400을 반환한다")
+    void should_return_bad_request_when_practice_ranking_event_is_not_supported() throws Exception {
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", EventType.WCA_222.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("지원하지 않는 Practice 종목입니다."));
+    }
+
+    @Test
+    @DisplayName("알 수 없는 랭킹 EventType 문자열은 500이 아니라 400을 반환한다")
+    void should_return_bad_request_when_ranking_event_type_is_invalid() throws Exception {
+        mockMvc.perform(get("/api/rankings")
+                        .param("eventType", "UNKNOWN_EVENT")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("eventType 파라미터 형식이 올바르지 않습니다."));
+    }
+
+    @Test
     @DisplayName("Redis 랭킹이 준비되면 기본 랭킹 조회는 Redis 경로로 같은 계약을 반환한다")
     void should_return_rankings_from_redis_when_ready_marker_exists() throws Exception {
         for (int i = 0; i < 30; i++) {

@@ -12,6 +12,7 @@ related:
   - docs/01-domain/solve-model.md
   - backend/src/main/resources/db/migration/V1__init_schema.sql
   - backend/src/main/resources/db/migration/V2__add_query_support_indexes.sql
+  - backend/src/main/resources/db/migration/V3__add_record_foundation_fields.sql
 ---
 # Data Dictionary
 
@@ -39,21 +40,14 @@ related:
 | time_ms | penalty 전 positive raw time |
 | penalty | NONE, PLUS_TWO, DNF |
 | scramble | solve에 사용한 문자열 |
-| created_at, updated_at | PB tie-break와 변경 시각 |
+| input_method | varchar(32), nullable, DB default 없음. application `InputMethod` enum provenance이며 legacy null은 response에서 UNKNOWN으로 정규화 |
+| client_submission_id | char(36), nullable, DB default 없음. canonical lowercase UUID v4의 user 범위 retry identity |
+| client_submission_payload_hash | binary(32), nullable, DB default 없음. 최초 normalized logical payload의 SHA-256 internal value |
+| created_at, updated_at | history ordering과 변경 시각 |
 
-V2 index는 user_id, created_at 조합을 사용한다.
+V2 index는 user_id, created_at 조합을 사용한다. V3는 user-scoped submission unique index와 event-filtered stable history index를 추가한다.
 
-### 승인된 V2.1 target contract
-
-아래 column은 아직 current Flyway schema에 없으며 새 forward-only migration에서만 추가한다.
-
-| Column | Target type·nullability | 의미·제약 |
-| --- | --- | --- |
-| input_method | varchar(32), nullable, DB default 없음 | application `InputMethod` enum provenance. New Timer는 UNKNOWN, KEYBOARD, TOUCH 중 하나를 기록하고 legacy null은 response에서 UNKNOWN으로 정규화 |
-| client_submission_id | char(36), nullable, DB default 없음 | canonical lowercase UUID v4 string. user 범위 create retry identity이며 ordering에 사용하지 않음 |
-| client_submission_payload_hash | binary(32), nullable, DB default 없음 | 최초 server-normalized logical payload의 SHA-256. replay와 409 conflict 판정용 internal immutable value |
-
-Target index는 다음과 같다.
+V3 index는 다음과 같다.
 
 - `uk_record_user_client_submission` on `(user_id, client_submission_id)`
 - `idx_record_user_event_created_at_id` on `(user_id, event_type, created_at, id)`

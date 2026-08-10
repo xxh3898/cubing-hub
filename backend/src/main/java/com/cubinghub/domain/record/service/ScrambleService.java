@@ -1,34 +1,27 @@
 package com.cubinghub.domain.record.service;
 
-import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.common.util.ScrambleGenerator;
 import com.cubinghub.domain.record.dto.response.ScrambleResponse;
 import com.cubinghub.domain.record.entity.EventType;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import java.time.LocalDate;
-import java.util.EnumSet;
-import java.util.Set;
-import org.springframework.http.HttpStatus;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ScrambleService {
 
-    private static final Set<EventType> SUPPORTED_EVENT_TYPES = EnumSet.of(
-            EventType.WCA_333
-    );
+    private final PracticeEventCapabilities eventCapabilities;
 
     public ScrambleResponse generate(EventType eventType) {
-        if (!SUPPORTED_EVENT_TYPES.contains(eventType)) {
-            throw new CustomApiException("아직 구현되지 않은 종목입니다.", HttpStatus.BAD_REQUEST);
-        }
+        eventCapabilities.requireScrambleSupported(eventType);
 
         return new ScrambleResponse(eventType.name(), ScrambleGenerator.generate(eventType));
     }
 
     public ScrambleResponse generateDaily(EventType eventType, LocalDate date) {
-        if (!SUPPORTED_EVENT_TYPES.contains(eventType)) {
-            throw new CustomApiException("아직 구현되지 않은 종목입니다.", HttpStatus.BAD_REQUEST);
-        }
+        eventCapabilities.requireScrambleSupported(eventType);
 
         return new ScrambleResponse(eventType.name(), ScrambleGenerator.generateDaily(eventType, date));
     }

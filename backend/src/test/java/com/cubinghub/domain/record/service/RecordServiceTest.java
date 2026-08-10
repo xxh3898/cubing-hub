@@ -12,12 +12,14 @@ import static org.mockito.Mockito.when;
 import com.cubinghub.common.exception.CustomApiException;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
 import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
+import com.cubinghub.domain.record.dto.response.RecordCreateResponse;
 import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
 import com.cubinghub.domain.record.dto.response.RankingPageResponse;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.entity.UserPB;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import com.cubinghub.domain.record.repository.RankingQueryResult;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.UserPBRepository;
@@ -59,7 +61,13 @@ class RecordServiceTest {
 
     @BeforeEach
     void setUp() {
-        recordService = new RecordService(recordRepository, userPBRepository, userRepository, rankingRedisService);
+        recordService = new RecordService(
+                recordRepository,
+                userPBRepository,
+                userRepository,
+                rankingRedisService,
+                new PracticeEventCapabilities()
+        );
     }
 
     @Test
@@ -75,11 +83,11 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(savedRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(savedRecord);
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
-        assertThat(recordId).isEqualTo(savedRecord.getId());
+        assertThat(response.getId()).isEqualTo(savedRecord.getId());
         verify(userPBRepository, never()).findByUserAndEventType(any(), any());
         verify(userPBRepository, never()).save(any(UserPB.class));
     }
@@ -97,14 +105,14 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(savedRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(savedRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(savedRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
         ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
-        assertThat(recordId).isEqualTo(savedRecord.getId());
+        assertThat(response.getId()).isEqualTo(savedRecord.getId());
         verify(userPBRepository).save(pbCaptor.capture());
         verify(rankingRedisService).sync(any(UserPB.class));
         assertThat(pbCaptor.getValue().getBestTimeMs()).isEqualTo(11800);
@@ -124,14 +132,14 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(savedRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(savedRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(savedRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.empty());
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
         ArgumentCaptor<UserPB> pbCaptor = ArgumentCaptor.forClass(UserPB.class);
-        assertThat(recordId).isEqualTo(savedRecord.getId());
+        assertThat(response.getId()).isEqualTo(savedRecord.getId());
         verify(userPBRepository).save(pbCaptor.capture());
         verify(rankingRedisService).sync(any(UserPB.class));
         assertThat(pbCaptor.getValue().getUser()).isEqualTo(user);
@@ -161,13 +169,13 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(fasterRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(fasterRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(fasterRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
-        assertThat(recordId).isEqualTo(fasterRecord.getId());
+        assertThat(response.getId()).isEqualTo(fasterRecord.getId());
         verify(existingPb).updateBestTime(9500, fasterRecord);
         verify(rankingRedisService).sync(existingPb);
         verify(userPBRepository, never()).save(any(UserPB.class));
@@ -194,13 +202,13 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(slowerRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(slowerRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(currentBestRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
-        assertThat(recordId).isEqualTo(slowerRecord.getId());
+        assertThat(response.getId()).isEqualTo(slowerRecord.getId());
         verify(existingPb, never()).updateBestTime(any(), any());
         verify(rankingRedisService, never()).sync(any());
         verify(userPBRepository, never()).save(any(UserPB.class));
@@ -227,11 +235,11 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(sameTimeRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(sameTimeRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333)).thenReturn(Optional.of(currentBestRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
-        recordService.saveRecord(user.getEmail(), request);
+        recordService.createRecord(user.getEmail(), request, null, null);
 
         verify(existingPb, never()).updateBestTime(any(), any());
         verify(rankingRedisService, never()).sync(any());
@@ -259,14 +267,14 @@ class RecordServiceTest {
                 .build();
 
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(recordRepository.save(any(Record.class))).thenReturn(sameTimeNewBestRecord);
+        when(recordRepository.saveAndFlush(any(Record.class))).thenReturn(sameTimeNewBestRecord);
         when(recordRepository.findBestRecordByUserIdAndEventType(user.getId(), EventType.WCA_333))
                 .thenReturn(Optional.of(sameTimeNewBestRecord));
         when(userPBRepository.findByUserAndEventType(user, EventType.WCA_333)).thenReturn(Optional.of(existingPb));
 
-        Long recordId = recordService.saveRecord(user.getEmail(), request);
+        RecordCreateResponse response = recordService.createRecord(user.getEmail(), request, null, null);
 
-        assertThat(recordId).isEqualTo(sameTimeNewBestRecord.getId());
+        assertThat(response.getId()).isEqualTo(sameTimeNewBestRecord.getId());
         verify(existingPb).updateBestTime(10000, sameTimeNewBestRecord);
         verify(rankingRedisService).sync(existingPb);
         verify(userPBRepository, never()).save(any(UserPB.class));
@@ -283,7 +291,7 @@ class RecordServiceTest {
                 .build();
         when(userRepository.findByEmail("missing@cubinghub.com")).thenReturn(Optional.empty());
 
-        Throwable thrown = catchThrowable(() -> recordService.saveRecord("missing@cubinghub.com", request));
+        Throwable thrown = catchThrowable(() -> recordService.createRecord("missing@cubinghub.com", request, null, null));
 
         assertThat(thrown).isInstanceOf(CustomApiException.class);
         CustomApiException exception = (CustomApiException) thrown;

@@ -1,16 +1,19 @@
 package com.cubinghub.domain.record.service;
 
-import com.cubinghub.common.validation.InputConstraints;
 import com.cubinghub.common.exception.CustomApiException;
+import com.cubinghub.common.validation.InputConstraints;
+import com.cubinghub.domain.record.dto.internal.RecordSubmissionLookup;
 import com.cubinghub.domain.record.dto.request.RecordPenaltyUpdateRequest;
+import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
+import com.cubinghub.domain.record.dto.response.RecordCreateResponse;
 import com.cubinghub.domain.record.dto.response.RecordPenaltyUpdateResponse;
 import com.cubinghub.domain.record.dto.response.RankingPageResponse;
 import com.cubinghub.domain.record.dto.response.RankingResponse;
-import com.cubinghub.domain.record.dto.request.RecordSaveRequest;
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.Penalty;
 import com.cubinghub.domain.record.entity.Record;
 import com.cubinghub.domain.record.entity.UserPB;
+import com.cubinghub.domain.record.policy.PracticeEventCapabilities;
 import com.cubinghub.domain.record.repository.RankingQueryResult;
 import com.cubinghub.domain.record.repository.RecordRepository;
 import com.cubinghub.domain.record.repository.UserPBRepository;
@@ -36,12 +39,14 @@ public class RecordService {
     private final UserPBRepository userPBRepository;
     private final UserRepository userRepository;
     private final RankingRedisService rankingRedisService;
+    private final PracticeEventCapabilities eventCapabilities;
 
     public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size) {
         return getRankings(eventType, nickname, page, size, null);
     }
 
     public RankingPageResponse getRankings(EventType eventType, String nickname, Integer page, Integer size, String currentUserEmail) {
+        eventCapabilities.requirePracticeRankingSupported(eventType);
         validateRankingPageRequest(page, size);
         validateRankingSearchRequest(nickname);
 
@@ -110,8 +115,19 @@ public class RecordService {
         );
     }
 
+    public Optional<RecordSubmissionLookup> findSubmission(String email, String clientSubmissionId) {
+        return recordRepository.findByUserEmailAndClientSubmissionId(email, clientSubmissionId)
+                .map(RecordSubmissionLookup::from);
+    }
+
     @Transactional
-    public Long saveRecord(String email, RecordSaveRequest request) {
+    public RecordCreateResponse createRecord(
+            String email,
+            RecordSaveRequest request,
+            String clientSubmissionId,
+            byte[] clientSubmissionPayloadHash
+    ) {
+        eventCapabilities.requirePracticeRecordSupported(request.getEventType());
         User user = findUserByEmail(email);
 
         Record record = Record.builder()
@@ -120,16 +136,19 @@ public class RecordService {
                 .timeMs(request.getTimeMs())
                 .penalty(request.getPenalty())
                 .scramble(request.getScramble())
+                .inputMethod(request.normalizedInputMethod())
+                .clientSubmissionId(clientSubmissionId)
+                .clientSubmissionPayloadHash(clientSubmissionPayloadHash)
                 .build();
 
-        Record savedRecord = recordRepository.save(record);
+        Record savedRecord = recordRepository.saveAndFlush(record);
 
         if (request.getPenalty().isRankable()) {
             PbRecalculationResult recalculationResult = recalculateUserPb(user, request.getEventType());
             syncRankingIfChanged(request.getEventType(), user.getId(), recalculationResult);
         }
 
-        return savedRecord.getId();
+        return RecordCreateResponse.from(savedRecord);
     }
 
     @Transactional

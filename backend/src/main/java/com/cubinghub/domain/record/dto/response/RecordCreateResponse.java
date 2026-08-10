@@ -1,4 +1,4 @@
-package com.cubinghub.domain.user.dto.response;
+package com.cubinghub.domain.record.dto.response;
 
 import com.cubinghub.domain.record.entity.EventType;
 import com.cubinghub.domain.record.entity.InputMethod;
@@ -8,41 +8,45 @@ import java.time.Instant;
 import lombok.Getter;
 
 @Getter
-public class MyProfileRecordResponse {
+public class RecordCreateResponse {
 
     private final Long id;
     private final EventType eventType;
     private final Integer timeMs;
-    private final Integer effectiveTimeMs;
     private final Penalty penalty;
+    private final Integer effectiveTimeMs;
+    private final String scramble;
     private final InputMethod inputMethod;
     private final Instant createdAt;
 
-    public MyProfileRecordResponse(
+    public RecordCreateResponse(
             Long id,
             EventType eventType,
             Integer timeMs,
-            Integer effectiveTimeMs,
             Penalty penalty,
+            Integer effectiveTimeMs,
+            String scramble,
             InputMethod inputMethod,
             Instant createdAt
     ) {
         this.id = id;
         this.eventType = eventType;
         this.timeMs = timeMs;
-        this.effectiveTimeMs = effectiveTimeMs;
         this.penalty = penalty;
+        this.effectiveTimeMs = effectiveTimeMs;
+        this.scramble = scramble;
         this.inputMethod = inputMethod;
         this.createdAt = createdAt;
     }
 
-    public static MyProfileRecordResponse from(Record record) {
-        return new MyProfileRecordResponse(
+    public static RecordCreateResponse from(Record record) {
+        return new RecordCreateResponse(
                 record.getId(),
                 record.getEventType(),
                 record.getTimeMs(),
-                record.getEffectiveTimeMs(),
                 record.getPenalty(),
+                record.getEffectiveTimeMs(),
+                record.getScramble(),
                 record.getInputMethod(),
                 record.getCreatedAt()
         );

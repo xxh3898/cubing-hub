@@ -16,7 +16,7 @@ related:
 
 ## Source of Truth
 
-backend/src/main/resources/db/migration의 Flyway SQL이 production schema의 Source of Truth다. 현재 적용 순서는 V1 init schema, V2 query support indexes다.
+backend/src/main/resources/db/migration의 Flyway SQL이 production schema의 Source of Truth다. 현재 적용 순서는 V1 init schema, V2 query support indexes, V3 Record Foundation fields다.
 
 ## 작성 원칙
 
@@ -49,11 +49,11 @@ production API는 SPRING_FLYWAY_ENABLED=false와 Hibernate validate로 실행한
 - index와 query plan 영향
 - backup과 restore 또는 forward recovery 절차
 
-## V2.1 Record Foundation migration plan
+## V2.1 Record Foundation migration
 
 현재 user 확인 기준 `records`와 `user_pbs`에는 data가 없다. 이 세션에서는 production query를 실행하지 않았으며, data가 없다는 조건이 migration discipline을 완화하지는 않는다.
 
-실제 구현에서는 applied V1·V2를 수정하지 않고 `V3__add_record_foundation_fields.sql` 같은 새 migration 한 개를 추가한다. 정확한 version은 구현 시작 시 migration directory를 다시 확인한 뒤 충돌 없이 정한다.
+Applied V1·V2를 수정하지 않고 `V3__add_record_foundation_fields.sql` forward-only migration 한 개를 추가했다.
 
 Migration 순서는 다음과 같다.
 
@@ -90,4 +90,4 @@ Test는 column type·nullability, index 존재, legacy row와 PB FK 보존, null
 
 기존 global test profile의 Flyway disabled·Hibernate create-drop 설정은 그대로 두고, dedicated test에서만 실제 migration path를 구성한다. CI workflow나 별도 DB infrastructure는 추가하지 않는다.
 
-이번 Documentation / Decision Gate에서는 migration 파일, schema, Testcontainers 설정과 test code를 변경하지 않는다.
+`RecordFoundationMigrationIntegrationTest`가 실제 V2→V3 upgrade와 새 application mapping을 executable contract로 유지한다.
