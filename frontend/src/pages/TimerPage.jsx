@@ -3,16 +3,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Box, Gauge, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
-import { eventOptions, findEventOption } from '../constants/eventOptions.js'
+import { eventOptions, isPracticeEventSupported } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
+import {
+  clearPendingTimerSolve,
+  isUuidV4,
+  loadPendingTimerSolve,
+  PENDING_TIMER_SOLVE_SCHEMA_VERSION,
+  savePendingTimerSolve,
+} from '../lib/pendingTimerSolveStorage.js'
 import { deleteGuestTimerRecord, getGuestTimerRecords, saveGuestTimerRecord, updateGuestTimerRecordPenalty } from '../lib/guestTimerStorage.js'
-import { calculateAverageOf, filterLatestRecordsByEvent, formatAverageResult, formatRecordTime } from '../utils/recordStats.js'
+import { calculateAverageOf, formatAverageResult, formatRecordTime } from '../utils/recordStats.js'
 import { buildVisualCubeUrl } from '../utils/visualCube.js'
 
-const RECENT_STATS_FETCH_SIZE = 100
+const RECENT_STATS_FETCH_SIZE = 12
 const RECENT_STATS_LIMIT = 12
 const RECENT_SAVED_LIMIT = 5
+const RECORD_INPUT_METHODS = new Set(['UNKNOWN', 'KEYBOARD', 'TOUCH'])
+const RECORD_PENALTIES = new Set(['NONE', 'PLUS_TWO', 'DNF'])
 
 export function getTimerMessage(status, isSupported, hasScramble) {
   if (!isSupported) {
@@ -82,18 +91,6 @@ export function getDisplayTime(record) {
   return formatRecordTime(record.effectiveTimeMs ?? record.timeMs, { padSeconds: true })
 }
 
-export function createSavedRecord({ id, eventType, timeMs, penalty, scramble, createdAt = new Date().toISOString() }) {
-  return {
-    id,
-    eventType,
-    timeMs,
-    effectiveTimeMs: penalty === 'DNF' ? null : penalty === 'PLUS_TWO' ? timeMs + 2000 : timeMs,
-    penalty,
-    scramble,
-    createdAt,
-  }
-}
-
 export function applyPenaltyUpdateToSavedRecord(record, recordId, nextRecord) {
   return record.id === recordId
     ? {
@@ -105,8 +102,98 @@ export function applyPenaltyUpdateToSavedRecord(record, recordId, nextRecord) {
     : record
 }
 
+function compareServerRecordOrder(left, right) {
+  const createdAtDifference = Date.parse(right.createdAt) - Date.parse(left.createdAt)
+
+  if (createdAtDifference !== 0) {
+    return createdAtDifference
+  }
+
+  return Number(right.id) - Number(left.id)
+}
+
+export function upsertRecentSavedRecord(records, nextRecord) {
+  return [nextRecord, ...records.filter((record) => record.id !== nextRecord.id)]
+    .sort(compareServerRecordOrder)
+    .slice(0, RECENT_SAVED_LIMIT)
+}
+
+export function toRecordCreatePayload(snapshot) {
+  return {
+    eventType: snapshot.eventType,
+    timeMs: snapshot.timeMs,
+    penalty: snapshot.penalty,
+    scramble: snapshot.scramble,
+    inputMethod: snapshot.inputMethod,
+    clientSubmissionId: snapshot.clientSubmissionId,
+  }
+}
+
+function getAuthenticatedUserId(currentUser) {
+  return Number.isSafeInteger(currentUser?.userId) && currentUser.userId > 0
+    ? currentUser.userId
+    : null
+}
+
+function createClientSubmissionId() {
+  const clientSubmissionId = globalThis.crypto?.randomUUID?.()
+
+  if (!isUuidV4(clientSubmissionId)) {
+    throw new Error('기록 저장 식별자를 만들 수 없습니다. 다시 시도해주세요.')
+  }
+
+  return clientSubmissionId
+}
+
+function isCanonicalRecord(record, snapshot) {
+  if (
+    !record
+    || record.id == null
+    || record.eventType !== snapshot.eventType
+    || record.timeMs !== snapshot.timeMs
+    || record.penalty !== snapshot.penalty
+    || record.scramble !== snapshot.scramble
+    || record.inputMethod !== snapshot.inputMethod
+    || !RECORD_PENALTIES.has(record.penalty)
+    || !RECORD_INPUT_METHODS.has(record.inputMethod)
+    || !Number.isSafeInteger(record.timeMs)
+    || record.timeMs < 1
+    || typeof record.createdAt !== 'string'
+    || Number.isNaN(Date.parse(record.createdAt))
+  ) {
+    return false
+  }
+
+  return record.penalty === 'DNF'
+    ? record.effectiveTimeMs == null
+    : Number.isSafeInteger(record.effectiveTimeMs)
+}
+
+function buildStoppedSolveSnapshot({ eventType, timeMs, scramble, inputMethod, userId }) {
+  const sharedSnapshot = {
+    eventType,
+    timeMs,
+    penalty: 'NONE',
+    scramble,
+    inputMethod: RECORD_INPUT_METHODS.has(inputMethod) ? inputMethod : 'UNKNOWN',
+  }
+
+  if (userId == null) {
+    return sharedSnapshot
+  }
+
+  return {
+    schemaVersion: PENDING_TIMER_SOLVE_SCHEMA_VERSION,
+    userId,
+    ...sharedSnapshot,
+    clientSubmissionId: createClientSubmissionId(),
+    savedAt: new Date().toISOString(),
+  }
+}
+
 export default function TimerPage() {
-  const { isAuthenticated } = useAuth()
+  const { currentUser, isAuthenticated } = useAuth()
+  const authenticatedUserId = getAuthenticatedUserId(currentUser)
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
   const [scrambleData, setScrambleData] = useState(null)
   const [scrambleMessage, setScrambleMessage] = useState(null)
@@ -121,13 +208,18 @@ export default function TimerPage() {
   const [deletingRecordId, setDeletingRecordId] = useState(null)
   const [stoppedSolveSnapshot, setStoppedSolveSnapshot] = useState(null)
   const [saveStatus, setSaveStatus] = useState('idle')
+  const [discardablePendingOwnerId, setDiscardablePendingOwnerId] = useState(null)
   const activePersistKeyRef = useRef(null)
   const completedStoppedSolveRef = useRef(false)
+  const recoveredPendingOwnerIdRef = useRef(null)
+  const previousAuthenticatedUserIdRef = useRef(null)
+  const authenticatedUserIdRef = useRef(authenticatedUserId)
 
-  const currentEvent = useMemo(() => findEventOption(selectedEvent), [selectedEvent])
-  const isSupported = Boolean(currentEvent?.supported)
+  const isSupported = isPracticeEventSupported(selectedEvent)
   const hasScramble = Boolean(scrambleData?.scramble)
-  const timerEnabled = isSupported && hasScramble && !isLoadingScramble
+  const canDiscardCorruptPendingSolve = discardablePendingOwnerId !== null
+    && discardablePendingOwnerId === authenticatedUserId
+  const timerEnabled = isSupported && hasScramble && !isLoadingScramble && !canDiscardCorruptPendingSolve
   const ao5 = useMemo(() => calculateAverageOf(recentStatsRecords, 5), [recentStatsRecords])
   const ao12 = useMemo(() => calculateAverageOf(recentStatsRecords, 12), [recentStatsRecords])
   const scrambleVisualUrl = useMemo(() => {
@@ -145,16 +237,21 @@ export default function TimerPage() {
     status,
     finalTime,
     formattedTime,
+    inputMethod,
     handlePointerDown,
     handlePointerUp,
     handlePointerCancel,
     resetTimer,
+    restoreStoppedSolve,
   } = useCubeTimer({
     enabled: timerEnabled,
   })
 
+  useEffect(() => {
+    authenticatedUserIdRef.current = authenticatedUserId
+  }, [authenticatedUserId])
+
   const loadRecentStatistics = useCallback(async (eventType) => {
-    /* v8 ignore next -- callers only invoke this on authenticated supported-event paths */
     if (!isAuthenticated || !eventType) {
       setRecentStatsRecords([])
       setRecentStatsError(null)
@@ -165,8 +262,12 @@ export default function TimerPage() {
     setRecentStatsError(null)
 
     try {
-      const response = await getMyRecords({ page: 1, size: RECENT_STATS_FETCH_SIZE })
-      setRecentStatsRecords(filterLatestRecordsByEvent(response.data.items, eventType, RECENT_STATS_LIMIT))
+      const response = await getMyRecords({
+        eventType,
+        page: 1,
+        size: RECENT_STATS_FETCH_SIZE,
+      })
+      setRecentStatsRecords(Array.isArray(response.data?.items) ? response.data.items.slice(0, RECENT_STATS_LIMIT) : [])
       setRecentStatsError(null)
     } catch (error) {
       setRecentStatsRecords([])
@@ -187,6 +288,7 @@ export default function TimerPage() {
 
   const loadScramble = useCallback(async (eventType) => {
     setIsLoadingScramble(true)
+    setHasScrambleVisualError(false)
     setScrambleMessage(null)
     setSaveNotice(null)
 
@@ -218,10 +320,6 @@ export default function TimerPage() {
   }, [isSupported, loadScramble, resetTimer, selectedEvent])
 
   useEffect(() => {
-    setHasScrambleVisualError(false)
-  }, [scrambleVisualUrl])
-
-  useEffect(() => {
     if (!isSupported) {
       setRecentSavedRecords([])
       setRecentStatsRecords([])
@@ -238,6 +336,61 @@ export default function TimerPage() {
     setRecentSavedRecords([])
     loadRecentStatistics(selectedEvent)
   }, [isAuthenticated, isSupported, loadGuestStatistics, loadRecentStatistics, selectedEvent])
+
+  useEffect(() => {
+    if (status !== 'stopped' && completedStoppedSolveRef.current) {
+      setSaveNotice(null)
+      setSaveStatus('idle')
+      setStoppedSolveSnapshot(null)
+      completedStoppedSolveRef.current = false
+    }
+  }, [status])
+
+  useEffect(() => {
+    const previousUserId = previousAuthenticatedUserIdRef.current
+
+    if (previousUserId != null && previousUserId !== authenticatedUserId) {
+      clearPendingTimerSolve(previousUserId)
+      resetTimer()
+      setStoppedSolveSnapshot(null)
+      setSaveStatus('idle')
+      setSaveNotice(null)
+      setDiscardablePendingOwnerId(null)
+      completedStoppedSolveRef.current = false
+    }
+
+    if (previousUserId !== authenticatedUserId) {
+      recoveredPendingOwnerIdRef.current = null
+    }
+
+    previousAuthenticatedUserIdRef.current = authenticatedUserId
+  }, [authenticatedUserId, resetTimer])
+
+  useEffect(() => {
+    if (!isAuthenticated || authenticatedUserId == null || recoveredPendingOwnerIdRef.current === authenticatedUserId) {
+      return
+    }
+
+    recoveredPendingOwnerIdRef.current = authenticatedUserId
+    const { snapshot, recoveryMessage, canDiscard } = loadPendingTimerSolve(authenticatedUserId)
+
+    if (recoveryMessage) {
+      setSaveNotice(recoveryMessage)
+      setDiscardablePendingOwnerId(canDiscard ? authenticatedUserId : null)
+    }
+
+    if (!snapshot) {
+      return
+    }
+
+    completedStoppedSolveRef.current = false
+    setSelectedEvent(snapshot.eventType)
+    setStoppedSolveSnapshot(snapshot)
+    setDiscardablePendingOwnerId(null)
+    setSaveStatus('recovery')
+    setSaveNotice('저장하지 못한 기록을 복구했습니다. 저장 재시도 또는 버리기를 선택해주세요.')
+    restoreStoppedSolve(snapshot)
+  }, [authenticatedUserId, isAuthenticated, restoreStoppedSolve])
 
   const handleEventChange = (event) => {
     setSelectedEvent(event.target.value)
@@ -277,9 +430,7 @@ export default function TimerPage() {
       if (isAuthenticated) {
         const response = await updateRecordPenalty(recordId, { penalty })
         setRecentSavedRecords((current) =>
-          current.map((record) =>
-            applyPenaltyUpdateToSavedRecord(record, recordId, response.data),
-          ),
+          current.map((record) => applyPenaltyUpdateToSavedRecord(record, recordId, response.data)),
         )
         await loadRecentStatistics(selectedEvent)
         toast.success(response.message)
@@ -296,67 +447,88 @@ export default function TimerPage() {
   }
 
   useEffect(() => {
-    if (status !== 'stopped' || !finalTime || !isSupported || !scrambleData?.scramble || stoppedSolveSnapshot || completedStoppedSolveRef.current) {
+    if (
+      status !== 'stopped'
+      || !Number.isSafeInteger(finalTime)
+      || finalTime < 1
+      || !isSupported
+      || !scrambleData?.scramble
+      || stoppedSolveSnapshot
+      || completedStoppedSolveRef.current
+      || saveStatus !== 'idle'
+    ) {
       return
     }
 
-    const roundedTime = Math.max(1, Math.round(finalTime))
-    const nextSnapshot = {
-      key: `${selectedEvent}:${roundedTime}:${scrambleData.scramble}`,
-      eventType: selectedEvent,
-      timeMs: roundedTime,
-      penalty: 'NONE',
-      scramble: scrambleData.scramble,
-    }
+    try {
+      if (isAuthenticated && authenticatedUserId == null) {
+        throw new Error('계정 정보를 확인할 수 없습니다. 다시 로그인해주세요.')
+      }
 
-    setStoppedSolveSnapshot(nextSnapshot)
-    setSaveStatus('idle')
-    setSaveNotice(null)
-  }, [finalTime, isSupported, scrambleData?.scramble, selectedEvent, status, stoppedSolveSnapshot])
+      setStoppedSolveSnapshot(buildStoppedSolveSnapshot({
+        eventType: selectedEvent,
+        timeMs: finalTime,
+        scramble: scrambleData.scramble,
+        inputMethod,
+        userId: isAuthenticated ? authenticatedUserId : null,
+      }))
+      setSaveNotice(null)
+    } catch (error) {
+      setSaveStatus('error')
+      setSaveNotice(error.message)
+    }
+  }, [authenticatedUserId, finalTime, inputMethod, isAuthenticated, isSupported, saveStatus, scrambleData?.scramble, selectedEvent, status, stoppedSolveSnapshot])
 
   const persistStoppedSolve = useCallback(async (snapshot) => {
-    /* v8 ignore next -- saveStatus prevents duplicate in-flight calls for the same snapshot */
-    if (!snapshot || activePersistKeyRef.current === snapshot.key) {
+    const persistKey = snapshot?.clientSubmissionId ?? `guest:${snapshot?.eventType}:${snapshot?.timeMs}:${snapshot?.scramble}`
+
+    if (!snapshot || activePersistKeyRef.current === persistKey) {
       return
     }
 
-    activePersistKeyRef.current = snapshot.key
+    activePersistKeyRef.current = persistKey
     setSaveStatus('saving')
     setSaveNotice('기록 저장 중...')
 
     try {
       if (isAuthenticated) {
-        const response = await saveRecord({
-          eventType: snapshot.eventType,
-          timeMs: snapshot.timeMs,
-          penalty: snapshot.penalty,
-          scramble: snapshot.scramble,
-        })
+        if (snapshot.userId == null || snapshot.userId !== authenticatedUserIdRef.current) {
+          throw new Error('현재 계정의 저장 대기 기록이 아닙니다.')
+        }
 
-        setRecentSavedRecords((current) => [
-          createSavedRecord({
-            id: response.data?.id ?? Date.now(),
-            eventType: snapshot.eventType,
-            timeMs: snapshot.timeMs,
-            penalty: snapshot.penalty,
-            scramble: snapshot.scramble,
-          }),
-          ...current,
-        ].slice(0, RECENT_SAVED_LIMIT))
-        await loadRecentStatistics(snapshot.eventType)
+        savePendingTimerSolve(snapshot)
+        const response = await saveRecord(toRecordCreatePayload(snapshot))
+        const serverRecord = response.data
+
+        if (!isCanonicalRecord(serverRecord, snapshot)) {
+          throw new Error('저장 결과를 확인할 수 없습니다. 다시 시도해주세요.')
+        }
+
+        if (snapshot.userId !== authenticatedUserIdRef.current) {
+          return
+        }
+
+        clearPendingTimerSolve(snapshot.userId)
+        setRecentSavedRecords((current) => upsertRecentSavedRecord(current, serverRecord))
+        setStoppedSolveSnapshot(null)
+        completedStoppedSolveRef.current = true
+        setSaveStatus('success')
+        setSaveNotice(null)
         toast.success(response.message)
+        resetTimer()
+        await loadRecentStatistics(snapshot.eventType)
+        await loadScramble(snapshot.eventType)
       } else {
         saveGuestTimerRecord(snapshot)
         loadGuestStatistics(snapshot.eventType)
         toast.success('게스트 기록이 저장되었습니다.')
+        setStoppedSolveSnapshot(null)
+        completedStoppedSolveRef.current = true
+        setSaveStatus('success')
+        setSaveNotice(null)
+        resetTimer()
+        await loadScramble(snapshot.eventType)
       }
-
-      setStoppedSolveSnapshot(null)
-      completedStoppedSolveRef.current = true
-      setSaveStatus('success')
-      setSaveNotice(null)
-      resetTimer()
-      await loadScramble(snapshot.eventType)
     } catch (error) {
       setSaveStatus('error')
       setSaveNotice(error.message)
@@ -373,17 +545,28 @@ export default function TimerPage() {
     persistStoppedSolve(stoppedSolveSnapshot)
   }, [persistStoppedSolve, saveStatus, status, stoppedSolveSnapshot])
 
-  useEffect(() => {
-    if (status !== 'stopped') {
-      setSaveNotice(null)
-      setSaveStatus('idle')
-      setStoppedSolveSnapshot(null)
-      completedStoppedSolveRef.current = false
+  const handleDiscardStoppedSolve = async () => {
+    const pendingOwnerId = stoppedSolveSnapshot?.userId ?? discardablePendingOwnerId
+
+    if (pendingOwnerId != null) {
+      clearPendingTimerSolve(pendingOwnerId)
     }
-  }, [status])
+
+    setStoppedSolveSnapshot(null)
+    setDiscardablePendingOwnerId(null)
+    setSaveStatus('idle')
+    setSaveNotice(null)
+    completedStoppedSolveRef.current = true
+    resetTimer()
+    await loadScramble(selectedEvent)
+  }
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
   const statusLabel = getStatusLabel(status)
+  const canResolvePendingSolve = Boolean(
+    stoppedSolveSnapshot && (saveStatus === 'error' || saveStatus === 'recovery'),
+  )
+  const isEventSelectionLocked = Boolean(stoppedSolveSnapshot || canDiscardCorruptPendingSolve)
 
   return (
     <section className="page-grid timer-page">
@@ -420,7 +603,7 @@ export default function TimerPage() {
           <div className="timer-toolbar">
             <div className="field timer-event-field">
               <label htmlFor="event-type">종목</label>
-              <select id="event-type" value={selectedEvent} onChange={handleEventChange}>
+              <select id="event-type" value={selectedEvent} onChange={handleEventChange} disabled={isEventSelectionLocked}>
                 {eventOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -444,10 +627,22 @@ export default function TimerPage() {
             <h2 className="timer-value">{formattedTime}</h2>
             <p className="helper-text timer-helper">{timerMessage}</p>
             {saveNotice ? <p className="helper-text timer-save-notice">{saveNotice}</p> : null}
-            {saveStatus === 'error' && stoppedSolveSnapshot ? (
-              <button className="ghost-button" type="button" onClick={() => persistStoppedSolve(stoppedSolveSnapshot)}>
-                저장 재시도
-              </button>
+            {canResolvePendingSolve ? (
+              <div className="timer-actions timer-actions-row">
+                <button className="ghost-button" type="button" onClick={() => persistStoppedSolve(stoppedSolveSnapshot)}>
+                  저장 재시도
+                </button>
+                <button className="ghost-button" type="button" onClick={handleDiscardStoppedSolve}>
+                  기록 버리기
+                </button>
+              </div>
+            ) : null}
+            {canDiscardCorruptPendingSolve ? (
+              <div className="timer-actions timer-actions-row">
+                <button className="ghost-button" type="button" onClick={handleDiscardStoppedSolve}>
+                  기록 버리기
+                </button>
+              </div>
             ) : null}
           </div>
 

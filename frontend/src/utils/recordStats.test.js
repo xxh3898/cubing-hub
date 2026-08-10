@@ -44,6 +44,18 @@ describe('recordStats', () => {
     expect(calculateAverageOf(records, 5)).toBe(12667)
   })
 
+  it('should_use_server_effective_plus_two_values_and_round_the_trimmed_average', () => {
+    const records = [
+      createRecord({ effectiveTimeMs: 10000 }),
+      createRecord({ penalty: 'PLUS_TWO', timeMs: 9001, effectiveTimeMs: 11001 }),
+      createRecord({ effectiveTimeMs: 12000 }),
+      createRecord({ effectiveTimeMs: 13001 }),
+      createRecord({ effectiveTimeMs: 14000 }),
+    ]
+
+    expect(calculateAverageOf(records, 5)).toBe(12001)
+  })
+
   it('should_return_dnf_when_two_or_more_dnfs_exist_in_recent_records', () => {
     const records = [
       createRecord({ effectiveTimeMs: 10000 }),

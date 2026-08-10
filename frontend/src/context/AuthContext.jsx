@@ -1,5 +1,6 @@
-import { createContext, useEffect, useState } from 'react'
+import { createContext, useEffect, useRef, useState } from 'react'
 import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
+import { clearPendingTimerSolve } from '../lib/pendingTimerSolveStorage.js'
 import {
   clearStoredAccessToken,
   getStoredAccessToken,
@@ -26,12 +27,18 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isSessionSyncing, setIsSessionSyncing] = useState(false)
+  const currentUserRef = useRef(currentUser)
+
+  useEffect(() => {
+    currentUserRef.current = currentUser
+  }, [currentUser])
 
   useEffect(() => {
     return subscribeToAccessToken((nextToken) => {
       setAccessTokenState(nextToken)
 
       if (!nextToken) {
+        clearPendingTimerSolve(currentUserRef.current?.userId)
         setCurrentUser(null)
         setIsSessionSyncing(false)
       }
@@ -126,6 +133,7 @@ export function AuthProvider({ children }) {
   }
 
   const clearAccessToken = () => {
+    clearPendingTimerSolve(currentUserRef.current?.userId)
     setCurrentUser(null)
     setIsSessionSyncing(false)
     clearStoredAccessToken()

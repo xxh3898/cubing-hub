@@ -1,18 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
+import {
+  createInitialTimerState,
+  TIMER_COMMAND,
+  TIMER_STATUS,
+  timerReducer,
+} from './timerMachine.js'
+import { useKeyboardTimerInput } from './useKeyboardTimerInput.js'
+import { useTouchTimerInput } from './useTouchTimerInput.js'
 
 const HOLD_DELAY_MS = 300
-
-function isTouchLikePointer(pointerType) {
-  return pointerType === 'touch' || pointerType === 'pen'
-}
-
-function isInteractiveTarget(target) {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-
-  return Boolean(target.closest('input, textarea, button, select'))
-}
 
 function formatTime(milliseconds) {
   const totalMilliseconds = Math.max(0, Math.floor(milliseconds))
@@ -27,228 +23,155 @@ function formatTime(milliseconds) {
   return `${String(seconds).padStart(2, '0')}.${String(remainingMilliseconds).padStart(3, '0')}`
 }
 
-export function useCubeTimer({ enabled }) {
-  const [status, setStatus] = useState('idle')
-  const [displayTime, setDisplayTime] = useState(0)
-  const [finalTime, setFinalTime] = useState(null)
+function defaultClock() {
+  return performance.now()
+}
 
+export function useCubeTimer({ enabled, clock = defaultClock }) {
+  const [state, dispatch] = useReducer(timerReducer, undefined, createInitialTimerState)
+  const stateRef = useRef(state)
   const holdTimeoutRef = useRef(null)
   const frameRef = useRef(null)
-  const startTimeRef = useRef(null)
-  const activePointerIdRef = useRef(null)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  const dispatchCommand = useCallback((command) => {
+    const previousState = stateRef.current
+    const nextState = timerReducer(previousState, command)
+
+    stateRef.current = nextState
+    dispatch(command)
+
+    return { previousState, nextState }
+  }, [])
 
   const clearHoldTimeout = useCallback(() => {
-    if (holdTimeoutRef.current) {
+    if (holdTimeoutRef.current != null) {
       window.clearTimeout(holdTimeoutRef.current)
       holdTimeoutRef.current = null
     }
   }, [])
 
   const stopAnimation = useCallback(() => {
-    if (frameRef.current) {
+    if (frameRef.current != null) {
       window.cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
   }, [])
 
-  const clearActivePointer = useCallback(() => {
-    activePointerIdRef.current = null
-  }, [])
+  const startAnimation = useCallback(() => {
+    const tick = () => {
+      if (stateRef.current.status !== TIMER_STATUS.RUNNING) {
+        return
+      }
+
+      dispatchCommand({ type: TIMER_COMMAND.TICK, now: clock() })
+      frameRef.current = window.requestAnimationFrame(tick)
+    }
+
+    frameRef.current = window.requestAnimationFrame(tick)
+  }, [clock, dispatchCommand])
+
+  const pressInput = useCallback((inputMethod) => {
+    if (!enabled) {
+      return
+    }
+
+    const { previousState, nextState } = dispatchCommand({
+      type: TIMER_COMMAND.PRESS,
+      inputMethod,
+      now: clock(),
+    })
+
+    if (previousState.status === TIMER_STATUS.IDLE && nextState.status === TIMER_STATUS.HOLDING) {
+      clearHoldTimeout()
+      holdTimeoutRef.current = window.setTimeout(() => {
+        holdTimeoutRef.current = null
+        dispatchCommand({ type: TIMER_COMMAND.HOLD_READY })
+      }, HOLD_DELAY_MS)
+    }
+
+    if (previousState.status === TIMER_STATUS.RUNNING && nextState.status === TIMER_STATUS.STOPPED) {
+      stopAnimation()
+    }
+  }, [clearHoldTimeout, clock, dispatchCommand, enabled, stopAnimation])
+
+  const releaseInput = useCallback(() => {
+    if (!enabled) {
+      return
+    }
+
+    const previousState = stateRef.current
+
+    if (previousState.status === TIMER_STATUS.HOLDING || previousState.status === TIMER_STATUS.READY) {
+      clearHoldTimeout()
+    }
+
+    const { nextState } = dispatchCommand({
+      type: TIMER_COMMAND.RELEASE,
+      now: clock(),
+    })
+
+    if (previousState.status === TIMER_STATUS.READY && nextState.status === TIMER_STATUS.RUNNING) {
+      startAnimation()
+    }
+  }, [clearHoldTimeout, clock, dispatchCommand, enabled, startAnimation])
+
+  const cancelInput = useCallback(() => {
+    clearHoldTimeout()
+    dispatchCommand({ type: TIMER_COMMAND.CANCEL })
+  }, [clearHoldTimeout, dispatchCommand])
+
+  const {
+    handlePointerDown,
+    handlePointerUp,
+    handlePointerCancel,
+    clearActivePointer,
+  } = useTouchTimerInput({
+    enabled,
+    onPress: pressInput,
+    onRelease: releaseInput,
+    onCancel: cancelInput,
+  })
 
   const resetTimer = useCallback(() => {
     clearHoldTimeout()
     stopAnimation()
     clearActivePointer()
-    startTimeRef.current = null
-    setStatus('idle')
-    setDisplayTime(0)
-    setFinalTime(null)
-  }, [clearActivePointer, clearHoldTimeout, stopAnimation])
+    dispatchCommand({ type: TIMER_COMMAND.RESET })
+  }, [clearActivePointer, clearHoldTimeout, dispatchCommand, stopAnimation])
 
-  const startAnimation = useCallback(() => {
-    const tick = () => {
-      if (startTimeRef.current == null) {
-        return
-      }
-
-      setDisplayTime(performance.now() - startTimeRef.current)
-      frameRef.current = window.requestAnimationFrame(tick)
-    }
-
-    frameRef.current = window.requestAnimationFrame(tick)
-  }, [])
-
-  const transitionToHolding = useCallback(() => {
-    setStatus('holding')
+  const restoreStoppedSolve = useCallback(({ timeMs, inputMethod }) => {
     clearHoldTimeout()
-    holdTimeoutRef.current = window.setTimeout(() => {
-      setStatus('ready')
-    }, HOLD_DELAY_MS)
-  }, [clearHoldTimeout])
-
-  const transitionToIdle = useCallback(() => {
-    clearHoldTimeout()
-    setStatus('idle')
-  }, [clearHoldTimeout])
-
-  const transitionToRunning = useCallback(() => {
-    clearHoldTimeout()
-    startTimeRef.current = performance.now()
-    setDisplayTime(0)
-    setFinalTime(null)
-    setStatus('running')
-    startAnimation()
-  }, [clearHoldTimeout, startAnimation])
-
-  const transitionToStopped = useCallback(() => {
-    /* v8 ignore next -- transitionToStopped is only reached after a running start timestamp exists */
-    if (startTimeRef.current == null) {
-      return
-    }
-
     stopAnimation()
-    const nextFinalTime = performance.now() - startTimeRef.current
-    setDisplayTime(nextFinalTime)
-    setFinalTime(nextFinalTime)
-    setStatus('stopped')
-  }, [stopAnimation])
-
-  const handleKeyDown = useCallback((event) => {
-    if (event.code !== 'Space' || event.repeat || isInteractiveTarget(event.target)) {
-      return
-    }
-
-    event.preventDefault()
-
-    if (!enabled) {
-      return
-    }
-
-    if (status === 'idle') {
-      transitionToHolding()
-      return
-    }
-
-    if (status === 'running') {
-      transitionToStopped()
-    }
-  }, [enabled, status, transitionToHolding, transitionToStopped])
-
-  const handleKeyUp = useCallback((event) => {
-    if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
-      return
-    }
-
-    event.preventDefault()
-
-    if (!enabled) {
-      return
-    }
-
-    if (status === 'holding') {
-      transitionToIdle()
-      return
-    }
-
-    if (status === 'ready') {
-      transitionToRunning()
-    }
-  }, [enabled, status, transitionToIdle, transitionToRunning])
-
-  const handleKeyPress = useCallback((event) => {
-    if (event.code !== 'Space' || isInteractiveTarget(event.target)) {
-      return
-    }
-
-    event.preventDefault()
-  }, [])
-
-  const handleWindowBlur = useCallback(() => {
     clearActivePointer()
+    dispatchCommand({
+      type: TIMER_COMMAND.RESTORE_STOPPED,
+      timeMs,
+      inputMethod,
+    })
+  }, [clearActivePointer, clearHoldTimeout, dispatchCommand, stopAnimation])
 
-    if (status === 'holding' || status === 'ready') {
-      resetTimer()
-      return
-    }
-
-    clearHoldTimeout()
-  }, [clearActivePointer, clearHoldTimeout, resetTimer, status])
-
-  const handlePointerDown = useCallback((event) => {
-    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current != null || !enabled) {
-      return
-    }
-
-    event.preventDefault()
-    activePointerIdRef.current = event.pointerId
-    event.currentTarget?.setPointerCapture?.(event.pointerId)
-
-    if (status === 'idle') {
-      transitionToHolding()
-      return
-    }
-
-    if (status === 'running') {
-      transitionToStopped()
-    }
-  }, [enabled, status, transitionToHolding, transitionToStopped])
-
-  const handlePointerUp = useCallback((event) => {
-    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current !== event.pointerId) {
-      return
-    }
-
-    event.preventDefault()
-    clearActivePointer()
-
-    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture?.(event.pointerId)
-    }
-
-    if (!enabled) {
-      return
-    }
-
-    if (status === 'holding') {
-      transitionToIdle()
-      return
-    }
-
-    if (status === 'ready') {
-      transitionToRunning()
-    }
-  }, [clearActivePointer, enabled, status, transitionToIdle, transitionToRunning])
-
-  const handlePointerCancel = useCallback((event) => {
-    if (!isTouchLikePointer(event.pointerType) || activePointerIdRef.current !== event.pointerId) {
-      return
-    }
-
-    clearActivePointer()
-    clearHoldTimeout()
-
-    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture?.(event.pointerId)
-    }
-
-    if (status === 'holding' || status === 'ready') {
-      setStatus('idle')
-    }
-  }, [clearActivePointer, clearHoldTimeout, status])
+  useKeyboardTimerInput({
+    enabled,
+    onPress: pressInput,
+    onRelease: releaseInput,
+  })
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown, { capture: true })
-    window.addEventListener('keyup', handleKeyUp, { capture: true })
-    window.addEventListener('keypress', handleKeyPress, { capture: true })
+    const handleWindowBlur = () => {
+      clearActivePointer()
+      cancelInput()
+    }
+
     window.addEventListener('blur', handleWindowBlur)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true })
-      window.removeEventListener('keyup', handleKeyUp, { capture: true })
-      window.removeEventListener('keypress', handleKeyPress, { capture: true })
       window.removeEventListener('blur', handleWindowBlur)
     }
-  }, [handleKeyDown, handleKeyPress, handleKeyUp, handleWindowBlur])
+  }, [cancelInput, clearActivePointer])
 
   useEffect(() => () => {
     clearHoldTimeout()
@@ -256,13 +179,15 @@ export function useCubeTimer({ enabled }) {
   }, [clearHoldTimeout, stopAnimation])
 
   return {
-    status,
-    displayTime,
-    finalTime,
-    formattedTime: formatTime(displayTime),
+    status: state.status,
+    displayTime: state.displayTime,
+    finalTime: state.finalTime,
+    inputMethod: state.inputMethod,
+    formattedTime: formatTime(state.displayTime),
     handlePointerDown,
     handlePointerUp,
     handlePointerCancel,
     resetTimer,
+    restoreStoppedSolve,
   }
 }
