@@ -145,13 +145,12 @@ function createClientSubmissionId() {
   return clientSubmissionId
 }
 
-function isCanonicalRecord(record, snapshot) {
+export function isCanonicalRecord(record, snapshot) {
   if (
     !record
     || record.id == null
     || record.eventType !== snapshot.eventType
     || record.timeMs !== snapshot.timeMs
-    || record.penalty !== snapshot.penalty
     || record.scramble !== snapshot.scramble
     || record.inputMethod !== snapshot.inputMethod
     || !RECORD_PENALTIES.has(record.penalty)
@@ -164,9 +163,15 @@ function isCanonicalRecord(record, snapshot) {
     return false
   }
 
-  return record.penalty === 'DNF'
-    ? record.effectiveTimeMs == null
-    : Number.isSafeInteger(record.effectiveTimeMs)
+  if (record.penalty === 'NONE') {
+    return record.effectiveTimeMs === record.timeMs
+  }
+
+  if (record.penalty === 'PLUS_TWO') {
+    return record.effectiveTimeMs === record.timeMs + 2000
+  }
+
+  return record.effectiveTimeMs == null
 }
 
 function buildStoppedSolveSnapshot({ eventType, timeMs, scramble, inputMethod, userId }) {
