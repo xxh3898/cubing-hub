@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import MockAdapter from 'axios-mock-adapter'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from '../authStorage.js'
 import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
+import apiClient from '../lib/apiClient.js'
 import { clearPendingTimerSolve, loadPendingTimerSolve, PENDING_TIMER_SOLVE_SCHEMA_VERSION, savePendingTimerSolve } from '../lib/pendingTimerSolveStorage.js'
 import { AuthProvider } from './AuthContext.jsx'
 import { useAuth } from './useAuth.js'
@@ -532,6 +534,69 @@ describe('AuthProvider', () => {
     })
 
     expect(loadPendingTimerSolve(42).snapshot).toBeNull()
+    clearPendingTimerSolve(41)
+  })
+
+  it('should_preserve_the_current_users_pending_solve_when_a_record_401_refresh_fails_and_allow_the_same_account_to_sign_in_again', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+    vi.mocked(getMe).mockResolvedValue({
+      data: {
+        userId: 41,
+        nickname: 'AccountA',
+        role: 'ROLE_USER',
+      },
+    })
+    const requestMock = new MockAdapter(apiClient)
+    requestMock.onPost('/api/records').replyOnce(401)
+    requestMock.onPost('/api/auth/refresh').networkErrorOnce()
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountA')
+    })
+
+    const pendingSnapshot = {
+      schemaVersion: PENDING_TIMER_SOLVE_SCHEMA_VERSION,
+      userId: 41,
+      eventType: 'WCA_333',
+      timeMs: 1235,
+      penalty: 'NONE',
+      scramble: "R U R' U'",
+      inputMethod: 'KEYBOARD',
+      clientSubmissionId: 'd9428888-122b-4d3e-a58e-790c4e5f97ad',
+      savedAt: '2026-08-10T13:00:00.000Z',
+    }
+    savePendingTimerSolve(pendingSnapshot)
+
+    await expect(apiClient.post('/api/records', { timeMs: 1235 })).rejects.toThrow('Network Error')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toEqual(pendingSnapshot)
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountA')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toEqual(pendingSnapshot)
+
+    requestMock.restore()
     clearPendingTimerSolve(41)
   })
 

@@ -91,7 +91,8 @@ homeserver/scripts/smoke-v2-1.sh destroy
 
 2. Keyboard Space 300ms hold, ready, start, stop을 확인한다. stopped display time과 saved Record raw time이 같다.
 3. Touch/Pen solve도 확인하고 API/Record에서 `inputMethod=TOUCH`인지 확인한다. Keyboard solve는 `KEYBOARD`여야 한다.
-4. NONE, PLUS_TWO, DNF와 delete를 실행하고 PB, ranking, Ao5/Ao12 결과를 확인한다. Ao5는 5 solves, Ao12는 12 solves 후 확인한다.
+4. authenticated save 뒤 next scramble 응답을 DevTools throttling으로 늦춘다. next scramble이 화면에 commit되기 전에는 이전 scramble로 Keyboard/Touch solve를 시작할 수 없어야 하며, statistics refresh가 늦어도 lock이 풀리면 안 된다.
+5. NONE, PLUS_TWO, DNF와 delete를 실행하고 PB, ranking, Ao5/Ao12 결과를 확인한다. Ao5는 5 solves, Ao12는 12 solves 후 확인한다.
 
 ### Pending recovery와 idempotency
 
@@ -101,6 +102,8 @@ homeserver/scripts/smoke-v2-1.sh destroy
 4. response loss 뒤 다른 tab/session에서 penalty를 PLUS_TWO 또는 DNF로 바꾸고 Retry한다. current canonical penalty/effective time을 받아들이고 pending이 제거되어야 한다.
 5. DevTools Application에서 current owner의 `cubing-hub.timer.pending.v1:*` value를 invalid JSON으로 바꾼 뒤 reload한다. Timer input은 locked이고 explicit Discard 후에만 다시 활성화되어야 한다.
 6. account A pending을 만든 뒤 logout/login으로 account B에 전환한다. B는 A pending을 보거나 Retry할 수 없어야 한다.
+7. save request의 401 뒤 refresh request를 DevTools에서 network failure로 만든다. passive sign-out 뒤에도 A의 pending은 남아야 하며, A가 다시 login하면 같은 UUID/payload로 Retry할 수 있고 canonical save 뒤에만 제거되어야 한다.
+8. WCA_333 history request를 늦춘 뒤 unsupported event로 전환한다. 늦은 WCA_333 response가 선택된 event 아래 Ao5/Ao12를 다시 표시하면 안 된다.
 
 ### Guest
 

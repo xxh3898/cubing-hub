@@ -38,7 +38,6 @@ export function AuthProvider({ children }) {
       setAccessTokenState(nextToken)
 
       if (!nextToken) {
-        clearPendingTimerSolve(currentUserRef.current?.userId)
         setCurrentUser(null)
         setIsSessionSyncing(false)
       }

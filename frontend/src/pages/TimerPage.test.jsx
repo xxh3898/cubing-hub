@@ -267,6 +267,77 @@ describe('TimerPage', () => {
     })
   })
 
+  it('should_keep_timer_input_locked_until_the_next_scramble_is_committed_after_an_authenticated_save', async () => {
+    const delayedStatistics = createDeferred()
+    const delayedNextScramble = createDeferred()
+
+    vi.mocked(getMyRecords)
+      .mockResolvedValueOnce(createRecordsResponse())
+      .mockImplementationOnce(() => delayedStatistics.promise)
+    vi.mocked(getScramble)
+      .mockResolvedValueOnce({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'CURRENT SCRAMBLE',
+        },
+      })
+      .mockImplementationOnce(() => delayedNextScramble.promise)
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: createCanonicalRecord({ scramble: 'CURRENT SCRAMBLE' }),
+    })
+
+    render(<TimerPage />)
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalledTimes(1)
+      expect(getScramble).toHaveBeenCalledTimes(2)
+      expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: false })
+    })
+
+    await act(async () => {
+      delayedStatistics.resolve(createRecordsResponse())
+      await delayedStatistics.promise
+    })
+
+    expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: false })
+    expect(screen.queryByText('CURRENT SCRAMBLE')).not.toBeInTheDocument()
+
+    await act(async () => {
+      delayedNextScramble.resolve({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'NEXT SCRAMBLE',
+        },
+      })
+      await delayedNextScramble.promise
+    })
+
+    expect(await screen.findByText('NEXT SCRAMBLE')).toBeInTheDocument()
+    expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: true })
+  })
+
+  it('should_keep_timer_input_locked_when_the_next_scramble_fails_after_save', async () => {
+    vi.mocked(getScramble)
+      .mockResolvedValueOnce({
+        data: {
+          eventType: 'WCA_333',
+          scramble: 'CURRENT SCRAMBLE',
+        },
+      })
+      .mockRejectedValueOnce(new Error('다음 스크램블 조회 실패'))
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: createCanonicalRecord({ scramble: 'CURRENT SCRAMBLE' }),
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByText('다음 스크램블 조회 실패')).toBeInTheDocument()
+    expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: false })
+    expect(screen.queryByText('CURRENT SCRAMBLE')).not.toBeInTheDocument()
+  })
+
   it('should_use_the_server_canonical_record_and_deduplicate_a_replayed_record_by_id', () => {
     const existing = createCanonicalRecord({ id: 101, createdAt: '2026-08-10T12:00:00.000Z' })
     const replayed = createCanonicalRecord({ id: 101, createdAt: '2026-08-10T13:00:00.000Z' })
@@ -586,7 +657,58 @@ describe('TimerPage', () => {
     await screen.findByText("R U R' U'")
     expect(restoreStoppedSolve).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: '저장 재시도' })).not.toBeInTheDocument()
-    expect(loadPendingTimerSolve(USER_ID).snapshot).toMatchObject(createPendingSnapshot())
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toMatchObject(createCurrentPendingSnapshotExpectation())
+  })
+
+  it('should_preserve_a_pending_snapshot_across_passive_auth_loss_and_recover_it_only_for_the_same_account', async () => {
+    vi.mocked(saveRecord).mockRejectedValueOnce(new Error('응답을 받지 못했습니다.'))
+    const page = render(<TimerPage />)
+
+    expect(await screen.findByText('응답을 받지 못했습니다.')).toBeInTheDocument()
+    const originalPayload = saveRecord.mock.calls[0][0]
+
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+      currentUser: null,
+    })
+    page.rerender(<TimerPage />)
+
+    await waitFor(() => {
+      expect(loadPendingTimerSolve(USER_ID).snapshot).toMatchObject(createCurrentPendingSnapshotExpectation())
+    })
+    page.unmount()
+
+    timerState = createIdleTimer({ restoreStoppedSolve: vi.fn() })
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      currentUser: { userId: 2 },
+    })
+    const otherAccountPage = render(<TimerPage />)
+
+    await screen.findByText("R U R' U'")
+    expect(screen.queryByRole('button', { name: '저장 재시도' })).not.toBeInTheDocument()
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toMatchObject(createCurrentPendingSnapshotExpectation())
+    otherAccountPage.unmount()
+
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      currentUser: { userId: USER_ID },
+    })
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: createCanonicalRecord(),
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByRole('button', { name: '저장 재시도' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '저장 재시도' }))
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalledTimes(2)
+    })
+    expect(saveRecord.mock.calls[1][0]).toEqual(originalPayload)
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
   })
 
   it('should_save_guest_record_with_the_same_canonical_time_and_touch_provenance', async () => {
@@ -756,6 +878,67 @@ describe('TimerPage', () => {
     expect(await screen.findByText('이 종목은 아직 구현되지 않았습니다.', { selector: '.timer-helper' })).toBeInTheDocument()
     expect(screen.getByText('이 종목은 아직 구현되지 않았습니다.', { selector: '.message.info' })).toBeInTheDocument()
     expect(screen.getByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')).toBeInTheDocument()
+  })
+
+  it('should_ignore_stale_statistics_after_the_selected_event_becomes_unsupported', async () => {
+    const staleStatistics = createDeferred()
+    timerState = createIdleTimer()
+    vi.mocked(getMyRecords).mockImplementationOnce(() => staleStatistics.promise)
+
+    render(<TimerPage />)
+
+    fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'WCA_222' } })
+    expect(await screen.findByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')).toBeInTheDocument()
+
+    await act(async () => {
+      staleStatistics.resolve(createRecordsResponse(Array.from({ length: 5 }, (_, index) => createRecentRecord({
+        id: index + 1,
+        timeMs: 12345,
+        effectiveTimeMs: 12345,
+      }))))
+      await staleStatistics.promise
+    })
+
+    expect(screen.queryByText('12.345')).not.toBeInTheDocument()
+    expect(screen.getByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')).toBeInTheDocument()
+  })
+
+  it('should_apply_only_the_latest_statistics_request_when_the_event_context_changes_twice', async () => {
+    const firstStatistics = createDeferred()
+    const latestStatistics = createDeferred()
+    timerState = createIdleTimer()
+    vi.mocked(getMyRecords)
+      .mockImplementationOnce(() => firstStatistics.promise)
+      .mockImplementationOnce(() => latestStatistics.promise)
+
+    render(<TimerPage />)
+
+    fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'WCA_222' } })
+    await screen.findByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')
+    fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'WCA_333' } })
+
+    await act(async () => {
+      latestStatistics.resolve(createRecordsResponse(Array.from({ length: 5 }, (_, index) => createRecentRecord({
+        id: index + 21,
+        timeMs: 15000,
+        effectiveTimeMs: 15000,
+      }))))
+      await latestStatistics.promise
+    })
+
+    expect(await screen.findByText('15.000')).toBeInTheDocument()
+
+    await act(async () => {
+      firstStatistics.resolve(createRecordsResponse(Array.from({ length: 5 }, (_, index) => createRecentRecord({
+        id: index + 1,
+        timeMs: 9000,
+        effectiveTimeMs: 9000,
+      }))))
+      await firstStatistics.promise
+    })
+
+    expect(screen.getByText('15.000')).toBeInTheDocument()
+    expect(screen.queryByText('09.000')).not.toBeInTheDocument()
   })
 
   it('should_render_scramble_and_recent_history_errors_without_starting_the_timer', async () => {

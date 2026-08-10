@@ -214,6 +214,7 @@ export default function TimerPage() {
   const [stoppedSolveSnapshot, setStoppedSolveSnapshot] = useState(null)
   const [saveStatus, setSaveStatus] = useState('idle')
   const [discardablePendingOwnerId, setDiscardablePendingOwnerId] = useState(null)
+  const [isNextSolveTransition, setIsNextSolveTransition] = useState(false)
   const activePersistKeyRef = useRef(null)
   const completedStoppedSolveRef = useRef(false)
   const recoveredPendingOwnerIdRef = useRef(null)
@@ -221,12 +222,19 @@ export default function TimerPage() {
   const authenticatedUserIdRef = useRef(authenticatedUserId)
   const scrambleRequestIdRef = useRef(0)
   const pendingRecoveryScrambleRef = useRef(null)
+  const statisticsRequestIdRef = useRef(0)
+  const statisticsContextRef = useRef({ eventType: selectedEvent, isAuthenticated })
 
   const isSupported = isPracticeEventSupported(selectedEvent)
   const hasScramble = Boolean(scrambleData?.scramble)
   const canDiscardCorruptPendingSolve = discardablePendingOwnerId !== null
     && discardablePendingOwnerId === authenticatedUserId
-  const timerEnabled = isSupported && hasScramble && !isLoadingScramble && !canDiscardCorruptPendingSolve
+  const timerEnabled = isSupported
+    && hasScramble
+    && !isLoadingScramble
+    && !isNextSolveTransition
+    && !stoppedSolveSnapshot
+    && !canDiscardCorruptPendingSolve
   const ao5 = useMemo(() => calculateAverageOf(recentStatsRecords, 5), [recentStatsRecords])
   const ao12 = useMemo(() => calculateAverageOf(recentStatsRecords, 12), [recentStatsRecords])
   const scrambleVisualUrl = useMemo(() => {
@@ -258,10 +266,30 @@ export default function TimerPage() {
     authenticatedUserIdRef.current = authenticatedUserId
   }, [authenticatedUserId])
 
+  useEffect(() => {
+    statisticsContextRef.current = { eventType: selectedEvent, isAuthenticated }
+    statisticsRequestIdRef.current += 1
+  }, [isAuthenticated, selectedEvent])
+
   const loadRecentStatistics = useCallback(async (eventType) => {
+    const requestId = statisticsRequestIdRef.current + 1
+    statisticsRequestIdRef.current = requestId
+    const isCurrentRequest = () => (
+      requestId === statisticsRequestIdRef.current
+      && statisticsContextRef.current.isAuthenticated
+      && statisticsContextRef.current.eventType === eventType
+    )
+
     if (!isAuthenticated || !eventType) {
-      setRecentStatsRecords([])
-      setRecentStatsError(null)
+      if (isCurrentRequest()) {
+        setRecentStatsRecords([])
+        setRecentStatsError(null)
+        setIsLoadingRecentStats(false)
+      }
+      return
+    }
+
+    if (!isCurrentRequest()) {
       return
     }
 
@@ -274,13 +302,19 @@ export default function TimerPage() {
         page: 1,
         size: RECENT_STATS_FETCH_SIZE,
       })
-      setRecentStatsRecords(Array.isArray(response.data?.items) ? response.data.items.slice(0, RECENT_STATS_LIMIT) : [])
-      setRecentStatsError(null)
+      if (isCurrentRequest()) {
+        setRecentStatsRecords(Array.isArray(response.data?.items) ? response.data.items.slice(0, RECENT_STATS_LIMIT) : [])
+        setRecentStatsError(null)
+      }
     } catch (error) {
-      setRecentStatsRecords([])
-      setRecentStatsError(error.message)
+      if (isCurrentRequest()) {
+        setRecentStatsRecords([])
+        setRecentStatsError(error.message)
+      }
     } finally {
-      setIsLoadingRecentStats(false)
+      if (isCurrentRequest()) {
+        setIsLoadingRecentStats(false)
+      }
     }
   }, [isAuthenticated])
 
@@ -293,7 +327,7 @@ export default function TimerPage() {
     setIsLoadingRecentStats(false)
   }, [])
 
-  const loadScramble = useCallback(async (eventType) => {
+  const loadScramble = useCallback(async (eventType, { unlockNextSolve = false } = {}) => {
     if (pendingRecoveryScrambleRef.current) {
       return
     }
@@ -308,7 +342,14 @@ export default function TimerPage() {
     try {
       const response = await getScramble(eventType)
       if (requestId === scrambleRequestIdRef.current && !pendingRecoveryScrambleRef.current) {
+        if (!response.data?.scramble) {
+          throw new Error('스크램블을 불러오지 못했습니다. 다시 시도해주세요.')
+        }
+
         setScrambleData(response.data)
+        if (unlockNextSolve) {
+          setIsNextSolveTransition(false)
+        }
       }
     } catch (error) {
       if (requestId === scrambleRequestIdRef.current && !pendingRecoveryScrambleRef.current) {
@@ -388,7 +429,7 @@ export default function TimerPage() {
   useEffect(() => {
     const previousUserId = previousAuthenticatedUserIdRef.current
 
-    if (previousUserId != null && previousUserId !== authenticatedUserId) {
+    if (previousUserId != null && authenticatedUserId != null && previousUserId !== authenticatedUserId) {
       clearPendingTimerSolve(previousUserId)
       resetTimer()
       setStoppedSolveSnapshot(null)
@@ -560,11 +601,12 @@ export default function TimerPage() {
         releaseRecoveredPendingScramble()
         completedStoppedSolveRef.current = true
         setSaveStatus('success')
+        setIsNextSolveTransition(true)
         setSaveNotice(null)
         toast.success(response.message)
         resetTimer()
-        await loadRecentStatistics(snapshot.eventType)
-        await loadScramble(snapshot.eventType)
+        void loadRecentStatistics(snapshot.eventType)
+        await loadScramble(snapshot.eventType, { unlockNextSolve: true })
       } else {
         saveGuestTimerRecord(snapshot)
         loadGuestStatistics(snapshot.eventType)
@@ -572,9 +614,10 @@ export default function TimerPage() {
         setStoppedSolveSnapshot(null)
         completedStoppedSolveRef.current = true
         setSaveStatus('success')
+        setIsNextSolveTransition(true)
         setSaveNotice(null)
         resetTimer()
-        await loadScramble(snapshot.eventType)
+        await loadScramble(snapshot.eventType, { unlockNextSolve: true })
       }
     } catch (error) {
       setSaveStatus('error')
@@ -603,10 +646,11 @@ export default function TimerPage() {
     setDiscardablePendingOwnerId(null)
     releaseRecoveredPendingScramble()
     setSaveStatus('idle')
+    setIsNextSolveTransition(true)
     setSaveNotice(null)
     completedStoppedSolveRef.current = true
     resetTimer()
-    await loadScramble(selectedEvent)
+    await loadScramble(selectedEvent, { unlockNextSolve: true })
   }
 
   const timerMessage = getTimerMessage(status, isSupported, hasScramble)
