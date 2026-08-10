@@ -381,7 +381,7 @@ describe('TimerPage', () => {
     expect(saveRecord).not.toHaveBeenCalled()
   })
 
-  it('should_offer_discard_without_retrying_a_corrupt_pending_snapshot', async () => {
+  it('should_disable_timer_input_until_a_corrupt_pending_snapshot_is_discarded', async () => {
     window.sessionStorage.setItem('cubing-hub.timer.pending.v1:1', '{invalid-json')
     timerState = createStoppedTimer({
       status: 'idle',
@@ -396,6 +396,9 @@ describe('TimerPage', () => {
     expect(screen.getByRole('button', { name: '기록 버리기' })).toBeInTheDocument()
     expect(screen.getByLabelText('종목')).toBeDisabled()
     expect(saveRecord).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: false })
+    })
 
     fireEvent.click(screen.getByRole('button', { name: '기록 버리기' }))
 
@@ -404,6 +407,9 @@ describe('TimerPage', () => {
     })
     expect(screen.getByLabelText('종목')).not.toBeDisabled()
     expect(saveRecord).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: true })
+    })
   })
 
   it('should_not_read_or_retry_another_accounts_pending_solve', async () => {
@@ -454,6 +460,7 @@ describe('TimerPage', () => {
       })
     })
     expect(saveRecord).not.toHaveBeenCalled()
+    expect(useCubeTimer).toHaveBeenLastCalledWith({ enabled: true })
   })
 
   it('should_keep_penalty_and_delete_actions_working_with_server_canonical_records', async () => {

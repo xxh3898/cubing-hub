@@ -217,7 +217,9 @@ export default function TimerPage() {
 
   const isSupported = isPracticeEventSupported(selectedEvent)
   const hasScramble = Boolean(scrambleData?.scramble)
-  const timerEnabled = isSupported && hasScramble && !isLoadingScramble
+  const canDiscardCorruptPendingSolve = discardablePendingOwnerId !== null
+    && discardablePendingOwnerId === authenticatedUserId
+  const timerEnabled = isSupported && hasScramble && !isLoadingScramble && !canDiscardCorruptPendingSolve
   const ao5 = useMemo(() => calculateAverageOf(recentStatsRecords, 5), [recentStatsRecords])
   const ao12 = useMemo(() => calculateAverageOf(recentStatsRecords, 12), [recentStatsRecords])
   const scrambleVisualUrl = useMemo(() => {
@@ -564,7 +566,6 @@ export default function TimerPage() {
   const canResolvePendingSolve = Boolean(
     stoppedSolveSnapshot && (saveStatus === 'error' || saveStatus === 'recovery'),
   )
-  const canDiscardCorruptPendingSolve = discardablePendingOwnerId === authenticatedUserId
   const isEventSelectionLocked = Boolean(stoppedSolveSnapshot || canDiscardCorruptPendingSolve)
 
   return (

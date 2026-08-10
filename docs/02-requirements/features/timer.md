@@ -104,7 +104,7 @@ solve stop
 - access token, refresh token과 credential은 저장하지 않는다.
 - storage key와 snapshot userId가 현재 authenticated user와 일치할 때만 복구한다.
 - logout이나 명시적 session clear는 현재 user의 pending을 제거한다. 다른 account pending을 읽거나 제출하지 않는다.
-- malformed JSON, schema mismatch, invalid field는 server에 제출하지 않고 일반 안내와 명시적 discard를 제공한다.
+- malformed JSON, schema mismatch, invalid field는 server에 제출하지 않고 일반 안내와 명시적 discard를 제공한다. corrupt pending이 남아 있는 동안 Timer input도 비활성화해 새 solve가 해당 entry를 덮어쓰지 못하게 한다.
 - sessionStorage page session과 명시적 discard를 사용하며 V2.1에서 임의의 시간 만료 정책을 추가하지 않는다. `savedAt`은 recovery metadata이지 `occurred_at`이 아니다.
 - 여러 solve를 쌓는 offline queue와 background sync는 만들지 않는다.
 - 저장 성공 전에는 결과를 저장 완료로 표시하지 않는다.
