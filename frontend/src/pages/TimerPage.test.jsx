@@ -22,6 +22,7 @@ import TimerPage, {
   getPenaltyLabel,
   getStatusLabel,
   getTimerMessage,
+  isCanonicalRecord,
   toRecordCreatePayload,
   upsertRecentSavedRecord,
 } from './TimerPage.jsx'
@@ -274,6 +275,31 @@ describe('TimerPage', () => {
     })
   })
 
+  it('should_accept_current_mutable_penalty_state_but_reject_inconsistent_canonical_records', () => {
+    const snapshot = createPendingSnapshot()
+
+    expect(isCanonicalRecord(createCanonicalRecord(), snapshot)).toBe(true)
+    expect(isCanonicalRecord(createCanonicalRecord({
+      penalty: 'PLUS_TWO',
+      effectiveTimeMs: 3235,
+    }), snapshot)).toBe(true)
+    expect(isCanonicalRecord(createCanonicalRecord({
+      penalty: 'DNF',
+      effectiveTimeMs: null,
+    }), snapshot)).toBe(true)
+
+    expect(isCanonicalRecord(createCanonicalRecord({ id: null }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ timeMs: 1236 }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ scramble: 'R U2' }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ eventType: 'WCA_222' }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ inputMethod: 'TOUCH' }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ penalty: 'NONE', effectiveTimeMs: 1236 }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ penalty: 'PLUS_TWO', effectiveTimeMs: 1235 }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ penalty: 'DNF', effectiveTimeMs: 3235 }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ penalty: 'UNKNOWN' }), snapshot)).toBe(false)
+    expect(isCanonicalRecord(createCanonicalRecord({ createdAt: 'not-a-date' }), snapshot)).toBe(false)
+  })
+
   it('should_keep_the_same_pending_payload_and_uuid_when_the_first_save_fails', async () => {
     vi.mocked(saveRecord)
       .mockRejectedValueOnce(new Error('기록 저장 실패'))
@@ -339,6 +365,43 @@ describe('TimerPage', () => {
     expect(saveRecord.mock.calls[1][0]).toEqual(originalPayload)
     expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
     expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1)
+  })
+
+  it('should_accept_a_plus_two_server_state_after_a_response_lost_replay_and_clear_the_pending_snapshot', async () => {
+    vi.mocked(saveRecord).mockRejectedValueOnce(new Error('응답을 받지 못했습니다.'))
+    const firstRender = render(<TimerPage />)
+
+    expect(await screen.findByText('응답을 받지 못했습니다.')).toBeInTheDocument()
+    const originalPayload = saveRecord.mock.calls[0][0]
+    firstRender.unmount()
+
+    const restoreStoppedSolve = vi.fn()
+    timerState = createIdleTimer({ restoreStoppedSolve })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([
+      createCanonicalRecord({ penalty: 'PLUS_TWO', effectiveTimeMs: 3235 }),
+    ]))
+    vi.mocked(saveRecord).mockResolvedValue({
+      message: '기록이 저장되었습니다.',
+      data: createCanonicalRecord({ penalty: 'PLUS_TWO', effectiveTimeMs: 3235 }),
+    })
+
+    render(<TimerPage />)
+
+    expect(await screen.findByRole('button', { name: '저장 재시도' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '저장 재시도' }))
+
+    await waitFor(() => {
+      expect(saveRecord).toHaveBeenCalledTimes(2)
+    })
+
+    expect(saveRecord.mock.calls[1][0]).toEqual(originalPayload)
+    expect(crypto.randomUUID).toHaveBeenCalledTimes(1)
+    expect(loadPendingTimerSolve(USER_ID).snapshot).toBeNull()
+    expect(await screen.findByText('03.235', { selector: '.timer-recent-time' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1)
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: '저장 재시도' })).not.toBeInTheDocument()
+    })
   })
 
   it('should_keep_the_pending_snapshot_and_offer_discard_when_server_returns_conflict', async () => {

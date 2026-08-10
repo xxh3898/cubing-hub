@@ -201,12 +201,12 @@ V2.1은 다음 기능을 구현하지 않고, 나중에 추가할 때 현재 Rec
 - versioned export에서 stable logical identity와 timestamp를 어떻게 표현할 것인가
 - legacy client transition 뒤 `clientSubmissionId`를 언제 required request field로 전환할 것인가
 
-## Pre-implementation Gate 결과
+## Implementation / Release Gate 상태
 
 1. 사용자 확인 기준 현재 `records`, `user_pbs` data가 없으므로 event distribution audit blocker를 제거했다.
 2. V2.1 Practice Timer·Scramble·Record·Ranking event를 WCA_333으로 확정했다.
 3. Input Method, idempotency, canonical create response와 pending recovery의 API·data·architecture 계약을 문서화했다.
 4. forward-only additive migration, old application compatibility와 실제 MySQL upgrade test 방식을 확정했다.
-5. application code, test와 migration을 변경하려면 별도 구현 승인과 branch 준비가 필요하다.
+5. Record Foundation과 Timer Foundation은 각각 별도 branch와 dev PR로 구현·통합됐다. dev → main 전에는 integrated Validate와 release smoke checklist를 다시 확인한다.
 
-제품·기술 결정 gate는 닫혔으며 실행 승인 전에는 application code와 migration을 변경하지 않는다.
+제품·기술 결정 gate는 닫혔다. 구현 뒤 발견되는 acceptance defect는 기존 제품 범위를 넓히지 않는 별도 corrective change로 해소한 뒤 release gate를 다시 판단한다.

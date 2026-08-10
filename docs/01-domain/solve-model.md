@@ -43,13 +43,16 @@ Keyboard, Touch, Manual, Stackmat, Smart Timer, Smart Cube는 Input Method 후�
 - time_ms: 0보다 큰 raw integer millisecond
 - penalty: NONE, PLUS_TWO, DNF
 - scramble: 비어 있지 않은 문자열 snapshot
+- input_method: UNKNOWN, KEYBOARD, TOUCH provenance. legacy null은 UNKNOWN으로 정규화
+- client_submission_id: optional UUID v4 retry identity
+- client_submission_payload_hash: 최초 normalized create payload의 internal SHA-256 fingerprint
 - created_at, updated_at: UTC instant 기반 persistence timestamp
 
-현재 entity에는 Input Method, submission identity, comment, device, video evidence, session id, challenge, verification, competition reference가 없다. `created_at`은 실제 solve 발생 시각으로 재정의하지 않는다.
+현재 entity에는 comment, device, video evidence, session id, challenge, verification, competition reference가 없다. `created_at`은 실제 solve 발생 시각으로 재정의하지 않는다.
 
 ## V2.1 Input Provenance
 
-V2.1은 Practice Record에 Input Method provenance를 추가하는 방향을 사용한다.
+V2.1은 Practice Record의 Input Method provenance를 보존한다.
 
 현재 값의 기준은 다음과 같다.
 
@@ -64,7 +67,7 @@ TOUCH
 - Stackmat, Smart Timer, Smart Cube 값을 DB ENUM에 미리 선등록하지 않는다.
 - Input Method는 Record 생성 뒤 변경하지 않는 provenance다.
 
-Java application enum은 `InputMethod`를 사용하고 DB는 `VARCHAR(32)` nullable column으로 확장한다. 새 Timer는 항상 현재 값을 쓰고, legacy null·미지정 request는 API에서 UNKNOWN으로 정규화한다. Input Method는 Record 생성 뒤 수정하지 않는다.
+Java application enum은 `InputMethod`를 사용하고 DB는 `VARCHAR(32)` nullable column에 저장한다. 새 Timer는 항상 현재 값을 쓰고, legacy null·미지정 request는 API에서 UNKNOWN으로 정규화한다. Input Method는 Record 생성 뒤 수정하지 않는다.
 
 알 수 없는 API enum 값은 UNKNOWN으로 조용히 바꾸지 않고 400으로 거절한다. Future 값은 reader가 먼저 이해하도록 배포한 뒤 writer에서 활성화한다. 정확한 column과 rollout은 [Data Dictionary](../04-data/data-dictionary.md)와 [Migration Policy](../04-data/migration-policy.md)를 따른다.
 
@@ -104,6 +107,8 @@ Record 저장, penalty 변경, 삭제로 최선 기록이 달라지면 해당 �
 `clientSubmissionId`는 authenticated Practice Record create command의 retry identity다. Record의 public ID나 정렬 기준이 아니며 사용자 범위에서만 유일하다. UUID 자체로 chronological ordering을 만들지 않는다.
 
 같은 identity의 payload 충돌 판정을 위해 최초 server-normalized logical payload의 fingerprint를 불변 보존한다. logical payload는 eventType, canonical timeMs, penalty, exact scramble, normalized Input Method로 구성한다. `created_at`과 이후 penalty PATCH 결과는 최초 create payload에 포함하지 않는다.
+
+같은 fingerprint replay는 duplicate를 만들지 않고 기존 Record의 현재 canonical 상태를 반환한다. 따라서 최초 create 뒤 penalty가 PATCH되면 replay response의 penalty와 effective time은 최초 pending snapshot과 달라질 수 있다. client는 event, raw time, scramble, Input Method 같은 create 불변값을 확인하되 mutable penalty와 effective time은 server result의 내부 일관성으로 검증한다.
 
 ## Event capability 경계
 
