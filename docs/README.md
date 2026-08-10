@@ -100,7 +100,7 @@ related:
 
 ## YAML Frontmatter
 
-repository에서 사람이 작성·관리하는 Markdown은 아래 필드를 사용한다.
+`docs/**/*.md`에서 문서 시스템에 속해 사람이 작성·관리하는 Markdown은 아래 필드를 사용한다.
 
     ---
     doc_type: architecture
@@ -135,8 +135,9 @@ ADR은 proposed, accepted, rejected, superseded만 사용한다.
 
 ### 예외
 
-- backend/src/docs/asciidoc과 build output은 generated API contract 흐름을 따른다.
-- JSON, HTML, PNG, GIF 같은 raw benchmark·binary asset은 frontmatter 대상이 아니다.
+- repository root `README.md`는 GitHub repository landing page이므로 frontmatter를 사용하지 않는다.
+- backend/src/docs/asciidoc의 generated REST Docs source와 build output은 frontmatter를 사용하지 않고 API contract 생성 흐름을 따른다.
+- JSON, HTML, PNG, GIF 같은 raw·generated artifact는 frontmatter 대상이 아니다.
 - benchmarks 아래 generator가 만든 Markdown report는 raw evidence이므로 예외로 둔다. 사람이 작성한 benchmark summary와 legacy runbook은 metadata를 가진다.
 
 ## 내용 상태 표기

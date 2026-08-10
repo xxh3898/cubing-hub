@@ -1,15 +1,3 @@
----
-doc_type: product
-status: active
-created: 2026-03-23
-updated: 2026-08-10
-owner: xxh3898
-project: cubing-hub
-tags: []
-related:
-  - docs/README.md
----
-
 # Cubing Hub
 
 Cubing Hub는 기록·랭킹·학습·커뮤니티와 서비스 운영 기능을 제공하는 full-stack cubing web service다. 현재 V1 기능은 유지·강화 대상이며, 최종 Vision과 향후 기능 우선순위는 아직 확정하지 않았다.

@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: review-needed
+status: active
 created: 2026-08-10
 updated: 2026-08-10
 owner: xxh3898
@@ -32,7 +32,7 @@ related:
 
 - 게시글 수정 preload snippet post/detail-edit는 test에 존재하며 index에 연결했다.
 - DELETE /api/admin/memos/{memoId}는 controller와 integration test에 존재하지만 REST Docs test·snippet이 없다.
-- 이번 문서 rebaseline은 application test 변경을 포함하지 않으므로 admin memo delete gap을 review-needed로 남긴다.
+- 이번 문서 rebaseline은 application test 변경을 포함하지 않으므로 admin memo delete 항목을 Known Gap으로 명시한다.
 
 ## 변경 규칙
 

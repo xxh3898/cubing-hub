@@ -1,6 +1,6 @@
 ---
 doc_type: archive
-status: deprecated
+status: active
 created: 2026-08-10
 updated: 2026-08-10
 owner: xxh3898
@@ -12,7 +12,7 @@ related:
 
 # V1 Archive
 
-이 영역은 현재 Source of Truth가 아닌 V1 역사 자료다. 당시의 AWS, S3, Docker Hub, self-hosted runner, 일정, 성능 수치와 운영 가정은 현재 사실로 사용하지 않는다. 현재 문서는 [docs entrypoint](../../README.md)에서 시작한다.
+이 README는 현재 문서 시스템에서 V1 archive 진입점과 migration ledger를 제공하는 active index다. 연결된 V1 문서 자체는 현재 Source of Truth가 아닌 deprecated 역사 자료다. 당시의 AWS, S3, Docker Hub, self-hosted runner, 일정, 성능 수치와 운영 가정은 현재 사실로 사용하지 않는다. 현재 문서는 [docs entrypoint](../../README.md)에서 시작한다.
 
 ## 보존 범위
 
