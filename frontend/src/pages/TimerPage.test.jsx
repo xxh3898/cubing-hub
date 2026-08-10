@@ -246,7 +246,8 @@ describe('TimerPage', () => {
       page: 1,
       size: 12,
     })
-    expect(await screen.findByText('01.235')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '01.235' })).toBeInTheDocument()
+    expect(await screen.findByText('01.235', { selector: '.timer-recent-time' })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(timerState.resetTimer).toHaveBeenCalled()
@@ -591,7 +592,8 @@ describe('TimerPage', () => {
 
     fireEvent.change(screen.getByLabelText('종목'), { target: { value: 'WCA_222' } })
 
-    expect(await screen.findByText('이 종목은 아직 구현되지 않았습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('이 종목은 아직 구현되지 않았습니다.', { selector: '.timer-helper' })).toBeInTheDocument()
+    expect(screen.getByText('이 종목은 아직 구현되지 않았습니다.', { selector: '.message.info' })).toBeInTheDocument()
     expect(screen.getByText('이 종목은 아직 Ao 통계를 지원하지 않습니다.')).toBeInTheDocument()
   })
 
