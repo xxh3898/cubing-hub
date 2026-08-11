@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -44,6 +44,7 @@ related:
 ### 01 Domain
 
 - [Glossary](01-domain/glossary.md) · [Solve Model](01-domain/solve-model.md)
+- [Growth Metrics](01-domain/growth-metrics.md) (V2.2 draft)
 - [Record Verification](01-domain/record-verification.md)
 - [Ranking Rules](01-domain/ranking-rules.md) · [Scramble Rules](01-domain/scramble-rules.md)
 - [Competition Rules](01-domain/competition-rules.md)
@@ -53,12 +54,14 @@ related:
 - [User Flows](02-requirements/user-flows.md)
 - [Non-functional Requirements](02-requirements/non-functional-requirements.md)
 - Current: [Authentication](02-requirements/features/authentication.md), [Timer](02-requirements/features/timer.md), [Profile](02-requirements/features/profile.md), [Ranking](02-requirements/features/ranking.md), [Learning](02-requirements/features/learning.md), [Community](02-requirements/features/community.md), [Feedback and Administration](02-requirements/features/feedback-and-administration.md)
+- Draft: [Growth](02-requirements/features/growth.md)
 - Candidates: [Daily Challenge](02-requirements/features/daily-challenge.md), [Verified Record](02-requirements/features/verified-record.md), [Competition](02-requirements/features/competition.md), [Organizer](02-requirements/features/organizer.md)
 
 ### 03 Architecture
 
 - [System Context](03-architecture/system-context.md) · [Application](03-architecture/application-architecture.md)
 - [Backend](03-architecture/backend-architecture.md) · [Frontend](03-architecture/frontend-architecture.md)
+- [Growth](03-architecture/growth-architecture.md) (V2.2 draft)
 - [Auth and Security](03-architecture/auth-security.md)
 - [Ranking](03-architecture/ranking-architecture.md) · [Storage](03-architecture/storage-architecture.md)
 - [Deployment](03-architecture/deployment-architecture.md)
@@ -143,7 +146,7 @@ ADR은 proposed, accepted, rejected, superseded만 사용한다.
 ## 내용 상태 표기
 
 - 확인된 사실: code, test, configuration, official source로 검증
-- 결정: accepted ADR 또는 사용자 승인으로 확정
+- 결정: accepted ADR 또는 명시적으로 확정한 기준
 - 추론·가설: 근거에서 해석한 내용이며 검증 필요
 - TODO·Open Questions: 미정이며 일정이나 설계를 확정하지 않음
 
