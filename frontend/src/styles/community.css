@@ -9,6 +9,8 @@
   align-items: end;
   justify-content: space-between;
   gap: 24px;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-header-copy {
@@ -22,7 +24,7 @@
 }
 
 .community-header-icon {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   width: 44px;
@@ -38,6 +40,9 @@
 .community-comments-panel {
   display: grid;
   gap: 22px;
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-board-toolbar {
@@ -45,6 +50,16 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.community-board-panel {
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.community-post-card {
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-category-row {
@@ -144,10 +159,14 @@
 
 .community-post-row {
   cursor: pointer;
+  border-inline: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-post-row:hover td {
-  background: rgba(238, 244, 255, 0.52);
+  background: transparent;
+  color: var(--color-primary);
 }
 
 .community-post-row:focus-visible {
@@ -159,21 +178,21 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: 5px 9px;
-  border-radius: var(--radius-control);
-  font-size: 0.78rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent !important;
+  font-size: 0.75rem;
   font-weight: 900;
   white-space: nowrap;
 }
 
 .community-category-badge.is-notice {
-  background: var(--color-accent-soft);
-  color: #8a4600;
+  color: var(--color-pb);
 }
 
 .community-category-badge.is-free {
-  background: var(--color-primary-tint);
+  background: transparent;
   color: var(--color-primary);
 }
 
@@ -212,6 +231,9 @@
 .community-detail-header-panel {
   display: grid;
   gap: 16px;
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-detail-meta-row {
@@ -255,6 +277,12 @@
   display: flex;
   flex-direction: column;
   min-height: 360px;
+  max-width: 74ch;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-detail-content {
@@ -277,10 +305,10 @@
 .community-write-image-card {
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid rgba(217, 227, 244, 0.82);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .community-attachment-name,
@@ -297,7 +325,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  border-radius: var(--radius-card);
+  border-radius: 8px;
   background: var(--color-surface-low);
 }
 
@@ -357,6 +385,18 @@
 .community-comments-list {
   display: grid;
   gap: 14px;
+}
+
+.community-comments-panel {
+  max-width: 74ch;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.community-write-panel {
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .community-comments-empty {
@@ -461,17 +501,3 @@
   gap: 12px;
   align-items: flex-start;
 }
-
-/* Approved v2 visual system */
-.community-header-panel, .community-board-panel, .community-detail-header-panel, .community-detail-content-panel, .community-comments-panel, .community-write-panel { border-color: var(--color-border); border-radius: 0; box-shadow: none; }
-.community-header-icon { display: none; }
-.community-board-panel, .community-detail-content-panel, .community-comments-panel { padding-top: 24px; border-top: 1px solid var(--color-border); }
-.community-post-row, .community-post-card { border-radius: 0; box-shadow: none; }
-.community-post-row { border-inline: 0; }
-.community-category-badge { min-height: 0; padding: 0; border-radius: 0; background: transparent !important; font-size: 0.75rem; }
-.community-category-badge.is-notice { color: var(--color-pb); }
-.community-category-badge.is-free { color: var(--color-primary); }
-.community-post-row:hover td { background: transparent; color: var(--color-primary); }
-.community-attachment-card, .community-write-image-card { padding: 0; border: 0; border-radius: 0; background: transparent; }
-.community-attachment-image, .community-write-image-preview { border-radius: 8px; }
-.community-detail-content-panel, .community-comments-panel { max-width: 74ch; }

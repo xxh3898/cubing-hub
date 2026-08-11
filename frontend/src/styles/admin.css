@@ -14,10 +14,15 @@
   gap: 16px;
   align-items: center;
   background: transparent;
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .admin-header-panel {
   grid-template-columns: auto minmax(0, 1fr) auto;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .admin-detail-header-panel {
@@ -118,6 +123,11 @@
 .admin-memo-create-panel {
   display: grid;
   gap: 20px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .qna-board-heading,
@@ -150,7 +160,6 @@
   gap: 12px;
 }
 
-.qna-card,
 .admin-card {
   display: grid;
   gap: 12px;
@@ -163,7 +172,20 @@
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-.qna-card:hover,
+.qna-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-inline: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
 .admin-card:hover {
   border-color: rgba(19, 107, 87, 0.22);
   box-shadow: var(--shadow-lifted);
@@ -343,6 +365,7 @@
   border: 1px solid rgba(217, 227, 244, 0.82);
   border-radius: var(--radius-card);
   background: var(--color-surface-low);
+  border-radius: 0;
 }
 
 .admin-tab-row .primary-button,
@@ -437,10 +460,3 @@
     grid-column: 1 / -1;
   }
 }
-
-/* Approved v2 visual system: final page ownership */
-.qna-header-panel, .qna-board-panel, .qna-detail-header-panel, .qna-detail-panel, .admin-header-panel, .admin-board-panel, .admin-detail-header-panel, .admin-detail-content-panel, .admin-memo-create-panel { border-color: var(--color-border); border-radius: 0; box-shadow: none; }
-.qna-board-panel, .qna-detail-panel, .admin-board-panel, .admin-detail-content-panel, .admin-memo-create-panel { padding-top: 24px; border-top: 1px solid var(--color-border); }
-.qna-card { padding: 20px 0; border-inline: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: transparent; box-shadow: none; }
-.qna-card-answer { border-radius: 0; }
-.admin-header-panel { padding-bottom: 24px; border-bottom: 1px solid var(--color-border); }

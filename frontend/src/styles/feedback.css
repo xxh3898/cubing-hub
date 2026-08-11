@@ -8,6 +8,10 @@
   gap: 16px;
   align-items: center;
   background: transparent;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .feedback-header-icon {
@@ -58,6 +62,11 @@
 .feedback-form-panel {
   display: grid;
   gap: 20px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .feedback-type-guide {
@@ -107,10 +116,6 @@
   min-height: 240px;
 }
 
-/* Approved v2 visual system */
-.feedback-header-panel, .feedback-form-panel { border-color: var(--color-border); border-radius: 0; box-shadow: none; }
-.feedback-form-panel { padding-top: 24px; border-top: 1px solid var(--color-border); }
-.feedback-header-panel { padding-bottom: 24px; border-bottom: 1px solid var(--color-border); }
 
 @media (max-width: 900px) {
   .feedback-header-panel {

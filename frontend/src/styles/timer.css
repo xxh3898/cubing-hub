@@ -20,7 +20,7 @@
 
 .timer-main {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 
 .timer-toolbar {
@@ -28,6 +28,7 @@
   gap: 16px;
   align-items: end;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .timer-scramble-full {
@@ -36,11 +37,12 @@
 
 .timer-scramble-panel {
   display: grid;
-  padding: 26px 28px;
-  border: 1px solid rgba(217, 227, 244, 0.84);
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--shadow-ambient);
+  padding: 0 0 18px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .timer-scramble-copy {
@@ -54,9 +56,9 @@
   gap: 7px;
   width: fit-content;
   margin: 0 0 12px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: var(--color-primary-tint);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-primary);
   font-size: 0.82rem;
   font-weight: 850;
@@ -66,18 +68,19 @@
   display: grid;
   gap: 24px;
   align-items: center;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .timer-scramble-visual {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 210px;
-  padding: 16px;
-  border: 1px solid rgba(217, 227, 244, 0.82);
-  border-radius: var(--radius-card);
-  background: var(--color-primary-tint);
+  min-height: 0;
+  width: 140px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .timer-scramble-visual img {
@@ -94,10 +97,12 @@
   display: grid;
   gap: 14px;
   justify-items: center;
+  min-height: 420px;
   padding: 48px 28px 56px;
-  border: 1px solid rgba(217, 227, 244, 0.72);
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.7);
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-timer-stage);
+  box-shadow: none;
 }
 
 .timer-focus-display {
@@ -112,32 +117,34 @@
 }
 
 .timer-display.is-holding {
-  background: #fff6e8;
+  background: var(--color-timer-stage);
 }
 
 .timer-display.is-ready {
-  background: #eefbf4;
+  background: var(--color-timer-stage);
 }
 
 .timer-display.is-running {
-  background: #f1f6ff;
+  background: var(--color-timer-stage);
 }
 
 .timer-display.is-stopped {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--color-timer-stage);
 }
 
 .timer-value {
   margin: 0;
-  color: var(--color-text);
-  font-size: 7rem;
+  color: var(--color-timer-stage-text);
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(5rem, 15vw, 11rem);
   font-weight: 900;
   line-height: 0.95;
   letter-spacing: 0;
 }
 
 .timer-display.is-running .timer-value {
-  color: var(--color-primary);
+  color: var(--color-timer-stage-text);
 }
 
 .timer-caption {
@@ -145,7 +152,7 @@
   align-items: center;
   gap: 7px;
   margin: 0;
-  color: var(--color-text-muted);
+  color: rgba(247, 250, 248, 0.72);
   font-size: 0.92rem;
   font-weight: 850;
 }
@@ -173,8 +180,9 @@
 
 .timer-scramble-text {
   margin-top: 0 !important;
-  font-size: 1.22rem;
-  line-height: 1.8;
+  font-family: var(--font-numeric);
+  font-size: 1rem;
+  line-height: 1.65;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -199,15 +207,15 @@
 
 .timer-save-notice {
   font-weight: 750;
-  color: var(--color-text-muted);
+  color: rgba(247, 250, 248, 0.72);
 }
 
 .timer-recent-panel {
-  padding: 24px;
-  border: 1px solid rgba(217, 227, 244, 0.84);
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--shadow-ambient);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .timer-recent-heading {
@@ -216,18 +224,20 @@
 
 .timer-stats-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 16px;
+  border-block: 1px solid var(--color-border);
 }
 
 .timer-stat-card {
   display: grid;
   gap: 9px;
-  padding: 15px 16px;
-  border: 1px solid rgba(217, 227, 244, 0.82);
-  border-radius: var(--radius-card);
-  background: var(--color-primary-tint);
+  padding: 16px 0;
+  border: 0;
+  border-right: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .timer-stat-label {
@@ -241,25 +251,28 @@
 
 .timer-stat-value {
   color: var(--color-primary);
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
   font-size: 1.5rem;
   line-height: 1;
 }
 
 .timer-recent-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  gap: 0;
 }
 
 .timer-recent-item {
   display: grid;
   gap: 10px;
   align-items: start;
-  min-width: 220px;
-  padding: 12px;
-  border: 1px solid rgba(217, 227, 244, 0.82);
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.9);
+  grid-template-columns: minmax(100px, 1fr) auto;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .timer-recent-item:first-child {
@@ -282,9 +295,9 @@
 .timer-recent-penalty {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--color-surface-low);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-text-muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -298,20 +311,77 @@
 .timer-helper {
   max-width: 480px;
   text-align: center;
+  color: rgba(247, 250, 248, 0.72);
+}
+
+.timer-visual-toggle,
+.timer-focus-entry {
+  align-self: start;
+}
+
+.timer-focus-entry {
+  align-self: center;
+}
+
+.timer-stat-card + .timer-stat-card {
+  padding-left: 20px;
+  border-right: 0;
+}
+
+.timer-layout.is-focus-mode {
+  display: grid;
+  min-height: 100vh;
+  padding: clamp(16px, 4vw, 56px);
+  background: var(--color-timer-stage);
+}
+
+.timer-layout.is-focus-mode .timer-scramble-panel {
+  align-self: start;
+  border-color: rgba(247, 250, 248, 0.16);
+}
+
+.timer-layout.is-focus-mode .timer-scramble-badge,
+.timer-layout.is-focus-mode .timer-scramble-text {
+  color: rgba(247, 250, 248, 0.82);
+}
+
+.timer-layout.is-focus-mode .timer-main {
+  align-content: center;
+}
+
+.timer-layout.is-focus-mode .timer-display {
+  min-height: min(66vh, 720px);
+}
+
+.timer-focus-exit {
+  justify-self: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid rgba(247, 250, 248, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-timer-stage-text);
 }
 
 @media (max-width: 900px) {
   .timer-scramble-content {
     grid-template-columns: 1fr;
   }
+
+  .timer-display {
+    min-height: 320px;
+  }
+
+  .timer-value {
+    font-size: clamp(4rem, 20vw, 6rem);
+  }
+
+  .timer-recent-item {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
-  .timer-scramble-panel,
-  .timer-recent-panel {
-    padding: 20px;
-  }
-
   .timer-focus-display {
     min-height: 300px;
   }
@@ -320,61 +390,13 @@
     padding: 38px 18px 44px;
   }
 
-  .timer-value {
-    font-size: 4.6rem;
-  }
-
-  .timer-scramble-text {
-    font-size: 1.04rem;
-    line-height: 1.65;
-  }
 }
 
 @media (max-width: 480px) {
-  .timer-value {
-    font-size: 3.5rem;
-  }
-
   .timer-recent-item {
     min-width: 0;
     width: 100%;
   }
-}
-
-/* Approved v2 visual system: final page ownership */
-.timer-layout { padding: 0; border: 0; background: transparent; }
-.timer-scramble-panel { padding: 0 0 18px; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: transparent; box-shadow: none; }
-.timer-scramble-content { grid-template-columns: minmax(0, 1fr) auto; }
-.timer-scramble-badge { padding: 0; border-radius: 0; background: transparent; color: var(--color-primary); }
-.timer-scramble-text { font-family: var(--font-numeric); font-size: 1rem; line-height: 1.65; }
-.timer-visual-toggle { align-self: start; }
-.timer-scramble-visual { width: 140px; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.timer-main { gap: 24px; }
-.timer-toolbar { justify-content: flex-end; }
-.timer-display { min-height: 420px; border: 0; border-radius: 12px; background: var(--color-timer-stage); box-shadow: none; }
-.timer-caption, .timer-helper, .timer-save-notice { color: rgba(247, 250, 248, 0.72); }
-.timer-value { color: var(--color-timer-stage-text); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-size: clamp(5rem, 15vw, 11rem); }
-.timer-display.is-running .timer-value { color: var(--color-timer-stage-text); }
-.timer-focus-entry { align-self: center; }
-.timer-recent-panel { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.timer-stats-grid { gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--color-border); }
-.timer-stat-card { padding: 16px 0; border: 0; border-right: 1px solid var(--color-border); border-radius: 0; background: transparent; }
-.timer-stat-card + .timer-stat-card { padding-left: 20px; border-right: 0; }
-.timer-stat-value { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
-.timer-recent-list { display: grid; gap: 0; }
-.timer-recent-item { grid-template-columns: minmax(100px, 1fr) auto; min-width: 0; padding: 12px 0; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: transparent; }
-.timer-recent-penalty { padding: 0; border-radius: 0; background: transparent; }
-.timer-layout.is-focus-mode { display: grid; min-height: 100vh; padding: clamp(16px, 4vw, 56px); background: var(--color-timer-stage); }
-.timer-layout.is-focus-mode .timer-scramble-panel { align-self: start; border-color: rgba(247, 250, 248, 0.16); }
-.timer-layout.is-focus-mode .timer-scramble-badge, .timer-layout.is-focus-mode .timer-scramble-text { color: rgba(247, 250, 248, 0.82); }
-.timer-layout.is-focus-mode .timer-main { align-content: center; }
-.timer-layout.is-focus-mode .timer-display { min-height: min(66vh, 720px); }
-.timer-focus-exit { justify-self: center; min-height: 44px; padding: 10px 16px; border: 1px solid rgba(247, 250, 248, 0.25); border-radius: 8px; background: transparent; color: var(--color-timer-stage-text); }
-
-@media (max-width: 899px) {
-  .timer-display { min-height: 320px; }
-  .timer-value { font-size: clamp(4rem, 20vw, 6rem); }
-  .timer-recent-item { grid-template-columns: 1fr; }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
