@@ -7,6 +7,7 @@ owner: xxh3898
 project: cubing-hub
 tags: []
 related:
+  - docs/00-product/ui-mockup-contract.md
   - docs/00-product/vision.md
   - docs/00-product/prd.md
   - docs/00-product/roadmap.md
@@ -22,7 +23,7 @@ related:
 
 ## Status
 
-이 문서는 Cubing Hub UI/UX redesign의 Design Gate proposal이다. 제품 기능, Timer·Record 계약과 V2.2 Growth metric을 변경하지 않는다. visual direction, Target Mockup과 screen hierarchy가 승인되기 전에는 구현 계약으로 사용하지 않는다.
+이 문서는 Cubing Hub UI/UX redesign의 Design Gate proposal이다. 제품 기능, Timer·Record 계약과 V2.2 Growth metric을 변경하지 않는다. visual direction, Target Mockup과 screen hierarchy가 승인되기 전에는 구현 계약으로 사용하지 않는다. 화면별 capability와 image-generation input은 [UI Mockup Screen Contract](ui-mockup-contract.md)를 따른다.
 
 Cubing Hub는 generic dashboard가 아니라 다음 경험을 연결하는 큐빙 활동 제품이다.
 
@@ -146,14 +147,14 @@ Generic sidebar는 사용하지 않는다. Current top navigation과 mobile bott
 
 ```text
 [Cubing Hub]
-Home  Timer  My Page/Growth  Rankings  Explore ▾
+Home  Timer  My Page  Rankings  Explore ▾
                                       Learning
                                       Community
                                       Q&A
                            [Account ▾]
 ```
 
-- Home, Timer, My Page/Growth와 Rankings가 primary destination이다.
+- Home, Timer, My Page와 Rankings가 primary destination이다.
 - V2.2 My Growth 출시 전에는 `/mypage`를 `My Page`로 표시한다. Growth가 구현된 뒤 같은 route를 `My Growth`로 승격한다.
 - Learning, Community와 Q&A는 `Explore`에 모으되 direct route와 deep link를 유지한다.
 - Feedback, account settings와 logout은 account menu에 둔다.
@@ -163,7 +164,7 @@ Home  Timer  My Page/Growth  Rankings  Explore ▾
 ### Mobile
 
 ```text
-Home | Timer | My Page/Growth | Rankings | More
+Home | Timer | My Page | Rankings | More
 ```
 
 - Timer는 중앙 destination이지만 floating action처럼 shell을 깨지 않는다. active indicator와 label weight로 우선순위를 높인다.
@@ -182,10 +183,10 @@ Event · connection/context
 Scramble notation · scramble visual
 Timer stage · time · state
 Stopped result · penalty · save/recovery action
-Ao5 · Ao12 · recent solves · Current PB
+Ao5 · Ao12 · recent solves
 ```
 
-Desktop target은 이 정보 순서를 유지한다. 실제 placement는 Center Stage, Instrument Bench, Focus Canvas 중 선택된 Variant에서 확정한다. `Current PB`는 Growth read contract를 사용할 수 있을 때만 추가한다. Timer redesign PR은 V2.1의 Ao5/Ao12와 recent solves를 먼저 보존한다.
+Desktop target은 이 정보 순서를 유지한다. 실제 placement는 Center Stage, Instrument Bench, Focus Canvas 중 선택된 Variant에서 확정한다. Timer redesign PR은 V2.1의 Ao5/Ao12와 recent solves를 보존하며 Timer UI에 PB를 새로 추가하지 않는다.
 
 ### State contract
 
@@ -259,14 +260,14 @@ Recharts 3.8.1로 세 chart를 구현할 수 있다. Design Gate에서는 새 ch
 Home은 `다음에 무엇을 할지`를 결정하는 화면이다.
 
 1. Continue Practice와 current scramble을 primary action으로 둔다.
-2. 최근 performance는 PB/Ao와 한 줄 변화 요약만 보여 주고 상세 내용은 My Growth로 연결한다.
-3. 최근 activity는 compact preview로 제한하고 full Record table을 반복하지 않는다.
-4. Community는 secondary feed로 두고 Learning/Community directory card를 만들지 않는다.
+2. 인증 사용자는 current Home API의 nickname, main event, total solve count, PB와 전체 DNF 제외 평균만 compact summary로 사용한다.
+3. 최근 Record는 최대 5건의 compact preview로 제한하고 full Record table을 반복하지 않는다.
+4. Guest Home에서만 current 최근 Community feed와 current route 안내를 사용하며 recommendation이나 activity metric으로 확장하지 않는다.
 5. Guest는 Timer 체험과 제품 loop를 설명하되 빈 개인 통계 placeholder를 보여 주지 않는다.
 
 ### Rankings
 
-- event selector와 nickname search를 한 toolbar로 묶는다.
+- current-safe target은 WCA_333만 지원 event로 보여 주고 nickname search를 compact toolbar에 둔다.
 - top 3는 compact leading row로 유지하되 큰 podium illustration은 사용하지 않는다.
 - 내 순위는 list 안 highlight와 상단 jump link를 함께 제공한다.
 - current user는 `내 순위` label, left rule와 text weight로 구분하고 color만 사용하지 않는다.
@@ -276,11 +277,13 @@ Home은 `다음에 무엇을 할지`를 결정하는 화면이다.
 ### MyPage
 
 ```text
-My Growth | Records
-                      Account menu
+CURRENT-SAFE: Records | Account utility
+V2.2 TARGET: My Growth | Records
+                              Account menu
 ```
 
-- 기본 section은 My Growth다.
+- current-safe MyPage target은 Records를 중심으로 두고 My Growth navigation이나 placeholder를 만들지 않는다.
+- V2.2 target에서는 My Growth를 기본 section으로 둘 수 있다.
 - Records는 history, pagination, penalty와 delete를 소유한다.
 - Account는 profile과 password를 account menu의 dialog 또는 drawer에서 다룬다.
 - 신규 Public Profile route/API와 visibility setting은 V2.2에 포함하지 않는다.
@@ -404,7 +407,7 @@ Timer Desktop 시안은 같은 Measured Momentum language 안에서 실제 layou
 
 | Variant | Layout | 확인할 판단 |
 | --- | --- | --- |
-| A. Center Stage | scramble을 상단 context로 두고 큰 중앙 Timer stage를 배치한다. 오른쪽 performance rail에 Ao, PB와 compact recent solves를 둔다. | Timer와 secondary performance data의 균형 |
+| A. Center Stage | scramble을 상단 context로 두고 큰 중앙 Timer stage를 배치한다. 오른쪽 performance rail에 Ao와 compact recent solves를 둔다. | Timer와 secondary performance data의 균형 |
 | B. Instrument Bench | scramble → timer → stopped result를 강한 수직축으로 배치한다. Ao와 recent solves는 하단 compact strip으로 모은다. | solve flow가 가장 직접적으로 읽히는지 |
 | C. Focus Canvas | Timer가 viewport 대부분을 차지한다. scramble은 얇은 상단 context로 두고 secondary data는 edge rail 또는 접히는 영역으로 보낸다. | running 상태에서 distraction을 얼마나 줄일 수 있는지 |
 
@@ -414,98 +417,11 @@ Current Baseline Screenshot은 기존 실제 UI를, Approved Target Mockup은 AI
 
 구현 PR은 가능한 경우 세 이미지를 함께 비교한다. pixel-perfect 복제보다 primary focus, layout hierarchy, relative spacing, palette, surface hierarchy, typography hierarchy, density, major proportion과 navigation structure의 일치를 확인한다.
 
-exploration mockup은 repository에 저장하지 않는다. implementation reference가 필요한 최종 approved target만 versioned 보관한다.
-
-~~~text
-docs/assets/ui-targets/
-├─ timer/
-├─ home/
-├─ rankings/
-├─ mypage/
-└─ growth/
-~~~
+exploration mockup은 repository에 저장하지 않는다. implementation reference가 필요한 최종 approved target만 versioned 보관한다. exact path, stable filename, PNG format과 approval gate는 [UI Mockup Screen Contract](ui-mockup-contract.md)에서 관리한다.
 
 ## UI Screen Mockup Prompt Pack
 
-각 prompt는 단독으로 image generation model에 전달할 수 있다. 생성된 text, number와 control은 visual placeholder이며 implementation contract가 아니다.
-
-### Timer Desktop Variant A — Center Stage
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop Timer screen with a compact top navigation, scramble notation and a small cube reference across the top, a large centered dark Timer focus stage, stable oversized timer digits, a visible idle or stopped state message, and a right performance rail for Ao5, Ao12, current PB when available, and a compact recent solves list. Keep penalty, save, Retry, and Discard actions close to the stopped-result area without inventing new behavior. Use a warm neutral canvas, deep green primary, restrained amber PB accent, a dark Timer focus stage, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Timer Desktop Variant B — Instrument Bench
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop Timer screen organized as an instrument bench: scramble at the top, a single strong vertical axis through the dark timer stage, then the stopped result and its penalty or recovery controls. Put Ao5, Ao12, current PB when available, and recent solves in one compact horizontal strip along the bottom instead of a side rail. The timer, result, and next-solve context must read as one deliberate sequence. Use a warm neutral canvas, deep green primary, restrained amber PB accent, a dark Timer focus stage, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Timer Desktop Variant C — Focus Canvas
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop Timer screen where the dark Timer focus stage fills most of the viewport. Keep scramble notation in a narrow top context bar. Put Ao5, Ao12, current PB when available, recent solves, and secondary controls in a thin edge rail or a clearly collapsible secondary region so running timing remains visually dominant. Show a focused, calm precision tool rather than a dashboard. Use a warm neutral canvas, deep green primary, restrained amber PB accent, a dark Timer focus stage, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Timer Mobile Portrait
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 390 by 844 iPhone portrait Timer screen that adapts the approved desktop Timer direction. Keep compact scramble notation above a large dark Timer focus stage, make the timer digits dominant, keep the state message clear, and move Ao5, Ao12, recent solves, and recovery detail into a compact lower region or drawer without hiding the primary practice action. Include a compact context bar and mobile bottom navigation with safe-area spacing. Use a warm neutral canvas, deep green primary, restrained amber PB accent, a dark Timer focus stage, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Timer Mobile Landscape
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show an 844 by 390 iPhone landscape Timer screen that adapts the approved desktop Timer direction. Minimize the shell, keep scramble as a compact single-line context, size the dark Timer focus stage by viewport height, and place recent solves plus Ao5 and Ao12 in a thin right or lower rail. Preserve a calm direct practice surface with visible state feedback and safe-area spacing; do not use a browser fullscreen treatment. Use a warm neutral canvas, deep green primary, restrained amber PB accent, a dark Timer focus stage, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Home Desktop
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 authenticated Home screen whose primary action is Continue Practice. Place the action, current scramble context, and a concise recent performance summary above compact activity and secondary Community content. Do not repeat a full Record table or a full Growth dashboard. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Home Mobile
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 390 by 844 authenticated Home screen with Continue Practice as the immediate primary action, a compact recent performance summary, a small activity preview, and secondary Community content below. Preserve a deliberate mobile reading order instead of stacking desktop cards. Include compact top context and bottom navigation with safe-area spacing. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Rankings Desktop
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop Rankings screen with an event selector and nickname search in one compact toolbar, a restrained top-three treatment, and a dense leaderboard table for rank, nickname, and PB. Highlight the current member with a label and structural contrast rather than color alone. Favor fast comparison over podium spectacle. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### Rankings Mobile
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 390 by 844 mobile Rankings screen with compact event selection and nickname search, then scan-friendly one-line leaderboard rows for rank, nickname, and PB. Use a small top-three summary only when it does not push the comparison list below the fold. Include mobile bottom navigation and safe-area spacing. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### MyPage Records Desktop
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop MyPage Records screen with clear internal navigation between My Growth, Records, and account utility. Make Records management the active section: dense solve rows, penalty and delete actions, pagination, and compact profile context. Keep account settings out of the main data surface. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### MyPage Records Mobile
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 390 by 844 mobile MyPage Records screen with compact section navigation, an active Records section, readable solve rows, accessible penalty and delete actions, and pagination or progressive loading without horizontal overflow. Keep account utility separate from the record list and include bottom navigation with safe-area spacing. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### My Growth Desktop
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 1440 by 900 desktop private My Growth screen in this order: current level with PB, recent Ao5 and recent Ao12; recent direction with a 30-day daily median chart; consistency with IQR, DNF and plus-two context; PB progression; practice activity; and a clear next Practice action. Group information with typography, dividers, and measured surfaces instead of giving every metric its own rounded card. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
-
-### My Growth Mobile
-
-~~~text
-Create a realistic production-ready web application screenshot for Cubing Hub, a Measured Momentum precision cubing practice and performance web application. Show a 390 by 844 mobile private My Growth screen with the same question order as desktop: current PB, recent Ao5 and Ao12; recent direction; consistency; PB progression; practice activity; then next Practice. Use one readable chart at a time with sparse labels and supporting text summaries. Avoid a generic analytics dashboard and preserve a direct route back to Timer. Include compact section navigation, bottom navigation, and safe-area spacing. Use a warm neutral canvas, deep green primary, restrained amber PB accent, medium-high information density, minimal shadow, controlled radius, divider and typography driven hierarchy, and subtle 3x3 cubing identity. Make the layout feasible in React/CSS with consistent spacing and component geometry. No purple SaaS gradient, no blue SaaS gradient, no glassmorphism, no excessive rounded cards, no giant marketing hero, no generic analytics dashboard, no decorative icon boxes, no emoji, no gamer UI, no neon glow, no rainbow six-color palette, no excessive shadows, no Dribbble fantasy UI. This is a UI screen reference, not concept art, a poster, or a marketing landing page. Approximate generated copy and fake numbers are visual placeholders, not product requirements.
-~~~
+Master Prompt, repository-grounded capability classification, screen contract, detailed desktop/mobile prompt, generation order와 target approval/storage policy는 [UI Mockup Screen Contract](ui-mockup-contract.md)에서 관리한다. 이 문서는 screen prompt를 복제하지 않고 approved visual direction만 유지한다.
 
 ## Runtime AI Asset Strategy
 
@@ -589,7 +505,7 @@ Design Gate 승인 대상만 정리한다. `Default`는 별도 선호가 없을 
 | Visual direction | Precision Bench / Measured Momentum / Arena Signal | Measured Momentum | Core Loop 전체와 Growth·content를 같은 system으로 연결한다. | 평범한 wellness UI로 흐르지 않도록 numeric discipline이 필요하다. | Measured Momentum | Yes |
 | Light/Dark | Light-first / Dark-first / both first-class | Light-first, theme-ready token | current light UI에서 migration 범위와 chart QA를 통제한다. | dark 사용 수요를 바로 충족하지 못한다. | Light-first | Yes |
 | Navigation | top / sidebar / desktop top + mobile bottom | desktop top + mobile bottom | current route를 보존하면서 mobile core action 순서를 개선한다. | More 안으로 이동한 content destination 발견성이 낮아질 수 있다. | Hybrid | Yes |
-| MyPage/Growth IA | 한 화면 / 별도 Growth route / `/mypage` internal sections | `/mypage`: My Growth + Records, Account utility | private Growth proposal과 current route를 함께 보존한다. | section state와 deep link 기준이 필요하다. | Internal sections | Yes |
+| MyPage/Growth IA | 한 화면 / 별도 Growth route / `/mypage` internal sections | current-safe: Records + Account utility, V2.2 target: My Growth + Records + Account utility | private Growth proposal과 current route를 섞지 않고 단계별로 보존한다. | section state와 deep link 기준이 필요하다. | Internal sections | Yes |
 | UI design workflow | contract-first / mockup-first / code-first | AI visual mockup-first + repository functional contract | functional contract를 보존하면서 screen hierarchy와 visual detail을 먼저 비교한다. | mockup을 기능 명세로 오해할 수 있다. | Mockup-first | Yes |
 | Design System timing | 모든 visual value 선확정 / semantic foundation 후 target 확정 | semantic foundation 먼저, visual detail은 Approved Target Mockup 뒤 확정 | token 의미는 일관되게 유지하고 실제 layout에 맞는 value만 고정한다. | target approval 전 implementation이 지연된다. | Semantic first | Yes |
 | Runtime AI Asset | 없음 / optional / 적극 사용 | optional | visual reference와 runtime bundle을 분리한다. | 생성 품질과 bundle cost가 불확실하다. | 생성하지 않음 | No |

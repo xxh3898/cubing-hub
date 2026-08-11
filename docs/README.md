@@ -37,7 +37,7 @@ related:
 ### 00 Product
 
 - [Vision](00-product/vision.md) · [PRD](00-product/prd.md) · [Roadmap](00-product/roadmap.md)
-- [UI Visual Direction](00-product/ui-visual-direction.md) (Design Gate draft)
+- [UI Visual Direction](00-product/ui-visual-direction.md) (Design Gate draft) · [UI Mockup Screen Contract](00-product/ui-mockup-contract.md)
 - [Metrics](00-product/metrics.md) · [Business Model](00-product/business-model.md)
 - [Market Validation](00-product/market-validation.md)
 - Research: [csTimer](00-product/research/cstimer.md), [CubeDesk](00-product/research/cubedesk.md), [CubingTime](00-product/research/cubingtime.md), [Cubeast](00-product/research/cubeast.md), [Cubing Contests + RecordRanks](00-product/research/cubing-contests-recordranks.md), [WCA + WCA Live](00-product/research/wca-wca-live.md)
