@@ -2,7 +2,7 @@
 doc_type: adr
 status: accepted
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -20,7 +20,7 @@ related:
 
 현재 `EventType`에는 여러 WCA event code가 있고 Record와 Ranking API가 그 enum 전체를 받을 수 있다. 반면 public Timer와 Scramble은 WCA_333만 실제 지원한다. WCA_333FM과 WCA_333MBF처럼 일반 `time_ms` lower-is-better 결과와 맞지 않는 event까지 enum 존재만으로 Practice Record·Ranking에 허용하면 잘못된 제품 의미를 만든다.
 
-사용자는 2026-08-10 현재 DB에 `records`와 `user_pbs` data가 없다고 확인했다. 이 세션은 production query를 실행하지 않았지만, 사용자 확인을 근거로 기존 event data migration blocker 없이 V2.1 public Practice 범위를 닫을 수 있다.
+V2.1 public Practice 범위는 기존 `records`와 `user_pbs` data가 없다는 전제로 정했다. Production query는 실행하지 않았으며, 기존 event data migration blocker를 두지 않는다.
 
 ## Decision
 

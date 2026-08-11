@@ -10,7 +10,7 @@ related: []
 ---
 # Architecture Decision Records
 
-ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다. `accepted`는 사용자가 결정을 승인했다는 뜻이며 구현 완료를 의미하지 않는다.
+ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다. `accepted`는 승인된 결정을 뜻하며 구현 완료를 의미하지 않는다.
 
 | ADR | 상태 | 결정 |
 | --- | --- | --- |

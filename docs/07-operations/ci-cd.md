@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -51,7 +51,7 @@ main push는 deploy workflow의 release validation을 시작한다. deployment f
 - main merge는 release workflow 시작
 - production variable이 enable된 경우 merge가 실제 deploy로 이어질 수 있음
 
-따라서 commit, push, PR, merge, deploy는 별도 승인이다. 이 문서 작업은 local commit까지만 포함한다.
+따라서 commit, push, PR, merge, deploy는 별도 승인이다.
 
 ## Source of Truth
 
