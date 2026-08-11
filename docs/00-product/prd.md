@@ -204,7 +204,7 @@ V2.1은 다음 기능을 구현하지 않고, 나중에 추가할 때 현재 Rec
 
 ## Implementation / Release Gate 상태
 
-1. 사용자 확인 기준 현재 `records`, `user_pbs` data가 없으므로 event distribution audit blocker를 제거했다.
+1. 기존 `records`와 `user_pbs` data가 없다는 전제에서 event distribution audit blocker를 제거했다.
 2. V2.1 Practice Timer·Scramble·Record·Ranking event를 WCA_333으로 확정했다.
 3. Input Method, idempotency, canonical create response와 pending recovery의 API·data·architecture 계약을 문서화했다.
 4. forward-only additive migration, old application compatibility와 실제 MySQL upgrade test 방식을 확정했다.

@@ -2,7 +2,7 @@
 doc_type: domain
 status: draft
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -97,4 +97,4 @@ Smart Cube telemetry를 evidence로 사용하려면 Practice data, improvement d
 
 ## 비목표
 
-이 문서에서는 DB table, endpoint, moderation architecture, device protocol, 출시 일정을 확정하지 않는다.
+DB table, endpoint, moderation architecture, device protocol, 출시 일정을 확정하지 않는다.

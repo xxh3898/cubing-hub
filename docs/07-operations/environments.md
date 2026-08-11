@@ -34,7 +34,7 @@ repository Compose에는 MySQL 8.0.46, Redis 7.2.14, API, Web이 정의돼 있�
 
 ## Tracked legacy configuration
 
-infra/docker/docker-compose.prod.yml은 latest tag, S3 환경변수, host 80·443 port를 전제로 한 2026-04 시점 파일이며 현재 workflow·homeserver script에서 참조되지 않는다. 현재 production Source of Truth로 사용하거나 이 파일로 배포하지 않는다. 설정 파일의 이동·삭제는 이번 문서-only 범위 밖의 별도 정리 작업이다.
+infra/docker/docker-compose.prod.yml은 latest tag, S3 환경변수, host 80·443 port를 전제로 한 2026-04 시점 파일이며 현재 workflow·homeserver script에서 참조되지 않는다. 현재 production Source of Truth로 사용하거나 이 파일로 배포하지 않는다. 설정 파일의 이동·삭제는 별도 정리 작업으로 관리한다.
 
 ## Observed runtime fact
 

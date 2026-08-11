@@ -2,7 +2,7 @@
 doc_type: product
 status: draft
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -20,7 +20,7 @@ related:
 
 ## 문서 상태와 목적
 
-공개 서비스 조사에서 확인한 사실, 사용자가 선택한 제품 방향, 앞으로 검증할 가설을 분리한다. 제품 방향이 결정됐다는 사실을 시장 수요 검증 완료로 표현하지 않는다.
+공개 서비스 조사에서 확인한 사실, 제품 방향, 앞으로 검증할 가설을 분리한다. 제품 방향이 정해졌다고 시장 수요 검증이 완료된 것은 아니다.
 
 ## Research에서 확인한 패턴
 
@@ -32,7 +32,7 @@ related:
 
 세부 조사 근거는 [research 문서](research/)에서 관리한다. 위 사실만으로 Cubing Hub의 기능 우선순위나 시장 수요가 자동 확정되지는 않는다.
 
-## 사용자 결정
+## 제품 방향
 
 - Cubing Hub는 Cuber-first 큐빙 활동 플랫폼으로 간다.
 - Primary User는 일상적으로 반복 연습하며 기록 단축과 성장에 관심 있는 큐버다.
@@ -42,7 +42,7 @@ related:
 - Daily Challenge는 Participation 가치를 확인할 미래 검증 후보로 둔다.
 - V2.1 Timer / Record Foundation을 Growth, Daily Challenge, Verified Record보다 먼저 정비한다.
 
-이 결정의 제품 표현은 [Vision](vision.md), 구현 범위와 선행 gate는 [PRD](prd.md), 단계 순서는 [Roadmap](roadmap.md)이 기준이다.
+제품 표현은 [Vision](vision.md), 구현 범위와 선행 gate는 [PRD](prd.md), 단계 순서는 [Roadmap](roadmap.md)이 기준이다.
 
 ## 아직 검증할 가설
 
