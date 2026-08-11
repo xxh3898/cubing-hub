@@ -8,8 +8,9 @@
   }
 }
 
-@media (max-width: 900px) {
-  .desktop-nav {
+@media (max-width: 899px) {
+  .desktop-nav,
+  .app-footer {
     display: none;
   }
 
@@ -18,439 +19,82 @@
   }
 
   .app-nav-inner {
-    min-height: 62px;
-    padding: 0 18px;
-  }
-
-  .brand-link {
-    font-size: 1.12rem;
-  }
-
-  .brand-logo {
-    width: 30px;
-    height: 30px;
+    min-height: 56px;
+    padding-inline: 16px;
   }
 
   .page-shell {
-    padding: 36px 18px 96px;
-  }
-
-  .app-footer {
-    grid-template-columns: 1fr;
-    align-items: start;
-    gap: 14px;
-    padding: 28px 18px 104px;
-  }
-
-  .app-footer-links {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-
-  .app-footer-copy {
-    justify-self: start;
+    padding: 28px 16px 104px;
   }
 
   .mobile-tabbar {
     position: fixed;
+    z-index: 200;
     right: 0;
     bottom: 0;
     left: 0;
-    z-index: 1000;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 6px;
-    padding: 8px max(12px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
-    border-top: 1px solid rgba(193, 199, 211, 0.56);
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 -10px 30px rgba(18, 28, 40, 0.08);
-    backdrop-filter: blur(18px);
+    min-height: calc(64px + env(safe-area-inset-bottom));
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-border);
+    background: rgba(250, 251, 249, 0.96);
+    box-shadow: 0 -8px 24px rgba(17, 26, 31, 0.07);
+    backdrop-filter: blur(14px);
   }
 
-  .mobile-tabbar a {
+  .mobile-tabbar a,
+  .mobile-more-menu summary {
     display: grid;
-    gap: 4px;
-    min-width: 0;
-    min-height: 50px;
-    align-content: center;
-    justify-items: center;
-    padding: 6px 4px;
-    border-radius: var(--radius-control);
-    color: var(--color-text-soft);
-    font-size: 0.72rem;
-    font-weight: 800;
-    line-height: 1.1;
-    text-align: center;
+    place-items: center;
+    gap: 3px;
+    min-height: 48px;
+    padding: 4px;
+    color: var(--color-text-muted);
+    font-size: 0.6875rem;
+    font-weight: 750;
   }
 
-  .mobile-tabbar a.active {
+  .mobile-tabbar a.active,
+  .mobile-more-menu.is-active summary {
     color: var(--color-primary);
-    background: var(--color-primary-tint);
+  }
+
+  .mobile-more-menu {
+    position: relative;
+  }
+
+  .mobile-more-sheet {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    display: grid;
+    width: 168px;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-lifted);
+  }
+
+  .mobile-more-sheet a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px;
+    font-size: 0.875rem;
   }
 
   .two-up,
-  .split-grid,
-  .home-scramble-panel,
-  .rankings-header-panel,
-  .community-header-panel,
-  .dashboard-grid,
-  .timer-layout {
+  .split-grid {
     grid-template-columns: 1fr;
-  }
-
-  .rankings-podium-section {
-    min-height: 0;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
-  .rankings-podium-card,
-  .rankings-podium-card.rank-1 {
-    min-height: 190px;
-  }
-
-  .timer-toolbar {
-    align-items: stretch;
-  }
-
-  .timer-toolbar-status {
-    margin-left: 0;
-    justify-content: flex-start;
-    max-width: none;
   }
 
   .section-heading {
     flex-direction: column;
     align-items: flex-start;
-  }
-}
-
-@media (max-width: 720px) {
-  .app-nav-inner {
-    padding: 0 14px;
-  }
-
-  .topbar-meta {
-    gap: 8px;
-  }
-
-  .utility-link {
-    min-height: 38px;
-    padding: 8px 10px;
-    font-size: 0.86rem;
-  }
-
-  .status-chip {
-    max-width: 132px;
-    min-height: 38px;
-    padding: 8px 10px;
-    font-size: 0.86rem;
-  }
-
-  .page-shell {
-    padding: 28px 14px 92px;
-  }
-
-  .panel {
-    padding: 20px;
-  }
-
-  .footer-feedback-link,
-  .home-action-link,
-  .home-record-link,
-  .community-write-button {
-    display: flex;
-    width: 100%;
-    justify-content: center;
-    text-align: center;
-  }
-
-  .rankings-toolbar,
-  .rankings-my-card,
-  .community-header-panel,
-  .community-board-toolbar,
-  .mypage-profile-header,
-  .mypage-records-header,
-  .community-detail-actions,
-  .community-write-actions,
-  .community-comment-header,
-  .community-comment-form-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .rankings-search-field,
-  .rankings-event-field,
-  .timer-event-field {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-  }
-
-  .community-search-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .community-category-row {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .community-category-button {
-    width: 100%;
-  }
-
-  .community-write-actions > *,
-  .community-detail-actions > *,
-  .community-comment-form-actions > * {
-    width: 100%;
-  }
-
-  .rankings-podium-section {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-
-  .rankings-podium-card,
-  .rankings-podium-card.rank-1 {
-    min-height: 0;
-    padding-top: 38px;
-    border-radius: var(--radius-card);
-  }
-
-  .rankings-my-main {
-    align-items: flex-start;
-  }
-
-  .rankings-my-time {
-    align-self: flex-start;
-  }
-
-  .community-post-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .community-post-actions > * {
-    width: auto;
-    flex: 0 0 auto;
-  }
-
-  .community-post-actions .ghost-button,
-  .community-post-actions .community-post-delete {
-    padding: 9px 12px;
-    font-size: 0.84rem;
-  }
-
-  .community-comment-meta {
-    flex-wrap: wrap;
-  }
-
-  .timer-toolbar {
-    gap: 14px;
-  }
-
-  .timer-toolbar-actions {
-    width: 100%;
-  }
-
-  .timer-toolbar-actions > button {
-    flex: 1 1 100%;
-  }
-
-  .timer-stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .timer-recent-actions > button,
-  .mypage-record-actions > button {
-    flex: 1 1 calc(50% - 8px);
-  }
-
-  .mypage-info-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .mypage-info-label {
-    min-width: 0;
-  }
-
-  .mypage-trend-chart {
-    padding: 12px 8px 4px;
-  }
-
-  .record-table-wrap {
-    overflow-x: visible;
-  }
-
-  .responsive-card-table,
-  .responsive-card-table tbody,
-  .responsive-card-table tr,
-  .responsive-card-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .responsive-card-table {
-    border-collapse: separate;
-  }
-
-  .responsive-card-table colgroup,
-  .responsive-card-table thead {
-    display: none;
-  }
-
-  .responsive-card-table tbody {
-    display: grid;
-    gap: 14px;
-  }
-
-  .responsive-card-table tr {
-    display: grid;
-    gap: 10px;
-    padding: 16px;
-    border: 1px solid rgba(217, 227, 244, 0.82);
-    border-radius: var(--radius-card);
-    background: rgba(255, 255, 255, 0.9);
-  }
-
-  .responsive-card-table td {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-    padding: 0;
-    border-bottom: 0;
-  }
-
-  .responsive-card-table td::before {
-    content: attr(data-label);
-    color: var(--color-text-muted);
-    font-size: 0.74rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .record-table-scramble {
-    min-width: 0;
-    word-break: break-word;
-  }
-
-  .community-table.responsive-card-table tbody {
-    gap: 10px;
-  }
-
-  .community-table.responsive-card-table .community-post-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-areas:
-      "category category category"
-      "title title title"
-      "author date views";
-    gap: 6px 10px;
-    padding: 14px 16px;
-    border-radius: var(--radius-card);
-    background: rgba(255, 255, 255, 0.92);
-    box-shadow: 0 12px 28px rgba(18, 28, 40, 0.06);
-  }
-
-  .community-table.responsive-card-table .community-post-row td {
-    padding: 0;
-  }
-
-  .community-table.responsive-card-table .community-post-row td::before {
-    display: none;
-    content: none;
-  }
-
-  .community-table.responsive-card-table .community-post-category {
-    grid-area: category;
-    font-size: 0.82rem;
-  }
-
-  .community-table.responsive-card-table .community-post-title {
-    grid-area: title;
-    font-size: 1rem;
-    line-height: 1.45;
-  }
-
-  .community-table.responsive-card-table .community-post-author {
-    grid-area: author;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.92rem;
-  }
-
-  .community-table.responsive-card-table .community-post-date {
-    grid-area: date;
-    justify-self: end;
-    font-size: 0.84rem;
-  }
-
-  .community-table.responsive-card-table .community-post-views {
-    grid-area: views;
-    justify-self: end;
-    font-size: 0.84rem;
-  }
-
-  .rankings-table.responsive-card-table tbody {
-    gap: 10px;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "rank nickname time"
-      "event event event";
-    align-items: center;
-    gap: 6px 10px;
-    padding: 14px 16px;
-    border-radius: var(--radius-card);
-    background: rgba(255, 255, 255, 0.92);
-    box-shadow: 0 12px 28px rgba(18, 28, 40, 0.06);
-  }
-
-  .rankings-table.responsive-card-table .rankings-row td {
-    padding: 0;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row td::before {
-    display: none;
-    content: none;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row-rank {
-    grid-area: rank;
-    font-size: 0.84rem;
-    white-space: nowrap;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row-nickname {
-    grid-area: nickname;
-    min-width: 0;
-    font-size: 1rem;
-    line-height: 1.35;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row-time {
-    grid-area: time;
-    justify-self: end;
-    font-size: 0.94rem;
-  }
-
-  .rankings-table.responsive-card-table .rankings-row-event {
-    grid-area: event;
-    font-size: 0.84rem;
   }
 }
 

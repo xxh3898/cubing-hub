@@ -201,7 +201,7 @@
   padding: 16px 12px 8px;
   border: 1px solid rgba(217, 227, 244, 0.82);
   border-radius: var(--radius-card);
-  background: linear-gradient(180deg, rgba(241, 246, 255, 0.72), rgba(255, 255, 255, 0.94));
+  background: transparent;
 }
 
 .mypage-trend-tooltip {
@@ -381,3 +381,15 @@
     flex: 1 1 auto;
   }
 }
+
+/* Approved v2 visual system */
+.mypage-profile-panel, .mypage-dashboard-panel, .mypage-records-panel { gap: 24px; padding: 0; }
+.mypage-profile-panel { padding-bottom: 24px; border-bottom: 1px solid var(--color-border); }
+.mypage-dashboard-panel { display: none; }
+.mypage-avatar, .dashboard-summary-icon { display: none; }
+.mypage-info-item { min-height: 0; padding: 0; border-radius: 0; background: transparent; }
+.dashboard-summary-grid { gap: 0; border-block: 1px solid var(--color-border); }
+.dashboard-summary-card { padding: 20px; border: 0; border-right: 1px solid var(--color-border); border-radius: 0; background: transparent; }
+.dashboard-summary-card:last-child { border-right: 0; }
+.mypage-trend-chart { padding: 10px 0; border: 0; border-radius: 0; background: transparent; }
+.dashboard-summary-value { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
