@@ -24,9 +24,22 @@ related:
 
 ## Status and responsibility
 
-이 문서는 [UI Visual Direction](../00-product/ui-visual-direction.md)을 React frontend에 적용하기 위한 architecture proposal이다. token, primitive, layout, App Shell, responsive, accessibility, visual validation과 구현 순서를 다룬다.
+이 문서는 [UI Visual Direction](../00-product/ui-visual-direction.md)을 React frontend에 적용하기 위한 architecture proposal이다. semantic token, primitive, layout, App Shell, responsive, accessibility, visual validation과 구현 순서를 다룬다.
 
 Current implementation 설명은 [Frontend Architecture](frontend-architecture.md), Timer 요구사항은 [Timer](../02-requirements/features/timer.md), V2.2 Growth metric과 API proposal은 [Growth Metrics](../01-domain/growth-metrics.md)와 [Growth Architecture](growth-architecture.md)가 Source of Truth다. 이 문서가 기능·API 계약을 다시 정의하지 않는다.
+
+## Design System decision timing
+
+현재 Design Gate는 semantic foundation을 정한다. Measured Momentum, warm neutral canvas, deep green primary, amber PB accent, light-first, Timer dark focus stage, accessibility invariant와 semantic token은 이 단계에서 유지한다.
+
+Approved Target Mockup 뒤에는 implementation-ready visual detail을 확정한다. mockup은 visual reference일 뿐이며 functional contract나 accessibility contract를 바꾸지 않는다.
+
+| Decision layer | 확정 범위 |
+| --- | --- |
+| Semantic foundation | color의 domain 의미, typography 역할, light-first boundary, Timer focus surface, accessibility invariant, component의 semantic 책임 |
+| Target-dependent visual detail | exact spacing, radius frequency, border frequency, navigation height, content width, typography scale, component proportion, Timer stage proportion, chart density, surface treatment |
+
+Target-dependent detail은 selected target의 hierarchy와 responsive intent를 읽어 token value와 component geometry로 옮긴다. target approval 전에는 visual value를 production implementation 계약으로 고정하지 않는다.
 
 ## Current frontend inventory
 
@@ -47,7 +60,7 @@ Current source에는 4,309줄의 CSS와 881줄 `TimerPage.jsx`, 927줄 `MyPage.j
 
 ## Foundation tokens
 
-Token name은 semantic purpose를 나타낸다. component가 hex, arbitrary spacing, radius 또는 shadow를 직접 선택하지 않는다. 아래 값은 `Measured Momentum` proposal의 light-first starting point이며 implementation visual QA에서 contrast를 확인한 뒤 같은 semantic 의미 안에서 조정할 수 있다.
+Token name은 semantic purpose를 나타낸다. component가 hex, arbitrary spacing, radius 또는 shadow를 직접 선택하지 않는다. 아래 값은 Measured Momentum proposal의 light-first starting point다. semantic 의미는 유지하고 exact value와 component geometry는 Approved Target Mockup 뒤에 확정한다. contrast는 implementation gate에서 다시 확인한다.
 
 ### Color
 
@@ -325,10 +338,12 @@ TimerPage orchestration
 │  ├─ TimerStateMessage
 │  ├─ TimerResultActions
 │  └─ PendingSolveRecovery
-└─ PracticeRail
+└─ PracticeSecondaryData
    ├─ AverageMetric Ao5/Ao12
    └─ SolveList
 ```
+
+PracticeSecondaryData의 desktop placement는 selected Timer target에 따라 rail, compact strip 또는 collapsible edge region으로 결정한다.
 
 ### Presentation priority
 
@@ -423,7 +438,9 @@ Lucide outline icon을 유지한다.
 - decorative header icon box와 모든 card의 leading icon은 제거 후보로 둔다.
 - functional cube diagram은 VisualCube를 사용한다. AI image로 대체하지 않는다.
 
-AI asset의 허용 범위와 prompt는 [UI Visual Direction](../00-product/ui-visual-direction.md)이 관리한다. Asset은 explicit width/height, lazy loading, responsive source와 format/size budget을 implementation acceptance에 포함한다.
+AI UI Screen Mockup은 visual reference이며 runtime asset이 아니다. mockup의 layout과 proportion은 Approved Target Mockup 뒤 implementation detail로 옮기고, functional cube diagram이나 control은 image로 대체하지 않는다.
+
+Runtime AI Asset의 허용 범위와 prompt는 [UI Visual Direction](../00-product/ui-visual-direction.md)이 관리한다. Runtime asset을 실제로 추가하는 PR은 explicit width/height, lazy loading, responsive source와 format/size budget을 implementation acceptance에 포함한다.
 
 ## Loading, empty, error and feedback
 
@@ -441,9 +458,9 @@ AI asset의 허용 범위와 prompt는 [UI Visual Direction](../00-product/ui-vi
 
 Current repository에는 executable visual regression infrastructure가 없다. Storybook, Chromatic과 Playwright를 Design Gate prerequisite로 추가하지 않는다.
 
-### Initial baseline
+### Baseline, target and implementation evidence
 
-첫 UI implementation PR을 시작하기 전에 exact `origin/dev` commit에서 다음 화면을 fixed state로 캡처한다.
+Target Mockup approval과 Design System implementation value 확정 뒤, 첫 UI implementation PR을 시작하기 전에 implementation base commit의 Current Baseline Screenshot을 캡처한다.
 
 | Screen | State | Viewport |
 | --- | --- | --- |
@@ -455,14 +472,18 @@ Current repository에는 executable visual regression infrastructure가 없다. 
 
 - production data를 사용하지 않고 isolated development/test fixture를 사용한다.
 - screenshot에는 base commit, route, viewport와 state를 기록한다.
-- before/after pair는 implementation PR evidence에 첨부하고 binary를 repository에 무조건 commit하지 않는다.
+- Approved Target Mockup은 같은 route와 viewport의 visual reference로 둔다. Actual Implementation Screenshot은 같은 fixture로 캡처한다.
+- implementation PR evidence는 Current Baseline Screenshot, Approved Target Mockup과 Actual Implementation Screenshot을 가능한 경우 함께 비교한다.
+- primary focus, layout hierarchy, relative spacing, palette, surface hierarchy, typography hierarchy, density, major proportion과 navigation structure를 확인한다. pixel-perfect 복제는 요구하지 않는다.
+- functional requirement, accessibility와 usability는 Target Mockup보다 우선한다.
+- binary를 repository에 무조건 commit하지 않는다. implementation reference가 필요한 최종 target만 UI Visual Direction의 target storage policy를 따른다.
 - dynamic date, nickname와 network state를 고정할 수 없으면 pixel comparison 근거로 사용하지 않는다.
 
 ### Tool comparison
 
 | Option | Cost | Value | Proposal |
 | --- | --- | --- | --- |
-| Manual before/after | dependency 없음, 사람이 state를 준비 | 초기 방향과 responsive review에 충분 | 지금 사용 |
+| Manual baseline/target/implementation | dependency 없음, 사람이 state를 준비 | 초기 방향과 responsive review에 충분 | 지금 사용 |
 | Playwright screenshot | browser/config/mock API와 baseline 관리 필요 | stable screen의 repeatable regression | shell과 2개 핵심 화면이 안정된 뒤 재평가 |
 | Storybook | component story와 state fixture 작성 필요 | primitive catalog와 isolated QA | component 수요가 늘 때 검토 |
 | Chromatic | external service와 snapshot lifecycle 필요 | hosted review·diff | 현재 규모에서는 사용하지 않음 |
@@ -493,27 +514,35 @@ Manual matrix가 반복 누락되거나 cross-page shell regression이 두 번 �
 - Timer keyboard, touch, pending Retry/Discard, penalty, delete와 scramble lifecycle
 - mobile landscape Timer
 - contrast와 200% zoom, reduced motion
-- fixed viewport before/after screenshot pair
+- fixed viewport baseline/target/implementation screenshot evidence
 
 ## Implementation sequence
 
-V2.2 Growth frontend를 current UI로 먼저 만들지 않는다. Growth backend는 ADR-0010 acceptance 뒤 UI foundation과 병렬로 진행할 수 있고, Growth frontend는 App Shell과 MyPage migration 뒤에 연결한다.
+V2.2 Growth frontend를 current UI로 먼저 만들지 않는다. Growth backend는 별도 승인 뒤 core UI mockup과 병렬로 진행할 수 있다. My Growth frontend는 Growth API contract와 My Growth target approval 뒤에 연결한다.
 
-```text
+~~~text
 Design Gate
-→ UI Foundation
-→ App Shell
-→ Timer / Home / Ranking / MyPage migration
-                    ↘ Growth backend/API
-→ My Growth frontend
-→ Content / Auth / Utility consistency
-```
+→ Timer mockup exploration
+→ Timer desktop/mobile approval
+→ Core screen mockups
+→ Visual language approval
+→ Design System implementation values 확정
+→ Current baseline capture
+→ PR 1 Tokens + primitives
+→ PR 2 App Shell
+→ PR 3 Timer
+→ PR 4 Home
+→ PR 5 Ranking
+→ PR 6 MyPage
+~~~
+
+Mockup 생성, 선택, 수정, target 승인과 code implementation은 별도 gate다. 각 screen migration PR은 해당 Desktop/Mobile Target Mockup이 승인된 뒤에만 시작한다.
 
 ### PR 1 — Design tokens and core primitives
 
 - Goal/scope: semantic color/type/spacing/radius/shadow/motion token과 Button, Field, Select, InlineAlert, Skeleton, EmptyState의 first consumers
 - Main files: `frontend/src/styles` foundation, new shared primitives와 focused tests
-- Dependency: Design Gate 승인
+- Dependency: Design Gate 승인, visual language approval, Design System implementation value 확정, Current Baseline Screenshot capture
 - Functional boundary: page behavior와 route 변경 없음
 - Visual acceptance: arbitrary gradient/shadow를 새 primitive에 넣지 않고 focus, touch target과 state가 token으로 표현됨
 - Tests/manual: primitive interaction/accessibility, lint/test/build, sample states desktop/mobile
@@ -533,7 +562,7 @@ Design Gate
 
 - Goal/scope: focus stage, scramble/context, result/recovery action과 recent performance rail
 - Main files: `TimerPage.jsx`, presentation components, `timer.css`, existing Timer tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, Timer Desktop Target approved, Timer Mobile Portrait Target approved, Timer Mobile Landscape Target approved, Current Baseline Screenshot capture
 - Functional boundary: Timer Core, canonical time, provenance, pending solve, Retry/Discard, scramble, Record/PB/Ao 계약 변경 없음
 - Visual acceptance: digits 안정성, 상태를 text+accent로 구분, portrait/landscape/desktop hierarchy와 running distraction 제거
 - Tests/manual: current Timer focused tests 전체, keyboard/touch/device viewport, pending/error/next-scramble screenshot
@@ -543,7 +572,7 @@ Design Gate
 
 - Goal/scope: Continue Practice 중심 Home, compact performance/activity preview와 secondary Community feed
 - Main files: `HomePage.jsx`, `home.css`, shared summary/list component와 tests
-- Dependency: PR 1~2, Timer route 유지
+- Dependency: PR 1~2, Timer route 유지, Home Desktop Target approved, Home Mobile Target approved
 - Functional boundary: current API call과 guest/auth 분기 유지
 - Visual acceptance: 하나의 primary action, MyPage full summary/history 중복 제거, guest empty metric 미노출
 - Tests/manual: guest/member/loading/error, CTA route, portrait/desktop screenshot
@@ -553,7 +582,7 @@ Design Gate
 
 - Goal/scope: compact top 3, my-rank highlight, dense desktop table와 mobile row
 - Main files: `RankingsPage.jsx`, `rankings.css`, data list/table primitives와 tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, Rankings Desktop Target approved, Rankings Mobile Target approved
 - Functional boundary: search, pagination, event capability, Redis/MySQL response 의미 변경 없음
 - Visual acceptance: mobile에서 rank/nickname/PB 한 줄 비교, current user를 color 외 label로 식별
 - Tests/manual: search, page, empty/loading/error, long nickname, 390px screenshot
@@ -563,7 +592,7 @@ Design Gate
 
 - Goal/scope: `/mypage` section navigation, Records 관리와 Account dialog/drawer 분리. Growth placeholder를 구현하지 않음
 - Main files: `MyPage.jsx`, MyPage layout/components, `mypage.css`, tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, MyPage Records Desktop Target approved, MyPage Records Mobile Target approved
 - Functional boundary: profile/password, logout, penalty/delete, history pagination 유지
 - Visual acceptance: Records와 Account 책임 분리, 미구현 Growth metric을 fake empty로 노출하지 않음
 - Tests/manual: account modal/drawer focus, penalty/delete/logout, mobile keyboard와 record list
@@ -573,7 +602,7 @@ Design Gate
 
 - Goal/scope: approved metric calculator, dedicated summary/trend/progression API와 query
 - Main files: backend domain/repository/service/controller, REST Docs와 tests
-- Dependency: ADR-0010와 MUST metric 승인. UI PR 1~6과 병렬 가능
+- Dependency: ADR-0010와 MUST metric 승인, 별도 implementation 승인. Core UI mockup 과정과 병렬 가능
 - Functional boundary: current Record correction/delete, WCA_333, Asia/Seoul와 no-migration proposal 유지
 - Visual acceptance: 해당 없음. frontend fixture에 필요한 canonical response 제공
 - Tests/manual: DNF/+2/median/IQR/Ao/PB/time boundary fixture, MySQL integration, REST Docs, query release gate
@@ -583,7 +612,7 @@ Design Gate
 
 - Goal/scope: Growth summary, period comparison, charts, consistency, PB progression, activity와 Next Practice
 - Main files: `/mypage` Growth components, API client, Recharts composition와 tests
-- Dependency: PR 1~2, PR 6~7
+- Dependency: PR 1~2, PR 6~7, Growth API contract available, My Growth Desktop Target approved, My Growth Mobile Target approved
 - Functional boundary: backend metric을 표시하며 frontend 재계산과 신규 Public Profile을 추가하지 않음
 - Visual acceptance: question-order hierarchy, metric card 남용 없음, insufficient/DNF/missing-day와 text alternative
 - Tests/manual: empty/insufficient/populated/API error, chart summary, iPhone/desktop screenshot
@@ -593,7 +622,7 @@ Design Gate
 
 - Goal/scope: content list, filter, metadata, reading column, comment/form과 pagination primitive 적용
 - Main files: Community/Q&A pages, `community.css`, shared content components와 tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, Community and Q&A Desktop/Mobile Target Mockup 승인
 - Functional boundary: authorization, image, post/comment CRUD와 Q&A workflow 유지
 - Visual acceptance: desktop/mobile information hierarchy 일치, badge는 category/status에만 사용
 - Tests/manual: list/detail/write/edit/comment, empty/error, long content와 mobile actions
@@ -603,7 +632,7 @@ Design Gate
 
 - Goal/scope: Learning tabs, case list/grid와 notation/algorithm hierarchy
 - Main files: `LearningPage.jsx`, `learning.css`, static data consumers와 tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, Learning Desktop/Mobile Target Mockup 승인
 - Functional boundary: case data, algorithm과 VisualCube mapping 유지
 - Visual acceptance: content card만 유지하고 page/card nesting 제거, mobile에서 image와 algorithm scan order 보존
 - Tests/manual: tab keyboard, case rendering, image fallback, portrait/desktop screenshot
@@ -613,7 +642,7 @@ Design Gate
 
 - Goal/scope: Login, Signup/verification, Password Reset의 AuthShell, Field와 feedback 통합
 - Main files: auth pages, `auth.css`, shared form components와 tests
-- Dependency: PR 1~2
+- Dependency: PR 1~2, Auth Desktop/Mobile Target Mockup 승인
 - Functional boundary: token, redirect, email verification와 password reset API 흐름 유지
 - Visual acceptance: form-first, wide visual optional, mobile keyboard에서 error/submit 접근 가능
 - Tests/manual: normal/error/loading/redirect, keyboard-only, 390px viewport
@@ -623,26 +652,27 @@ Design Gate
 
 - Goal/scope: Feedback/Admin/NotFound/route loading을 common form, data list, status와 overlay pattern으로 migration하고 전체 accessibility audit 수행
 - Main files: Feedback/Admin/NotFound pages, admin/feedback CSS, shared feedback components와 tests
-- Dependency: PR 1~2, 앞선 primitive 안정화
+- Dependency: PR 1~2, 앞선 primitive 안정화, Feedback/Admin Desktop/Mobile Target Mockup 승인
 - Functional boundary: ADMIN authorization, feedback/memo behavior와 route loading 유지
 - Visual acceptance: operational density, consistent loading/empty/error, no decorative hover lift
 - Tests/manual: role guard, filter, memo/feedback action, focus/contrast/reduced-motion audit
 - Risk/rollback: lower-use route regression이 늦게 발견될 수 있다. public/core PR과 분리해 revert한다.
 
-### Optional PR — Approved visual assets
+### Optional PR — Approved Runtime AI Assets
 
-Key visual 또는 empty-state asset이 별도 승인되고 UI 구조가 안정된 경우에만 연다. generated source, crop, license/usage record, format, width/height, size budget, lazy loading과 light surface QA를 포함한다. Asset이 없더라도 core redesign은 완료할 수 있다.
+Key visual 또는 empty-state Runtime AI Asset이 별도 승인되고 UI 구조가 안정된 경우에만 연다. generated source, crop, license/usage record, format, width/height, size budget, lazy loading과 light surface QA를 포함한다. Runtime asset이 없더라도 core redesign은 완료할 수 있다.
 
 ## Release gates
 
 각 screen migration PR은 다음을 통과해야 한다.
 
+- 해당 Desktop/Mobile Target Mockup approval과 implementation dependency 충족
 - 관련 current behavior test와 newly introduced primitive test
 - frontend lint, Vitest와 Vite build
 - application route/API/schema 변경 범위 확인
-- 390×844와 1440×900 before/after screenshot review
+- 390×844와 1440×900 baseline/target/implementation screenshot review
 - Timer PR의 844×390 landscape와 keyboard/touch manual regression
 - visible focus, 200% zoom, contrast와 reduced-motion focused check
 - unresolved functional change는 UI PR에서 분리
 
-Growth frontend release는 ADR-0010 acceptance, Growth backend contract와 query release gate를 추가로 요구한다. Design Gate 승인만으로 production implementation이나 release를 시작하지 않는다.
+Growth frontend release는 ADR-0010 acceptance, Growth backend contract, query release gate와 My Growth Desktop/Mobile Target Mockup approval을 추가로 요구한다. Design Gate 승인이나 mockup 생성만으로 production implementation 또는 release를 시작하지 않는다.
