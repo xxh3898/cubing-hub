@@ -37,6 +37,7 @@ related:
 ### 00 Product
 
 - [Vision](00-product/vision.md) · [PRD](00-product/prd.md) · [Roadmap](00-product/roadmap.md)
+- [UI Visual Direction](00-product/ui-visual-direction.md) (Design Gate draft)
 - [Metrics](00-product/metrics.md) · [Business Model](00-product/business-model.md)
 - [Market Validation](00-product/market-validation.md)
 - Research: [csTimer](00-product/research/cstimer.md), [CubeDesk](00-product/research/cubedesk.md), [CubingTime](00-product/research/cubingtime.md), [Cubeast](00-product/research/cubeast.md), [Cubing Contests + RecordRanks](00-product/research/cubing-contests-recordranks.md), [WCA + WCA Live](00-product/research/wca-wca-live.md)
@@ -61,6 +62,7 @@ related:
 
 - [System Context](03-architecture/system-context.md) · [Application](03-architecture/application-architecture.md)
 - [Backend](03-architecture/backend-architecture.md) · [Frontend](03-architecture/frontend-architecture.md)
+- [Frontend Design System](03-architecture/frontend-design-system.md) (Design Gate draft)
 - [Growth](03-architecture/growth-architecture.md) (V2.2 draft)
 - [Auth and Security](03-architecture/auth-security.md)
 - [Ranking](03-architecture/ranking-architecture.md) · [Storage](03-architecture/storage-architecture.md)
