@@ -7,6 +7,7 @@ owner: xxh3898
 project: cubing-hub
 tags: []
 related:
+  - docs/00-product/ui-mockup-contract.md
   - docs/00-product/ui-visual-direction.md
   - docs/01-domain/growth-metrics.md
   - docs/02-requirements/features/timer.md
@@ -24,7 +25,7 @@ related:
 
 ## Status and responsibility
 
-이 문서는 [UI Visual Direction](../00-product/ui-visual-direction.md)을 React frontend에 적용하기 위한 architecture proposal이다. semantic token, primitive, layout, App Shell, responsive, accessibility, visual validation과 구현 순서를 다룬다.
+이 문서는 [UI Visual Direction](../00-product/ui-visual-direction.md)을 React frontend에 적용하기 위한 architecture proposal이다. semantic token, primitive, layout, App Shell, responsive, accessibility, visual validation과 구현 순서를 다룬다. 화면별 capability와 image-generation input은 [UI Mockup Screen Contract](../00-product/ui-mockup-contract.md)를 따른다.
 
 Current implementation 설명은 [Frontend Architecture](frontend-architecture.md), Timer 요구사항은 [Timer](../02-requirements/features/timer.md), V2.2 Growth metric과 API proposal은 [Growth Metrics](../01-domain/growth-metrics.md)와 [Growth Architecture](growth-architecture.md)가 Source of Truth다. 이 문서가 기능·API 계약을 다시 정의하지 않는다.
 
@@ -563,14 +564,14 @@ Mockup 생성, 선택, 수정, target 승인과 code implementation은 별도 ga
 - Goal/scope: focus stage, scramble/context, result/recovery action과 recent performance rail
 - Main files: `TimerPage.jsx`, presentation components, `timer.css`, existing Timer tests
 - Dependency: PR 1~2, Timer Desktop Target approved, Timer Mobile Portrait Target approved, Timer Mobile Landscape Target approved, Current Baseline Screenshot capture
-- Functional boundary: Timer Core, canonical time, provenance, pending solve, Retry/Discard, scramble, Record/PB/Ao 계약 변경 없음
+- Functional boundary: Timer Core, canonical time, provenance, pending solve, Retry/Discard, scramble, Record/Ao 계약 변경 없음. Timer PB display를 추가하지 않는다.
 - Visual acceptance: digits 안정성, 상태를 text+accent로 구분, portrait/landscape/desktop hierarchy와 running distraction 제거
 - Tests/manual: current Timer focused tests 전체, keyboard/touch/device viewport, pending/error/next-scramble screenshot
 - Risk/rollback: event propagation과 state presentation drift가 높다. core 파일은 수정하지 않고 presentation commit을 revert한다.
 
 ### PR 4 — Home action hierarchy
 
-- Goal/scope: Continue Practice 중심 Home, compact performance/activity preview와 secondary Community feed
+- Goal/scope: Continue Practice 중심 Home, current summary와 recent Record preview, Guest의 current Community feed
 - Main files: `HomePage.jsx`, `home.css`, shared summary/list component와 tests
 - Dependency: PR 1~2, Timer route 유지, Home Desktop Target approved, Home Mobile Target approved
 - Functional boundary: current API call과 guest/auth 분기 유지
