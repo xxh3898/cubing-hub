@@ -2,7 +2,7 @@
 doc_type: requirement
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -11,6 +11,8 @@ related:
   - docs/01-domain/solve-model.md
   - docs/02-requirements/features/authentication.md
   - docs/02-requirements/features/timer.md
+  - docs/02-requirements/features/growth.md
+  - docs/01-domain/growth-metrics.md
 ---
 # Profile
 
@@ -22,12 +24,12 @@ related:
 
 - profile, 주 종목, 요약 통계 조회
 - 전체 Record history와 pagination
-- client에서 선택 event의 최근 기록 추세와 PB 표시
+- all-event 첫 page를 받은 뒤 client에서 선택 event의 최근 raw 기록 추세와 PB 표시
 - nickname과 주 종목 변경
 - 현재 비밀번호 확인 후 비밀번호 변경
 - Record penalty 수정과 삭제
 
-현재 summary의 average 의미와 event별 성장 지표는 V2.2에서 별도 제품 결정을 거쳐야 한다.
+현재 summary의 `averageTimeMs`는 all-event, all-time arithmetic mean이고 DNF를 제외한다. UI의 `전체 평균`은 population과 event가 충분히 드러나지 않으므로 V2.2 canonical Growth metric으로 재사용하지 않는다.
 
 ## 요구사항
 
@@ -54,3 +56,23 @@ related:
 - `occurred_at` 기반 chronology
 
 Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-product/roadmap.md)의 V2.2에서 검증한다.
+
+## V2.2 Profile Proposal
+
+[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 current 구현이 아니다.
+
+### My Growth
+
+- authenticated owner만 current performance, trend, PB progression, activity와 Record history를 본다.
+- `/mypage`를 새 top-level route 없이 My Growth dashboard로 확장한다.
+- Account 관리와 Record penalty/delete는 current 기능을 유지한다.
+- Full Record history를 client metric 계산용으로 전송하지 않고 private Growth aggregate API를 사용한다.
+
+### Public Profile
+
+- V2.2 MVP에서 신규 public Profile route/API를 만들지 않는다.
+- Existing Ranking의 nickname과 event PB 공개 범위만 유지한다.
+- Practice count, first/latest activity, detailed trend, DNF/+2와 consistency를 공개하지 않는다.
+- 따라서 V2.2 문제 해결을 위해 full visibility setting system을 선구현하지 않는다.
+
+Public Profile이 future scope로 승인되면 stable user identifier, opt-in/visibility, deleted/blocked user와 activity privacy를 먼저 결정한다.
