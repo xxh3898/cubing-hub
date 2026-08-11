@@ -276,10 +276,10 @@ Information hierarchy는 `scramble context → Timer stage/state → stopped res
 
 | Target | Approval state | Repository state |
 | --- | --- | --- |
-| Timer Desktop Normal | Approved visual anchor | approved externally / pending repository import |
-| Timer Desktop Focus | Approved visual anchor | approved externally / pending repository import |
-| Timer Mobile Portrait | Approved visual anchor | approved externally / pending repository import |
-| Timer Mobile Landscape Focus | Approved visual anchor | approved externally / pending repository import |
+| Timer Desktop Normal | Approved visual target | `docs/assets/ui-targets/timer/desktop.png` |
+| Timer Desktop Focus | Approved visual target | `docs/assets/ui-targets/timer/desktop-focus.png` |
+| Timer Mobile Portrait | Approved visual target | `docs/assets/ui-targets/timer/mobile-portrait.png` |
+| Timer Mobile Landscape Focus | Approved visual target | `docs/assets/ui-targets/timer/mobile-landscape.png` |
 
 네 target binary는 현재 repository에 없다. 파일이 있다고 가정하거나 비슷한 이미지를 임의로 재생성하지 않는다. correction이 필요하면 기존 승인 이미지를 입력 reference로 제공받고 별도 승인 뒤 수정한다.
 
@@ -1086,14 +1086,8 @@ docs/assets/ui-targets/
 │  ├─ desktop.png
 │  └─ mobile.png
 ├─ community/
-│  ├─ list/
-│  │  ├─ desktop.png
-│  │  └─ mobile.png
-│  ├─ detail/
-│  │  ├─ desktop.png
-│  │  └─ mobile.png
-│  └─ write/
-│     └─ desktop.png
+│  ├─ list-desktop.png
+│  └─ detail-desktop.png
 ├─ qna/
 │  ├─ list/
 │  │  └─ desktop.png
@@ -1121,6 +1115,19 @@ docs/assets/ui-targets/
    ├─ feedback-detail-desktop.png
    └─ mobile.png
 ```
+
+### Imported approved targets
+
+| Screen | Desktop target | Mobile target | Classification |
+| --- | --- | --- | --- |
+| Home | `docs/assets/ui-targets/home/desktop.png` | `docs/assets/ui-targets/home/mobile.png` | CURRENT |
+| Timer | `docs/assets/ui-targets/timer/desktop.png`, `desktop-focus.png` | `mobile-portrait.png`, `mobile-landscape.png` | CURRENT + REDESIGN-APPROVED |
+| Rankings | `docs/assets/ui-targets/rankings/desktop.png` | `docs/assets/ui-targets/rankings/mobile.png` | CURRENT |
+| MyPage Records | `docs/assets/ui-targets/mypage/desktop.png` | `docs/assets/ui-targets/mypage/mobile.png` | CURRENT |
+| My Growth | `docs/assets/ui-targets/growth/desktop.png` | `docs/assets/ui-targets/growth/mobile.png` | V2.2 TARGET |
+| Community | `docs/assets/ui-targets/community/list-desktop.png`, `detail-desktop.png` | 아직 없음 | CURRENT |
+
+My Growth target은 V2.2 API, route, test가 구현되기 전에는 current UI implementation을 승인하지 않는다.
 
 PNG를 사용해 text와 edge fidelity를 우선한다. 기본 파일명은 `desktop.png`, `mobile.png`처럼 역할이 고정된 이름을 사용하고 variant가 실제 승인 target으로 분리된 경우에만 `desktop-focus.png`처럼 stable state suffix를 쓴다.
 

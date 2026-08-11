@@ -95,7 +95,7 @@ export default function QnaPage() {
         <div className="qna-header-copy">
           <p className="eyebrow">Public Q&A</p>
           <h2>공개 질문과 답변</h2>
-          <p className="helper-text">큐빙허브에 들어온 질문 중 함께 보면 좋은 답변을 모았습니다.</p>
+          <p className="helper-text">Cubing Hub에 들어온 질문 중 함께 보면 좋은 답변을 모았습니다.</p>
         </div>
         <div className="qna-header-summary" aria-label="Q&A 요약">
           <span className="qna-summary-pill">

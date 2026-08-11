@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import {
   BookOpen,
   CircleHelp,
+  Compass,
   Home,
   LoaderCircle,
   MessageCircle,
@@ -13,6 +14,7 @@ import {
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import { useAuth } from './context/useAuth.js'
+import { FocusModeProvider, useFocusMode } from './context/FocusModeContext.jsx'
 
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'))
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
@@ -131,26 +133,32 @@ function AdminRoute({ children }) {
 
 function AppLayout() {
   const { currentUser, hasAuthToken, isAuthLoading } = useAuth()
+  const { isFocusMode } = useFocusMode()
+  const location = useLocation()
   const accountLabel = isAuthLoading ? '계정 확인 중' : (currentUser?.nickname ?? '로그인')
   const isAdmin = currentUser?.role === 'ROLE_ADMIN'
   const accountPath = hasAuthToken ? '/mypage' : '/login'
   const primaryNavItems = [
     { to: '/', label: '홈', icon: Home },
     { to: '/timer', label: '타이머', icon: Timer },
+    { to: '/mypage', label: '마이페이지', icon: UserCircle },
     { to: '/rankings', label: '랭킹', icon: Trophy },
+  ]
+  const exploreItems = [
     { to: '/learning', label: '학습', icon: BookOpen },
     { to: '/community', label: '커뮤니티', icon: MessageCircle },
     { to: '/qna', label: 'Q&A', icon: CircleHelp },
   ]
-  const mobileTabItems = primaryNavItems.slice(0, 5)
+  const mobileTabItems = primaryNavItems
+  const isExploreActive = exploreItems.some((item) => location.pathname.startsWith(item.to))
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isFocusMode ? ' is-focus-mode' : ''}`}>
       <header className="app-topbar">
         <div className="app-nav-inner">
-          <NavLink className="brand-link" to="/" aria-label="CubingHub 홈">
+          <NavLink className="brand-link" to="/" aria-label="Cubing Hub 홈">
             <img className="brand-logo" src="/CUBINGHUB.png" alt="" aria-hidden="true" />
-            <span>CubingHub</span>
+            <span>Cubing Hub</span>
           </NavLink>
 
           <nav className="topnav desktop-nav" aria-label="Primary">
@@ -164,12 +172,27 @@ function AppLayout() {
                 </NavLink>
               )
             })}
+            <details className={`explore-menu${isExploreActive ? ' is-active' : ''}`}>
+              <summary>
+                <Compass size={16} aria-hidden="true" />
+                <span>탐색</span>
+              </summary>
+              <div className="explore-menu-popover">
+                {exploreItems.map((item) => {
+                  const Icon = item.icon
+
+                  return (
+                    <NavLink key={item.to} to={item.to}>
+                      <Icon size={16} aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  )
+                })}
+              </div>
+            </details>
           </nav>
 
           <div className="topbar-meta">
-            <NavLink className="utility-link mobile-only-link" to="/qna">
-              Q&A
-            </NavLink>
             {isAdmin ? (
               <NavLink className="utility-link" to="/admin">
                 <Shield size={16} aria-hidden="true" />
@@ -276,7 +299,7 @@ function AppLayout() {
 
       <footer className="app-footer">
         <div>
-          <p className="app-footer-brand">CubingHub</p>
+          <p className="app-footer-brand">Cubing Hub</p>
         </div>
         <nav className="app-footer-links" aria-label="Footer">
           <NavLink to="/community">공지사항</NavLink>
@@ -285,7 +308,7 @@ function AppLayout() {
             개발자 피드백
           </NavLink>
         </nav>
-        <p className="app-footer-copy">© 2026 CubingHub. All rights reserved.</p>
+        <p className="app-footer-copy">© 2026 Cubing Hub. All rights reserved.</p>
       </footer>
 
       <nav className="mobile-tabbar" aria-label="Mobile primary">
@@ -299,6 +322,24 @@ function AppLayout() {
             </NavLink>
           )
         })}
+        <details className={`mobile-more-menu${isExploreActive ? ' is-active' : ''}`}>
+          <summary>
+            <Compass size={20} aria-hidden="true" />
+            <span>더보기</span>
+          </summary>
+          <div className="mobile-more-sheet">
+            {exploreItems.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <NavLink key={item.to} to={item.to}>
+                  <Icon size={18} aria-hidden="true" />
+                  <span>{item.label}</span>
+                </NavLink>
+              )
+            })}
+          </div>
+        </details>
       </nav>
 
       <ToastContainer
@@ -319,5 +360,9 @@ function AppLayout() {
 }
 
 export default function App() {
-  return <AppLayout />
+  return (
+    <FocusModeProvider>
+      <AppLayout />
+    </FocusModeProvider>
+  )
 }

@@ -97,12 +97,12 @@ describe('App auth routes', () => {
 
     renderApp('/login')
 
-    expect(screen.getByRole('link', { name: 'CubingHub 홈' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Cubing Hub 홈' })).toHaveAttribute('href', '/')
 
     const primaryNavigation = screen.getByRole('navigation', { name: 'Primary' })
 
     expect(within(primaryNavigation).getByRole('link', { name: '타이머' })).toHaveAttribute('href', '/timer')
-    expect(within(primaryNavigation).getByRole('link', { name: '커뮤니티' })).toHaveAttribute('href', '/community')
+    expect(within(primaryNavigation).getByText('탐색')).toBeInTheDocument()
   })
 
   it('should_render_reset_password_page_for_public_route', async () => {

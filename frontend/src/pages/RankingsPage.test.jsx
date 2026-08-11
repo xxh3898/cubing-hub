@@ -91,7 +91,7 @@ describe('RankingsPage', () => {
     expect(document.querySelector('.rankings-podium-card.rank-3')).not.toBeNull()
   })
 
-  it('should_render_fallback_initial_when_podium_nickname_is_missing', async () => {
+  it('should_not_render_avatar_presentation_when_podium_nickname_is_missing', async () => {
     vi.mocked(getRankings).mockResolvedValue(
       createRankingPageResponse({
         items: [
@@ -105,8 +105,8 @@ describe('RankingsPage', () => {
     render(<RankingsPage />)
 
     expect(await screen.findByLabelText('상위 3위 랭킹')).toBeInTheDocument()
-    expect(document.querySelector('.rankings-podium-card.rank-1 .rankings-avatar')).toHaveTextContent('?')
-    expect(document.querySelector('.rankings-podium-card.rank-2 .rankings-avatar')).toHaveTextContent('?')
+    expect(document.querySelector('.rankings-podium-card.rank-1 .rankings-avatar')).toBeNull()
+    expect(document.querySelector('.rankings-podium-card.rank-2 .rankings-avatar')).toBeNull()
   })
 
   it('should_render_my_ranking_card_when_authenticated_response_contains_my_ranking', async () => {

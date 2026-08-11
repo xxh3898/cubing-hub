@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-status: draft
+status: active
 created: 2026-08-11
 updated: 2026-08-11
 owner: xxh3898
@@ -31,9 +31,9 @@ Current implementation 설명은 [Frontend Architecture](frontend-architecture.m
 
 ## Design System decision timing
 
-현재 Design Gate는 semantic foundation을 정한다. Measured Momentum, warm neutral canvas, deep green primary, amber PB accent, light-first, Timer dark focus stage, accessibility invariant와 semantic token은 이 단계에서 유지한다.
+Approved Target Mockup은 semantic foundation과 implementation-ready visual detail을 함께 정한다. Measured Momentum, warm neutral canvas, deep green primary, amber PB accent, light-first, Timer dark focus stage, accessibility invariant와 semantic token은 이 단계에서 유지한다.
 
-Approved Target Mockup 뒤에는 implementation-ready visual detail을 확정한다. mockup은 visual reference일 뿐이며 functional contract나 accessibility contract를 바꾸지 않는다.
+mockup은 visual reference일 뿐이며 functional contract나 accessibility contract를 바꾸지 않는다.
 
 | Decision layer | 확정 범위 |
 | --- | --- |

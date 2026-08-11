@@ -83,7 +83,7 @@ function GuestLanding() {
     <div className="home-guest-panel">
       <div className="section-heading">
         <div>
-          <h3>큐빙 허브 시작하기</h3>
+          <h3>Cubing Hub 시작하기</h3>
           <p className="helper-text">로그인하면 기록 요약, 최근 솔브, 커뮤니티 활동을 한 화면에서 바로 확인할 수 있습니다.</p>
         </div>
       </div>

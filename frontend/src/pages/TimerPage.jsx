@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Box, Gauge, Trash2 } from 'lucide-react'
+import { Activity, Box, Eye, EyeOff, Focus, Gauge, Trash2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { deleteRecord, getMyRecords, getScramble, saveRecord, updateRecordPenalty } from '../api.js'
 import { eventOptions, isPracticeEventSupported } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
+import { useFocusMode } from '../context/FocusModeContext.jsx'
 import { useCubeTimer } from '../hooks/useCubeTimer.js'
 import {
   clearPendingTimerSolve,
@@ -198,12 +199,14 @@ function buildStoppedSolveSnapshot({ eventType, timeMs, scramble, inputMethod, u
 
 export default function TimerPage() {
   const { currentUser, isAuthenticated } = useAuth()
+  const { isFocusMode, setIsFocusMode } = useFocusMode()
   const authenticatedUserId = getAuthenticatedUserId(currentUser)
   const [selectedEvent, setSelectedEvent] = useState('WCA_333')
   const [scrambleData, setScrambleData] = useState(null)
   const [scrambleMessage, setScrambleMessage] = useState(null)
   const [isLoadingScramble, setIsLoadingScramble] = useState(false)
   const [hasScrambleVisualError, setHasScrambleVisualError] = useState(false)
+  const [isScrambleVisualVisible, setIsScrambleVisualVisible] = useState(false)
   const [saveNotice, setSaveNotice] = useState(null)
   const [recentSavedRecords, setRecentSavedRecords] = useState([])
   const [recentStatsRecords, setRecentStatsRecords] = useState([])
@@ -717,9 +720,11 @@ export default function TimerPage() {
   )
   const isEventSelectionLocked = Boolean(stoppedSolveSnapshot || canDiscardCorruptPendingSolve)
 
+  useEffect(() => () => setIsFocusMode(false), [setIsFocusMode])
+
   return (
     <section className="page-grid timer-page">
-      <div className="panel timer-layout">
+      <div className={`panel timer-layout${isFocusMode ? ' is-focus-mode' : ''}`}>
         <div className="timer-scramble-panel timer-scramble-full">
           <div className="timer-scramble-content">
             <div className="timer-scramble-copy">
@@ -736,7 +741,18 @@ export default function TimerPage() {
                 <p className="helper-text timer-visual-fallback">스크램블 이미지를 불러오지 못해 텍스트만 표시합니다.</p>
               ) : null}
             </div>
-            {scrambleVisualUrl && !hasScrambleVisualError ? (
+            {!isFocusMode && scrambleVisualUrl ? (
+              <button
+                className="quiet-button timer-visual-toggle"
+                type="button"
+                onClick={() => setIsScrambleVisualVisible((current) => !current)}
+                aria-pressed={isScrambleVisualVisible}
+              >
+                {isScrambleVisualVisible ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                {isScrambleVisualVisible ? '큐브 숨기기' : '큐브 보기'}
+              </button>
+            ) : null}
+            {isScrambleVisualVisible && scrambleVisualUrl && !hasScrambleVisualError ? (
               <div className="timer-scramble-visual">
                 <img
                   src={scrambleVisualUrl}
@@ -749,7 +765,7 @@ export default function TimerPage() {
         </div>
 
         <section className="timer-main">
-          <div className="timer-toolbar">
+          {!isFocusMode ? <div className="timer-toolbar">
             <div className="field timer-event-field">
               <label htmlFor="event-type">종목</label>
               <select id="event-type" value={selectedEvent} onChange={handleEventChange} disabled={isEventSelectionLocked}>
@@ -760,7 +776,7 @@ export default function TimerPage() {
                 ))}
               </select>
             </div>
-          </div>
+          </div> : null}
 
           <div
             className={`timer-display timer-focus-display timer-touch-surface is-${status}`}
@@ -793,9 +809,19 @@ export default function TimerPage() {
                 </button>
               </div>
             ) : null}
+            {isFocusMode ? (
+              <button className="timer-focus-exit" type="button" onClick={() => setIsFocusMode(false)}>
+                집중 모드 종료
+              </button>
+            ) : null}
           </div>
 
-          <section className="timer-recent-panel">
+          {!isFocusMode ? <button className="quiet-button timer-focus-entry" type="button" onClick={() => setIsFocusMode(true)}>
+            <Focus size={16} aria-hidden="true" />
+            집중 모드
+          </button> : null}
+
+          {!isFocusMode ? <section className="timer-recent-panel">
             <div className="section-heading timer-recent-heading">
               <div>
                 <h3>최근 기록</h3>
@@ -871,7 +897,7 @@ export default function TimerPage() {
                 ))}
               </div>
             )}
-          </section>
+          </section> : null}
 
           {scrambleMessage ? <p className={`message ${scrambleMessage.type}`}>{scrambleMessage.text}</p> : null}
         </section>

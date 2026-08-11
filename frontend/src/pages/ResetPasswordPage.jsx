@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
   return (
     <section className="page-grid auth-page">
       <div className="auth-shell">
-        <aside className="auth-brand-panel" aria-label="CubingHub 비밀번호 재설정 안내">
+        <aside className="auth-brand-panel" aria-label="Cubing Hub 비밀번호 재설정 안내">
           <div className="auth-brand-mark" aria-hidden="true">
             <img src="/CUBINGHUB.png" alt="" />
           </div>

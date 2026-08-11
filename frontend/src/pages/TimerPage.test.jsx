@@ -232,6 +232,8 @@ describe('TimerPage', () => {
 
     render(<TimerPage />)
 
+    expect(screen.queryByRole('img', { name: '현재 스크램블 시각화' })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: '큐브 보기' }))
     const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
 
     expect(scrambleVisual).toHaveAttribute('src', expect.stringContaining('alg=R+U+R%27+U%27'))
@@ -991,6 +993,7 @@ describe('TimerPage', () => {
 
     render(<TimerPage />)
 
+    fireEvent.click(await screen.findByRole('button', { name: '큐브 보기' }))
     const scrambleVisual = await screen.findByRole('img', { name: '현재 스크램블 시각화' })
     fireEvent.error(scrambleVisual)
 

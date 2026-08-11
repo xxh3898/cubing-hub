@@ -64,12 +64,12 @@ export default function LoginPage() {
   return (
     <section className="page-grid auth-page">
       <div className="auth-shell">
-        <aside className="auth-brand-panel" aria-label="CubingHub 인증 안내">
+        <aside className="auth-brand-panel" aria-label="Cubing Hub 인증 안내">
           <div className="auth-brand-mark" aria-hidden="true">
             <img src="/CUBINGHUB.png" alt="" />
           </div>
           <div className="auth-brand-copy">
-            <p className="eyebrow">CubingHub</p>
+            <p className="eyebrow">Cubing Hub</p>
             <h2>오늘 기록을 바로 이어가세요.</h2>
             <p className="helper-text">타이머, 랭킹, 커뮤니티 활동을 하나의 계정으로 연결합니다.</p>
           </div>

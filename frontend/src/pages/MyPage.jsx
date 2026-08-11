@@ -506,9 +506,9 @@ export default function MyPage() {
   return (
     <section className="page-grid mypage">
       <div className="mypage-page-header">
-        <p className="eyebrow">My Page</p>
-        <h2>마이페이지</h2>
-        <p className="helper-text">나의 큐빙 기록과 성장을 확인하세요.</p>
+        <p className="eyebrow">내 기록</p>
+        <h2>기록 관리</h2>
+        <p className="helper-text">저장된 기록을 확인하고 페널티를 바로잡을 수 있습니다.</p>
       </div>
 
       <div className="panel mypage-profile-panel">

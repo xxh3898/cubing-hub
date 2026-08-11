@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Medal, Search, Timer, Trophy, UserRound } from 'lucide-react'
+import { Medal, Search, Trophy, UserRound } from 'lucide-react'
 import { getRankings } from '../api.js'
 import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS } from '../constants/inputLimits.js'
@@ -10,18 +10,6 @@ import { formatTimeMs } from '../utils/formatTime.js'
 
 const PAGE_SIZE = 25
 const PODIUM_ORDER = [1, 0, 2]
-
-function getInitial(nickname) {
-  return nickname?.trim()?.charAt(0)?.toUpperCase() || '?'
-}
-
-function RankingAvatar({ nickname }) {
-  return (
-    <span className="rankings-avatar" aria-hidden="true">
-      {getInitial(nickname)}
-    </span>
-  )
-}
 
 function RankingPodium({ items }) {
   if (items.length === 0) {
@@ -40,7 +28,6 @@ function RankingPodium({ items }) {
           className={`rankings-podium-card rank-${item.rank}`}
         >
           <span className="rankings-podium-badge">{item.rank}</span>
-          <RankingAvatar nickname={item.nickname} />
           <strong className="rankings-podium-name">{item.nickname}</strong>
           <span className="rankings-podium-time">{formatTimeMs(item.timeMs)}</span>
         </article>
@@ -225,15 +212,13 @@ export default function RankingsPage() {
                 <colgroup>
                   <col className="rankings-col-rank" />
                   <col className="rankings-col-nickname" />
-                  <col className="rankings-col-event" />
                   <col className="rankings-col-time" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th>순위</th>
                     <th>닉네임</th>
-                    <th>종목</th>
-                    <th>기록</th>
+                    <th>PB</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,13 +239,7 @@ export default function RankingsPage() {
                             <span>{item.nickname}</span>
                           </span>
                         </td>
-                        <td data-label="종목" className="rankings-row-event">
-                          <span className="rankings-cell-inline">
-                            <Timer size={15} aria-hidden="true" />
-                            <span>{findEventOption(item.eventType)?.label ?? item.eventType}</span>
-                          </span>
-                        </td>
-                        <td data-label="기록" className="record-table-cell-primary rankings-row-time">{formatTimeMs(item.timeMs)}</td>
+                        <td data-label="PB" className="record-table-cell-primary rankings-row-time">{formatTimeMs(item.timeMs)}</td>
                       </tr>
                     )
                   })}

@@ -1,6 +1,6 @@
 ---
 doc_type: product
-status: draft
+status: active
 created: 2026-08-11
 updated: 2026-08-11
 owner: xxh3898
@@ -23,7 +23,7 @@ related:
 
 ## Status
 
-이 문서는 Cubing Hub UI/UX redesign의 Design Gate proposal이다. 제품 기능, Timer·Record 계약과 V2.2 Growth metric을 변경하지 않는다. visual direction, Target Mockup과 screen hierarchy가 승인되기 전에는 구현 계약으로 사용하지 않는다. 화면별 capability와 image-generation input은 [UI Mockup Screen Contract](ui-mockup-contract.md)를 따른다.
+이 문서는 Cubing Hub UI/UX redesign의 Design Gate다. 제품 기능, Timer·Record 계약과 V2.2 Growth metric을 변경하지 않는다. Approved Target Mockup이 정한 visual hierarchy와 responsive intent를 구현에 사용한다. 화면별 capability와 image-generation input은 [UI Mockup Screen Contract](ui-mockup-contract.md)를 따른다.
 
 Cubing Hub는 generic dashboard가 아니라 다음 경험을 연결하는 큐빙 활동 제품이다.
 

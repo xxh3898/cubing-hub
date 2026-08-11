@@ -123,12 +123,12 @@ export default function SignupPage() {
   return (
     <section className="page-grid auth-page auth-page-wide">
       <div className="auth-shell auth-shell-wide">
-        <aside className="auth-brand-panel" aria-label="CubingHub 회원가입 안내">
+        <aside className="auth-brand-panel" aria-label="Cubing Hub 회원가입 안내">
           <div className="auth-brand-mark" aria-hidden="true">
             <img src="/CUBINGHUB.png" alt="" />
           </div>
           <div className="auth-brand-copy">
-            <p className="eyebrow">CubingHub</p>
+            <p className="eyebrow">Cubing Hub</p>
             <h2>첫 PB부터 성장 그래프까지 한곳에서 관리하세요.</h2>
             <p className="helper-text">이메일 인증 후 바로 타이머와 랭킹 기록을 연결할 수 있습니다.</p>
           </div>
