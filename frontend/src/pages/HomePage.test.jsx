@@ -63,7 +63,7 @@ describe('HomePage', () => {
     renderHomePage()
 
     expect(screen.getByText('홈 화면을 불러오는 중입니다.')).toBeInTheDocument()
-    expect(await screen.findByText('큐빙 허브 시작하기')).toBeInTheDocument()
+    expect(await screen.findByText('Cubing Hub 시작하기')).toBeInTheDocument()
     expect(screen.getByText('최신 글')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '로그인' })).toBeInTheDocument()
   })
@@ -164,7 +164,7 @@ describe('HomePage', () => {
     await waitFor(() => {
       expect(getHome).toHaveBeenCalledTimes(2)
     })
-    expect(await screen.findByText('큐빙 허브 시작하기')).toBeInTheDocument()
+    expect(await screen.findByText('Cubing Hub 시작하기')).toBeInTheDocument()
   })
 
   it('should_skip_home_request_when_auth_state_is_still_loading', () => {
@@ -291,7 +291,7 @@ describe('HomePage', () => {
 
     renderHomePage()
 
-    expect(await screen.findByText('큐빙 허브 시작하기')).toBeInTheDocument()
+    expect(await screen.findByText('Cubing Hub 시작하기')).toBeInTheDocument()
     expect(screen.getByText('아직 게시글이 없습니다. 첫 글을 남겨보세요.')).toBeInTheDocument()
   })
 

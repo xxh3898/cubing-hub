@@ -376,7 +376,7 @@ describe('RankingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
     expect(await screen.findByText('Normalized')).toBeInTheDocument()
-    expect(screen.getByText('CLOCK')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'PB' })).toBeInTheDocument()
   })
 
   it('should_fallback_to_pagination_flags_when_server_omits_has_previous_and_has_next', async () => {
