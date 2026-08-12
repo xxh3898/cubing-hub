@@ -9,6 +9,8 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -342,6 +344,9 @@ public class GrowthReadRepository {
         }
         if (value instanceof java.util.Date date) {
             return date.toInstant();
+        }
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime.toInstant(ZoneOffset.UTC);
         }
         throw new IllegalStateException("Growth query가 timestamp 값을 반환하지 않았습니다.");
     }

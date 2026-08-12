@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -16,6 +17,7 @@ import org.springframework.test.context.TestPropertySource;
 
 /** 실제 HTTP preflight 요청 기준으로 CORS 허용 정책을 검증한다. */
 @DisplayName("Security CORS 통합 테스트")
+@AutoConfigureTestRestTemplate
 @TestPropertySource(properties = "cors.allowed-origins=https://cubing-hub.com,https://www.cubing-hub.com")
 class SecurityCorsIntegrationTest extends HttpIntegrationTest {
 
