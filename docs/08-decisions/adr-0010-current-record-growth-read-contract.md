@@ -1,8 +1,8 @@
 ---
 doc_type: adr
-status: proposed
+status: accepted
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -60,9 +60,9 @@ Current canonical Record를 요청 시 계산하고, summary·trend·PB progress
 - 단점: PB progression은 user/event 전체 history O(N) scan일 수 있다.
 - 단점: 과거에 보았던 PB snapshot을 복원하지 않는다.
 
-## Decision proposal
+## Decision
 
-Option C를 V2.2 proposal로 둔다. ADR-0010은 `proposed`이며 accepted contract가 아니다.
+Option C를 V2.2 Growth read contract로 채택한다.
 
 1. Growth의 canonical population은 요청 event의 current retained completed Practice Record다.
 2. `NONE`은 raw time, `PLUS_TWO`는 raw + 2,000ms, `DNF`는 non-numeric result다. DNF는 일반 median/percentile에서 제외하고 count/rate로 보존한다. Ao5/Ao12는 V2.1의 별도 trim rule을 유지한다.
@@ -74,6 +74,12 @@ Option C를 V2.2 proposal로 둔다. ADR-0010은 `proposed`이며 accepted contr
 8. Event dimension은 유지하되 current public Growth capability는 WCA_333만 허용한다. Unsupported known event에 fake empty Growth를 제공하지 않는다.
 
 세부 metric formula는 [Growth Metrics](../01-domain/growth-metrics.md), endpoint와 query proposal은 [Growth Architecture](../03-architecture/growth-architecture.md)가 관리한다.
+
+## Implementation status
+
+PR A는 current Record projection을 입력으로 받는 pure metric calculator와 canonical fixture를 구현한다. effective result, Ao5/Ao12, median, period comparison, IQR, PB progression과 Asia/Seoul time window는 해당 calculator가 기준이다.
+
+Dedicated read API, repository projection, MySQL 8 aggregate/window query와 My Growth frontend는 후속 PR에서 구현한다. 이 ADR의 accepted status는 API와 UI의 구현 완료를 뜻하지 않는다.
 
 ## Consequences
 
@@ -96,13 +102,12 @@ Option C를 V2.2 proposal로 둔다. ADR-0010은 `proposed`이며 accepted contr
 
 ### Required follow-up
 
-- 구현 전에 ADR-0010과 MUST metric proposal을 accepted contract로 확정한다.
-- Backend calculator fixture에서 DNF/+2/Ao/median/IQR/time boundary를 고정한다.
+- Backend calculator fixture에서 DNF/+2/Ao/median/IQR/time boundary를 유지한다.
 - MySQL 8 integration test와 10,000-record `EXPLAIN ANALYZE` evidence를 남긴다.
 - UI에 `현재 남아 있는 기록 기준`, `기록된 활동`, `Asia/Seoul`, sample count를 필요한 위치에 표시한다.
 - Public Profile, immutable audit, user timezone 또는 measured pre-aggregation 필요가 생기면 각각 별도 product/architecture decision을 연다.
 
-## Rejected as part of this proposal
+## Rejected alternatives
 
 - current `averageTimeMs`를 이름만 바꿔 canonical Growth metric으로 재사용
 - DNF를 arbitrary worst millisecond나 infinity로 바꿔 일반 mean에 포함
