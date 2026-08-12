@@ -2,7 +2,7 @@
 doc_type: architecture
 status: draft
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. endpoint, Java type, SQL, schema가 current 구현이라는 뜻이 아니다. 구현 시 exact request·response는 Spring REST Docs test가 Source of Truth가 된다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator 외 endpoint, repository projection, SQL, schema는 아직 구현하지 않았다. exact request·response는 구현 시 Spring REST Docs test가 Source of Truth가 된다.
 
 ```text
 Current
@@ -30,9 +30,10 @@ Current
 - MySQL records·user_pbs Source of Truth
 - WCA_333 event-filtered history와 stable ordering
 - Timer client의 recent Ao5/Ao12
+- current Record projection을 받는 pure Growth metric calculator
 - Redis ranking read model
 
-V2.2 proposal
+Next implementation
 - private server-side Growth read API
 - bounded summary와 30-day series
 - current Record 기반 paginated PB progression
@@ -594,8 +595,9 @@ Build와 CI success는 production request 성공을 뜻하지 않는다. main me
 
 ### PR A — Growth contract와 calculator
 
+- status: implemented
 - scope: accepted metric/ADR 반영, backend pure calculator와 fixture, no endpoint
-- dependency: ADR-0010과 MUST metric proposal acceptance
+- dependency: ADR-0010과 MUST metric contract acceptance
 - acceptance: DNF/+2/Ao/median/IQR/time-window contract가 executable test와 일치
 - tests: focused domain unit tests
 - rollback risk: production behavior 없음, 새 internal code 제거 가능

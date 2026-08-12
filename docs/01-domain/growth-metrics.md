@@ -1,8 +1,8 @@
 ---
 doc_type: domain
-status: draft
+status: active
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -17,16 +17,19 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth metric contract는 `draft`다. 아래 `MUST`, `SHOULD`, `NOT NOW`는 V2.2 proposal이며 current 구현이나 accepted contract를 뜻하지 않는다.
+V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
+
+Read API, MySQL aggregate/window query, My Growth UI와 release는 아직 구현하지 않았다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
 
 ```text
 Current
 - V2.1 Record, current PB projection, event history, Timer Ao5/Ao12
+- Growth pure calculator와 canonical unit fixture
 
-V2.2 proposal
-- event별 private My Growth metric
-- current canonical Record 기준 재계산
-- 명명된 population과 시간 경계
+Next implementation
+- event별 private My Growth read API
+- current canonical Record 기준 aggregate query
+- My Growth dashboard
 
 Future candidate
 - best Ao progression, pre-aggregation, user timezone
