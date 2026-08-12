@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -34,7 +34,7 @@ dev → main PR
 → Validate before merge
 ```
 
-- backend: Java 17 test, JaCoCo report, REST Docs, build
+- backend: Java 25 test, JaCoCo report, REST Docs, build
 - frontend: Node.js 20 install, lint, test, build
 - infrastructure: shell·Node mock/config test, Compose·Nginx·Dockerfile 검증
 - image: linux/arm64 verification build

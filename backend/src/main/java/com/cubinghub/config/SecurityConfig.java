@@ -4,7 +4,7 @@ import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.security.JwtAuthenticationFilter;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletResponse;

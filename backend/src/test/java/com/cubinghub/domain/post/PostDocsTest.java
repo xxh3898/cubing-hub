@@ -13,12 +13,12 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -61,7 +61,7 @@ class PostDocsTest extends RestDocsIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
-    @MockBean
+    @MockitoBean
     private PostImageStorageService postImageStorageService;
 
     private User authorUser;

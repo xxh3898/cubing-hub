@@ -27,7 +27,7 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

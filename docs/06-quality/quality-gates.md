@@ -2,7 +2,7 @@
 doc_type: quality
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -26,7 +26,7 @@ changed path classifier가 backend, frontend, infrastructure, API image, Web ima
 
 ## Backend gate
 
-CI는 Java 17에서 다음을 실행한다.
+CI는 Java 25에서 다음을 실행한다.
 
     SPRING_PROFILES_ACTIVE=test ./gradlew test jacocoTestReport build --no-daemon
 

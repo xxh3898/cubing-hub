@@ -277,12 +277,12 @@ jobs:
         if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Set up Java 17
+      - name: Set up Java 25
         if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true'
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
           cache: gradle
 
       - name: Run backend tests and build

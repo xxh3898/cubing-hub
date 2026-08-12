@@ -8,9 +8,9 @@ import static org.mockito.Mockito.when;
 import com.cubinghub.domain.feedback.entity.Feedback;
 import com.cubinghub.domain.feedback.entity.FeedbackType;
 import com.cubinghub.support.TestFixtures;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -154,7 +154,7 @@ class DiscordFeedbackNotifierTest {
     void should_return_failure_result_when_payload_serialization_fails() throws Exception {
         ObjectMapper failingObjectMapper = mock(ObjectMapper.class);
         when(failingObjectMapper.writeValueAsString(any()))
-                .thenThrow(new JsonProcessingException("boom") {
+                .thenThrow(new JacksonException("boom") {
                 });
         DiscordFeedbackNotifier notifier = new DiscordFeedbackNotifier(failingObjectMapper, FIXED_CLOCK, "https://discord.test/webhook");
 

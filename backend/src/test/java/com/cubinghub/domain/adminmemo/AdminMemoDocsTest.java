@@ -24,7 +24,7 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;

@@ -1,8 +1,8 @@
 package com.cubinghub.domain.feedback.notification;
 
 import com.cubinghub.domain.feedback.entity.Feedback;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -101,7 +101,7 @@ public class DiscordFeedbackNotifier {
 
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Discord webhook payload 직렬화에 실패했습니다.", e);
         }
     }

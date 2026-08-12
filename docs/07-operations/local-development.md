@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -15,7 +15,7 @@ related:
 
 ## Runtime 기준
 
-- backend: Java 17, Gradle wrapper
+- backend: Java 25, Gradle 9.6.1 wrapper
 - frontend: Node.js 20, npm
 - data helper: root docker-compose.yml의 MySQL 8.0, Redis 7.2, Prometheus, Grafana
 - backend local profile: application-local.yaml
