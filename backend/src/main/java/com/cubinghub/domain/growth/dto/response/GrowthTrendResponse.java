@@ -1,6 +1,7 @@
 package com.cubinghub.domain.growth.dto.response;
 
 import com.cubinghub.domain.record.entity.EventType;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +25,7 @@ public record GrowthTrendResponse(
             LocalDate date,
             int recordCount,
             int rankableCount,
+            @JsonInclude(JsonInclude.Include.ALWAYS)
             Integer medianTimeMs,
             int dnfCount,
             int plusTwoCount
