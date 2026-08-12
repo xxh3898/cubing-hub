@@ -9,6 +9,7 @@ tags: []
 related:
   - .github/workflows/validate.yml
   - AGENTS.md
+  - docs/06-quality/mysql-8-4-upgrade-evidence.md
   - homeserver/docs/release-smoke-runbook.md
 ---
 # Quality Gates
@@ -31,6 +32,8 @@ CI는 Java 25에서 다음을 실행한다.
     SPRING_PROFILES_ACTIVE=test ./gradlew test jacocoTestReport build --no-daemon
 
 test, REST Docs generation, JaCoCo report, bootJar build가 연결된다. 현재 build 설정에는 수치형 coverage verification task가 없으므로 과거 100% 기록을 지속 보장되는 gate로 표현하지 않는다.
+
+MySQL integration test는 exact `mysql:8.4.11` image를 사용한다. `SELECT VERSION()`으로 engine patch를 확인하고, 기존 Flyway history, 8.0 logical backup의 8.4·8.0 restore parity, Growth 10,000-record query plan을 검증한다.
 
 ## Frontend gate
 

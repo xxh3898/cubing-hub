@@ -2,7 +2,7 @@ name: cubing-hub
 
 services:
   db:
-    image: mysql:8.0.46
+    image: mysql:8.4.11
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_NAME:?DB_NAME must be set}

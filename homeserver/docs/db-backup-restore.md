@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-10
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -233,8 +233,49 @@ URL은 Git, 문서, 로그에 기록하지 않는다. 상세 계약과 복구 �
 5. 검증용 API를 `ddl-auto=validate`로 시작한다.
 6. 검증 결과를 기록한 뒤에만 운영 복구 여부를 별도로 승인한다.
 
+## MySQL 8.4.11 engine upgrade
+
+Repository runtime target은 MySQL 8.0.46에서 MySQL 8.4.11 LTS로 전환한다. 일반 application deploy worker는 실행 중인 DB image와 candidate runtime config가 다르면 `data-service image drift`로 중단한다. 따라서 main merge만으로 production DB container가 자동 교체되지 않으며, 아래 절차는 별도 production 변경 승인 뒤 수동으로 수행한다.
+
+### Preconditions
+
+- MySQL 8.0.46 instance에 대한 Upgrade Checker와 table check 성공
+- 최신 정상 backup 생성과 manifest·checksum 검증
+- 같은 backup의 fresh MySQL 8.4.11 restore rehearsal 성공
+- 같은 backup의 fresh MySQL 8.0.46 rollback restore rehearsal 성공
+- MySQL 8.4.11 fresh Flyway migration, backend regression, Growth query plan, CI 성공
+- maintenance window와 application write stop 승인
+- current application SHA, runtime config digest, DB volume, rollback target 확인
+
+### Upgrade
+
+1. application write를 중단하고 maintenance 상태를 확인한다.
+2. 운영 backup worker로 pre-upgrade logical backup과 게시글 image snapshot을 만든다.
+3. `SUCCESS`, manifest, dump·image checksum, engine/version, row count를 검증한다.
+4. 별도 fresh MySQL 8.4.11 환경에 backup을 restore하고 schema, FK, index, Flyway history, 핵심 row count를 확인한다.
+5. 기존 MySQL 8.0.46을 정상 종료한다. 운영 Compose와 volume의 exact identity를 다시 확인한다.
+6. 별도 data-service 절차로 exact `mysql:8.4.11` image를 적용한다. 첫 startup의 data dictionary·server upgrade log와 container health를 확인한다.
+7. `SELECT VERSION()`, charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
+8. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
+9. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
+10. 모든 gate가 끝난 뒤에만 write를 재개한다.
+
+### Rollback
+
+다음은 rollback trigger다.
+
+- MySQL 8.4.11 first startup 또는 data dictionary upgrade 실패
+- schema·constraint·row count·PB parity 불일치
+- application DB login, Flyway validation, 핵심 smoke 실패
+- Growth query plan의 구조적 regression
+
+Rollback은 pre-upgrade logical backup을 fresh MySQL 8.0.46 environment에 restore하는 방식으로 수행한다. MySQL 8.4가 한 번이라도 upgrade한 data directory에 MySQL 8.0.46 image를 다시 연결하지 않는다. Fresh 8.0.46에서 schema, row count, image reference, application smoke를 확인한 뒤 exact 이전 application/runtime pair를 복구한다.
+
+Production upgrade와 rollback의 실제 command, secret, 운영 path 확인은 변경 시점의 별도 승인 범위에서 작성한다. Repository merge나 이 runbook만으로 production data 변경을 승인하지 않는다.
+
 ## 금지 사항
 
 - `docker compose down -v`를 backup이나 rollback 명령으로 사용하지 않는다.
 - 검증하지 않은 dump를 운영 volume에 바로 복구하지 않는다.
+- MySQL 8.4가 upgrade한 data directory를 MySQL 8.0 image로 시작하지 않는다.
 - secret, DB password, 실제 token을 manifest나 로그에 기록하지 않는다.

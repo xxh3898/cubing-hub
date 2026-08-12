@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -30,7 +30,9 @@ local profile은 ddl-auto update와 Flyway disabled를 사용한다. production 
 
 ## Production configuration fact
 
-repository Compose에는 MySQL 8.0.46, Redis 7.2.14, API, Web이 정의돼 있다. DB·Redis는 internal application network, API는 별도 outbound, Web은 external edge network를 사용한다. image·secret은 env로 주입한다.
+repository Compose에는 MySQL 8.4.11 LTS, Redis 7.2.14, API, Web이 정의돼 있다. DB·Redis는 internal application network, API는 별도 outbound, Web은 external edge network를 사용한다. image·secret은 env로 주입한다.
+
+일반 application deploy는 실행 중인 data-service image와 candidate runtime config가 다르면 중단한다. MySQL 8.4.11 전환은 [DB와 이미지 백업·복구](../../homeserver/docs/db-backup-restore.md)의 별도 production migration gate를 통과한 뒤 실행한다.
 
 ## Tracked legacy configuration
 

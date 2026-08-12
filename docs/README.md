@@ -86,6 +86,7 @@ related:
 - [Acceptance Criteria](06-quality/acceptance-criteria.md)
 - [Quality Gates](06-quality/quality-gates.md)
 - [Security Testing](06-quality/security-testing.md)
+- [MySQL 8.4 Upgrade Evidence](06-quality/mysql-8-4-upgrade-evidence.md)
 - [Performance Evidence](06-quality/performance/README.md)
 
 ### 07 Operations

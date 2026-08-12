@@ -96,7 +96,7 @@ case "${command_name}" in
     arguments=" $* "
     if [[ "${arguments}" == *" config --images db redis "* ]]; then
       printf '%s\n' \
-        "${FAKE_RENDER_DB_IMAGE:-mysql:8.0.46}" \
+        "${FAKE_RENDER_DB_IMAGE:-mysql:8.4.11}" \
         "${FAKE_RENDER_REDIS_IMAGE:-redis:7.2.14-alpine}"
     elif [[ "${arguments}" == *" run "* ]] \
       && [[ "${arguments}" == *"com.cubinghub.ops.MigrationMain"* ]] \
@@ -153,7 +153,7 @@ case "${command_name}" in
       fi
       api_image="${FAKE_RENDER_API_IMAGE:-${API_IMAGE}}"
       web_image="${FAKE_RENDER_WEB_IMAGE:-${WEB_IMAGE}}"
-      db_image="${FAKE_RENDER_DB_IMAGE:-mysql:8.0.46}"
+      db_image="${FAKE_RENDER_DB_IMAGE:-mysql:8.4.11}"
       redis_image="${FAKE_RENDER_REDIS_IMAGE:-redis:7.2.14-alpine}"
       real_ip_source="$(
         /usr/bin/dirname "${compose_file}"

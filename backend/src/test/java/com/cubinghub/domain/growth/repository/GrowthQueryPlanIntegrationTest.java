@@ -40,6 +40,8 @@ class GrowthQueryPlanIntegrationTest extends JpaIntegrationTest {
     @Test
     @DisplayName("10,000-record user/event fixture에서 recent, trend, progression query를 EXPLAIN ANALYZE로 실행한다")
     void should_execute_growth_queries_with_mysql_explain_analyze_for_ten_thousand_records() {
+        assertThat(jdbcTemplate.queryForObject("SELECT VERSION()", String.class)).isEqualTo("8.4.11");
+
         User user = userRepository.save(User.builder()
                 .email("growth-plan@cubinghub.com")
                 .password("password")
@@ -73,6 +75,13 @@ class GrowthQueryPlanIntegrationTest extends JpaIntegrationTest {
         List<String> progressionPlan = explainAnalyze(
                 GrowthReadRepository.PB_PROGRESSION_POINTS_QUERY,
                 progressionParameters
+        );
+
+        System.out.printf("Growth recent plan on MySQL 8.4.11:%n%s%n", String.join("\n", latestPlan));
+        System.out.printf("Growth trend plan on MySQL 8.4.11:%n%s%n", String.join("\n", trendPlan));
+        System.out.printf(
+                "Growth PB progression plan on MySQL 8.4.11:%n%s%n",
+                String.join("\n", progressionPlan)
         );
 
         assertThat(String.join("\n", latestPlan)).contains("idx_record_user_event_created_at_id");

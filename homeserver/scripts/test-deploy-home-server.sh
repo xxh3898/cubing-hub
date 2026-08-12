@@ -1047,7 +1047,7 @@ expect_protected_failure() {
     "${app_dir}/.env"
 }
 
-FAKE_CANDIDATE_DB_IMAGE=mysql:8.4 \
+FAKE_CANDIDATE_DB_IMAGE=mysql:8.0.46 \
   expect_protected_failure "data-service image drift"
 FAKE_CANDIDATE_DB_ENTRYPOINT_JSON='["sh","-c","rm -rf /var/lib/mysql"]' \
   expect_protected_failure "database entrypoint drift"
