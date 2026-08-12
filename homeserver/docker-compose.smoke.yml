@@ -27,7 +27,7 @@ services:
       - build
 
   mysql:
-    image: mysql:8.0.46
+    image: mysql:8.4.11
     environment:
       MYSQL_DATABASE: ${SMOKE_DB_NAME:-cubing_hub_smoke}
       MYSQL_USER: ${SMOKE_DB_USERNAME:-cubing_hub_smoke}

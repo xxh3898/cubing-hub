@@ -397,7 +397,7 @@ User timezone이 도입되면 historical day regrouping, profile setting, cache 
 - type-7 Q1/Q3 interpolation, rankable 8 gate, IQR direction
 - next Practice CTA fallback
 
-### Repository integration on MySQL 8
+### Repository integration on MySQL 8.4
 
 - same `created_at` + id ordering
 - KST 전후 UTC instant와 half-open range
@@ -407,7 +407,7 @@ User timezone이 도입되면 historical day regrouping, profile setting, cache 
 - unsupported event는 repository call 전 차단
 - 10,000-record fixture `EXPLAIN ANALYZE`와 returned row/payload count
 
-H2로 MySQL window/date behavior를 대신 증명하지 않는다. Current MySQL 8.0 runtime과 같은 major의 integration evidence를 사용한다.
+H2로 MySQL window/date behavior를 대신 증명하지 않는다. Current MySQL 8.4.11 runtime과 같은 engine patch의 integration evidence를 사용한다.
 
 ### REST Docs / API
 
@@ -507,6 +507,6 @@ Rollback은 additive endpoint와 frontend consumer를 이전 revision으로 되�
 
 참고:
 
-- [MySQL 8.0 Window Function Descriptions](https://dev.mysql.com/doc/refman/8.0/en/window-functions.html)
-- [MySQL Multiple-Column Indexes](https://dev.mysql.com/doc/refman/8.0/en/multiple-column-indexes.html)
-- [How MySQL Uses Indexes](https://dev.mysql.com/doc/refman/8.0/en/mysql-indexes.html)
+- [MySQL 8.4 Window Function Descriptions](https://dev.mysql.com/doc/refman/8.4/en/window-functions.html)
+- [MySQL Multiple-Column Indexes](https://dev.mysql.com/doc/refman/8.4/en/multiple-column-indexes.html)
+- [How MySQL Uses Indexes](https://dev.mysql.com/doc/refman/8.4/en/mysql-indexes.html)

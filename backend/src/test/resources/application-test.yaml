@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:tc:mysql:8.0:///cubing_hub
+    url: jdbc:tc:mysql:8.4.11:///cubing_hub
     username: test
     password: test
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver

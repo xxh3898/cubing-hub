@@ -2,7 +2,7 @@
 doc_type: quality
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -10,6 +10,7 @@ related:
   - docs/06-quality/performance/ranking-baseline.md
   - docs/06-quality/performance/mypage-baseline.md
   - docs/06-quality/performance/growth-read-api-10k.md
+  - docs/06-quality/performance/growth-read-api-10k-mysql-8-4.md
 ---
 # Performance Evidence
 
@@ -19,7 +20,8 @@ related:
 
 - [Ranking baseline](ranking-baseline.md): 2026-04-20~21 MySQL V1과 Redis V2 비교
 - [MyPage baseline](mypage-baseline.md): 2026-04-22 사용자당 10,000 records 비교
-- [Growth read API 10k query plan](growth-read-api-10k.md): MySQL 8 `EXPLAIN ANALYZE` snapshot
+- [Growth read API 10k query plan](growth-read-api-10k.md): MySQL 8.0.46 baseline
+- [Growth read API 10k MySQL 8.4 query plan](growth-read-api-10k-mysql-8-4.md): MySQL 8.4.11 비교 snapshot
 - [Legacy benchmark runbook](benchmarks/legacy-runbook.md): 당시 실행 절차 원문
 
 raw JSON, generated Markdown·HTML, Grafana screenshot은 benchmarks와 docs/assets/screenshots/performance에 보존한다.

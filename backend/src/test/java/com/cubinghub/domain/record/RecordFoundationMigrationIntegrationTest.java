@@ -62,6 +62,26 @@ class RecordFoundationMigrationIntegrationTest {
     }
 
     @Test
+    @DisplayName("MySQL 8.4.11에서 기존 Flyway history와 table collation을 유지한다")
+    void should_run_existing_migrations_on_mysql_8_4_11() {
+        String version = jdbcTemplate.queryForObject("SELECT VERSION()", String.class);
+        Integer migrationCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1",
+                Integer.class
+        );
+        String recordsCollation = jdbcTemplate.queryForObject("""
+                SELECT table_collation
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'records'
+                """, String.class);
+
+        assertThat(version).isEqualTo("8.4.11");
+        assertThat(migrationCount).isEqualTo(3);
+        assertThat(recordsCollation).isEqualTo("utf8mb4_unicode_ci");
+    }
+
+    @Test
     @DisplayName("V3 columns와 Record 조회 index는 합의한 type과 nullability를 가진다")
     void should_create_record_foundation_columns_and_indexes() {
         assertColumn("input_method", "varchar", 32L, "YES");
@@ -161,7 +181,10 @@ class RecordFoundationMigrationIntegrationTest {
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
         private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(
-                DockerImageName.parse("mysql:8.0")
+                DockerImageName.parse("mysql:8.4.11")
+        ).withCommand(
+                "--character-set-server=utf8mb4",
+                "--collation-server=utf8mb4_0900_ai_ci"
         );
         private static final AtomicBoolean MIGRATED = new AtomicBoolean();
 
