@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator 외 endpoint, repository projection, SQL, schema는 아직 구현하지 않았다. exact request·response는 구현 시 Spring REST Docs test가 Source of Truth가 된다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator와 private Growth read API, repository projection, MySQL query는 구현했다. My Growth UI와 release는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
 
 ```text
 Current
@@ -31,13 +31,12 @@ Current
 - WCA_333 event-filtered history와 stable ordering
 - Timer client의 recent Ao5/Ao12
 - current Record projection을 받는 pure Growth metric calculator
+- private Growth summary, 30-day trend, paginated PB progression API
+- lightweight Record projection, MySQL daily median and PB progression query
 - Redis ranking read model
 
 Next implementation
-- private server-side Growth read API
-- bounded summary와 30-day series
-- current Record 기반 paginated PB progression
-- MySQL request-time aggregate, no migration, no Growth Redis
+- My Growth dashboard와 Record mutation 뒤 refresh
 
 Future candidate
 - observed cost에 근거한 PB progression cache/projection
@@ -45,7 +44,7 @@ Future candidate
 - opt-in public Profile read contract
 
 Out of scope
-- application implementation, Flyway, Redis key, analytics platform
+- Flyway, Redis key, analytics platform
 - Challenge, Verification, Competition lifecycle 통합
 ```
 
@@ -110,9 +109,9 @@ DNF      -> numeric result 없음
 | B. 하나의 Growth aggregate endpoint | client 단순, 한 번의 request | 30-day series와 full PB history가 initial payload/query lifecycle을 결합 | 채택하지 않음 |
 | C. summary + trend + PB progression 분리 | initial payload bounded, query 성격·refresh·evolution 분리 | endpoint 3개와 server calculator 필요 | **V2.2 proposal** |
 
-## API proposal
+## Current API
 
-모든 endpoint는 authenticated owner 전용이다. query의 `eventType`은 required로 두고 현재 `WCA_333`만 허용한다. known but unsupported EventType은 current Practice capability 정책과 같은 400 error를 반환한다.
+모든 endpoint는 authenticated owner 전용이다. query의 `eventType`은 required이며 현재 `WCA_333`만 허용한다. known but unsupported EventType은 current Practice capability 정책과 같은 400 error를 반환한다. exact request·response field는 [Spring REST Docs](../../backend/src/docs/asciidoc/index.adoc)가 기준이다.
 
 | Endpoint | 역할 | Payload boundary | Refresh trigger |
 | --- | --- | --- | --- |
@@ -122,181 +121,19 @@ DNF      -> numeric result 없음
 
 V2.2에서 `period`는 `30D`만 지원한다. future 90-day 조회 가능성을 위해 dimension을 유지하되, 지원하지 않는 값에 빈 배열을 반환하지 않고 400으로 거절한다.
 
-### Summary response proposal
+### Summary
 
-JSON은 V2.2 proposal이며 generated REST Docs가 아니다.
+Summary는 `user_pbs` current PB와 latest 24, completed 14-day, activity aggregate projection을 조합한다. `AVAILABLE`, `DNF`, `NO_DATA`, `INSUFFICIENT_DATA`, `INSUFFICIENT_SAMPLE`을 명시적으로 구분한다. 적용되지 않는 numeric field는 `null`일 수 있지만 status 없이 해석하지 않는다.
 
-```json
-{
-  "status": 200,
-  "message": "성장 요약 조회 성공",
-  "data": {
-    "eventType": "WCA_333",
-    "timeZone": "Asia/Seoul",
-    "generatedAt": "2026-08-11T03:15:20.123Z",
-    "asOfDate": "2026-08-11",
-    "currentPb": {
-      "status": "AVAILABLE",
-      "recordId": 438,
-      "timeMs": 17780,
-      "penalty": "PLUS_TWO",
-      "effectiveTimeMs": 19780,
-      "createdAt": "2026-08-09T11:02:14.000Z"
-    },
-    "recentAo5": {
-      "status": "AVAILABLE",
-      "windowSize": 5,
-      "recordCount": 5,
-      "valueMs": 20412
-    },
-    "recentAo12": {
-      "status": "AVAILABLE",
-      "windowSize": 12,
-      "recordCount": 12,
-      "valueMs": 20965
-    },
-    "performanceComparison": {
-      "status": "AVAILABLE",
-      "recentPeriod": {
-        "fromDate": "2026-08-04",
-        "toDateExclusive": "2026-08-11",
-        "medianTimeMs": 20100,
-        "recordCount": 25,
-        "rankableCount": 24,
-        "activeDays": 4,
-        "dnfCount": 1,
-        "plusTwoCount": 1
-      },
-      "previousPeriod": {
-        "fromDate": "2026-07-28",
-        "toDateExclusive": "2026-08-04",
-        "medianTimeMs": 21350,
-        "recordCount": 18,
-        "rankableCount": 18,
-        "activeDays": 3,
-        "dnfCount": 0,
-        "plusTwoCount": 2
-      },
-      "direction": "FASTER",
-      "improvementPercent": 5.9
-    },
-    "consistency": {
-      "status": "AVAILABLE",
-      "current": {
-        "windowSize": 12,
-        "recordCount": 12,
-        "rankableCount": 11,
-        "iqrMs": 1820,
-        "dnfCount": 1,
-        "dnfRatePercent": 8.3,
-        "plusTwoCount": 1,
-        "plusTwoRatePercent": 8.3
-      },
-      "previous": {
-        "windowSize": 12,
-        "recordCount": 12,
-        "rankableCount": 12,
-        "iqrMs": 2250,
-        "dnfCount": 0,
-        "dnfRatePercent": 0.0,
-        "plusTwoCount": 1,
-        "plusTwoRatePercent": 8.3
-      },
-      "direction": "NARROWER",
-      "differenceMs": 430
-    },
-    "activity": {
-      "totalSolveCount": 438,
-      "last7DaysSolveCount": 42,
-      "previous7DaysSolveCount": 31,
-      "last30DaysSolveCount": 126,
-      "activeDaysLast30Days": 12,
-      "firstRecordedAt": "2026-04-22T09:12:00.000Z",
-      "latestRecordedAt": "2026-08-11T03:10:00.000Z"
-    }
-  }
-}
-```
+`currentPb.timeMs`는 raw value, `effectiveTimeMs`는 penalty 반영 value다. PB가 없으면 `status=NO_DATA`이고 Record 관련 field는 null이다.
 
-`AVAILABLE`, `DNF`, `NO_DATA`, `INSUFFICIENT_DATA`, `INSUFFICIENT_SAMPLE`을 명시적으로 구분한다. 적용되지 않는 numeric field는 `null`이 될 수 있지만 status 없이 `null`만 해석하게 만들지 않는다.
+### Trend
 
-`currentPb.timeMs`는 raw value, `effectiveTimeMs`는 penalty 반영 value다. Current PB가 없으면 `status=NO_DATA`이고 Record 관련 field는 null이다.
+Trend는 `asOfDate` 기준 30개의 Asia/Seoul date point를 반환한다. DB query가 반환하지 않은 date는 application이 채운다. missing day는 `recordCount=0`, `medianTimeMs=null`이고 DNF-only day는 `recordCount>0`, `rankableCount=0`, `medianTimeMs=null`이다. 오늘 point는 `todayPartial=true`로 표시한다.
 
-### Trend response proposal
+### PB progression
 
-```json
-{
-  "status": 200,
-  "message": "성장 추세 조회 성공",
-  "data": {
-    "eventType": "WCA_333",
-    "period": "30D",
-    "timeZone": "Asia/Seoul",
-    "generatedAt": "2026-08-11T03:15:20.123Z",
-    "fromDate": "2026-07-13",
-    "toDate": "2026-08-11",
-    "todayPartial": true,
-    "points": [
-      {
-        "date": "2026-07-13",
-        "recordCount": 0,
-        "rankableCount": 0,
-        "medianTimeMs": null,
-        "dnfCount": 0,
-        "plusTwoCount": 0
-      },
-      {
-        "date": "2026-07-14",
-        "recordCount": 7,
-        "rankableCount": 6,
-        "medianTimeMs": 22345,
-        "dnfCount": 1,
-        "plusTwoCount": 1
-      }
-    ]
-  }
-}
-```
-
-DB query가 반환하지 않은 date는 application이 요청 `asOfDate` 기준으로 채운다. missing day는 `recordCount=0`, `medianTimeMs=null`이다. DNF-only day는 `recordCount>0`, `rankableCount=0`, `medianTimeMs=null`로 구분한다.
-
-### PB progression response proposal
-
-```json
-{
-  "status": 200,
-  "message": "PB progression 조회 성공",
-  "data": {
-    "eventType": "WCA_333",
-    "basis": "CURRENT_RECORD_STATE",
-    "timeZone": "Asia/Seoul",
-    "content": [
-      {
-        "recordId": 438,
-        "timeMs": 17780,
-        "penalty": "PLUS_TWO",
-        "effectiveTimeMs": 19780,
-        "createdAt": "2026-08-09T11:02:14.000Z"
-      },
-      {
-        "recordId": 301,
-        "timeMs": 20150,
-        "penalty": "NONE",
-        "effectiveTimeMs": 20150,
-        "createdAt": "2026-06-18T02:20:10.000Z"
-      }
-    ],
-    "page": 1,
-    "size": 50,
-    "totalElements": 4,
-    "totalPages": 1,
-    "hasNext": false,
-    "hasPrevious": false
-  }
-}
-```
-
-Progression content는 current PB부터 과거로 가는 `created_at DESC, id DESC` milestone order다. UI는 받은 page를 chronological order로 바꿔 step chart를 그리며, 다음 page를 명시적으로 더 불러올 수 있다. Page boundary는 pathological하게 모든 solve가 PB인 경우에도 O(N) client transfer를 막는다. DB는 current canonical progression을 판별하기 위해 여전히 전체 user/event history를 볼 수 있으므로 100,000-record gate에서 별도 측정한다.
+Progression content는 current PB부터 과거로 가는 `created_at DESC, id DESC` milestone order다. `basis=CURRENT_RECORD_STATE`는 penalty PATCH와 Record delete 뒤 current canonical state에서 다시 계산된 결과임을 뜻한다. page boundary는 모든 solve가 PB인 경우에도 client transfer를 제한한다. DB는 current progression을 판별하기 위해 user/event history를 모두 읽을 수 있으므로 100,000-record stress는 별도 gate로 둔다.
 
 ### Error와 cache boundary
 
@@ -315,7 +152,7 @@ Progression content는 current PB부터 과거로 가는 `created_at DESC, id DE
 GrowthController
   -> authentication + query validation + response envelope
 
-GrowthService (@Transactional(readOnly = true))
+GrowthReadService (@Transactional(readOnly = true))
   -> one asOf clock/date 결정
   -> capability 검증
   -> repository projection 조합
@@ -324,8 +161,9 @@ GrowthService (@Transactional(readOnly = true))
 GrowthMetricCalculator
   -> effective result, Ao5/Ao12, median, percentile, improvement status
 
-RecordRepository / UserPBRepository
-  -> bounded recent rows, counts/ranges, daily aggregate, progression projection
+GrowthReadRepository
+  -> bounded Record projection, current PB projection, activity aggregate,
+     daily aggregate, progression projection
 ```
 
 - 기존 Timer frontend utility의 Ao fixture를 backend calculator test로 이식해 두 계산이 같은 규칙을 사용하게 한다.
@@ -368,7 +206,7 @@ WHERE 절에는 `created_at` function을 두지 않는다. Application이 KST ca
 | Recent Ao/IQR | user/event recent order `LIMIT 24` | application pure calculator | DNF trim·percentile status를 test하기 쉽고 bounded |
 | total/first/latest | user/event count, min, max | SQL aggregate 또는 index endpoint query | entity 전체 load 불필요 |
 | 7/14/30-day counts | raw UTC range conditional aggregate | SQL | bounded range, payload 없음 |
-| period median | 두 7-day range의 rankable row/window median | MySQL 8 native projection | unbounded entity list보다 명확한 DB aggregate |
+| period median | 두 7-day range의 lightweight Record projection | application pure calculator | PR A period status와 median contract를 그대로 사용 |
 | daily median/count | 30-day range daily aggregate + rankable median | MySQL 8 native projection | 최대 30 row response |
 | PB progression | running previous minimum window query | MySQL 8 native projection | 전체 Record를 application/client로 전달하지 않고 point만 반환 |
 
@@ -400,7 +238,7 @@ WITH ranged AS (
       WHEN 'PLUS_TWO' THEN time_ms + 2000
       WHEN 'DNF' THEN NULL
     END AS effective_time_ms
-  FROM records
+  FROM records FORCE INDEX (idx_record_user_event_created_at_id)
   WHERE user_id = :userId
     AND event_type = :eventType
     AND created_at >= :fromUtc
@@ -444,19 +282,27 @@ WITH canonical AS (
       WHEN 'NONE' THEN time_ms
       WHEN 'PLUS_TWO' THEN time_ms + 2000
     END AS effective_time_ms
-  FROM records
+  FROM records FORCE INDEX (idx_record_user_event_created_at_id)
   WHERE user_id = :userId
     AND event_type = :eventType
     AND penalty <> 'DNF'
 ),
-scanned AS (
+running AS (
   SELECT
     canonical.*,
     MIN(effective_time_ms) OVER (
       ORDER BY created_at, id
-      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-    ) AS previous_best_time_ms
+      ROWS UNBOUNDED PRECEDING
+    ) AS running_best_time_ms
   FROM canonical
+),
+scanned AS (
+  SELECT
+    running.*,
+    LAG(running_best_time_ms) OVER (
+      ORDER BY created_at, id
+    ) AS previous_best_time_ms
+  FROM running
 )
 SELECT id, time_ms, penalty, effective_time_ms, created_at
 FROM scanned
@@ -469,11 +315,11 @@ Penalty PATCH 또는 delete 뒤 이 query를 다시 실행하면 current canonic
 
 ### Repository 기술 선택
 
-현재 repository의 단순 동적 조건은 Querydsl custom repository가 담당하고, Ranking의 `ROW_NUMBER()`처럼 DB window 기능이 필요한 부분은 native query를 사용한다. V2.2도 같은 스타일을 따른다.
+현재 repository의 단순 동적 조건은 Querydsl custom repository가 담당하고, Ranking의 `ROW_NUMBER()`처럼 DB window 기능이 필요한 부분은 native query를 사용한다. V2.2는 query-specific `GrowthReadRepository`에서 MySQL native lightweight projection을 사용한다. Growth Record query는 event-filtered history index `idx_record_user_event_created_at_id`를 `FORCE INDEX`로 지정한다. 같은 user의 legacy 또는 future event row가 섞여도 user/event range와 ordering을 같은 index에서 처리한다.
 
-- recent 24: Spring Data/Querydsl lightweight projection + page limit
-- count/min/max와 simple range count: Querydsl aggregate projection
-- daily/period median과 PB progression: MySQL 8 native query + interface/record projection
+- recent 24와 completed comparison range: native lightweight Record projection
+- current PB와 count/min/max activity: native projection/aggregate
+- daily median과 PB progression: MySQL 8 native window query
 - metric policy: repository SQL에 흩뿌리지 않고 pure Java calculator와 domain fixture로 검증
 - entity list 전체 반환 또는 frontend raw history aggregate: 사용하지 않음
 
@@ -604,10 +450,11 @@ Build와 CI success는 production request 성공을 뜻하지 않는다. main me
 
 ### PR B — Growth read API와 query
 
+- status: implemented
 - scope: summary/trend/progression controller, service, projection, native query, REST Docs
 - dependency: PR A
 - acceptance: private WCA_333 contract, bounded payload, progression parity, no migration/Redis
-- tests: service/repository MySQL integration, REST Docs, query-plan evidence
+- tests: service/repository MySQL integration, REST Docs, [10,000-record query-plan evidence](../06-quality/performance/growth-read-api-10k.md)
 - rollback risk: additive GET endpoint 제거. DB rollback 없음
 
 ### PR C — My Growth dashboard

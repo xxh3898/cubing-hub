@@ -17,18 +17,17 @@ related:
 
 ## 문서 상태
 
-V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
+V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator와 PR B의 private Growth read API는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
 
-Read API, MySQL aggregate/window query, My Growth UI와 release는 아직 구현하지 않았다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
+My Growth UI와 release는 아직 구현하지 않았다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
 
 ```text
 Current
 - V2.1 Record, current PB projection, event history, Timer Ao5/Ao12
 - Growth pure calculator와 canonical unit fixture
+- private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- event별 private My Growth read API
-- current canonical Record 기준 aggregate query
 - My Growth dashboard
 
 Future candidate
