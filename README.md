@@ -21,7 +21,7 @@ Daily Challenge, Verified Record, Competition, Organizer는 후보 기능이며 
 
 | 영역 | 현재 기준 |
 | --- | --- |
-| Backend | Java 17, Spring Boot 3.5, Gradle, Spring Security, REST Docs |
+| Backend | Java 25, Spring Boot 4.1.0, Gradle 9.6.1, Spring Security, REST Docs |
 | Frontend | React 19, Vite 8, React Router, Vitest |
 | Data | MySQL 8 Source of Truth, Redis 7.2 auth state·ranking Read Model |
 | Storage | MySQL attachment metadata + host post image binary |

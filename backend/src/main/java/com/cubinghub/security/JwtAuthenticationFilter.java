@@ -2,7 +2,7 @@ package com.cubinghub.security;
 
 import com.cubinghub.common.response.ApiResponse;
 import com.cubinghub.domain.auth.repository.RedisBlackListService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -15,7 +15,7 @@ related:
 ## 형태
 
 - frontend: React + Vite single-page application
-- backend: Java 17 + Spring Boot modular monolith
+- backend: Java 25 + Spring Boot 4.1.0 modular monolith
 - interface: HTTP REST, JSON과 community image용 multipart
 - data: MySQL 8, Redis 7.2, host filesystem
 - contract documentation: Spring REST Docs

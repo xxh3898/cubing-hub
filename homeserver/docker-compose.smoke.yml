@@ -2,7 +2,7 @@ name: cubing-hub-smoke
 
 services:
   api-build:
-    image: gradle:8.14.4-jdk17
+    image: gradle:9.6.1-jdk25
     working_dir: /workspace/backend
     user: "${SMOKE_UID:-501}:${SMOKE_GID:-20}"
     command:

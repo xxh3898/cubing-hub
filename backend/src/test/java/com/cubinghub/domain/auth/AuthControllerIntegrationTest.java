@@ -26,7 +26,7 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.JpaIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +36,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -78,7 +78,7 @@ class AuthControllerIntegrationTest extends JpaIntegrationTest {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @MockBean
+    @MockitoBean
     private VerificationEmailSender verificationEmailSender;
 
     private final List<String> cleanupEmails = new ArrayList<>();
