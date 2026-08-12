@@ -19,7 +19,7 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula와 pure calculator는 PR A에서 구현했지만, read API와 My Growth UI는 아직 application contract나 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator와 private Growth read API는 구현했지만, My Growth UI와 release는 아직 application contract나 출시 약속이 아니다.
 
 ```text
 Current
@@ -27,10 +27,10 @@ Current
 - private MyPage의 전체 요약, 최근 raw Record chart, history 관리
 - Ranking의 nickname과 event PB
 - current Record projection을 계산하는 Growth metric calculator
+- event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
 - private My Growth dashboard
-- event별 canonical Growth metric과 bounded aggregate API
 - next Practice로 돌아가는 명확한 action
 
 Future candidate

@@ -223,6 +223,68 @@ include::{snippets}/user/password/update/request-fields.adoc[]
 include::{snippets}/user/password/update/http-response.adoc[]
 include::{snippets}/user/password/update/response-fields.adoc[]
 
+== Growth
+
+=== Growth 요약 조회
+==== 요청
+include::{snippets}/growth/summary/http-request.adoc[]
+include::{snippets}/growth/summary/request-headers.adoc[]
+include::{snippets}/growth/summary/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/growth/summary/http-response.adoc[]
+include::{snippets}/growth/summary/response-fields.adoc[]
+
+==== 상태 예시
+===== Empty
+include::{snippets}/growth/summary/empty/http-response.adoc[]
+
+===== Insufficient data
+include::{snippets}/growth/summary/insufficient/http-response.adoc[]
+
+===== DNF
+include::{snippets}/growth/summary/dnf/http-response.adoc[]
+
+==== 실패 응답
+===== 인증 헤더 누락
+include::{snippets}/growth/summary/unauthorized/http-response.adoc[]
+include::{snippets}/growth/summary/unauthorized/response-fields.adoc[]
+
+===== 지원하지 않는 Practice 종목
+include::{snippets}/growth/summary/unsupported-event/http-request.adoc[]
+include::{snippets}/growth/summary/unsupported-event/request-headers.adoc[]
+include::{snippets}/growth/summary/unsupported-event/query-parameters.adoc[]
+include::{snippets}/growth/summary/unsupported-event/http-response.adoc[]
+include::{snippets}/growth/summary/unsupported-event/response-fields.adoc[]
+
+=== Growth 추세 조회
+==== 요청
+include::{snippets}/growth/trend/http-request.adoc[]
+include::{snippets}/growth/trend/request-headers.adoc[]
+include::{snippets}/growth/trend/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/growth/trend/http-response.adoc[]
+include::{snippets}/growth/trend/response-fields.adoc[]
+
+==== 실패 응답
+===== 지원하지 않는 period
+include::{snippets}/growth/trend/unsupported-period/http-response.adoc[]
+
+=== PB progression 조회
+==== 요청
+include::{snippets}/growth/pb-progression/http-request.adoc[]
+include::{snippets}/growth/pb-progression/request-headers.adoc[]
+include::{snippets}/growth/pb-progression/query-parameters.adoc[]
+
+==== 응답
+include::{snippets}/growth/pb-progression/http-response.adoc[]
+include::{snippets}/growth/pb-progression/response-fields.adoc[]
+
+==== 상태 예시
+===== Empty
+include::{snippets}/growth/pb-progression/empty/http-response.adoc[]
+
 == 기록 (Record)
 
 === 기록 저장
