@@ -1,5 +1,6 @@
 package com.cubinghub.domain.growth;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.restdocs.headers.HeaderDocumentation.headerWithName;
 import static org.springframework.restdocs.headers.HeaderDocumentation.requestHeaders;
@@ -25,10 +26,14 @@ import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
 import com.cubinghub.security.JwtTokenProvider;
 import com.cubinghub.support.TestFixtures;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +46,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MvcResult;
 
 @Import(GrowthDocsTest.FixedClockConfiguration.class)
 class GrowthDocsTest extends RestDocsIntegrationTest {
@@ -64,6 +70,9 @@ class GrowthDocsTest extends RestDocsIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     @DisplayName("Growth summary의 available response를 문서화한다")
@@ -259,41 +268,71 @@ class GrowthDocsTest extends RestDocsIntegrationTest {
         saveRecord(user, 12000, Penalty.DNF, Instant.parse("2026-08-10T15:30:00Z"));
         String accessToken = TestFixtures.generateAccessToken(jwtTokenProvider, user);
 
-        mockMvc.perform(get("/api/users/me/growth/trend")
+        MvcResult result = mockMvc.perform(get("/api/users/me/growth/trend")
                         .header("Authorization", "Bearer " + accessToken)
                         .param("eventType", EventType.WCA_333.name())
                         .param("period", "30D"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.points.length()").value(30))
                 .andExpect(jsonPath("$.data.points[28].medianTimeMs").value(nullValue()))
-                .andDo(document("growth/trend",
-                        requestHeaders(
-                                headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
-                        ),
-                        queryParameters(
-                                parameterWithName("eventType").description("Growth를 조회할 Practice 종목 (V2.2는 WCA_333만 지원)"),
-                                parameterWithName("period").description("조회 period. V2.2는 30D만 지원")
-                        ),
-                        responseFields(
-                                fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
-                                fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
-                                fieldWithPath("data").type(JsonFieldType.OBJECT).description("private Growth trend"),
-                                fieldWithPath("data.eventType").type(JsonFieldType.STRING).description("조회한 Practice 종목"),
-                                fieldWithPath("data.period").type(JsonFieldType.STRING).description("지원된 period"),
-                                fieldWithPath("data.timeZone").type(JsonFieldType.STRING).description("Growth calendar timezone"),
-                                fieldWithPath("data.generatedAt").type(JsonFieldType.STRING).description("series 계산 UTC instant"),
-                                fieldWithPath("data.fromDate").type(JsonFieldType.STRING).description("첫 KST date"),
-                                fieldWithPath("data.toDate").type(JsonFieldType.STRING).description("오늘 KST date"),
-                                fieldWithPath("data.todayPartial").type(JsonFieldType.BOOLEAN).description("오늘 point가 진행 중인 day인지 여부"),
-                                fieldWithPath("data.points").type(JsonFieldType.ARRAY).description("항상 30개의 KST date point"),
-                                fieldWithPath("data.points[].date").type(JsonFieldType.STRING).description("KST calendar date"),
-                                fieldWithPath("data.points[].recordCount").type(JsonFieldType.NUMBER).description("DNF를 포함한 Record count"),
-                                fieldWithPath("data.points[].rankableCount").type(JsonFieldType.NUMBER).description("numeric effective Record count"),
-                                fieldWithPath("data.points[].medianTimeMs").type(JsonFieldType.VARIES).description("rankable effective median. missing 또는 DNF-only day는 null"),
-                                fieldWithPath("data.points[].dnfCount").type(JsonFieldType.NUMBER).description("DNF count"),
-                                fieldWithPath("data.points[].plusTwoCount").type(JsonFieldType.NUMBER).description("PLUS_TWO count")
-                        )
-                ));
+                .andReturn();
+
+        JsonNode points = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("points");
+        assertThat(points).hasSize(30);
+        points.forEach(point -> assertThat(point.has("medianTimeMs")).isTrue());
+        assertThat(pointForDate(points, "2026-08-10").path("medianTimeMs").isNumber()).isTrue();
+        assertThat(pointForDate(points, "2026-08-11").path("medianTimeMs").isNull()).isTrue();
+        assertThat(pointForDate(points, "2026-08-09").path("medianTimeMs").isNull()).isTrue();
+
+        User docsUser = saveUser("growth-trend-docs@cubinghub.com", "GrowthTrendDocs");
+        createNumericTrendFixture(docsUser);
+        String docsAccessToken = TestFixtures.generateAccessToken(jwtTokenProvider, docsUser);
+        MvcResult docsResult = mockMvc.perform(get("/api/users/me/growth/trend")
+                        .header("Authorization", "Bearer " + docsAccessToken)
+                        .param("eventType", EventType.WCA_333.name())
+                        .param("period", "30D"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode docsPoints = objectMapper.readTree(docsResult.getResponse().getContentAsString())
+                .path("data")
+                .path("points");
+        assertThat(docsPoints).hasSize(30);
+        docsPoints.forEach(point -> {
+            assertThat(point.has("medianTimeMs")).isTrue();
+            assertThat(point.path("medianTimeMs").isNumber()).isTrue();
+        });
+
+        document("growth/trend",
+                requestHeaders(
+                        headerWithName("Authorization").description("Access Token을 담은 Bearer 인증 헤더")
+                ),
+                queryParameters(
+                        parameterWithName("eventType").description("Growth를 조회할 Practice 종목 (V2.2는 WCA_333만 지원)"),
+                        parameterWithName("period").description("조회 period. V2.2는 30D만 지원")
+                ),
+                responseFields(
+                        fieldWithPath("status").type(JsonFieldType.NUMBER).description("HTTP 상태 코드"),
+                        fieldWithPath("message").type(JsonFieldType.STRING).description("응답 메시지"),
+                        fieldWithPath("data").type(JsonFieldType.OBJECT).description("private Growth trend"),
+                        fieldWithPath("data.eventType").type(JsonFieldType.STRING).description("조회한 Practice 종목"),
+                        fieldWithPath("data.period").type(JsonFieldType.STRING).description("지원된 period"),
+                        fieldWithPath("data.timeZone").type(JsonFieldType.STRING).description("Growth calendar timezone"),
+                        fieldWithPath("data.generatedAt").type(JsonFieldType.STRING).description("series 계산 UTC instant"),
+                        fieldWithPath("data.fromDate").type(JsonFieldType.STRING).description("첫 KST date"),
+                        fieldWithPath("data.toDate").type(JsonFieldType.STRING).description("오늘 KST date"),
+                        fieldWithPath("data.todayPartial").type(JsonFieldType.BOOLEAN).description("오늘 point가 진행 중인 day인지 여부"),
+                        fieldWithPath("data.points").type(JsonFieldType.ARRAY).description("항상 30개의 KST date point"),
+                        fieldWithPath("data.points[].date").type(JsonFieldType.STRING).description("KST calendar date"),
+                        fieldWithPath("data.points[].recordCount").type(JsonFieldType.NUMBER).description("DNF를 포함한 Record count"),
+                        fieldWithPath("data.points[].rankableCount").type(JsonFieldType.NUMBER).description("numeric effective Record count"),
+                        fieldWithPath("data.points[].medianTimeMs").type(JsonFieldType.VARIES).description("rankable effective median. missing 또는 DNF-only day는 null"),
+                        fieldWithPath("data.points[].dnfCount").type(JsonFieldType.NUMBER).description("DNF count"),
+                        fieldWithPath("data.points[].plusTwoCount").type(JsonFieldType.NUMBER).description("PLUS_TWO count")
+                )
+        ).handle(docsResult);
 
         mockMvc.perform(get("/api/users/me/growth/trend")
                         .header("Authorization", "Bearer " + accessToken)
@@ -426,6 +465,28 @@ class GrowthDocsTest extends RestDocsIntegrationTest {
         );
         entityManager.clear();
         return recordRepository.findById(record.getId()).orElseThrow();
+    }
+
+    private void createNumericTrendFixture(User user) {
+        LocalDate fromDate = LocalDate.of(2026, 7, 14);
+        ZoneId zoneId = ZoneId.of("Asia/Seoul");
+        for (int index = 0; index < 30; index++) {
+            saveRecord(
+                    user,
+                    10000 + index,
+                    Penalty.NONE,
+                    fromDate.plusDays(index).atStartOfDay(zoneId).toInstant()
+            );
+        }
+    }
+
+    private JsonNode pointForDate(JsonNode points, String date) {
+        for (JsonNode point : points) {
+            if (date.equals(point.path("date").asText())) {
+                return point;
+            }
+        }
+        throw new AssertionError("trend point가 없습니다: " + date);
     }
 
     @TestConfiguration(proxyBeanMethods = false)
