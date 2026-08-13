@@ -207,6 +207,24 @@ case "${command_name}" in
       shift
     done
     case "${query}" in
+      running-version)
+        if [[ "${FAKE_RUNNING_DB_VERSION_QUERY_FAIL:-false}" == true ]]; then
+          exit 1
+        fi
+        if [[ "${FAKE_RUNNING_DB_VERSION_EMPTY:-false}" == true ]]; then
+          exit 0
+        fi
+        if [[ -n "${FAKE_RUNNING_DB_VERSION_OVERRIDE:-}" ]]; then
+          printf '%s\n' "${FAKE_RUNNING_DB_VERSION_OVERRIDE}"
+        elif [[ -n "${FAKE_DB_STATE_DIR:-}" ]] \
+          && [[ -f "${FAKE_DB_STATE_DIR}/image-ref" ]] \
+          && [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/image-ref")" == mysql:8.0.46* ]]
+        then
+          printf '8.0.46\n'
+        else
+          printf '8.4.11\n'
+        fi
+        ;;
       version)
         printf '%s\n' "${FAKE_RESTORE_VERSION:-8.0.46}"
         ;;

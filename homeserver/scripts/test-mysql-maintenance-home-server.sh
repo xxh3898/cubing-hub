@@ -203,6 +203,9 @@ users}" \
     FAKE_MAINTENANCE_CANDIDATE_API_IMAGE="${FAKE_MAINTENANCE_CANDIDATE_API_IMAGE:-}" \
     FAKE_MAINTENANCE_DB_UP_FAIL="${FAKE_MAINTENANCE_DB_UP_FAIL:-false}" \
     FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND="${FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND:-false}" \
+    FAKE_RUNNING_DB_VERSION_OVERRIDE="${FAKE_RUNNING_DB_VERSION_OVERRIDE:-}" \
+    FAKE_RUNNING_DB_VERSION_QUERY_FAIL="${FAKE_RUNNING_DB_VERSION_QUERY_FAIL:-false}" \
+    FAKE_RUNNING_DB_VERSION_EMPTY="${FAKE_RUNNING_DB_VERSION_EMPTY:-false}" \
     FAKE_SERVICE_HEALTH="${FAKE_SERVICE_HEALTH:-healthy}" \
     /bin/bash "${test_script}" "$@"
 }
@@ -255,6 +258,53 @@ elif mode == "missing-runtime":
 elif mode != "valid":
     raise SystemExit("unsupported provenance fixture mode")
 path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+PY
+}
+
+reset_source_db_fixture() {
+  /bin/rm -f -- "${app_dir}/runtime-config/pending"
+  printf '%s\n' "${MYSQL_80_ID}" >"${db_state}/image-id"
+  printf '%s\n' "mysql:8.0.46@sha256:${MYSQL_80_DIGEST}" >"${db_state}/image-ref"
+  printf '%s\n' "${ORIGINAL_VOLUME}" >"${db_state}/volume"
+  printf 'healthy\n' >"${db_state}/health"
+  printf 'true\n' >"${db_state}/running"
+}
+
+assert_upgrade_version_gate_failure() {
+  test -f "${app_dir}/runtime-config/pending"
+  /usr/bin/grep -Fxq 'TRANSACTION_TYPE=MYSQL_MAINTENANCE' \
+    "${app_dir}/runtime-config/pending"
+  test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${current_before}"
+  test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" = \
+    "${state_before}"
+  test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = \
+    "${env_before}"
+  test ! -e "${app_dir}/runtime-config/mysql-maintenance/state"
+  test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_84_ID}"
+  test "$(/bin/cat "${db_state}/volume")" = "${ORIGINAL_VOLUME}"
+  test "$(/bin/cat "${db_state}/health")" = healthy
+  /usr/bin/grep -Fq 'MAINTENANCE_QUERY=running-version' "${docker_log}"
+  if /usr/bin/grep -Fq 'redis api web' "${docker_log}"; then
+    printf 'application services started before the MySQL version gate completed\n' >&2
+    exit 1
+  fi
+}
+
+assert_version_gate_precedes_application_startup() {
+  /usr/bin/python3 - "${docker_log}" <<'PY'
+import pathlib
+import sys
+
+lines = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+version_index = next(
+    index for index, line in enumerate(lines)
+    if "MAINTENANCE_QUERY=running-version" in line
+)
+application_index = next(
+    index for index, line in enumerate(lines)
+    if "redis api web" in line
+)
+assert version_index < application_index
 PY
 }
 
@@ -383,6 +433,38 @@ expect_failure "operation lock conflict" \
 wait "${lock_holder_pid}" 2>/dev/null || true
 lock_holder_pid=
 
+# A tag@digest reference and matching image ID do not prove the running server
+# patch. Every unsupported actual version must stop before application startup.
+for invalid_version in 8.0.46 8.4.10 8.4.12 9.0.0; do
+  : >"${docker_log}"
+  FAKE_RUNNING_DB_VERSION_OVERRIDE="${invalid_version}" \
+    expect_failure "wrong running MySQL version ${invalid_version}" \
+      run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+  assert_upgrade_version_gate_failure
+  reset_source_db_fixture
+done
+
+: >"${docker_log}"
+FAKE_RUNNING_DB_VERSION_QUERY_FAIL=true \
+  expect_failure "running MySQL version query failure" \
+    run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+assert_upgrade_version_gate_failure
+reset_source_db_fixture
+
+: >"${docker_log}"
+FAKE_RUNNING_DB_VERSION_EMPTY=true \
+  expect_failure "empty running MySQL version result" \
+    run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+assert_upgrade_version_gate_failure
+reset_source_db_fixture
+
+: >"${docker_log}"
+FAKE_RUNNING_DB_VERSION_OVERRIDE=not-a-version \
+  expect_failure "malformed running MySQL version result" \
+    run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+assert_upgrade_version_gate_failure
+reset_source_db_fixture
+
 # A target startup failure keeps the canonical pending transaction and all
 # state evidence. Recovery finalizes only after the target is actually healthy.
 FAKE_MAINTENANCE_DB_UP_FAIL=true \
@@ -399,18 +481,17 @@ test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" =
 
 # Reset only the isolated fixture so application-startup failure can exercise
 # a fresh apply from the same committed source state.
-/bin/rm -f -- "${app_dir}/runtime-config/pending"
-printf '%s\n' "${MYSQL_80_ID}" >"${db_state}/image-id"
-printf '%s\n' "mysql:8.0.46@sha256:${MYSQL_80_DIGEST}" >"${db_state}/image-ref"
-printf '%s\n' "${ORIGINAL_VOLUME}" >"${db_state}/volume"
-printf 'healthy\n' >"${db_state}/health"
-printf 'true\n' >"${db_state}/running"
+reset_source_db_fixture
 
 # A target DB can be healthy while the application service set is not. The
 # target binding remains process-local until dedicated recovery finalizes it.
+# A supported server suffix must pass the version gate before application up.
+: >"${docker_log}"
+FAKE_RUNNING_DB_VERSION_OVERRIDE=8.4.11-commercial \
 FAKE_SERVICE_HEALTH=unhealthy \
   expect_failure "application service health failure" \
     run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+assert_version_gate_precedes_application_startup
 test -f "${app_dir}/runtime-config/pending"
 /bin/cp \
   "${app_dir}/runtime-config/pending" \
@@ -443,6 +524,12 @@ target_content_sha="$(runtime_content_sha256 "${target_release}")"
 } >"${app_dir}/runtime-config/state"
 /bin/chmod 600 "${app_dir}/runtime-config/state"
 test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" != "${state_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
+FAKE_RUNNING_DB_VERSION_OVERRIDE=8.0.46 \
+  expect_failure "wrong running MySQL version during recovery" \
+    run_maintenance recover
+test -f "${app_dir}/runtime-config/pending"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${current_before}"
 test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
 FAKE_SERVICE_HEALTH=unhealthy \
   expect_failure "unhealthy target recovery" run_maintenance recover
@@ -684,5 +771,17 @@ next_upgrade_candidate="$(
 next_upgrade_file="${app_dir}/runtime-config/mysql-maintenance/candidates/${next_upgrade_candidate}/candidate.env"
 /usr/bin/grep -Fxq "SOURCE_DB_VOLUME=${ROLLBACK_VOLUME}" "${next_upgrade_file}"
 /usr/bin/grep -Fxq "TARGET_DB_VOLUME=${ROLLBACK_VOLUME}" "${next_upgrade_file}"
+
+# Exact MySQL 8.4.11 allows the normal apply path to start the application and
+# commit the target binding only after the runtime version gate succeeds.
+: >"${docker_log}"
+run_maintenance apply "${next_upgrade_candidate}" WRITE_STOP_CONFIRMED
+test ! -e "${app_dir}/runtime-config/pending"
+test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_84_ID}"
+/usr/bin/grep -Fxq "DB_IMAGE=mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" "${app_dir}/.env"
+/usr/bin/grep -Fxq "DB_VOLUME_NAME=${ROLLBACK_VOLUME}" "${app_dir}/.env"
+/usr/bin/grep -Fxq 'OPERATION=UPGRADE' \
+  "${app_dir}/runtime-config/mysql-maintenance/state"
+assert_version_gate_precedes_application_startup
 
 printf 'Cubing Hub MySQL maintenance transition tests passed\n'

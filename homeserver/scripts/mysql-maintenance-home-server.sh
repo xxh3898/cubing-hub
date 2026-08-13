@@ -464,6 +464,21 @@ print("{}@{}".format(tag.split("@", 1)[0], digests[0]), end="")
 ' "${image}"
 }
 
+running_db_container_id() {
+  local expected_image="$2"
+  local expected_volume="$3"
+  local release_dir="$1"
+  local container_id
+
+  container_id="$(compose_for "${release_dir}" "${expected_image}" "${expected_volume}" ps -q db)"
+  if [[ -z "${container_id}" ]] \
+    || [[ ! "${container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]
+  then
+    fail "running MySQL container identity is missing or invalid"
+  fi
+  printf '%s' "${container_id}"
+}
+
 validate_actual_db_identity() {
   local actual_health
   local actual_image_id
@@ -477,12 +492,12 @@ validate_actual_db_identity() {
   local release_dir="$4"
   local volume_users
 
-  container_id="$(compose_for "${release_dir}" "${expected_image}" "${expected_volume}" ps -q db)"
-  if [[ -z "${container_id}" ]] \
-    || [[ ! "${container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]
-  then
-    fail "running MySQL container identity is missing or invalid"
-  fi
+  container_id="$(
+    running_db_container_id \
+      "${release_dir}" \
+      "${expected_image}" \
+      "${expected_volume}"
+  )"
   actual_image_id="$("${DOCKER_BIN}" container inspect --format '{{.Image}}' "${container_id}")"
   actual_volume="$(
     "${DOCKER_BIN}" container inspect \
@@ -519,6 +534,59 @@ validate_actual_db_identity() {
     || fail "actual MySQL container is not healthy"
   [[ "${volume_users}" == "${container_id}" ]] \
     || fail "actual MySQL volume attachment set does not contain only the expected container"
+}
+
+validate_running_mysql_version() {
+  local actual_version
+  local container_id
+  local expected_image="$2"
+  local expected_version="$1"
+  local expected_volume="$3"
+  local release_dir="$4"
+
+  container_id="$(
+    running_db_container_id \
+      "${release_dir}" \
+      "${expected_image}" \
+      "${expected_volume}"
+  )"
+  actual_version="$(
+    "${DOCKER_BIN}" exec --env MAINTENANCE_QUERY=running-version \
+      "${container_id}" /bin/sh -ceu '
+        export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+        exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
+          --execute "SELECT VERSION()"
+      '
+  )" || fail "running MySQL version query failed"
+
+  case "${expected_version}" in
+    "${TARGET_DB_VERSION}")
+      [[ "${actual_version}" =~ ^8\.4\.11([-+].*)?$ ]] \
+        || fail "running MySQL server is not exact version ${TARGET_DB_VERSION}"
+      ;;
+    "${SOURCE_DB_VERSION}")
+      [[ "${actual_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
+        || fail "running MySQL server is not exact version ${SOURCE_DB_VERSION}"
+      ;;
+    *)
+      fail "expected MySQL version is unsupported"
+      ;;
+  esac
+}
+
+validate_candidate_target_mysql_version() {
+  local expected_version
+
+  case "${candidate_operation}" in
+    UPGRADE) expected_version="${TARGET_DB_VERSION}" ;;
+    ROLLBACK) expected_version="${SOURCE_DB_VERSION}" ;;
+    *) fail "maintenance candidate operation is invalid" ;;
+  esac
+  validate_running_mysql_version \
+    "${expected_version}" \
+    "${candidate_target_db_image_exact}" \
+    "${candidate_target_db_volume}" \
+    "${candidate_target_release}"
 }
 
 validate_target_artifacts() {
@@ -1685,6 +1753,7 @@ apply_candidate() {
     "${candidate_target_db_image_id}" \
     "${candidate_target_db_volume}" \
     "${candidate_target_release}"
+  validate_candidate_target_mysql_version
   if ! compose_for \
     "${candidate_target_release}" \
     "${candidate_target_db_image_exact}" \
@@ -1920,6 +1989,7 @@ recover_transition() {
     "${candidate_target_db_image_id}" \
     "${candidate_target_db_volume}" \
     "${candidate_target_release}"
+  validate_candidate_target_mysql_version
   if ! compose_for \
     "${candidate_target_release}" \
     "${candidate_target_db_image_exact}" \

@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-13
+updated: 2026-08-14
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -333,13 +333,13 @@ API·Web image drift, Redis·network·DB command drift, target image digest 불�
 
 6. Worker는 공통 operation lock을 획득하고 current state·pointer·actual DB identity를 다시 검증한다. 첫 service mutation 전에 canonical `runtime-config/pending`을 생성한 뒤 API/Web과 DB를 정상 종료하고 exact 8.4.11 image에 original volume을 연결한다.
 7. Target DB와 application 전체 health gate를 통과하기 전에는 `.env`, runtime config `state`·`current`가 마지막 committed source binding을 유지한다. Target DB image·volume은 maintenance worker가 Compose process override로만 전달한다.
-8. DB actual image·volume과 application 전체 service health가 성공한 뒤에만 runtime config `state`·`current`, `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다.
-9. `SELECT VERSION()`, charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
+8. Exact `mysql:8.4.11@sha256:<digest>` 형식과 Docker image ID만으로 server version을 확정하지 않는다. Target DB health와 image·volume identity 확인 직후 running container에서 `SELECT VERSION()`을 실행하고, `8.4.11` 또는 배포 suffix가 붙은 동일 patch인지 확인한 뒤에만 Redis/API/Web을 시작한다.
+9. MySQL version gate와 application 전체 service health가 성공한 뒤에만 runtime config `state`·`current`, `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다. 이어서 charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
 10. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
 11. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
 12. 모든 gate가 끝난 뒤에만 write를 재개한다.
 
-`apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 target DB identity와 health를 먼저 확인하고 API·Web을 candidate binding으로 다시 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정한다.
+`apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 target DB identity와 health를 먼저 확인하고 `SELECT VERSION()`으로 candidate operation의 exact target patch를 다시 검증한 뒤 API·Web을 candidate binding으로 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정한다.
 
 ```bash
 /Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh recover
@@ -476,7 +476,7 @@ rollback_candidate_id="$(
 "${maintenance}" apply "${rollback_candidate_id}" WRITE_STOP_CONFIRMED
 ```
 
-Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME`과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. `apply`는 과거 restore evidence만 신뢰하지 않는다. Cutover 직전에 exact MySQL 8.0.46 임시 container로 rollback volume의 version, table inventory, manifest row count를 다시 검증하고 container를 제거한 뒤에만 pending 기록과 service 전환을 시작한다. 성공 후에도 original upgraded volume은 그대로 보존한다.
+Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME`과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. `apply`는 과거 restore evidence만 신뢰하지 않는다. Cutover 직전에 exact MySQL 8.0.46 임시 container로 rollback volume의 version, table inventory, manifest row count를 다시 검증하고 container를 제거한 뒤에만 pending 기록과 service 전환을 시작한다. Production binding으로 시작한 rollback target도 health·identity 뒤 `SELECT VERSION()`이 exact 8.0.46인지 다시 확인하며, 성공 후에도 original upgraded volume은 그대로 보존한다.
 
 Rollback `apply`가 target MySQL을 healthy 상태로 만들기 전에 중단되면 canonical `pending`의 `OPERATION=ROLLBACK`과 `CANDIDATE_ID`를 확인한 뒤 같은 command를 다시 실행한다. Worker는 동일 rollback candidate와 source upgrade candidate, restore evidence, application image, target image·volume을 모두 다시 검증한다. Candidate와 일치하는 unhealthy target container가 남아 있으면 volume을 보존한 채 container만 stop/remove하고 content parity를 다시 확인한다. 첫 `apply`의 검증 결과를 재사용하지 않으며, 다른 rollback candidate는 pending transaction을 이어받을 수 없다.
 
@@ -498,7 +498,7 @@ Target rollback DB가 이미 healthy하고 application/runtime state 확정만 �
 - Target startup, health, state write, `current` pointer 갱신 중 어느 단계든 실패하면 pending을 유지한다.
 - `ROLLBACK` pending에서 target DB가 아직 healthy하지 않으면 동일 candidate의 `apply`만 재시도할 수 있다. Pending candidate ID·context나 restore evidence가 다르면 중단한다.
 - Rollback `apply`는 최초 실행과 재시도 모두 cutover 직전에 fresh volume의 current table inventory·row count를 backup manifest와 대조한다. 사전 restore evidence만으로 전환하지 않는다.
-- Target DB가 healthy하지만 application startup이나 success finalization이 끝나지 않았으면 `recover`를 사용한다. `recover`는 pending candidate의 target image ID·volume·service health가 일치할 때만 source/target 중간 state를 target으로 확정하고 `.env` binding을 기록한다.
+- Target DB가 healthy하지만 application startup이나 success finalization이 끝나지 않았으면 `recover`를 사용한다. `recover`는 pending candidate의 target image ID·volume·health와 actual MySQL patch가 일치할 때만 application을 기동하고, 전체 service health 뒤 source/target 중간 state를 target으로 확정해 `.env` binding을 기록한다.
 - 성공 state의 current/previous runtime은 모두 explicit DB binding을 지원하는 target release를 가리킨다. Maintenance source release는 immutable candidate에 보존한다.
 - Target이 healthy하지 않으면 `recover`로 source를 자동 재연결하지 않는다. Fresh rollback volume을 검증한 뒤 rollback candidate를 적용한다.
 - Candidate, restore evidence, pending, maintenance state에는 secret을 남기지 않는다.
