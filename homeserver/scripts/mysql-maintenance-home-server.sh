@@ -633,13 +633,23 @@ load_current_db_identity() {
 validate_backup() {
   local backup_id="$1"
   local backup_path="${BACKUP_ROOT}/${backup_id}"
+  local expected_application_revision="${2:-}"
+  local expected_runtime_digest="${3:-}"
 
   is_backup_id "${backup_id}" || fail "backup identifier is invalid"
+  if { [[ -n "${expected_application_revision}" ]] && [[ -z "${expected_runtime_digest}" ]]; } \
+    || { [[ -z "${expected_application_revision}" ]] && [[ -n "${expected_runtime_digest}" ]]; }
+  then
+    fail "backup source runtime validation requires both application revision and runtime digest"
+  fi
   if [[ ! -d "${backup_path}" || -L "${backup_path}" ]]; then
     fail "verified backup directory is missing or unsafe"
   fi
   backup_manifest_sha="$(
-    "${PYTHON_BIN}" - "${backup_path}" <<'PY'
+    "${PYTHON_BIN}" - \
+      "${backup_path}" \
+      "${expected_application_revision}" \
+      "${expected_runtime_digest}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -647,6 +657,8 @@ import re
 import sys
 
 root = pathlib.Path(sys.argv[1])
+expected_application_revision = sys.argv[2]
+expected_runtime_digest = sys.argv[3]
 success = root / "SUCCESS"
 manifest_path = root / "manifest.json"
 if (
@@ -658,11 +670,17 @@ if (
     raise SystemExit("backup SUCCESS marker or manifest is missing")
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 database = manifest.get("database", {})
+source = manifest.get("source", {})
 if (
     manifest.get("schemaVersion") != 1
     or manifest.get("status") != "success"
     or manifest.get("project") != "cubing-hub"
     or manifest.get("environment") != "production"
+    or not isinstance(source, dict)
+    or not re.fullmatch(r"[0-9a-f]{40}", source.get("applicationSha", ""))
+    or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", source.get("runtimeConfigDigest", "")
+    )
     or database.get("engine") != "mysql"
     or not re.fullmatch(r"8\.0\.46(?:[-+].*)?", database.get("version", ""))
     or database.get("dumpFile") != "database/dump"
@@ -671,6 +689,11 @@ if (
     or not database["recordCounts"]
 ):
     raise SystemExit("backup manifest is not an 8.0.46 production snapshot")
+if expected_application_revision and (
+    source["applicationSha"] != expected_application_revision
+    or source["runtimeConfigDigest"] != expected_runtime_digest
+):
+    raise SystemExit("backup source runtime does not match the maintenance source")
 for table, count in database["recordCounts"].items():
     if not re.fullmatch(r"[A-Za-z0-9_]+", table) or type(count) is not int or count < 0:
         raise SystemExit("backup record count inventory is invalid")
@@ -689,6 +712,270 @@ PY
   )" || fail "backup evidence validation failed"
   [[ "${backup_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] \
     || fail "backup manifest digest is invalid"
+}
+
+validate_rollback_volume_metadata() {
+  local expected_backup_id="$2"
+  local original_volume="$3"
+  local volume="$1"
+  local volume_backup_label
+  local volume_driver
+  local volume_name
+
+  is_volume_name "${volume}" || fail "rollback volume name is invalid"
+  [[ "${volume}" != "${original_volume}" ]] \
+    || fail "rollback volume must differ from the upgraded original volume"
+  volume_name="$(
+    "${DOCKER_BIN}" volume inspect --format '{{.Name}}' "${volume}"
+  )"
+  volume_driver="$(
+    "${DOCKER_BIN}" volume inspect --format '{{.Driver}}' "${volume}"
+  )"
+  volume_backup_label="$(
+    "${DOCKER_BIN}" volume inspect \
+      --format '{{ index .Labels "io.chochiho.cubing-hub.mysql-restore-backup" }}' \
+      "${volume}"
+  )"
+  [[ "${volume_name}" == "${volume}" && "${volume_driver}" == local ]] \
+    || fail "rollback volume is missing or unsafe"
+  [[ "${volume_backup_label}" == "${expected_backup_id}" ]] \
+    || fail "rollback volume is not labeled for the verified backup"
+}
+
+ensure_rollback_volume_detached() {
+  local volume="$1"
+
+  if [[ -n "$(
+    "${DOCKER_BIN}" ps -a --no-trunc \
+      --filter "volume=${volume}" \
+      --format '{{.ID}}'
+  )" ]]; then
+    fail "rollback volume remains attached to a container"
+  fi
+}
+
+validate_rollback_volume_contents() {
+  local actual_count
+  local actual_health
+  local actual_image_id
+  local actual_label
+  local actual_mount
+  local actual_tables
+  local actual_version
+  local backup_id="$4"
+  local expected_image_id="$2"
+  local expected_tables
+  local table
+  local validation_container="$1"
+  local volume="$3"
+
+  [[ "${validation_container}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] \
+    || fail "validation container identity is invalid"
+  actual_image_id="$("${DOCKER_BIN}" container inspect --format '{{.Image}}' "${validation_container}")"
+  actual_mount="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}' \
+      "${validation_container}"
+  )"
+  actual_health="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      "${validation_container}"
+  )"
+  actual_label="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "io.chochiho.cubing-hub.mysql-restore-backup" }}' \
+      "${validation_container}"
+  )"
+  if [[ "${actual_image_id}" != "${expected_image_id}" ]] \
+    || [[ "${actual_mount}" != "${volume}" ]] \
+    || [[ "${actual_health}" != healthy ]] \
+    || [[ "${actual_label}" != "${backup_id}" ]]
+  then
+    fail "rollback validation container does not match the 8.0 image, volume, backup, or health"
+  fi
+
+  actual_version="$(
+    "${DOCKER_BIN}" exec --env MAINTENANCE_QUERY=version \
+      "${validation_container}" /bin/sh -ceu '
+        export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+        exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
+          --execute "SELECT VERSION()"
+      '
+  )"
+  [[ "${actual_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
+    || fail "rollback validation container is not MySQL 8.0.46"
+
+  expected_tables="$(
+    "${PYTHON_BIN}" - "${BACKUP_ROOT}/${backup_id}/manifest.json" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+for table, count in sorted(manifest["database"]["recordCounts"].items()):
+    print(f"{table}\t{count}")
+PY
+  )"
+  actual_tables="$(
+    "${DOCKER_BIN}" exec --env MAINTENANCE_QUERY=tables \
+      "${validation_container}" /bin/sh -ceu '
+        export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+        exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
+          --execute "SHOW TABLES"
+      ' | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${actual_tables}" != "$(printf '%s\n' "${expected_tables}" | /usr/bin/cut -f1)" ]]; then
+    fail "rollback volume table inventory differs from the backup manifest"
+  fi
+  while IFS=$'\t' read -r table expected_count; do
+    [[ "${table}" =~ ^[A-Za-z0-9_]+$ && "${expected_count}" =~ ^[0-9]+$ ]] \
+      || fail "backup table count inventory is invalid"
+    actual_count="$(
+      "${DOCKER_BIN}" exec \
+        --env MAINTENANCE_QUERY=count \
+        --env "MAINTENANCE_TABLE=${table}" \
+        "${validation_container}" /bin/sh -ceu '
+          case "${MAINTENANCE_TABLE}" in
+            *[!A-Za-z0-9_]*) exit 64 ;;
+          esac
+          export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+          exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
+            --execute "SELECT COUNT(*) FROM \`${MAINTENANCE_TABLE}\`"
+        '
+    )"
+    [[ "${actual_count}" == "${expected_count}" ]] \
+      || fail "rollback volume row count differs for ${table}"
+  done <<<"${expected_tables}"
+}
+
+remove_rollback_validation_container() {
+  local validation_container="$1"
+  local volume="$2"
+
+  "${DOCKER_BIN}" stop "${validation_container}" >/dev/null
+  if "${DOCKER_BIN}" container inspect "${validation_container}" >/dev/null 2>&1; then
+    "${DOCKER_BIN}" rm "${validation_container}" >/dev/null
+  fi
+  if [[ "${rollback_validation_container:-}" == "${validation_container}" ]]; then
+    rollback_validation_container=
+  fi
+  ensure_rollback_volume_detached "${volume}"
+}
+
+wait_for_rollback_validation_health() {
+  local deadline
+  local health=
+  local validation_container="$1"
+
+  deadline=$(( $(/bin/date +%s) + HEALTH_TIMEOUT_SECONDS ))
+  while [[ "$(/bin/date +%s)" -lt "${deadline}" ]]; do
+    health="$(
+      "${DOCKER_BIN}" container inspect \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+        "${validation_container}"
+    )"
+    [[ "${health}" == healthy ]] && return
+    [[ "${health}" != unhealthy && "${health}" != exited ]] \
+      || fail "rollback validation MySQL failed its health check"
+    /bin/sleep 2
+  done
+  fail "rollback validation MySQL health check timed out"
+}
+
+revalidate_rollback_volume_before_cutover() {
+  local attached
+  local candidate_id="$1"
+  local rollback_resume="$2"
+  local validation_container_id
+  local validation_container_name
+
+  validate_rollback_volume_metadata \
+    "${candidate_target_db_volume}" \
+    "${candidate_backup_id}" \
+    "${candidate_source_db_volume}"
+
+  if [[ "${rollback_resume}" == true ]]; then
+    attached="$(
+      "${DOCKER_BIN}" ps -a --no-trunc \
+        --filter "volume=${candidate_target_db_volume}" \
+        --format '{{.ID}}'
+    )"
+    if [[ -n "${attached}" ]]; then
+      validate_pending_rollback_target_attachment "${attached}"
+      compose_for \
+        "${candidate_target_release}" \
+        "${candidate_target_db_image_exact}" \
+        "${candidate_target_db_volume}" \
+        rm --force --stop db
+    fi
+  fi
+  ensure_rollback_volume_detached "${candidate_target_db_volume}"
+
+  rollback_validation_env="$(
+    /usr/bin/mktemp "${TMPDIR:-/tmp}/cubing-hub-mysql-validation-env.XXXXXX"
+  )"
+  "${PYTHON_BIN}" - "${ENV_FILE}" "${rollback_validation_env}" <<'PY'
+import os
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+target = pathlib.Path(sys.argv[2])
+mapping = {
+    "DB_NAME": "MYSQL_DATABASE",
+    "MYSQL_ROOT_PASSWORD": "MYSQL_ROOT_PASSWORD",
+}
+values = {}
+for line in source.read_text(encoding="utf-8").splitlines():
+    key, separator, value = line.partition("=")
+    if separator and key in mapping:
+        if key in values or not value:
+            raise SystemExit(f"{key} must appear exactly once and be non-empty")
+        values[key] = value
+if set(values) != set(mapping):
+    raise SystemExit("rollback validation MySQL environment is incomplete")
+target.write_text(
+    "".join(f"{mapping[key]}={values[key]}\n" for key in mapping),
+    encoding="utf-8",
+)
+os.chmod(target, 0o600)
+PY
+
+  validation_container_name="${PROJECT_NAME}-mysql-rollback-validation-${candidate_id}"
+  if "${DOCKER_BIN}" container inspect "${validation_container_name}" >/dev/null 2>&1; then
+    fail "rollback validation container already exists"
+  fi
+  validation_container_id="$(
+    "${DOCKER_BIN}" run --detach --rm \
+      --name "${validation_container_name}" \
+      --label "io.chochiho.cubing-hub.mysql-restore-backup=${candidate_backup_id}" \
+      --env-file "${rollback_validation_env}" \
+      --mount "type=volume,source=${candidate_target_db_volume},target=/var/lib/mysql" \
+      --network none \
+      --pull never \
+      --health-cmd='mysqladmin ping -h 127.0.0.1 -u root --password="${MYSQL_ROOT_PASSWORD}" --silent' \
+      --health-interval=10s \
+      --health-timeout=5s \
+      --health-retries=12 \
+      --health-start-period=30s \
+      "${candidate_target_db_image_exact}"
+  )"
+  rollback_validation_container="${validation_container_name}"
+  [[ "${validation_container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] \
+    || fail "rollback validation container ID is invalid"
+  /bin/rm -f -- "${rollback_validation_env}"
+  rollback_validation_env=
+
+  wait_for_rollback_validation_health "${rollback_validation_container}"
+  validate_rollback_volume_contents \
+    "${rollback_validation_container}" \
+    "${candidate_target_db_image_id}" \
+    "${candidate_target_db_volume}" \
+    "${candidate_backup_id}"
+  remove_rollback_validation_container \
+    "${rollback_validation_container}" \
+    "${candidate_target_db_volume}"
 }
 
 prepare_runtime_release() {
@@ -905,7 +1192,15 @@ validate_candidate() {
       || fail "rollback DB images must use exact supported repository digests"
   fi
 
-  validate_backup "${candidate_backup_id}"
+  if [[ "${candidate_operation}" == UPGRADE ]]; then
+    validate_backup \
+      "${candidate_backup_id}" \
+      "${candidate_application_revision}" \
+      "${candidate_source_runtime_digest}"
+  else
+    # ROLLBACK provenance is revalidated through its immutable source UPGRADE candidate.
+    validate_backup "${candidate_backup_id}"
+  fi
   [[ "${backup_manifest_sha}" == "${candidate_backup_manifest_sha}" ]] \
     || fail "candidate backup evidence has changed"
   release_dir="${RUNTIME_CONFIG_RELEASES}/${candidate_target_runtime_digest#sha256:}"
@@ -1356,6 +1651,11 @@ apply_candidate() {
   fi
 
   validate_target_artifacts "${rollback_resume}"
+  if [[ "${candidate_operation}" == ROLLBACK ]]; then
+    revalidate_rollback_volume_before_cutover \
+      "${candidate_id}" \
+      "${rollback_resume}"
+  fi
 
   if [[ "${rollback_resume}" != true ]]; then
     write_pending "${candidate_id}"
@@ -1426,7 +1726,10 @@ prepare_upgrade() {
   then
     fail "upgrade source must be exact MySQL ${SOURCE_DB_VERSION}"
   fi
-  validate_backup "${backup_id}"
+  validate_backup \
+    "${backup_id}" \
+    "${current_application_revision}" \
+    "${current_runtime_digest}"
 
   registry_token="$(/bin/cat)"
   [[ -n "${registry_token}" ]] || fail "GHCR token must not be empty"
@@ -1488,123 +1791,27 @@ prepare_upgrade() {
 }
 
 verify_rollback_volume() {
-  local actual_health
-  local actual_image_id
-  local actual_label
-  local actual_mount
-  local actual_tables
-  local actual_version
-  local actual_volume_label
   local candidate_id="$1"
-  local expected_tables
-  local table
   local validation_container="$3"
 
   rollback_volume="$2"
   validate_candidate "${candidate_id}"
   [[ "${candidate_operation}" == UPGRADE ]] \
     || fail "rollback volume evidence requires an upgrade candidate"
-  is_volume_name "${rollback_volume}" || fail "rollback volume name is invalid"
-  [[ "${rollback_volume}" != "${candidate_source_db_volume}" ]] \
-    || fail "rollback volume must differ from the upgraded original volume"
   [[ "${validation_container}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] \
     || fail "validation container name is invalid"
-  [[ "$("${DOCKER_BIN}" volume inspect --format '{{.Name}}' "${rollback_volume}")" == "${rollback_volume}" ]] \
-    || fail "rollback volume is missing"
-  [[ "$("${DOCKER_BIN}" volume inspect --format '{{.Driver}}' "${rollback_volume}")" == local ]] \
-    || fail "rollback volume must use the local Docker driver"
-  actual_volume_label="$(
-    "${DOCKER_BIN}" volume inspect \
-      --format '{{ index .Labels "io.chochiho.cubing-hub.mysql-restore-backup" }}' \
-      "${rollback_volume}"
-  )"
-  [[ "${actual_volume_label}" == "${candidate_backup_id}" ]] \
-    || fail "rollback volume is not labeled for the verified backup"
-
-  actual_image_id="$("${DOCKER_BIN}" container inspect --format '{{.Image}}' "${validation_container}")"
-  actual_mount="$(
-    "${DOCKER_BIN}" container inspect \
-      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}' \
-      "${validation_container}"
-  )"
-  actual_health="$(
-    "${DOCKER_BIN}" container inspect \
-      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-      "${validation_container}"
-  )"
-  actual_label="$(
-    "${DOCKER_BIN}" container inspect \
-      --format '{{ index .Config.Labels "io.chochiho.cubing-hub.mysql-restore-backup" }}' \
-      "${validation_container}"
-  )"
-  if [[ "${actual_image_id}" != "${candidate_source_db_image_id}" ]] \
-    || [[ "${actual_mount}" != "${rollback_volume}" ]] \
-    || [[ "${actual_health}" != healthy ]] \
-    || [[ "${actual_label}" != "${candidate_backup_id}" ]]
-  then
-    fail "rollback validation container does not match the 8.0 image, volume, backup, or health"
-  fi
-
-  actual_version="$(
-    "${DOCKER_BIN}" exec --env MAINTENANCE_QUERY=version \
-      "${validation_container}" /bin/sh -ceu '
-        export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
-        exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
-          --execute "SELECT VERSION()"
-      '
-  )"
-  [[ "${actual_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
-    || fail "rollback validation container is not MySQL 8.0.46"
-
-  expected_tables="$(
-    "${PYTHON_BIN}" - "${BACKUP_ROOT}/${candidate_backup_id}/manifest.json" <<'PY'
-import json
-import pathlib
-import sys
-
-manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-for table, count in sorted(manifest["database"]["recordCounts"].items()):
-    print(f"{table}\t{count}")
-PY
-  )"
-  actual_tables="$(
-    "${DOCKER_BIN}" exec --env MAINTENANCE_QUERY=tables \
-      "${validation_container}" /bin/sh -ceu '
-        export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
-        exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
-          --execute "SHOW TABLES"
-      ' | LC_ALL=C /usr/bin/sort
-  )"
-  if [[ "${actual_tables}" != "$(printf '%s\n' "${expected_tables}" | /usr/bin/cut -f1)" ]]; then
-    fail "rollback volume table inventory differs from the backup manifest"
-  fi
-  while IFS=$'\t' read -r table expected_count; do
-    [[ "${table}" =~ ^[A-Za-z0-9_]+$ && "${expected_count}" =~ ^[0-9]+$ ]] \
-      || fail "backup table count inventory is invalid"
-    actual_count="$(
-      "${DOCKER_BIN}" exec \
-        --env MAINTENANCE_QUERY=count \
-        --env "MAINTENANCE_TABLE=${table}" \
-        "${validation_container}" /bin/sh -ceu '
-          case "${MAINTENANCE_TABLE}" in
-            *[!A-Za-z0-9_]*) exit 64 ;;
-          esac
-          export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
-          exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
-            --execute "SELECT COUNT(*) FROM \`${MAINTENANCE_TABLE}\`"
-        '
-    )"
-    [[ "${actual_count}" == "${expected_count}" ]] \
-      || fail "rollback volume row count differs for ${table}"
-  done <<<"${expected_tables}"
-
-  "${DOCKER_BIN}" stop "${validation_container}" >/dev/null
-  "${DOCKER_BIN}" rm "${validation_container}" >/dev/null
-  if [[ -n "$(
-    "${DOCKER_BIN}" ps -a --filter "volume=${rollback_volume}" --format '{{.ID}}'
-  )" ]]; then
-    fail "rollback volume remains attached after validation"
-  fi
+  validate_rollback_volume_metadata \
+    "${rollback_volume}" \
+    "${candidate_backup_id}" \
+    "${candidate_source_db_volume}"
+  validate_rollback_volume_contents \
+    "${validation_container}" \
+    "${candidate_source_db_image_id}" \
+    "${rollback_volume}" \
+    "${candidate_backup_id}"
+  remove_rollback_validation_container \
+    "${validation_container}" \
+    "${rollback_volume}"
   write_restore_evidence "${candidate_id}"
   printf 'Rollback volume verified: %s\n' "${rollback_volume}"
 }
@@ -1765,8 +1972,19 @@ docker_config_dir=
 release_temp=
 config_container_id=
 logged_in=false
+rollback_validation_container=
+rollback_validation_env=
 
 cleanup() {
+  if [[ -n "${rollback_validation_container}" ]]; then
+    "${DOCKER_BIN}" stop "${rollback_validation_container}" >/dev/null 2>&1 || true
+    "${DOCKER_BIN}" rm "${rollback_validation_container}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${rollback_validation_env}" ]] \
+    && [[ "$(/usr/bin/basename "${rollback_validation_env}")" == cubing-hub-mysql-validation-env.* ]]
+  then
+    /bin/rm -f -- "${rollback_validation_env}"
+  fi
   if [[ -n "${config_container_id}" ]]; then
     "${DOCKER_BIN}" rm "${config_container_id}" >/dev/null 2>&1 || true
   fi

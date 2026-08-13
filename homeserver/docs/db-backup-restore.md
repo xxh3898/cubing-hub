@@ -281,7 +281,7 @@ test "$(/usr/bin/shasum -a 256 "${source_script}" | /usr/bin/awk '{print $1}')" 
 
 ### Immutable upgrade candidate
 
-Candidate 생성은 running runtime을 변경하지 않는다. `state`, `current`, `.env`, container는 그대로 유지한다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다.
+Candidate 생성은 running runtime을 변경하지 않는다. `state`, `current`, `.env`, container는 그대로 유지한다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다. Backup manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 candidate source application revision·runtime digest와 정확히 일치해야 한다. Source metadata가 없거나 다른 runtime에서 생성한 backup이면 candidate를 만들지 않는다.
 
 ```bash
 maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
@@ -315,7 +315,7 @@ backup identifier/manifest SHA-256
 created timestamp
 ```
 
-API·Web image drift, Redis·network·DB command drift, target image digest 불일치, backup evidence 부재, current state/pointer/actual DB 불일치는 candidate 생성을 차단한다.
+API·Web image drift, Redis·network·DB command drift, target image digest 불일치, backup evidence 부재·source runtime 불일치, current state/pointer/actual DB 불일치는 candidate 생성을 차단한다.
 
 ### Upgrade
 
@@ -458,7 +458,7 @@ done
 )
 ```
 
-임시 env file에는 restore container가 필요한 네 개의 MySQL 변수만 기록하고 subshell 종료 시 삭제한다. `verify-rollback-volume`은 volume과 validation container의 backup label, image ID, health, mount, `SELECT VERSION()`, table inventory, manifest의 모든 table row count를 검증한다. 성공하면 validation container를 stop/remove하고 `runtime-config/mysql-maintenance/restores/<volume>.state`에 immutable evidence를 남긴다. Volume과 backup은 삭제하지 않는다. 실패 시에도 rollback volume과 backup은 보존한다.
+임시 env file에는 restore container가 필요한 네 개의 MySQL 변수만 기록하고 subshell 종료 시 삭제한다. `verify-rollback-volume`은 volume과 validation container의 backup label, image ID, health, mount, `SELECT VERSION()`, table inventory, manifest의 모든 table row count를 검증한다. 성공하면 validation container를 stop/remove하고 `runtime-config/mysql-maintenance/restores/<volume>.state`에 immutable rehearsal evidence를 남긴다. Volume과 backup은 삭제하지 않는다. 실패 시에도 rollback volume과 backup은 보존한다.
 
 #### Rollback candidate와 transition
 
@@ -476,9 +476,9 @@ rollback_candidate_id="$(
 "${maintenance}" apply "${rollback_candidate_id}" WRITE_STOP_CONFIRMED
 ```
 
-Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME` 과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. 성공 후에도 original upgraded volume은 그대로 보존한다.
+Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME`과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. `apply`는 과거 restore evidence만 신뢰하지 않는다. Cutover 직전에 exact MySQL 8.0.46 임시 container로 rollback volume의 version, table inventory, manifest row count를 다시 검증하고 container를 제거한 뒤에만 pending 기록과 service 전환을 시작한다. 성공 후에도 original upgraded volume은 그대로 보존한다.
 
-Rollback `apply`가 target MySQL을 healthy 상태로 만들기 전에 중단되면 canonical `pending`의 `OPERATION=ROLLBACK`과 `CANDIDATE_ID`를 확인한 뒤 같은 command를 다시 실행한다. Worker는 동일 rollback candidate와 source upgrade candidate, restore evidence, application image, target image·volume을 모두 다시 검증한다. 다른 rollback candidate는 pending transaction을 이어받을 수 없다.
+Rollback `apply`가 target MySQL을 healthy 상태로 만들기 전에 중단되면 canonical `pending`의 `OPERATION=ROLLBACK`과 `CANDIDATE_ID`를 확인한 뒤 같은 command를 다시 실행한다. Worker는 동일 rollback candidate와 source upgrade candidate, restore evidence, application image, target image·volume을 모두 다시 검증한다. Candidate와 일치하는 unhealthy target container가 남아 있으면 volume을 보존한 채 container만 stop/remove하고 content parity를 다시 확인한다. 첫 `apply`의 검증 결과를 재사용하지 않으며, 다른 rollback candidate는 pending transaction을 이어받을 수 없다.
 
 ```bash
 "${maintenance}" apply "${rollback_candidate_id}" WRITE_STOP_CONFIRMED
@@ -497,6 +497,7 @@ Target rollback DB가 이미 healthy하고 application/runtime state 확정만 �
 - Target DB와 application 전체 health를 확인하기 전에는 `.env`, `state`, `current`가 source binding을 유지한다. Worker는 candidate DB binding을 Compose process override로만 사용한다.
 - Target startup, health, state write, `current` pointer 갱신 중 어느 단계든 실패하면 pending을 유지한다.
 - `ROLLBACK` pending에서 target DB가 아직 healthy하지 않으면 동일 candidate의 `apply`만 재시도할 수 있다. Pending candidate ID·context나 restore evidence가 다르면 중단한다.
+- Rollback `apply`는 최초 실행과 재시도 모두 cutover 직전에 fresh volume의 current table inventory·row count를 backup manifest와 대조한다. 사전 restore evidence만으로 전환하지 않는다.
 - Target DB가 healthy하지만 application startup이나 success finalization이 끝나지 않았으면 `recover`를 사용한다. `recover`는 pending candidate의 target image ID·volume·service health가 일치할 때만 source/target 중간 state를 target으로 확정하고 `.env` binding을 기록한다.
 - 성공 state의 current/previous runtime은 모두 explicit DB binding을 지원하는 target release를 가리킨다. Maintenance source release는 immutable candidate에 보존한다.
 - Target이 healthy하지 않으면 `recover`로 source를 자동 재연결하지 않는다. Fresh rollback volume을 검증한 뒤 rollback candidate를 적용한다.

@@ -26,6 +26,9 @@ case "${command_name}" in
   login|logout|rm)
     exit 0
     ;;
+  run)
+    printf '%s\n' "${FAKE_RESTORE_CONTAINER:-mock-restore-db}"
+    ;;
   create)
     printf 'mock-runtime-config-container\n'
     ;;
@@ -118,7 +121,9 @@ case "${command_name}" in
     format="$1"
     container_id="$2"
     if [[ "${format}" == '{{.Image}}' ]]; then
-      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]] \
+        || [[ "${container_id}" == cubing-hub-mysql-rollback-validation-* ]]
+      then
         printf '%s\n' "${FAKE_RESTORE_IMAGE_ID:-${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}}"
       elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/image-id" ]]; then
         /bin/cat "${FAKE_DB_STATE_DIR}/image-id"
@@ -126,7 +131,9 @@ case "${command_name}" in
         printf '%s\n' "${FAKE_ACTUAL_DB_IMAGE_ID:-${FAKE_MYSQL_84_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}}"
       fi
     elif [[ "${format}" == *'/var/lib/mysql'* ]]; then
-      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]] \
+        || [[ "${container_id}" == cubing-hub-mysql-rollback-validation-* ]]
+      then
         printf '%s\n' "${FAKE_RESTORE_VOLUME:-cubing-hub_mysql-rollback-test}"
       elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/volume" ]]; then
         /bin/cat "${FAKE_DB_STATE_DIR}/volume"
@@ -148,7 +155,9 @@ case "${command_name}" in
         printf 'running\n'
       fi
     elif [[ "${format}" == *State.Health* ]]; then
-      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]] \
+        || [[ "${container_id}" == cubing-hub-mysql-rollback-validation-* ]]
+      then
         printf '%s\n' "${FAKE_RESTORE_HEALTH:-healthy}"
       elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/health" ]]; then
         /bin/cat "${FAKE_DB_STATE_DIR}/health"
@@ -470,6 +479,10 @@ users}"
         "${edge_json}" \
         "${mysql_volume_name}" \
         "${mysql_volume_extra}"
+    elif [[ "${arguments}" == *" rm "* ]] && [[ "${arguments}" == *" db "* ]]; then
+      if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
+        printf 'false\n' >"${FAKE_DB_STATE_DIR}/running"
+      fi
     elif [[ "${arguments}" == *" stop db "* ]]; then
       if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
         printf 'false\n' >"${FAKE_DB_STATE_DIR}/running"

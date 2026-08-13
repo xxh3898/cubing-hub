@@ -19,6 +19,7 @@ readonly MYSQL_84_DIGEST=8484848484848484848484848484848484848484848484848484848
 readonly MYSQL_80_ID=sha256:8080808080808080808080808080808080808080808080808080808080808080
 readonly MYSQL_84_ID=sha256:8484848484848484848484848484848484848484848484848484848484848484
 readonly BACKUP_ID=cubing-hub-production-20260813T000000Z
+readonly NEXT_BACKUP_ID=cubing-hub-production-20260813T010000Z
 readonly ORIGINAL_VOLUME=cubing-hub_mysql-data
 readonly ROLLBACK_VOLUME=cubing-hub_mysql-rollback-20260813
 
@@ -107,6 +108,8 @@ printf 'RUNTIME_CONFIG_V2=initialized\n' >"${app_dir}/.runtime-config-v2-initial
   printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_REVISION}"
   printf 'DB_IMAGE=mysql:8.0.46@sha256:%s\n' "${MYSQL_80_DIGEST}"
   printf 'DB_VOLUME_NAME=%s\n' "${ORIGINAL_VOLUME}"
+  printf 'DB_NAME=cubing_hub\n'
+  printf 'MYSQL_ROOT_PASSWORD=fixture-root-password\n'
 } >"${app_dir}/.env"
 /bin/chmod 600 "${app_dir}/.env"
 
@@ -120,17 +123,23 @@ dump_bytes="$(
 "${PYTHON_BIN:-/usr/bin/python3}" - \
   "${backup_path}/manifest.json" \
   "${dump_sha}" \
-  "${dump_bytes}" <<'PY'
+  "${dump_bytes}" \
+  "${APPLICATION_REVISION}" \
+  "${SOURCE_RUNTIME_DIGEST}" <<'PY'
 import json
 import pathlib
 import sys
 
-path, digest, size = sys.argv[1:]
+path, digest, size, application_revision, runtime_digest = sys.argv[1:]
 manifest = {
     "schemaVersion": 1,
     "status": "success",
     "project": "cubing-hub",
     "environment": "production",
+    "source": {
+        "applicationSha": application_revision,
+        "runtimeConfigDigest": runtime_digest,
+    },
     "database": {
         "engine": "mysql",
         "version": "8.0.46",
@@ -207,18 +216,68 @@ expect_failure() {
   fi
 }
 
-# Candidate creation must not change current runtime state or binding.
-state_before="$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')"
-current_before="$(/usr/bin/readlink "${app_dir}/runtime-config/current")"
-env_before="$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')"
-upgrade_candidate="$(
+prepare_upgrade_fixture() {
   printf 'test-token' | run_maintenance prepare-upgrade \
     "${TARGET_RUNTIME_DIGEST}" \
     "${TARGET_RUNTIME_REVISION}" \
     "mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" \
     "${BACKUP_ID}" \
     test-user
-)"
+}
+
+set_backup_provenance() {
+  local mode="$1"
+
+  /usr/bin/python3 - \
+    "${backup_path}/manifest.json" \
+    "${APPLICATION_REVISION}" \
+    "${SOURCE_RUNTIME_DIGEST}" \
+    "${mode}" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+application_revision, runtime_digest, mode = sys.argv[2:]
+manifest = json.loads(path.read_text(encoding="utf-8"))
+manifest["source"] = {
+    "applicationSha": application_revision,
+    "runtimeConfigDigest": runtime_digest,
+}
+if mode == "application-mismatch":
+    manifest["source"]["applicationSha"] = "9" * 40
+elif mode == "runtime-mismatch":
+    manifest["source"]["runtimeConfigDigest"] = "sha256:" + "9" * 64
+elif mode == "missing-application":
+    del manifest["source"]["applicationSha"]
+elif mode == "missing-runtime":
+    del manifest["source"]["runtimeConfigDigest"]
+elif mode != "valid":
+    raise SystemExit("unsupported provenance fixture mode")
+path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+PY
+}
+
+# Upgrade backups must originate from the exact committed source runtime.
+set_backup_provenance application-mismatch
+expect_failure "backup application revision mismatch" prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+set_backup_provenance runtime-mismatch
+expect_failure "backup runtime digest mismatch" prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+set_backup_provenance missing-application
+expect_failure "backup application provenance missing" prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+set_backup_provenance missing-runtime
+expect_failure "backup runtime provenance missing" prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+set_backup_provenance valid
+
+# Candidate creation must not change current runtime state or binding.
+state_before="$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')"
+current_before="$(/usr/bin/readlink "${app_dir}/runtime-config/current")"
+env_before="$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')"
+upgrade_candidate="$(prepare_upgrade_fixture)"
 [[ "${upgrade_candidate}" =~ ^[0-9a-f]{64}$ ]]
 upgrade_file="${app_dir}/runtime-config/mysql-maintenance/candidates/${upgrade_candidate}/candidate.env"
 test -f "${upgrade_file}"
@@ -445,6 +504,34 @@ other_rollback_candidate="$(
 [[ "${other_rollback_candidate}" =~ ^[0-9a-f]{64}$ ]]
 test "${other_rollback_candidate}" != "${rollback_candidate}"
 
+# Restore evidence is historical. Rollback apply must recheck the detached
+# volume's current table inventory and row counts before writing pending or
+# stopping the source binding.
+pre_cutover_state="$(
+  /usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}'
+)"
+pre_cutover_current="$(/usr/bin/readlink "${app_dir}/runtime-config/current")"
+pre_cutover_env="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
+FAKE_RESTORE_USERS_COUNT=2 \
+  expect_failure "rollback volume row count changed after verification" \
+    run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
+test ! -e "${app_dir}/runtime-config/pending"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" = \
+  "${pre_cutover_state}"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${pre_cutover_current}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = \
+  "${pre_cutover_env}"
+test "$(/bin/cat "${db_state}/volume")" = "${ORIGINAL_VOLUME}"
+
+FAKE_RESTORE_TABLES=users \
+  expect_failure "rollback volume table inventory changed after verification" \
+    run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
+test ! -e "${app_dir}/runtime-config/pending"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = \
+  "${pre_cutover_env}"
+
 FAKE_VOLUME_ATTACHED_CONTAINER=unexpected-container \
   expect_failure "rollback volume still attached" \
     run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
@@ -498,6 +585,18 @@ test -f "${rollback_file}"
 expect_failure "unhealthy rollback target recovery" run_maintenance recover
 test -f "${rollback_pending}"
 
+# A resumed rollback must not reuse the parity result from its first apply.
+# The exact unhealthy target container is removed, then current volume contents
+# are validated again before the transition can continue.
+FAKE_RESTORE_USERS_COUNT=2 \
+  expect_failure "interrupted rollback volume changed before retry" \
+    run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
+test -f "${rollback_pending}"
+/usr/bin/grep -Fxq "CANDIDATE_ID=${rollback_candidate}" "${rollback_pending}"
+test "$(/bin/cat "${db_state}/running")" = false
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = \
+  "${rollback_env_before}"
+
 expect_failure "different rollback candidate resume" \
   run_maintenance apply "${other_rollback_candidate}" WRITE_STOP_CONFIRMED
 /usr/bin/grep -Fxq "CANDIDATE_ID=${rollback_candidate}" "${rollback_pending}"
@@ -549,13 +648,37 @@ test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_80_ID}"
 /usr/bin/grep -Fxq "TARGET_DB_VOLUME=${ROLLBACK_VOLUME}" "${rollback_file}"
 
 # A later maintenance cycle treats the verified rollback binding as the new
-# normal 8.0 source and never falls back to the old original volume.
+# normal 8.0 source and requires a backup from the current runtime instead of
+# reusing the previous cycle's source snapshot.
+next_backup_path="${backup_root}/${NEXT_BACKUP_ID}"
+/bin/mkdir -p "${next_backup_path}/database"
+/bin/cp "${backup_path}/database/dump" "${next_backup_path}/database/dump"
+/bin/cp "${backup_path}/SUCCESS" "${next_backup_path}/SUCCESS"
+/usr/bin/python3 - \
+  "${backup_path}/manifest.json" \
+  "${next_backup_path}/manifest.json" \
+  "${APPLICATION_REVISION}" \
+  "${TARGET_RUNTIME_DIGEST}" <<'PY'
+import json
+import pathlib
+import sys
+
+source_path = pathlib.Path(sys.argv[1])
+target_path = pathlib.Path(sys.argv[2])
+application_revision, runtime_digest = sys.argv[3:]
+manifest = json.loads(source_path.read_text(encoding="utf-8"))
+manifest["source"] = {
+    "applicationSha": application_revision,
+    "runtimeConfigDigest": runtime_digest,
+}
+target_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+PY
 next_upgrade_candidate="$(
   printf 'test-token' | run_maintenance prepare-upgrade \
     "${TARGET_RUNTIME_DIGEST}" \
     "${TARGET_RUNTIME_REVISION}" \
     "mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" \
-    "${BACKUP_ID}" \
+    "${NEXT_BACKUP_ID}" \
     test-user
 )"
 next_upgrade_file="${app_dir}/runtime-config/mysql-maintenance/candidates/${next_upgrade_candidate}/candidate.env"
