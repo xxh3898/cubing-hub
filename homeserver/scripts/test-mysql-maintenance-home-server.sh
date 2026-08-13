@@ -191,6 +191,7 @@ users}" \
     FAKE_VOLUME_ATTACHED_CONTAINER="${FAKE_VOLUME_ATTACHED_CONTAINER:-}" \
     FAKE_MAINTENANCE_CANDIDATE_API_IMAGE="${FAKE_MAINTENANCE_CANDIDATE_API_IMAGE:-}" \
     FAKE_MAINTENANCE_DB_UP_FAIL="${FAKE_MAINTENANCE_DB_UP_FAIL:-false}" \
+    FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND="${FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND:-false}" \
     FAKE_SERVICE_HEALTH="${FAKE_SERVICE_HEALTH:-healthy}" \
     /bin/bash "${test_script}" "$@"
 }
@@ -398,9 +399,19 @@ rollback_candidate="$(
 [[ "${rollback_candidate}" =~ ^[0-9a-f]{64}$ ]]
 rollback_file="${app_dir}/runtime-config/mysql-maintenance/candidates/${rollback_candidate}/candidate.env"
 /usr/bin/grep -Fxq 'OPERATION=ROLLBACK' "${rollback_file}"
+/usr/bin/grep -Fxq "SOURCE_UPGRADE_CANDIDATE_ID=${upgrade_candidate}" "${rollback_file}"
 /usr/bin/grep -Fxq 'TARGET_DB_IMAGE=mysql:8.0.46' "${rollback_file}"
 /usr/bin/grep -Fxq "SOURCE_DB_VOLUME=${ORIGINAL_VOLUME}" "${rollback_file}"
 /usr/bin/grep -Fxq "TARGET_DB_VOLUME=${ROLLBACK_VOLUME}" "${rollback_file}"
+
+# A second immutable rollback candidate for the same restore must not replace
+# an interrupted rollback transaction.
+/bin/sleep 1
+other_rollback_candidate="$(
+  run_maintenance prepare-rollback "${upgrade_candidate}" "${ROLLBACK_VOLUME}"
+)"
+[[ "${other_rollback_candidate}" =~ ^[0-9a-f]{64}$ ]]
+test "${other_rollback_candidate}" != "${rollback_candidate}"
 
 FAKE_VOLUME_ATTACHED_CONTAINER=unexpected-container \
   expect_failure "rollback volume still attached" \
@@ -413,6 +424,55 @@ FAKE_VOLUME_ATTACHED_CONTAINER=unexpected-container \
 /bin/ln -s \
   "releases/${SOURCE_RUNTIME_DIGEST#sha256:}" \
   "${app_dir}/runtime-config/current"
+
+# A rollback startup timeout can leave its exact target container attached and
+# unhealthy. The same immutable candidate must resume without replacing its
+# canonical pending transaction.
+rollback_state_before="$(
+  /usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}'
+)"
+rollback_current_before="$(/usr/bin/readlink "${app_dir}/runtime-config/current")"
+rollback_maintenance_before="$(
+  /usr/bin/shasum -a 256 "${maintenance_state}" | /usr/bin/awk '{print $1}'
+)"
+FAKE_MAINTENANCE_DB_UP_FAIL=true \
+FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND=true \
+  expect_failure "MySQL 8.0 rollback startup failure" \
+    run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
+rollback_pending="${app_dir}/runtime-config/pending"
+test -f "${rollback_pending}"
+/usr/bin/grep -Fxq 'TRANSACTION_TYPE=MYSQL_MAINTENANCE' "${rollback_pending}"
+/usr/bin/grep -Fxq 'OPERATION=ROLLBACK' "${rollback_pending}"
+/usr/bin/grep -Fxq "CANDIDATE_ID=${rollback_candidate}" "${rollback_pending}"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${rollback_current_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" = \
+  "${rollback_state_before}"
+test "$(/usr/bin/shasum -a 256 "${maintenance_state}" | /usr/bin/awk '{print $1}')" = \
+  "${rollback_maintenance_before}"
+test "$(/bin/cat "${db_state}/volume")" = "${ROLLBACK_VOLUME}"
+test "$(/bin/cat "${db_state}/health")" = unhealthy
+test -f "${upgrade_file}"
+test -f "${restore_evidence}"
+test -f "${rollback_file}"
+/bin/cp "${rollback_pending}" "${test_root}/failed-rollback-pending.fixture"
+
+expect_failure "unhealthy rollback target recovery" run_maintenance recover
+test -f "${rollback_pending}"
+
+expect_failure "different rollback candidate resume" \
+  run_maintenance apply "${other_rollback_candidate}" WRITE_STOP_CONFIRMED
+/usr/bin/grep -Fxq "CANDIDATE_ID=${rollback_candidate}" "${rollback_pending}"
+
+/usr/bin/sed \
+  's/^TRANSACTION_TYPE=.*/TRANSACTION_TYPE=FOREIGN_TRANSACTION/' \
+  "${test_root}/failed-rollback-pending.fixture" \
+  >"${rollback_pending}"
+/bin/chmod 600 "${rollback_pending}"
+expect_failure "tampered rollback pending transaction" \
+  run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
+/bin/cp "${test_root}/failed-rollback-pending.fixture" "${rollback_pending}"
+/bin/chmod 600 "${rollback_pending}"
+
 run_maintenance apply "${rollback_candidate}" WRITE_STOP_CONFIRMED
 test ! -e "${app_dir}/runtime-config/pending"
 test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = \
@@ -423,6 +483,25 @@ test "$(/bin/cat "${db_state}/volume")" = "${ROLLBACK_VOLUME}"
 test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_80_ID}"
 /usr/bin/grep -Fxq 'OPERATION=ROLLBACK' \
   "${app_dir}/runtime-config/mysql-maintenance/state"
+
+# When the rollback DB binding is already healthy and only state finalization
+# remains, dedicated recover keeps its original responsibility.
+/bin/unlink "${app_dir}/runtime-config/current"
+/bin/ln -s \
+  "releases/${SOURCE_RUNTIME_DIGEST#sha256:}" \
+  "${app_dir}/runtime-config/current"
+/bin/cp "${test_root}/failed-rollback-pending.fixture" "${rollback_pending}"
+/bin/chmod 600 "${rollback_pending}"
+FAKE_SERVICE_HEALTH=unhealthy \
+  expect_failure "rollback application recovery failure" run_maintenance recover
+test -f "${rollback_pending}"
+run_maintenance recover
+test ! -e "${rollback_pending}"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = \
+  "releases/${TARGET_RUNTIME_DIGEST#sha256:}"
+/usr/bin/grep -Fxq 'OPERATION=ROLLBACK' "${maintenance_state}"
+test "$(/bin/cat "${db_state}/volume")" = "${ROLLBACK_VOLUME}"
+test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_80_ID}"
 
 # The immutable original volume name remains in the upgrade candidate and is
 # never used by the rollback target.

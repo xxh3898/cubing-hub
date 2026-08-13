@@ -477,11 +477,24 @@ rollback_candidate_id="$(
 
 Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME` 과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. 성공 후에도 original upgraded volume은 그대로 보존한다.
 
+Rollback `apply`가 target MySQL을 healthy 상태로 만들기 전에 중단되면 canonical `pending`의 `OPERATION=ROLLBACK`과 `CANDIDATE_ID`를 확인한 뒤 같은 command를 다시 실행한다. Worker는 동일 rollback candidate와 source upgrade candidate, restore evidence, application image, target image·volume을 모두 다시 검증한다. 다른 rollback candidate는 pending transaction을 이어받을 수 없다.
+
+```bash
+"${maintenance}" apply "${rollback_candidate_id}" WRITE_STOP_CONFIRMED
+```
+
+Target rollback DB가 이미 healthy하고 application/runtime state 확정만 남았다면 `apply` 대신 `recover`를 사용한다.
+
+```bash
+"${maintenance}" recover
+```
+
 ### State와 중단 처리
 
 - Candidate 생성은 `state`, `current`, `.env`, container를 변경하지 않는다.
 - `apply`는 첫 container stop 전에 canonical `runtime-config/pending`을 원자 생성한다. 이 동안 normal deploy와 backup은 fail closed한다.
 - Target startup, health, state write, `current` pointer 갱신 중 어느 단계든 실패하면 pending을 유지한다.
+- `ROLLBACK` pending에서 target DB가 아직 healthy하지 않으면 동일 candidate의 `apply`만 재시도할 수 있다. Pending candidate ID·context나 restore evidence가 다르면 중단한다.
 - `recover`는 pending candidate의 target image ID·volume·service health가 일치할 때만 source/target 중간 state를 target으로 확정한다.
 - 성공 state의 current/previous runtime은 모두 explicit DB binding을 지원하는 target release를 가리킨다. Maintenance source release는 immutable candidate에 보존한다.
 - Target이 healthy하지 않으면 `recover`로 source를 자동 재연결하지 않는다. Fresh rollback volume을 검증한 뒤 rollback candidate를 적용한다.

@@ -139,6 +139,14 @@ case "${command_name}" in
       printf '%s\n' "${FAKE_ACTUAL_DB_SERVICE:-db}"
     elif [[ "${format}" == *io.chochiho.cubing-hub.mysql-restore-backup* ]]; then
       printf '%s\n' "${FAKE_RESTORE_BACKUP_ID:-cubing-hub-production-20260813T000000Z}"
+    elif [[ "${format}" == '{{.State.Status}}' ]]; then
+      if [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/running" ]] \
+        && [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/running")" != true ]]
+      then
+        printf 'exited\n'
+      else
+        printf 'running\n'
+      fi
     elif [[ "${format}" == *State.Health* ]]; then
       if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
         printf '%s\n' "${FAKE_RESTORE_HEALTH:-healthy}"
@@ -468,6 +476,21 @@ users}"
       fi
     elif [[ "${arguments}" == *" up "* ]] && [[ "${arguments}" == *" db "* ]]; then
       if [[ "${FAKE_MAINTENANCE_DB_UP_FAIL:-false}" == true ]]; then
+        if [[ "${FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND:-false}" == true ]] \
+          && [[ -n "${FAKE_DB_STATE_DIR:-}" ]]
+        then
+          printf '%s\n' "${DB_IMAGE:-mysql:8.4.11}" >"${FAKE_DB_STATE_DIR}/image-ref"
+          if [[ "${DB_IMAGE:-}" == mysql:8.0.46* ]]; then
+            printf '%s\n' "${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}" \
+              >"${FAKE_DB_STATE_DIR}/image-id"
+          else
+            printf '%s\n' "${FAKE_MYSQL_84_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}" \
+              >"${FAKE_DB_STATE_DIR}/image-id"
+          fi
+          printf '%s\n' "${DB_VOLUME_NAME:-cubing-hub_mysql-data}" >"${FAKE_DB_STATE_DIR}/volume"
+          printf 'unhealthy\n' >"${FAKE_DB_STATE_DIR}/health"
+          printf 'true\n' >"${FAKE_DB_STATE_DIR}/running"
+        fi
         exit 1
       fi
       if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then

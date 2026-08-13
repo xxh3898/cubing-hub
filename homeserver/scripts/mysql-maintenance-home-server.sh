@@ -523,6 +523,7 @@ validate_actual_db_identity() {
 
 validate_target_artifacts() {
   local attached
+  local allow_pending_target_attachment="${1:-false}"
   local target_image_id
   local volume_backup_label
   local volume_driver
@@ -553,8 +554,57 @@ validate_target_artifacts() {
         --filter "volume=${candidate_target_db_volume}" \
         --format '{{.ID}}'
     )"
-    [[ -z "${attached}" ]] \
-      || fail "rollback target volume is still attached to another container"
+    if [[ -n "${attached}" ]]; then
+      [[ "${allow_pending_target_attachment}" == true ]] \
+        || fail "rollback target volume is still attached to another container"
+      validate_pending_rollback_target_attachment "${attached}"
+    fi
+  fi
+}
+
+validate_pending_rollback_target_attachment() {
+  local actual_health
+  local actual_image_id
+  local actual_project
+  local actual_service
+  local actual_status
+  local actual_volume
+  local container_id="$1"
+
+  if [[ ! "${container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    fail "pending rollback target volume attachment set is invalid"
+  fi
+  actual_image_id="$("${DOCKER_BIN}" container inspect --format '{{.Image}}' "${container_id}")"
+  actual_volume="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}' \
+      "${container_id}"
+  )"
+  actual_project="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.project" }}' \
+      "${container_id}"
+  )"
+  actual_service="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.service" }}' \
+      "${container_id}"
+  )"
+  actual_status="$(
+    "${DOCKER_BIN}" container inspect --format '{{.State.Status}}' "${container_id}"
+  )"
+  actual_health="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+      "${container_id}"
+  )"
+  [[ "${actual_image_id}" == "${candidate_target_db_image_id}" ]] \
+    && [[ "${actual_volume}" == "${candidate_target_db_volume}" ]] \
+    && [[ "${actual_project}" == "${PROJECT_NAME}" ]] \
+    && [[ "${actual_service}" == db ]] \
+    || fail "pending rollback target attachment does not match the immutable candidate"
+  if [[ "${actual_status}" == running && "${actual_health}" == healthy ]]; then
+    fail "pending rollback target is already healthy; use recover"
   fi
 }
 
@@ -710,6 +760,9 @@ write_candidate() {
     printf 'API_IMAGE=%s\n' "${candidate_api_image}"
     printf 'WEB_IMAGE=%s\n' "${candidate_web_image}"
     printf 'SOURCE_RUNTIME_CONFIG_DIGEST=%s\n' "${candidate_source_runtime_digest}"
+    if [[ "${candidate_operation}" == ROLLBACK ]]; then
+      printf 'SOURCE_UPGRADE_CANDIDATE_ID=%s\n' "${candidate_source_upgrade_id}"
+    fi
     printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${candidate_target_runtime_digest}"
     printf 'TARGET_RUNTIME_CONFIG_REVISION=%s\n' "${candidate_target_runtime_revision}"
     printf 'TARGET_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${candidate_target_runtime_content_sha}"
@@ -769,8 +822,15 @@ validate_candidate() {
     /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${candidate_file}" \
       | LC_ALL=C /usr/bin/sort
   )"
-  if [[ "${keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]]; then
-    fail "maintenance candidate keys are invalid"
+  candidate_operation="$(read_exact_value "${candidate_file}" OPERATION)"
+  if [[ "${candidate_operation}" == UPGRADE ]]; then
+    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
+      || fail "maintenance candidate keys are invalid"
+  elif [[ "${candidate_operation}" == ROLLBACK ]]; then
+    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_UPGRADE_CANDIDATE_ID\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
+      || fail "maintenance candidate keys are invalid"
+  else
+    fail "maintenance candidate operation is invalid"
   fi
   computed_id="$(
     /usr/bin/sed '/^CANDIDATE_ID=/d' "${candidate_file}" \
@@ -781,7 +841,6 @@ validate_candidate() {
     && [[ "$(read_exact_value "${candidate_file}" CANDIDATE_ID)" == "${candidate_id}" ]] \
     || fail "maintenance candidate integrity check failed"
 
-  candidate_operation="$(read_exact_value "${candidate_file}" OPERATION)"
   candidate_application_revision="$(read_exact_value "${candidate_file}" APPLICATION_REVISION)"
   candidate_api_image="$(read_exact_value "${candidate_file}" API_IMAGE)"
   candidate_web_image="$(read_exact_value "${candidate_file}" WEB_IMAGE)"
@@ -799,6 +858,10 @@ validate_candidate() {
   candidate_target_db_volume="$(read_exact_value "${candidate_file}" TARGET_DB_VOLUME)"
   candidate_backup_id="$(read_exact_value "${candidate_file}" BACKUP_ID)"
   candidate_backup_manifest_sha="$(read_exact_value "${candidate_file}" BACKUP_MANIFEST_SHA256)"
+  candidate_source_upgrade_id=
+  if [[ "${candidate_operation}" == ROLLBACK ]]; then
+    candidate_source_upgrade_id="$(read_exact_value "${candidate_file}" SOURCE_UPGRADE_CANDIDATE_ID)"
+  fi
 
   if [[ "$(read_exact_value "${candidate_file}" SCHEMA_VERSION)" != 1 ]] \
     || { [[ "${candidate_operation}" != UPGRADE ]] && [[ "${candidate_operation}" != ROLLBACK ]]; } \
@@ -829,6 +892,8 @@ validate_candidate() {
       && [[ "${candidate_target_db_image_exact}" =~ ^mysql:8\.4\.11@sha256:[0-9a-f]{64}$ ]] \
       || fail "upgrade DB images must use exact supported repository digests"
   else
+    is_candidate_id "${candidate_source_upgrade_id}" \
+      || fail "rollback source upgrade candidate ID is invalid"
     [[ "${candidate_source_db_image}" == "mysql:${TARGET_DB_VERSION}" ]] \
       || fail "rollback source must be mysql:${TARGET_DB_VERSION}"
     [[ "${candidate_target_db_image}" == "mysql:${SOURCE_DB_VERSION}" ]] \
@@ -848,6 +913,54 @@ validate_candidate() {
   [[ "$(runtime_config_content_sha256 "${release_dir}")" == "${candidate_target_runtime_content_sha}" ]] \
     || fail "candidate target runtime release integrity check failed"
   candidate_target_release="${release_dir}"
+}
+
+validate_rollback_source_candidate() {
+  local rollback_api_image="${candidate_api_image}"
+  local rollback_application_revision="${candidate_application_revision}"
+  local rollback_backup_id="${candidate_backup_id}"
+  local rollback_backup_manifest_sha="${candidate_backup_manifest_sha}"
+  local rollback_candidate_id="$1"
+  local rollback_source_db_image_exact="${candidate_source_db_image_exact}"
+  local rollback_source_db_image_id="${candidate_source_db_image_id}"
+  local rollback_source_db_volume="${candidate_source_db_volume}"
+  local rollback_source_runtime_digest="${candidate_source_runtime_digest}"
+  local rollback_target_db_image_exact="${candidate_target_db_image_exact}"
+  local rollback_target_db_image_id="${candidate_target_db_image_id}"
+  local rollback_target_runtime_content_sha="${candidate_target_runtime_content_sha}"
+  local rollback_target_runtime_digest="${candidate_target_runtime_digest}"
+  local rollback_target_runtime_revision="${candidate_target_runtime_revision}"
+  local rollback_web_image="${candidate_web_image}"
+  local source_upgrade_candidate_id="${candidate_source_upgrade_id}"
+
+  validate_candidate "${source_upgrade_candidate_id}"
+  [[ "${candidate_operation}" == UPGRADE ]] \
+    && [[ "${candidate_application_revision}" == "${rollback_application_revision}" ]] \
+    && [[ "${candidate_api_image}" == "${rollback_api_image}" ]] \
+    && [[ "${candidate_web_image}" == "${rollback_web_image}" ]] \
+    && [[ "${candidate_target_runtime_digest}" == "${rollback_source_runtime_digest}" ]] \
+    && [[ "${candidate_target_runtime_digest}" == "${rollback_target_runtime_digest}" ]] \
+    && [[ "${candidate_target_runtime_revision}" == "${rollback_target_runtime_revision}" ]] \
+    && [[ "${candidate_target_runtime_content_sha}" == "${rollback_target_runtime_content_sha}" ]] \
+    && [[ "${candidate_target_db_image_exact}" == "${rollback_source_db_image_exact}" ]] \
+    && [[ "${candidate_target_db_image_id}" == "${rollback_source_db_image_id}" ]] \
+    && [[ "${candidate_target_db_volume}" == "${rollback_source_db_volume}" ]] \
+    && [[ "${candidate_source_db_volume}" == "${rollback_source_db_volume}" ]] \
+    && [[ "${candidate_source_db_image_exact}" == "${rollback_target_db_image_exact}" ]] \
+    && [[ "${candidate_source_db_image_id}" == "${rollback_target_db_image_id}" ]] \
+    && [[ "${candidate_backup_id}" == "${rollback_backup_id}" ]] \
+    && [[ "${candidate_backup_manifest_sha}" == "${rollback_backup_manifest_sha}" ]] \
+    || fail "rollback candidate does not match its source upgrade candidate"
+  validate_candidate "${rollback_candidate_id}"
+}
+
+validate_rollback_pending_runtime_context() {
+  local rollback_candidate_id="$1"
+  local source_upgrade_candidate_id="${candidate_source_upgrade_id}"
+
+  validate_candidate "${source_upgrade_candidate_id}"
+  validate_pending_runtime_context
+  validate_candidate "${rollback_candidate_id}"
 }
 
 validate_completed_upgrade_state() {
@@ -1171,7 +1284,10 @@ if seen != required:
 apply_candidate() {
   local candidate_id="$1"
   local existing_pending_id=
+  local pending_operation=
+  local rollback_resume=false
   local rollback_with_pending=false
+  local source_upgrade_candidate_id=
 
   validate_candidate "${candidate_id}"
   if [[ "${candidate_operation}" == ROLLBACK ]] \
@@ -1200,9 +1316,10 @@ apply_candidate() {
       "${current_release}"
   else
     rollback_volume="${candidate_target_db_volume}"
-    upgrade_candidate_id="$(read_exact_value "${MAINTENANCE_RESTORES}/${rollback_volume}.state" UPGRADE_CANDIDATE_ID)"
+    source_upgrade_candidate_id="${candidate_source_upgrade_id}"
+    validate_rollback_source_candidate "${candidate_id}"
     validate_restore_evidence \
-      "${upgrade_candidate_id}" \
+      "${source_upgrade_candidate_id}" \
       "${candidate_target_db_volume}" \
       "${candidate_backup_id}" \
       "${candidate_backup_manifest_sha}" \
@@ -1211,11 +1328,19 @@ apply_candidate() {
     if [[ "${rollback_with_pending}" == true ]]; then
       validate_maintenance_pending
       existing_pending_id="${pending_candidate_id}"
-      [[ "${candidate_operation}" == UPGRADE ]] \
-        || fail "existing pending transition is not the failed upgrade"
-      [[ "${existing_pending_id}" == "${upgrade_candidate_id}" ]] \
-        || fail "rollback restore evidence does not match the pending upgrade"
-      validate_pending_runtime_context
+      pending_operation="${candidate_operation}"
+      if [[ "${pending_operation}" == UPGRADE ]]; then
+        [[ "${existing_pending_id}" == "${source_upgrade_candidate_id}" ]] \
+          || fail "rollback restore evidence does not match the pending upgrade"
+        validate_pending_runtime_context
+      elif [[ "${pending_operation}" == ROLLBACK ]]; then
+        [[ "${existing_pending_id}" == "${candidate_id}" ]] \
+          || fail "pending rollback candidate differs from the requested candidate"
+        rollback_resume=true
+        validate_rollback_pending_runtime_context "${candidate_id}"
+      else
+        fail "existing pending transition cannot start or resume rollback"
+      fi
       validate_candidate "${candidate_id}"
     else
       [[ "${current_runtime_digest}" == "${candidate_source_runtime_digest}" ]] \
@@ -1228,9 +1353,11 @@ apply_candidate() {
     fi
   fi
 
-  validate_target_artifacts
+  validate_target_artifacts "${rollback_resume}"
 
-  write_pending "${candidate_id}"
+  if [[ "${rollback_resume}" != true ]]; then
+    write_pending "${candidate_id}"
+  fi
   compose_for \
     "${candidate_target_release}" \
     "${candidate_source_db_image_exact}" \
@@ -1545,6 +1672,7 @@ prepare_rollback() {
     "${candidate_target_release}"
 
   candidate_operation=ROLLBACK
+  candidate_source_upgrade_id="${upgrade_candidate_id}"
   candidate_source_runtime_digest="${candidate_target_runtime_digest}"
   candidate_source_db_image="mysql:${TARGET_DB_VERSION}"
   candidate_source_db_image_exact="${candidate_target_db_image_exact}"
@@ -1559,8 +1687,26 @@ prepare_rollback() {
 }
 
 recover_transition() {
+  local recovery_candidate_id
+  local source_upgrade_candidate_id
+
   validate_maintenance_pending
-  validate_pending_runtime_context
+  recovery_candidate_id="${pending_candidate_id}"
+  if [[ "${candidate_operation}" == ROLLBACK ]]; then
+    source_upgrade_candidate_id="${candidate_source_upgrade_id}"
+    rollback_volume="${candidate_target_db_volume}"
+    validate_rollback_source_candidate "${recovery_candidate_id}"
+    validate_restore_evidence \
+      "${source_upgrade_candidate_id}" \
+      "${candidate_target_db_volume}" \
+      "${candidate_backup_id}" \
+      "${candidate_backup_manifest_sha}" \
+      "${candidate_target_db_image_exact}" \
+      "${candidate_target_db_image_id}"
+    validate_rollback_pending_runtime_context "${recovery_candidate_id}"
+  else
+    validate_pending_runtime_context
+  fi
   validate_actual_db_identity \
     "${candidate_target_db_image_exact}" \
     "${candidate_target_db_image_id}" \
