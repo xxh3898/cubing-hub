@@ -1220,8 +1220,6 @@ commit_success_state() {
     printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${candidate_target_runtime_digest}"
   } >"${state_temp}"
   /bin/chmod 600 "${state_temp}"
-  /bin/mv -f -- "${state_temp}" "${RUNTIME_CONFIG_STATE}"
-  replace_current_link "${candidate_target_release}"
 
   ensure_private_directory "${MAINTENANCE_ROOT}"
   maintenance_temp="$(/usr/bin/mktemp "${MAINTENANCE_ROOT}/.state.tmp.XXXXXX")"
@@ -1238,6 +1236,10 @@ commit_success_state() {
     printf 'COMPLETED_AT=%s\n' "${completed_at}"
   } >"${maintenance_temp}"
   /bin/chmod 600 "${maintenance_temp}"
+
+  /bin/mv -f -- "${state_temp}" "${RUNTIME_CONFIG_STATE}"
+  replace_current_link "${candidate_target_release}"
+  write_db_env "${candidate_target_db_image_exact}" "${candidate_target_db_volume}"
   /bin/mv -f -- "${maintenance_temp}" "${MAINTENANCE_STATE}"
   /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
 }
@@ -1369,7 +1371,6 @@ apply_candidate() {
     "${candidate_source_db_volume}" \
     stop db
 
-  write_db_env "${candidate_target_db_image_exact}" "${candidate_target_db_volume}"
   if ! compose_for \
     "${candidate_target_release}" \
     "${candidate_target_db_image_exact}" \
@@ -1722,7 +1723,6 @@ recover_transition() {
     fail "pending maintenance application recovery failed; pending state was preserved"
   fi
   service_set_is_healthy || fail "pending maintenance target is not healthy"
-  write_db_env "${candidate_target_db_image_exact}" "${candidate_target_db_volume}"
   commit_success_state "${pending_candidate_id}"
   printf 'Cubing Hub MySQL maintenance transaction finalized: %s\n' "${pending_candidate_id}"
 }

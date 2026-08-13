@@ -105,6 +105,8 @@ printf 'RUNTIME_CONFIG_V2=initialized\n' >"${app_dir}/.runtime-config-v2-initial
 {
   printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${APPLICATION_REVISION}"
   printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_REVISION}"
+  printf 'DB_IMAGE=mysql:8.0.46@sha256:%s\n' "${MYSQL_80_DIGEST}"
+  printf 'DB_VOLUME_NAME=%s\n' "${ORIGINAL_VOLUME}"
 } >"${app_dir}/.env"
 /bin/chmod 600 "${app_dir}/.env"
 
@@ -330,11 +332,38 @@ FAKE_MAINTENANCE_DB_UP_FAIL=true \
 test -f "${app_dir}/runtime-config/pending"
 /usr/bin/grep -Fxq 'TRANSACTION_TYPE=MYSQL_MAINTENANCE' \
   "${app_dir}/runtime-config/pending"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${current_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" = "${state_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
+/usr/bin/grep -Fxq "DB_IMAGE=mysql:8.0.46@sha256:${MYSQL_80_DIGEST}" "${app_dir}/.env"
+/usr/bin/grep -Fxq "DB_VOLUME_NAME=${ORIGINAL_VOLUME}" "${app_dir}/.env"
+
+# Reset only the isolated fixture so application-startup failure can exercise
+# a fresh apply from the same committed source state.
+/bin/rm -f -- "${app_dir}/runtime-config/pending"
+printf '%s\n' "${MYSQL_80_ID}" >"${db_state}/image-id"
+printf '%s\n' "mysql:8.0.46@sha256:${MYSQL_80_DIGEST}" >"${db_state}/image-ref"
+printf '%s\n' "${ORIGINAL_VOLUME}" >"${db_state}/volume"
+printf 'healthy\n' >"${db_state}/health"
+printf 'true\n' >"${db_state}/running"
+
+# A target DB can be healthy while the application service set is not. The
+# target binding remains process-local until dedicated recovery finalizes it.
+FAKE_SERVICE_HEALTH=unhealthy \
+  expect_failure "application service health failure" \
+    run_maintenance apply "${upgrade_candidate}" WRITE_STOP_CONFIRMED
+test -f "${app_dir}/runtime-config/pending"
 /bin/cp \
   "${app_dir}/runtime-config/pending" \
   "${test_root}/failed-upgrade-pending.fixture"
+test "$(/bin/cat "${db_state}/image-id")" = "${MYSQL_84_ID}"
+test "$(/bin/cat "${db_state}/volume")" = "${ORIGINAL_VOLUME}"
+test "$(/bin/cat "${db_state}/health")" = healthy
 test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${current_before}"
 test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" = "${state_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
+/usr/bin/grep -Fxq "DB_IMAGE=mysql:8.0.46@sha256:${MYSQL_80_DIGEST}" "${app_dir}/.env"
+/usr/bin/grep -Fxq "DB_VOLUME_NAME=${ORIGINAL_VOLUME}" "${app_dir}/.env"
 
 printf '%s\n' "${MYSQL_84_ID}" >"${db_state}/image-id"
 printf '%s\n' "mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" >"${db_state}/image-ref"
@@ -354,10 +383,13 @@ target_content_sha="$(runtime_content_sha256 "${target_release}")"
   printf 'PREVIOUS_RUNTIME_CONFIG_DIGEST=%s\n' "${SOURCE_RUNTIME_DIGEST}"
 } >"${app_dir}/runtime-config/state"
 /bin/chmod 600 "${app_dir}/runtime-config/state"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" != "${state_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
 FAKE_SERVICE_HEALTH=unhealthy \
   expect_failure "unhealthy target recovery" run_maintenance recover
 test -f "${app_dir}/runtime-config/pending"
 test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = "${current_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = "${env_before}"
 run_maintenance recover
 test ! -e "${app_dir}/runtime-config/pending"
 test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" = \
@@ -435,6 +467,9 @@ rollback_current_before="$(/usr/bin/readlink "${app_dir}/runtime-config/current"
 rollback_maintenance_before="$(
   /usr/bin/shasum -a 256 "${maintenance_state}" | /usr/bin/awk '{print $1}'
 )"
+rollback_env_before="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
 FAKE_MAINTENANCE_DB_UP_FAIL=true \
 FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND=true \
   expect_failure "MySQL 8.0 rollback startup failure" \
@@ -449,6 +484,10 @@ test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk 
   "${rollback_state_before}"
 test "$(/usr/bin/shasum -a 256 "${maintenance_state}" | /usr/bin/awk '{print $1}')" = \
   "${rollback_maintenance_before}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" = \
+  "${rollback_env_before}"
+/usr/bin/grep -Fxq "DB_IMAGE=mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" "${app_dir}/.env"
+/usr/bin/grep -Fxq "DB_VOLUME_NAME=${ORIGINAL_VOLUME}" "${app_dir}/.env"
 test "$(/bin/cat "${db_state}/volume")" = "${ROLLBACK_VOLUME}"
 test "$(/bin/cat "${db_state}/health")" = unhealthy
 test -f "${upgrade_file}"

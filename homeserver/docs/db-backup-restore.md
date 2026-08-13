@@ -332,11 +332,12 @@ API·Web image drift, Redis·network·DB command drift, target image digest 불�
    ```
 
 6. Worker는 공통 operation lock을 획득하고 current state·pointer·actual DB identity를 다시 검증한다. 첫 service mutation 전에 canonical `runtime-config/pending`을 생성한 뒤 API/Web과 DB를 정상 종료하고 exact 8.4.11 image에 original volume을 연결한다.
-7. DB와 application service health가 모두 성공한 뒤에만 `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, runtime config `state`·`current`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다.
-8. `SELECT VERSION()`, charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
-9. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
-10. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
-11. 모든 gate가 끝난 뒤에만 write를 재개한다.
+7. Target DB와 application 전체 health gate를 통과하기 전에는 `.env`, runtime config `state`·`current`가 마지막 committed source binding을 유지한다. Target DB image·volume은 maintenance worker가 Compose process override로만 전달한다.
+8. DB actual image·volume과 application 전체 service health가 성공한 뒤에만 runtime config `state`·`current`, `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다.
+9. `SELECT VERSION()`, charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
+10. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
+11. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
+12. 모든 gate가 끝난 뒤에만 write를 재개한다.
 
 `apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 target DB identity와 health를 먼저 확인하고 API·Web을 candidate binding으로 다시 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정한다.
 
@@ -493,9 +494,10 @@ Target rollback DB가 이미 healthy하고 application/runtime state 확정만 �
 
 - Candidate 생성은 `state`, `current`, `.env`, container를 변경하지 않는다.
 - `apply`는 첫 container stop 전에 canonical `runtime-config/pending`을 원자 생성한다. 이 동안 normal deploy와 backup은 fail closed한다.
+- Target DB와 application 전체 health를 확인하기 전에는 `.env`, `state`, `current`가 source binding을 유지한다. Worker는 candidate DB binding을 Compose process override로만 사용한다.
 - Target startup, health, state write, `current` pointer 갱신 중 어느 단계든 실패하면 pending을 유지한다.
 - `ROLLBACK` pending에서 target DB가 아직 healthy하지 않으면 동일 candidate의 `apply`만 재시도할 수 있다. Pending candidate ID·context나 restore evidence가 다르면 중단한다.
-- `recover`는 pending candidate의 target image ID·volume·service health가 일치할 때만 source/target 중간 state를 target으로 확정한다.
+- Target DB가 healthy하지만 application startup이나 success finalization이 끝나지 않았으면 `recover`를 사용한다. `recover`는 pending candidate의 target image ID·volume·service health가 일치할 때만 source/target 중간 state를 target으로 확정하고 `.env` binding을 기록한다.
 - 성공 state의 current/previous runtime은 모두 explicit DB binding을 지원하는 target release를 가리킨다. Maintenance source release는 immutable candidate에 보존한다.
 - Target이 healthy하지 않으면 `recover`로 source를 자동 재연결하지 않는다. Fresh rollback volume을 검증한 뒤 rollback candidate를 적용한다.
 - Candidate, restore evidence, pending, maintenance state에는 secret을 남기지 않는다.
