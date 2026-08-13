@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-11
+updated: 2026-08-13
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -129,6 +129,14 @@ DB·Redis image·실행 명령이나 data-sensitive Spring 설정 등 위 보호
 바꾸는 작업은 일반 runtime config 동기화가 아니라 별도
 migration·backup·rollback 계획으로 진행한다.
 
+MySQL engine image·volume binding은 일반 deploy worker의 예외로 허용하지 않는다. 별도 승인으로 설치한 아래 maintenance worker가 exact runtime release, DB image digest, volume, backup evidence를 하나의 candidate로 검증한 뒤에만 binding을 전환한다.
+
+```text
+/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+```
+
+Command별 exact 절차, fresh rollback volume 준비, dedicated recovery는 [DB와 이미지 백업·복구](db-backup-restore.md)를 따른다.
+
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
 1. 신규 API/web image pull
@@ -165,6 +173,8 @@ v2 배포가 강제 종료되거나 host가 재시작되어
 `/Users/homeserver/Server/apps/cubing-hub/runtime-config/pending`이 남으면
 후속 v2 배포는 fail closed한다. pending 파일을 직접 삭제하거나 수정하지
 말고 Mac mini에서 다음 recovery 명령을 실행한다.
+
+`TRANSACTION_TYPE=MYSQL_MAINTENANCE`인 pending은 아래 일반 deploy recovery가 아니라 DB maintenance worker의 `recover` 또는 verified rollback candidate로만 처리한다.
 
 ```bash
 /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh recover

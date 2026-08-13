@@ -800,20 +800,27 @@ if edge.get("name") != "edge" or edge.get("external") is not True:
     fail("edge network must remain the shared external edge")
 
 volumes = candidate.get("volumes", {})
+baseline_volumes = baseline.get("volumes", {})
 if set(volumes) != {"mysql-data", "redis-data"}:
     fail("runtime config data volume set is invalid")
-for key, expected_name, message in (
-    ("mysql-data", "cubing-hub_mysql-data", "MySQL persistent volume contract is invalid"),
-    ("redis-data", "cubing-hub_redis-data", "Redis persistent volume contract is invalid"),
+if set(baseline_volumes) != {"mysql-data", "redis-data"}:
+    fail("active runtime config data volume set is invalid")
+for key, message in (
+    ("mysql-data", "MySQL persistent volume contract is invalid"),
+    ("redis-data", "Redis persistent volume contract is invalid"),
 ):
     volume = volumes[key]
+    baseline_volume = baseline_volumes[key]
     if (
-        volume.get("name") != expected_name
+        not isinstance(volume.get("name"), str)
+        or not volume["name"]
         or volume.get("external") is True
         or volume.get("driver") not in (None, "local")
         or volume.get("driver_opts")
     ):
         fail(message)
+    if volume != baseline_volume:
+        fail(f"{key} changes require a separate data-service procedure")
 
 def mounts(service_name):
     value = candidate_services[service_name].get("volumes", [])
@@ -897,6 +904,88 @@ if (
       "${api_image}" \
       "${web_image}" \
       "$(/usr/bin/dirname "${compose_file}")/nginx/cloudflare-edge-real-ip.conf"
+}
+
+validate_running_db_identity() {
+  local actual_image_id
+  local actual_project
+  local actual_service
+  local actual_volume
+  local db_container_id
+  local expected_image
+  local expected_image_id
+  local expected_volume
+  local rendered
+  local volume_users
+
+  rendered="$(
+    render_compose_json \
+      "${active_compose_file}" \
+      "${current_api_image}" \
+      "${current_web_image}"
+  )"
+  IFS=$'\t' read -r expected_image expected_volume <<<"$(
+    printf '%s' "${rendered}" \
+      | "${PYTHON_BIN}" -c '
+import json
+import re
+import sys
+
+config = json.load(sys.stdin)
+db = config.get("services", {}).get("db", {})
+image = db.get("image")
+volume = config.get("volumes", {}).get("mysql-data", {})
+volume_name = volume.get("name")
+if not isinstance(image, str) or not image:
+    raise SystemExit("active MySQL image contract is invalid")
+if not isinstance(volume_name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", volume_name):
+    raise SystemExit("active MySQL volume contract is invalid")
+print(f"{image}\t{volume_name}")
+'
+  )"
+
+  db_container_id="$(compose ps -q db)"
+  if [[ -z "${db_container_id}" ]] \
+    || [[ ! "${db_container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]
+  then
+    fail "running MySQL container identity is missing or invalid"
+  fi
+  expected_image_id="$(
+    "${DOCKER_BIN}" image inspect --format '{{.Id}}' "${expected_image}"
+  )"
+  actual_image_id="$(
+    "${DOCKER_BIN}" container inspect --format '{{.Image}}' "${db_container_id}"
+  )"
+  actual_volume="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}' \
+      "${db_container_id}"
+  )"
+  actual_project="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.project" }}' \
+      "${db_container_id}"
+  )"
+  actual_service="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.service" }}' \
+      "${db_container_id}"
+  )"
+  volume_users="$(
+    "${DOCKER_BIN}" ps -a --no-trunc \
+      --filter "volume=${expected_volume}" \
+      --format '{{.ID}}'
+  )"
+
+  if [[ ! "${expected_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || [[ "${actual_image_id}" != "${expected_image_id}" ]] \
+    || [[ "${actual_volume}" != "${expected_volume}" ]] \
+    || [[ "${actual_project}" != "${PROJECT_NAME}" ]] \
+    || [[ "${actual_service}" != db ]] \
+    || [[ "${volume_users}" != "${db_container_id}" ]]
+  then
+    fail "running MySQL image or exclusive volume does not match the active verified runtime"
+  fi
 }
 
 prepare_runtime_release() {
@@ -1808,6 +1897,11 @@ else
     if [[ "$(runtime_config_content_sha256 "${current_release}")" != "${current_config_content_sha}" ]]; then
       fail "current runtime config release integrity check failed"
     fi
+  fi
+
+  if [[ -n "${previous_sha}" ]]; then
+    active_compose_file="${current_compose_file}"
+    validate_running_db_identity
   fi
 
   if [[ "${config_mode}" == update ]]; then

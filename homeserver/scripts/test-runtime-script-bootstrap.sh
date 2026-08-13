@@ -262,6 +262,29 @@ printf 'test-token' \
   /bin/bash "${deploy_bootstrap}" recover
 /usr/bin/grep -Fxq recover "${candidate_log}"
 
+{
+  printf 'TRANSACTION_TYPE=MYSQL_MAINTENANCE\n'
+  printf 'CANDIDATE_ID=%064d\n' 1
+} >"${app_dir}/runtime-config/pending"
+/bin/chmod 600 "${app_dir}/runtime-config/pending"
+candidate_count_before_maintenance_recovery="$(
+  /usr/bin/wc -l <"${candidate_log}" | /usr/bin/tr -d ' '
+)"
+set +e
+/usr/bin/env \
+  FAKE_CANDIDATE_LOG="${candidate_log}" \
+  /bin/bash "${deploy_bootstrap}" recover >/dev/null 2>&1
+maintenance_recovery_exit_code="$?"
+set -e
+if [[ "${maintenance_recovery_exit_code}" -ne 1 \
+  || ! -f "${app_dir}/runtime-config/pending" \
+  || "$(/usr/bin/wc -l <"${candidate_log}" | /usr/bin/tr -d ' ')" != "${candidate_count_before_maintenance_recovery}" ]]
+then
+  printf 'Deploy bootstrap must route MySQL maintenance recovery to its dedicated worker\n' >&2
+  exit 1
+fi
+/bin/rm -f -- "${app_dir}/runtime-config/pending"
+
 /usr/bin/env \
   FAKE_BACKUP_MARKER="${backup_marker}" \
   FAKE_LEGACY_BACKUP_MARKER="${legacy_backup_marker}" \

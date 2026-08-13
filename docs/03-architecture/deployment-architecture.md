@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-13
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -35,5 +35,17 @@ candidate pair의 Compose config와 allowlist를 검증한 뒤 service를 갱신
 ## Rollback 한계
 
 application·runtime config 실패는 이전에 검증된 exact pair로 복구한다. Flyway migration은 자동 rollback하지 않으므로 backward-compatible schema와 별도 migration 판단이 필요하다.
+
+## Data-service maintenance
+
+일반 deploy는 active runtime과 candidate runtime의 DB image·volume drift를 허용하지 않고, 실행 중인 DB container의 image ID·mount도 active binding과 대조한다. MySQL engine maintenance는 별도 worker가 다음을 immutable candidate로 묶어 전환한다.
+
+- current와 target runtime config digest
+- 동일한 application revision의 API·Web image
+- source와 target DB image tag·repository digest·local image ID
+- source와 target DB volume
+- verified pre-transition backup
+
+Maintenance도 deploy·backup과 같은 operation lock과 canonical `runtime-config/pending`을 사용한다. 성공 후에만 explicit DB binding, verified runtime `state`·`current`, maintenance audit state를 확정한다. Rollback은 upgraded original volume을 보존하고, backup parity를 검증한 fresh 이전-engine volume으로 binding을 전환한다.
 
 command-level 절차와 실제 target path는 [deployment runbook gateway](../07-operations/deployment-runbook.md)에서 canonical homeserver runbook으로 연결한다.

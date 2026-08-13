@@ -125,9 +125,11 @@ jobs:
             homeserver/scripts/deploy-home-server.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-curl.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
+            homeserver/scripts/mysql-maintenance-home-server.sh \
             homeserver/scripts/test-backup-home-server.sh \
             homeserver/scripts/test-detect-runtime-config-change.sh \
             homeserver/scripts/test-deploy-home-server.sh \
+            homeserver/scripts/test-mysql-maintenance-home-server.sh \
             homeserver/scripts/test-runtime-script-bootstrap.sh
 
       - name: Verify runtime config change detection
@@ -156,6 +158,10 @@ jobs:
       - name: Test production backup Compose selection
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
         run: /bin/bash ./homeserver/scripts/test-backup-home-server.sh
+
+      - name: Test MySQL maintenance state transitions
+        if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
+        run: /bin/bash ./homeserver/scripts/test-mysql-maintenance-home-server.sh
 
       - name: Run infrastructure tests
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'

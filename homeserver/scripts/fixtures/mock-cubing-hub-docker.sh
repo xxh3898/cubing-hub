@@ -71,7 +71,25 @@ case "${command_name}" in
     shift
     format="$1"
     image="$2"
-    if [[ "${format}" == *org.opencontainers.image.revision* ]]; then
+    if [[ "${format}" == '{{.Id}}' ]]; then
+      if [[ "${image}" == mysql:8.0.46* ]]; then
+        printf '%s\n' "${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}"
+      elif [[ "${image}" == mysql:8.4.11* ]]; then
+        printf '%s\n' "${FAKE_MYSQL_84_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}"
+      else
+        printf '%s\n' "${FAKE_DEFAULT_IMAGE_ID:-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}"
+      fi
+    elif [[ "${format}" == '{{json .RepoDigests}}' ]]; then
+      if [[ "${image}" == mysql:8.0.46* ]]; then
+        printf '["mysql@sha256:%s"]\n' \
+          "${FAKE_MYSQL_80_REPO_DIGEST:-8080808080808080808080808080808080808080808080808080808080808080}"
+      elif [[ "${image}" == mysql:8.4.11* ]]; then
+        printf '["mysql@sha256:%s"]\n' \
+          "${FAKE_MYSQL_84_REPO_DIGEST:-8484848484848484848484848484848484848484848484848484848484848484}"
+      else
+        printf '[]\n'
+      fi
+    elif [[ "${format}" == *org.opencontainers.image.revision* ]]; then
       case "${image}" in
         *cubing-hub-runtime-config*)
           printf '%s\n' "${FAKE_CONFIG_REVISION}"
@@ -92,8 +110,130 @@ case "${command_name}" in
       exit 1
     fi
     ;;
+  container)
+    test "$1" = inspect
+    shift
+    test "$1" = --format
+    shift
+    format="$1"
+    container_id="$2"
+    if [[ "${format}" == '{{.Image}}' ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+        printf '%s\n' "${FAKE_RESTORE_IMAGE_ID:-${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}}"
+      elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/image-id" ]]; then
+        /bin/cat "${FAKE_DB_STATE_DIR}/image-id"
+      else
+        printf '%s\n' "${FAKE_ACTUAL_DB_IMAGE_ID:-${FAKE_MYSQL_84_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}}"
+      fi
+    elif [[ "${format}" == *'/var/lib/mysql'* ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+        printf '%s\n' "${FAKE_RESTORE_VOLUME:-cubing-hub_mysql-rollback-test}"
+      elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/volume" ]]; then
+        /bin/cat "${FAKE_DB_STATE_DIR}/volume"
+      else
+        printf '%s\n' "${FAKE_ACTUAL_DB_VOLUME:-cubing-hub_mysql-data}"
+      fi
+    elif [[ "${format}" == *com.docker.compose.project* ]]; then
+      printf '%s\n' "${FAKE_ACTUAL_DB_PROJECT:-cubing-hub}"
+    elif [[ "${format}" == *com.docker.compose.service* ]]; then
+      printf '%s\n' "${FAKE_ACTUAL_DB_SERVICE:-db}"
+    elif [[ "${format}" == *io.chochiho.cubing-hub.mysql-restore-backup* ]]; then
+      printf '%s\n' "${FAKE_RESTORE_BACKUP_ID:-cubing-hub-production-20260813T000000Z}"
+    elif [[ "${format}" == *State.Health* ]]; then
+      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]]; then
+        printf '%s\n' "${FAKE_RESTORE_HEALTH:-healthy}"
+      elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/health" ]]; then
+        /bin/cat "${FAKE_DB_STATE_DIR}/health"
+      else
+        printf '%s\n' "${FAKE_ACTUAL_DB_HEALTH:-healthy}"
+      fi
+    else
+      exit 1
+    fi
+    ;;
+  volume)
+    test "$1" = inspect
+    shift
+    test "$1" = --format
+    shift
+    format="$1"
+    volume_name="$2"
+    if [[ "${FAKE_MISSING_VOLUME:-}" == "${volume_name}" ]]; then
+      exit 1
+    fi
+    if [[ "${format}" == '{{.Name}}' ]]; then
+      printf '%s\n' "${volume_name}"
+    elif [[ "${format}" == '{{.Driver}}' ]]; then
+      printf '%s\n' "${FAKE_VOLUME_DRIVER:-local}"
+    elif [[ "${format}" == *io.chochiho.cubing-hub.mysql-restore-backup* ]]; then
+      printf '%s\n' "${FAKE_VOLUME_BACKUP_ID:-${FAKE_RESTORE_BACKUP_ID:-cubing-hub-production-20260813T000000Z}}"
+    else
+      exit 1
+    fi
+    ;;
+  inspect)
+    printf 'Use docker container inspect in the maintenance contract\n' >&2
+    exit 1
+    ;;
+  exec)
+    query=
+    table=
+    while [[ "$#" -gt 0 ]]; do
+      if [[ "$1" == --env ]]; then
+        case "$2" in
+          MAINTENANCE_QUERY=*) query="${2#MAINTENANCE_QUERY=}" ;;
+          MAINTENANCE_TABLE=*) table="${2#MAINTENANCE_TABLE=}" ;;
+        esac
+        shift 2
+        continue
+      fi
+      shift
+    done
+    case "${query}" in
+      version)
+        printf '%s\n' "${FAKE_RESTORE_VERSION:-8.0.46}"
+        ;;
+      tables)
+        printf '%s\n' "${FAKE_RESTORE_TABLES:-post_attachments
+users}"
+        ;;
+      count)
+        case "${table}" in
+          post_attachments) printf '%s\n' "${FAKE_RESTORE_POST_ATTACHMENTS_COUNT:-0}" ;;
+          users) printf '%s\n' "${FAKE_RESTORE_USERS_COUNT:-1}" ;;
+          *) printf '%s\n' "${FAKE_RESTORE_DEFAULT_COUNT:-0}" ;;
+        esac
+        ;;
+      *)
+        printf 'Unexpected mock Docker exec query\n' >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  stop)
+    exit 0
+    ;;
   compose)
     arguments=" $* "
+    if [[ -n "${FAKE_DB_STATE_DIR:-}" && "${arguments}" == *" --env-file "* ]]; then
+      compose_env_file=
+      previous_argument=
+      for compose_argument in "$@"; do
+        if [[ "${previous_argument}" == --env-file ]]; then
+          compose_env_file="${compose_argument}"
+          break
+        fi
+        previous_argument="${compose_argument}"
+      done
+      if [[ -f "${compose_env_file}" ]]; then
+        if [[ -z "${DB_IMAGE:-}" ]]; then
+          DB_IMAGE="$(/usr/bin/sed -n 's/^DB_IMAGE=//p' "${compose_env_file}" | /usr/bin/tail -1)"
+        fi
+        if [[ -z "${DB_VOLUME_NAME:-}" ]]; then
+          DB_VOLUME_NAME="$(/usr/bin/sed -n 's/^DB_VOLUME_NAME=//p' "${compose_env_file}" | /usr/bin/tail -1)"
+        fi
+      fi
+    fi
     if [[ "${arguments}" == *" config --images db redis "* ]]; then
       printf '%s\n' \
         "${FAKE_RENDER_DB_IMAGE:-mysql:8.4.11}" \
@@ -124,6 +264,14 @@ case "${command_name}" in
     then
       : >"${FAKE_FAIL_APP_UP_ONCE_FILE}"
       exit 1
+    elif [[ "${arguments}" == *" ps -q db "* ]]; then
+      if [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/running" ]] \
+        && [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/running")" != true ]]
+      then
+        :
+      else
+        printf '%s\n' "${FAKE_DB_CONTAINER_ID:-mock-db-container}"
+      fi
     elif [[ "${arguments}" == *" ps --format json "* ]]; then
       service_health="${FAKE_SERVICE_HEALTH:-healthy}"
       api_health="${FAKE_API_HEALTH:-}"
@@ -153,7 +301,12 @@ case "${command_name}" in
       fi
       api_image="${FAKE_RENDER_API_IMAGE:-${API_IMAGE}}"
       web_image="${FAKE_RENDER_WEB_IMAGE:-${WEB_IMAGE}}"
-      db_image="${FAKE_RENDER_DB_IMAGE:-mysql:8.4.11}"
+      db_image="${DB_IMAGE:-${FAKE_RENDER_DB_IMAGE:-mysql:8.4.11}}"
+      if [[ "${db_image}" == mysql:8.4.11* ]] \
+        && [[ -n "${FAKE_MAINTENANCE_CANDIDATE_API_IMAGE:-}" ]]
+      then
+        api_image="${FAKE_MAINTENANCE_CANDIDATE_API_IMAGE}"
+      fi
       redis_image="${FAKE_RENDER_REDIS_IMAGE:-redis:7.2.14-alpine}"
       real_ip_source="$(
         /usr/bin/dirname "${compose_file}"
@@ -195,6 +348,7 @@ case "${command_name}" in
       edge_json='{"name":"edge","external":true,"ipam":{}}'
       edge_json="${FAKE_RENDER_EDGE_JSON:-${edge_json}}"
       mysql_volume_extra="${FAKE_RENDER_MYSQL_VOLUME_EXTRA:-}"
+      mysql_volume_name="${DB_VOLUME_NAME:-${FAKE_RENDER_MYSQL_VOLUME_NAME:-cubing-hub_mysql-data}}"
       edge_alias="${FAKE_RENDER_EDGE_ALIAS:-cubing-hub-web}"
       db_healthcheck='{"test":["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -u root --password=\"$${MYSQL_ROOT_PASSWORD}\" --silent"],"interval":"10s","timeout":"5s","retries":12,"start_period":"30s"}'
       db_healthcheck="${FAKE_RENDER_DB_HEALTHCHECK_JSON:-${db_healthcheck}}"
@@ -238,6 +392,7 @@ case "${command_name}" in
         outbound_json="${FAKE_CANDIDATE_OUTBOUND_JSON:-${outbound_json}}"
         edge_json="${FAKE_CANDIDATE_EDGE_JSON:-${edge_json}}"
         mysql_volume_extra="${FAKE_CANDIDATE_MYSQL_VOLUME_EXTRA:-${mysql_volume_extra}}"
+        mysql_volume_name="${FAKE_CANDIDATE_MYSQL_VOLUME_NAME:-${mysql_volume_name}}"
         web_restart="${FAKE_CANDIDATE_WEB_RESTART:-${web_restart}}"
         web_command_json="${FAKE_CANDIDATE_WEB_COMMAND_JSON:-${web_command_json}}"
         web_entrypoint_json="${FAKE_CANDIDATE_WEB_ENTRYPOINT_JSON:-${web_entrypoint_json}}"
@@ -255,7 +410,7 @@ case "${command_name}" in
         flyway_environment=',"SPRING_FLYWAY_ENABLED":"'"${flyway_enabled}"'"'
       fi
       printf \
-        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","entrypoint":%s,"environment":{"MYSQL_DATABASE":"%s","MYSQL_USER":"%s","MYSQL_PASSWORD":"%s","MYSQL_ROOT_PASSWORD":"%s"},"command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"redis":{"image":"%s","restart":"unless-stopped","command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"api":{"image":"%s","command":%s,"entrypoint":%s,"user":%s,"privileged":%s,"ports":%s,"pid":%s,"restart":"unless-stopped","init":true,"read_only":true,"pids_limit":256,"security_opt":["no-new-privileges:true"],"tmpfs":%s,"extra_hosts":%s,"configs":%s,"secrets":%s,"env_file":%s,"environment":{"SPRING_PROFILES_ACTIVE":"prod","SPRING_DATASOURCE_URL":"%s","DB_USERNAME":"%s","DB_PASSWORD":"%s","REDIS_HOST":"redis","REDIS_PORT":"6379","JWT_SECRET":"%s","JWT_EXPIRATION":"1800000","JWT_REFRESH_EXPIRATION":"604800000","CORS_ALLOWED_ORIGINS":"https://cubing-hub.com,https://www.cubing-hub.com","SPRING_JPA_HIBERNATE_DDL_AUTO":"%s"%s,"AUTH_REFRESH_COOKIE_SECURE":"true","SMTP_HOST":"%s","SMTP_PORT":"587","SMTP_USERNAME":"","SMTP_PASSWORD":"%s","SMTP_AUTH":"true","SMTP_STARTTLS_ENABLE":"true","SMTP_FROM_ADDRESS":"","FEEDBACK_DISCORD_WEBHOOK_URL":"","RANKING_REDIS_REBUILD_MODE":"disabled","MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE":"health","MONITORING_PROMETHEUS_PERMIT_ALL":"false","POST_IMAGES_LOCAL_ROOT_PATH":"%s","POST_IMAGES_KEY_PREFIX":"community/posts","POST_IMAGES_PUBLIC_BASE_URL":"https://api.cubing-hub.com/uploads"%s},"networks":{"application":%s,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}%s],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"web":{"image":"%s","command":%s,"entrypoint":%s,"restart":"%s","init":true,"read_only":true,"pids_limit":100,"security_opt":["no-new-privileges:true"],"tmpfs":["/var/cache/nginx:size=32m,mode=0755","/var/run:size=4m,mode=0755","/tmp:size=16m,mode=1777"],"scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}},"networks":{"application":%s,"outbound":%s,"edge":%s},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"%s},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
+        '{"name":"cubing-hub","services":{"db":{"image":"%s","restart":"unless-stopped","entrypoint":%s,"environment":{"MYSQL_DATABASE":"%s","MYSQL_USER":"%s","MYSQL_PASSWORD":"%s","MYSQL_ROOT_PASSWORD":"%s"},"command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"mysql-data","target":"/var/lib/mysql","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"redis":{"image":"%s","restart":"unless-stopped","command":%s,"healthcheck":%s,"networks":{"application":null},"volumes":[{"type":"volume","source":"redis-data","target":"/data","volume":{}}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"api":{"image":"%s","command":%s,"entrypoint":%s,"user":%s,"privileged":%s,"ports":%s,"pid":%s,"restart":"unless-stopped","init":true,"read_only":true,"pids_limit":256,"security_opt":["no-new-privileges:true"],"tmpfs":%s,"extra_hosts":%s,"configs":%s,"secrets":%s,"env_file":%s,"environment":{"SPRING_PROFILES_ACTIVE":"prod","SPRING_DATASOURCE_URL":"%s","DB_USERNAME":"%s","DB_PASSWORD":"%s","REDIS_HOST":"redis","REDIS_PORT":"6379","JWT_SECRET":"%s","JWT_EXPIRATION":"1800000","JWT_REFRESH_EXPIRATION":"604800000","CORS_ALLOWED_ORIGINS":"https://cubing-hub.com,https://www.cubing-hub.com","SPRING_JPA_HIBERNATE_DDL_AUTO":"%s"%s,"AUTH_REFRESH_COOKIE_SECURE":"true","SMTP_HOST":"%s","SMTP_PORT":"587","SMTP_USERNAME":"","SMTP_PASSWORD":"%s","SMTP_AUTH":"true","SMTP_STARTTLS_ENABLE":"true","SMTP_FROM_ADDRESS":"","FEEDBACK_DISCORD_WEBHOOK_URL":"","RANKING_REDIS_REBUILD_MODE":"disabled","MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE":"health","MONITORING_PROMETHEUS_PERMIT_ALL":"false","POST_IMAGES_LOCAL_ROOT_PATH":"%s","POST_IMAGES_KEY_PREFIX":"community/posts","POST_IMAGES_PUBLIC_BASE_URL":"https://api.cubing-hub.com/uploads"%s},"networks":{"application":%s,"outbound":null},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}%s],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}},"web":{"image":"%s","command":%s,"entrypoint":%s,"restart":"%s","init":true,"read_only":true,"pids_limit":100,"security_opt":["no-new-privileges:true"],"tmpfs":["/var/cache/nginx:size=32m,mode=0755","/var/run:size=4m,mode=0755","/tmp:size=16m,mode=1777"],"scale":%s,"profiles":%s,"healthcheck":%s,"networks":{"application":null,"edge":{"aliases":["%s"]}},"volumes":[{"type":"bind","source":"%s","target":"/data/post-images","read_only":true},{"type":"bind","source":"%s","target":"/etc/nginx/conf.d/00-cloudflare-real-ip.conf","read_only":true}],"logging":{"driver":"json-file","options":{"max-size":"10m","max-file":"3"}}}},"networks":{"application":%s,"outbound":%s,"edge":%s},"volumes":{"mysql-data":{"name":"%s"%s},"redis-data":{"name":"cubing-hub_redis-data"}}}\n' \
         "${db_image}" \
         "${db_entrypoint_json}" \
         "${database_name}" \
@@ -305,12 +460,60 @@ case "${command_name}" in
         "${application_json}" \
         "${outbound_json}" \
         "${edge_json}" \
+        "${mysql_volume_name}" \
         "${mysql_volume_extra}"
+    elif [[ "${arguments}" == *" stop db "* ]]; then
+      if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
+        printf 'false\n' >"${FAKE_DB_STATE_DIR}/running"
+      fi
+    elif [[ "${arguments}" == *" up "* ]] && [[ "${arguments}" == *" db "* ]]; then
+      if [[ "${FAKE_MAINTENANCE_DB_UP_FAIL:-false}" == true ]]; then
+        exit 1
+      fi
+      if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
+        printf '%s\n' "${DB_IMAGE:-mysql:8.4.11}" >"${FAKE_DB_STATE_DIR}/image-ref"
+        if [[ "${DB_IMAGE:-}" == mysql:8.0.46* ]]; then
+          printf '%s\n' "${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}" \
+            >"${FAKE_DB_STATE_DIR}/image-id"
+        else
+          printf '%s\n' "${FAKE_MYSQL_84_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}" \
+            >"${FAKE_DB_STATE_DIR}/image-id"
+        fi
+        printf '%s\n' "${DB_VOLUME_NAME:-cubing-hub_mysql-data}" >"${FAKE_DB_STATE_DIR}/volume"
+        printf 'healthy\n' >"${FAKE_DB_STATE_DIR}/health"
+        printf 'true\n' >"${FAKE_DB_STATE_DIR}/running"
+      fi
     elif [[ "${arguments}" == *" ps --status running --services "* ]]; then
       printf '%s\n' "${FAKE_RUNNING_SERVICES:-db
 redis
 api
 web}"
+    fi
+    ;;
+  ps)
+    if [[ " $* " == *" --filter volume="* ]]; then
+      requested_volume=
+      while [[ "$#" -gt 1 ]]; do
+        if [[ "$1" == --filter && "$2" == volume=* ]]; then
+          requested_volume="${2#volume=}"
+          break
+        fi
+        shift
+      done
+      [[ -n "${requested_volume}" ]] || exit 1
+      if [[ -n "${FAKE_VOLUME_ATTACHED_CONTAINER:-}" ]]; then
+        printf '%s' "${FAKE_VOLUME_ATTACHED_CONTAINER}"
+      elif [[ -n "${FAKE_DB_STATE_DIR:-}" && -f "${FAKE_DB_STATE_DIR}/volume" ]] \
+        && [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/volume")" == "${requested_volume}" ]] \
+        && { [[ ! -f "${FAKE_DB_STATE_DIR}/running" ]] \
+          || [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/running")" == true ]]; }
+      then
+        printf '%s' "${FAKE_DB_CONTAINER_ID:-mock-db-container}"
+      elif [[ "${FAKE_ACTUAL_DB_VOLUME:-cubing-hub_mysql-data}" == "${requested_volume}" ]]; then
+        printf '%s' "${FAKE_DB_CONTAINER_ID:-mock-db-container}"
+      fi
+    else
+      exit 1
     fi
     ;;
   *)
