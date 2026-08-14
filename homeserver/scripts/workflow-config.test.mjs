@@ -460,7 +460,15 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
   const publish = workflowJob(deployWorkflow, "publish");
   const deploy = workflowJob(deployWorkflow, "deploy");
   const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
-  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
+  const validateIntent = workflowJob(reconcileWorkflow, "validate-intent");
+  const authorizeRuntime = workflowJob(
+    reconcileWorkflow,
+    "authorize-runtime-reconcile",
+  );
+  const inspectAndRecord = workflowJob(
+    reconcileWorkflow,
+    "inspect-and-record",
+  );
 
   assert.match(publish, /actions: read/);
   assert.match(publish, /contents: read/);
@@ -477,13 +485,32 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
   assert.match(recordRuntime, /deployments: write/);
   assert.doesNotMatch(recordRuntime, /id-token: write|packages: write/);
 
-  assert.match(reconcile, /contents: read/);
-  assert.match(reconcile, /deployments: write/);
-  assert.match(reconcile, /id-token: write/);
-  assert.doesNotMatch(reconcile, /contents: write|packages: write|actions: write/);
+  assert.match(validateIntent, /contents: read/);
+  assert.doesNotMatch(
+    validateIntent,
+    /contents: write|deployments: write|id-token: write|packages: write|actions: write/,
+  );
+
+  assert.match(authorizeRuntime, /contents: read/);
+  assert.doesNotMatch(
+    authorizeRuntime,
+    /contents: write|deployments: write|id-token: write|packages: write|actions: write/,
+  );
+
+  assert.match(inspectAndRecord, /contents: read/);
+  assert.match(inspectAndRecord, /deployments: write/);
+  assert.match(inspectAndRecord, /id-token: write/);
+  assert.doesNotMatch(
+    inspectAndRecord,
+    /contents: write|packages: write|actions: write/,
+  );
   assert.match(
-    reconcile,
+    authorizeRuntime,
     /environment:\n      name: production-runtime-config\n      deployment: false/,
+  );
+  assert.match(
+    inspectAndRecord,
+    /environment:\n      name: production\n      deployment: false/,
   );
 });
 
@@ -508,6 +535,84 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
     /inspection_command="inspect-cubing-hub-runtime \$\{EXPECTED_APPLICATION_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_DIGEST\} \$\{EXPECTED_DB_IMAGE\} \$\{EXPECTED_DB_VOLUME\} \$\{EXPECTED_MYSQL_VERSION\}"/,
   );
   assert.doesNotMatch(reconcileWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+});
+
+test("should_gateRuntimeReconciliationApprovalBeforeProductionCredentialAccess", () => {
+  const validateIntent = workflowJob(reconcileWorkflow, "validate-intent");
+  const authorizeRuntime = workflowJob(
+    reconcileWorkflow,
+    "authorize-runtime-reconcile",
+  );
+  const inspectAndRecord = workflowJob(
+    reconcileWorkflow,
+    "inspect-and-record",
+  );
+  const credentialSecrets = [
+    "TS_OAUTH_CLIENT_ID",
+    "TS_AUDIENCE",
+    "HOME_MINI_SSH_KEY",
+    "HOME_MINI_KNOWN_HOSTS",
+  ];
+  const reconciliationInputs = [
+    "expected_application_revision",
+    "expected_runtime_config_revision",
+    "expected_runtime_config_digest",
+    "expected_db_image",
+    "expected_db_volume",
+    "expected_mysql_version",
+  ];
+
+  assert.match(
+    reconcileWorkflow,
+    /concurrency:\n  group: cubing-hub-production\n  cancel-in-progress: false/,
+  );
+
+  assert.doesNotMatch(validateIntent, /^    environment:/m);
+  assert.doesNotMatch(validateIntent, /\$\{\{ secrets\./);
+
+  assert.match(
+    authorizeRuntime,
+    /^    needs:\n      - validate-intent$/m,
+  );
+  assert.match(
+    authorizeRuntime,
+    /environment:\n      name: production-runtime-config\n      deployment: false/,
+  );
+  assert.doesNotMatch(authorizeRuntime, /\$\{\{ secrets\./);
+  assert.doesNotMatch(authorizeRuntime, /always\(\)/);
+  assert.doesNotMatch(
+    authorizeRuntime,
+    /tailscale\/github-action|Configure restricted SSH|inspect-cubing-hub-runtime/,
+  );
+
+  assert.match(
+    inspectAndRecord,
+    /^    needs:\n      - authorize-runtime-reconcile$/m,
+  );
+  assert.doesNotMatch(inspectAndRecord, /always\(\)|- validate-intent/);
+  assert.match(
+    inspectAndRecord,
+    /environment:\n      name: production\n      deployment: false/,
+  );
+
+  for (const secret of credentialSecrets) {
+    const reference = `\${{ secrets.${secret} }}`;
+
+    assert.equal(countLiteral(reconcileWorkflow, reference), 1);
+    assert.match(inspectAndRecord, new RegExp(`secrets\\.${secret}`));
+  }
+
+  for (const input of reconciliationInputs) {
+    const reference = new RegExp(`inputs\\.${input}`);
+
+    assert.match(validateIntent, reference);
+    assert.match(inspectAndRecord, reference);
+  }
+
+  assert.match(
+    runtimeBaselineRecorder,
+    /readonly RUNTIME_ENVIRONMENT=production-runtime-config/,
+  );
 });
 
 test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
@@ -536,15 +641,19 @@ test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
 });
 
 test("should_reconcileOnlyExplicitVerifiedHostStateWithoutMutatingProduction", () => {
-  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
+  const validateIntent = workflowJob(reconcileWorkflow, "validate-intent");
+  const inspectAndRecord = workflowJob(
+    reconcileWorkflow,
+    "inspect-and-record",
+  );
 
   assert.match(reconcileWorkflow, /^on:\n  workflow_dispatch:/m);
   assert.doesNotMatch(reconcileWorkflow, /\n  push:|\n  pull_request:/);
-  assert.match(reconcile, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(reconcile, /git merge-base --is-ancestor/);
-  assert.match(reconcile, /verify-runtime-baseline-inspection\.sh/);
+  assert.match(validateIntent, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(validateIntent, /git merge-base --is-ancestor/);
+  assert.match(inspectAndRecord, /verify-runtime-baseline-inspection\.sh/);
   assert.match(
-    reconcile,
+    inspectAndRecord,
     /record-runtime-config-baseline\.sh \\\n+\s+maintenance-reconcile/,
   );
   assert.match(runtimeInspectionVerifier, /APPLICATION_REVISION/);
@@ -683,6 +792,10 @@ function javaToolchainVersion(buildGradle) {
 
 function countMatches(value, pattern) {
   return [...value.matchAll(pattern)].length;
+}
+
+function countLiteral(value, needle) {
+  return value.split(needle).length - 1;
 }
 
 function actionReferences(workflow) {

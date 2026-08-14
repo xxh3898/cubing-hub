@@ -37,18 +37,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  reconcile:
-    name: Verify and record runtime config baseline
+  validate-intent:
+    name: Validate runtime reconciliation intent
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment:
-      name: production-runtime-config
-      deployment: false
+    timeout-minutes: 5
     permissions:
       contents: read
-      deployments: write
-      id-token: write
 
     steps:
       - name: Check out repository history
@@ -82,6 +77,40 @@ jobs:
           git cat-file -e "${EXPECTED_RUNTIME_CONFIG_REVISION}^{commit}"
           git merge-base --is-ancestor "${EXPECTED_APPLICATION_REVISION}" "${GITHUB_SHA}"
           git merge-base --is-ancestor "${EXPECTED_RUNTIME_CONFIG_REVISION}" "${GITHUB_SHA}"
+
+  authorize-runtime-reconcile:
+    name: Authorize runtime reconciliation
+    needs:
+      - validate-intent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: production-runtime-config
+      deployment: false
+    permissions:
+      contents: read
+
+    steps:
+      - name: Acknowledge runtime reconciliation authorization
+        run: printf '%s\n' 'Runtime reconciliation authorization acknowledged'
+
+  inspect-and-record:
+    name: Inspect and record runtime config baseline
+    needs:
+      - authorize-runtime-reconcile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production
+      deployment: false
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
