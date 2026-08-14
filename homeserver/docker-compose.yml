@@ -2,7 +2,7 @@ name: cubing-hub
 
 services:
   db:
-    image: mysql:8.4.11
+    image: ${DB_IMAGE:-mysql:8.4.11}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_NAME:?DB_NAME must be set}
@@ -159,6 +159,7 @@ services:
 
 volumes:
   mysql-data:
+    name: ${DB_VOLUME_NAME:-cubing-hub_mysql-data}
   redis-data:
 
 networks:

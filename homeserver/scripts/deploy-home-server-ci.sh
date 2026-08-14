@@ -270,6 +270,14 @@ validated_recovery_release() {
 
 if [[ "$#" -eq 1 && "$1" == recover && -z "${SSH_ORIGINAL_COMMAND:-}" ]]; then
   acquire_operation_lock
+  if [[ -f "${RUNTIME_CONFIG_PENDING}" ]] \
+    && [[ "$(
+      /usr/bin/sed -n 's/^TRANSACTION_TYPE=//p' "${RUNTIME_CONFIG_PENDING}" \
+        | /usr/bin/tail -n 1
+    )" == MYSQL_MAINTENANCE ]]
+  then
+    fail "MySQL maintenance pending state requires the dedicated maintenance worker"
+  fi
   recovery_release="$(validated_recovery_release)"
   if [[ -n "${recovery_release}" ]] \
     && [[ "$(validate_release "${recovery_release}")" == synced ]]

@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-13
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -30,5 +30,7 @@ Redis는 현재 backup set에서 제외된다. ranking은 MySQL에서 rebuild하
 ## Restore
 
 restore는 격리된 target, write freeze, source snapshot, schema·engine version, expected count와 rollback을 먼저 확인한다. DB와 image를 같은 set에서 복구하고 application smoke와 ranking rebuild를 수행한다.
+
+MySQL engine rollback은 upgraded original volume을 downgrade하지 않는다. Pre-upgrade backup을 fresh 이전-engine volume에 restore·검증한 뒤 dedicated maintenance candidate로 runtime binding을 전환한다. Candidate·restore evidence·exact command는 command-level Source of Truth를 따른다.
 
 실제 backup, restore, retention 삭제는 각각 별도 운영·data 승인 대상이다.
