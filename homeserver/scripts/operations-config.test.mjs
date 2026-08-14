@@ -129,7 +129,36 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
     restrictedWrapper,
     /deploy-cubing-hub-v2[\s\S]*keep[\s\S]*deploy-cubing-hub-v2[\s\S]*update/,
   );
-  assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
+  assert.match(
+    restrictedWrapper,
+    /inspect-cubing-hub-runtime\[\[:space:\]\]\(\[0-9a-f\]\{40\}\)/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /inspect_verified_runtime[\s\S]*SELECT VERSION\(\)[\s\S]*SERVICE_SET=healthy/,
+  );
+  const inspector = restrictedWrapper.slice(
+    restrictedWrapper.indexOf("inspect_verified_runtime()"),
+    restrictedWrapper.indexOf("validated_recovery_release()"),
+  );
+  assert.doesNotMatch(
+    inspector,
+    /compose[\s\S]*(?:\bup\b|\bdown\b)|write_state|write_env|ln -s|volume rm/,
+  );
+  const forcedCommandStart = restrictedWrapper.indexOf(
+    'original_command="${SSH_ORIGINAL_COMMAND:-}"',
+  );
+  const forcedCommandEnd = restrictedWrapper.indexOf(
+    'registry_token="$(/bin/cat)"',
+    forcedCommandStart,
+  );
+  assert.ok(forcedCommandStart >= 0);
+  assert.ok(forcedCommandEnd > forcedCommandStart);
+  const forcedCommandDispatch = restrictedWrapper.slice(
+    forcedCommandStart,
+    forcedCommandEnd,
+  );
+  assert.doesNotMatch(forcedCommandDispatch, /eval|bash -c|sh -c/);
   assert.match(
     restrictedWrapper,
     /\/Users\/homeserver\/Server\/scripts\/deploy\/deploy-cubing-hub\.sh/,

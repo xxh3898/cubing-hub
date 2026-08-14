@@ -121,7 +121,11 @@ case "${command_name}" in
     format="$1"
     container_id="$2"
     if [[ "${format}" == '{{.Image}}' ]]; then
-      if [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]] \
+      if [[ "${container_id}" == "${FAKE_API_CONTAINER_ID:-mock-api-container}" ]]; then
+        printf '%s\n' "${FAKE_ACTUAL_API_IMAGE_ID:-${FAKE_DEFAULT_IMAGE_ID:-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}}"
+      elif [[ "${container_id}" == "${FAKE_WEB_CONTAINER_ID:-mock-web-container}" ]]; then
+        printf '%s\n' "${FAKE_ACTUAL_WEB_IMAGE_ID:-${FAKE_DEFAULT_IMAGE_ID:-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}}"
+      elif [[ "${container_id}" == "${FAKE_RESTORE_CONTAINER:-mock-restore-db}" ]] \
         || [[ "${container_id}" == cubing-hub-mysql-rollback-validation-* ]]
       then
         printf '%s\n' "${FAKE_RESTORE_IMAGE_ID:-${FAKE_MYSQL_80_IMAGE_ID:-sha256:8080808080808080808080808080808080808080808080808080808080808080}}"
@@ -143,7 +147,11 @@ case "${command_name}" in
     elif [[ "${format}" == *com.docker.compose.project* ]]; then
       printf '%s\n' "${FAKE_ACTUAL_DB_PROJECT:-cubing-hub}"
     elif [[ "${format}" == *com.docker.compose.service* ]]; then
-      printf '%s\n' "${FAKE_ACTUAL_DB_SERVICE:-db}"
+      case "${container_id}" in
+        "${FAKE_API_CONTAINER_ID:-mock-api-container}") printf 'api\n' ;;
+        "${FAKE_WEB_CONTAINER_ID:-mock-web-container}") printf 'web\n' ;;
+        *) printf '%s\n' "${FAKE_ACTUAL_DB_SERVICE:-db}" ;;
+      esac
     elif [[ "${format}" == *io.chochiho.cubing-hub.mysql-restore-backup* ]]; then
       printf '%s\n' "${FAKE_RESTORE_BACKUP_ID:-cubing-hub-production-20260813T000000Z}"
     elif [[ "${format}" == '{{.State.Status}}' ]]; then
@@ -307,6 +315,10 @@ users}"
       else
         printf '%s\n' "${FAKE_DB_CONTAINER_ID:-mock-db-container}"
       fi
+    elif [[ "${arguments}" == *" ps -q api "* ]]; then
+      printf '%s\n' "${FAKE_API_CONTAINER_ID:-mock-api-container}"
+    elif [[ "${arguments}" == *" ps -q web "* ]]; then
+      printf '%s\n' "${FAKE_WEB_CONTAINER_ID:-mock-web-container}"
     elif [[ "${arguments}" == *" ps --format json "* ]]; then
       service_health="${FAKE_SERVICE_HEALTH:-healthy}"
       api_health="${FAKE_API_HEALTH:-}"

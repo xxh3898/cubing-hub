@@ -280,6 +280,7 @@ test "$(/usr/bin/shasum -a 256 "${source_script}" | /usr/bin/awk '{print $1}')" 
 - `/Users/homeserver/Server/apps/cubing-hub/runtime-config/pending` 부재
 - `.cubing-hub-operation.lock`을 사용하는 deploy·backup·maintenance 미실행
 - maintenance worker source/install SHA-256 일치
+- post-maintenance inspection을 지원하는 approved stable deploy wrapper 설치와 SHA-256 검증
 
 ### Immutable upgrade candidate
 
@@ -340,12 +341,42 @@ API·Web image drift, Redis·network·DB command drift, target image digest 불�
 10. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
 11. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
 12. 모든 gate가 끝난 뒤에만 write를 재개한다.
+13. MySQL 8.4.11 상태에서 post-upgrade backup을 생성하고 manifest·checksum을 검증한다.
+14. 아래 post-maintenance runtime baseline reconciliation을 성공시킨 뒤 normal production deploy를 재개한다.
 
 `apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 target DB identity와 health를 먼저 확인하고 `SELECT VERSION()`으로 candidate operation의 exact target patch를 다시 검증한 뒤 API·Web을 candidate binding으로 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정한다.
 
 ```bash
 /Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh recover
 ```
+
+### Post-maintenance runtime baseline reconciliation
+
+MySQL maintenance 후 production state는 서로 다른 revision을 정상적으로 가질 수 있다.
+
+```text
+APPLICATION_REVISION=<기존 production application SHA>
+RUNTIME_CONFIG_REVISION=<MySQL 8.4.11 runtime release SHA>
+```
+
+Upgrade smoke와 post-upgrade backup까지 성공한 뒤 GitHub Actions의
+`Reconcile Production Runtime Baseline` workflow를 `main`에서 실행한다.
+`expected_application_revision`, `expected_runtime_config_revision`,
+`expected_runtime_config_digest`, exact `expected_db_image`,
+`expected_db_volume`, `expected_mysql_version=8.4.11`을 maintenance evidence와
+일치하게 입력한다.
+
+Workflow의 restricted SSH inspector는 production을 변경하지 않는다. Verified
+runtime state·current pointer·release content, pending 부재, 실제 DB image·volume,
+`SELECT VERSION()`, API/Web/DB/Redis health를 확인하고 operator 입력과 다시
+대조한다. 성공한 경우에만 별도 `production-runtime-config` deployment history에
+runtime revision·digest를 기록한다. 기존 `production` application deployment
+baseline은 유지한다.
+
+Runtime baseline success를 확인하기 전에는 normal production deploy를 재개하지
+않는다. Artifact publication이나 maintenance worker 성공만으로 GitHub baseline을
+갱신하지 않는다. Reconciliation 실패는 host runtime을 rollback하지 않으며,
+expected identity나 inspector 설치 상태를 고친 뒤 workflow를 다시 실행한다.
 
 ### Rollback
 

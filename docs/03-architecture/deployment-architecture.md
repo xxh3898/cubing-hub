@@ -24,13 +24,24 @@ Runtime configuration publication과 production deploy는 다음 release mode를
 - DB binding이 그대로인 runtime configuration update는 immutable artifact를 발행하고 정상 deploy로 동기화한다.
 - DB image 또는 MySQL volume binding이 바뀌는 release는 immutable artifact를 발행하지만 production deploy job을 시작하지 않는다. Dedicated data-service maintenance가 필요하다.
 
-Data-service 판정은 runtime 파일의 변경 여부가 아니라 마지막 정상 production deployment와 candidate revision의 Compose를 render한 effective DB image·volume name 비교를 사용한다. Production deployment 이력이 실제로 없을 때만 최초 bootstrap으로 처리한다. 이력은 있으나 성공 revision을 찾지 못하면 release를 중단한다. Runtime configuration 강제 동기화는 이 판정을 우회하지 않는다.
+Data-service 판정은 runtime 파일의 변경 여부가 아니라 마지막 정상 production runtime-config baseline과 candidate revision의 Compose를 render한 effective DB image·volume name 비교를 사용한다. Runtime configuration 강제 동기화는 이 판정을 우회하지 않는다.
 
 ## Deployment unit
 
 - API image와 Web image는 같은 40자리 application commit SHA를 사용한다.
 - runtime configuration은 exact sha256 digest와 revision label로 검증한다.
 - 정상 상태는 application SHA와 runtime configuration digest의 pair로 기록한다.
+
+## Production baseline
+
+GitHub deployment history는 production 상태의 두 축을 분리한다.
+
+- `production`은 API·Web application 배포 이력이다.
+- `production-runtime-config`는 production에 실제 적용하고 검증한 runtime-config revision·digest 이력이다.
+
+Release detector는 `production-runtime-config`의 마지막 success revision을 runtime 비교 기준으로 사용한다. Runtime baseline 이력이 아직 한 건도 없는 최초 전환에만 기존 `production` success를 bootstrap 기준으로 사용한다. Runtime baseline deployment가 존재하지만 success가 없으면 legacy 이력으로 fallback하지 않고 release를 중단한다. 두 environment 모두 이력이 없는 신규 설치는 zero revision에서 시작한다.
+
+Application-only release는 runtime baseline을 갱신하지 않는다. 안전한 runtime update는 production deploy와 health 검증이 성공한 뒤에만 candidate runtime revision을 success로 기록한다. Artifact publication만으로 baseline을 전진시키지 않는다.
 
 ## Migration
 
@@ -58,6 +69,8 @@ Maintenance도 deploy·backup과 같은 operation lock과 canonical `runtime-con
 
 Main release가 data-service maintenance를 요구하면 GitHub Actions는 runtime-config revision과 digest를 기록한 뒤 production environment, Tailscale, SSH 단계 전에 deploy job을 skip한다. Host deploy worker의 drift guard도 독립된 방어선으로 유지한다.
 
-Maintenance 완료는 일반 GitHub production deployment success가 아니다. Release detector의 기준인 마지막 정상 production deployment SHA는 그대로 남을 수 있으므로, 다음 normal deploy 전에 host의 적용 runtime과 GitHub deployment baseline을 맞추는 explicit post-maintenance 절차가 필요하다. 이 reconciliation이 끝나기 전 release는 maintenance-required로 계속 차단될 수 있다.
+Maintenance 완료는 일반 GitHub production application deployment success가 아니다. Host에서는 기존 application revision과 새 runtime-config revision이 함께 정상 상태를 이룰 수 있다.
+
+Post-maintenance reconciliation은 operator가 기대한 application revision, runtime revision·digest, DB image·volume, MySQL patch를 명시하고 production host를 read-only로 검사한다. Inspector는 verified `state`·`current`·release content, pending 부재, 실제 image·volume, MySQL version과 전체 service health가 모두 일치할 때만 성공한다. 그 뒤에만 `production-runtime-config` environment에 runtime baseline success를 기록한다. Reconciliation 전에는 normal production deploy를 재개하지 않는다.
 
 command-level 절차와 실제 target path는 [deployment runbook gateway](../07-operations/deployment-runbook.md)에서 canonical homeserver runbook으로 연결한다.

@@ -6,14 +6,22 @@ import test from "node:test";
 const [
   validateWorkflow,
   deployWorkflow,
+  reconcileWorkflow,
   benchmarkWorkflow,
   pathClassifier,
+  runtimeBaselineResolver,
+  runtimeBaselineRecorder,
+  runtimeInspectionVerifier,
 ] =
   await Promise.all([
     read("../../.github/workflows/validate.yml"),
     read("../../.github/workflows/deploy.yml"),
+    read("../../.github/workflows/reconcile-runtime-baseline.yml"),
     read("../../.github/workflows/performance-benchmark.yml"),
     read("../../scripts/classify-ci-paths.sh"),
+    read("./resolve-runtime-config-baseline.sh"),
+    read("./record-runtime-config-baseline.sh"),
+    read("./verify-runtime-baseline-inspection.sh"),
   ]);
 
 test("should_validateDevPushAndDevAndMainPullRequestsBeforeRelease", () => {
@@ -317,7 +325,14 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   );
   assert.match(
     deployWorkflow,
-    /deployments\?environment=production[\s\S]*steps\.deployed-base\.outputs\.sha/,
+    /resolve-runtime-config-baseline\.sh[\s\S]*steps\.runtime-baseline\.outputs\.revision/,
+  );
+  assert.match(runtimeBaselineResolver, /RUNTIME_ENVIRONMENT=production-runtime-config/);
+  assert.match(runtimeBaselineResolver, /LEGACY_ENVIRONMENT=production/);
+  assert.match(runtimeBaselineResolver, /task == "runtime-config:baseline"/);
+  assert.match(
+    runtimeBaselineResolver,
+    /payload\.runtimeConfigDigest[\s\S]*sha256:\[0-9a-f\]\{64\}/,
   );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
   assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
@@ -347,7 +362,7 @@ test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", ()
 
   assert.match(
     publish,
-    /- name: Detect data-service maintenance\n        id: data-service-maintenance[\s\S]*detect-data-service-maintenance\.sh \\\n+\s+"\$\{DEPLOYED_SHA\}" \\\n+\s+"\$\{GITHUB_SHA\}"/,
+    /- name: Detect data-service maintenance\n        id: data-service-maintenance[\s\S]*detect-data-service-maintenance\.sh \\\n+\s+"\$\{RUNTIME_BASELINE_SHA\}" \\\n+\s+"\$\{GITHUB_SHA\}"/,
   );
   assert.match(
     publish,
@@ -368,29 +383,25 @@ test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", ()
   assert.doesNotMatch(publish, /tailscale\/github-action|home-mini/);
 });
 
-test("should_failClosedWhenProductionHistoryHasNoSuccessfulDeployment", () => {
-  const publish = workflowJob(deployWorkflow, "publish");
-  const deployedBase = publish.slice(
-    publish.indexOf("- name: Resolve last successful production revision"),
-    publish.indexOf("- name: Detect runtime config changes"),
-  );
-
+test("should_resolveRuntimeBaselineWithExplicitLegacyBootstrapAndPagination", () => {
+  assert.match(runtimeBaselineResolver, /readonly PAGE_SIZE=100/);
   assert.match(
-    deployedBase,
-    /deployment_page=1[\s\S]*deployment_page_size=100[\s\S]*saw_production_deployment=false/,
+    runtimeBaselineResolver,
+    /deployments\?environment=\$\{environment\}&per_page=\$\{PAGE_SIZE\}&page=\$\{page\}/,
   );
   assert.match(
-    deployedBase,
-    /deployments\?environment=production&per_page=\$\{deployment_page_size\}&page=\$\{deployment_page\}/,
+    runtimeBaselineResolver,
+    /resolve_environment "\$\{RUNTIME_ENVIRONMENT\}"[\s\S]*success\)[\s\S]*baseline_source=runtime[\s\S]*empty\)[\s\S]*resolve_environment "\$\{LEGACY_ENVIRONMENT\}"/,
   );
   assert.match(
-    deployedBase,
-    /deployment_count="\$\(jq -r 'length'[\s\S]*if \[\[ "\$\{deployment_count\}" -eq 0 \]\]; then[\s\S]*if \[\[ "\$\{saw_production_deployment\}" == false \]\]; then[\s\S]*break[\s\S]*Production deployments exist, but no successful revision was found/,
+    runtimeBaselineResolver,
+    /no-success\)[\s\S]*runtime config deployments exist without a successful baseline/,
   );
   assert.match(
-    deployedBase,
-    /if \[\[ "\$\{deployment_count\}" -lt "\$\{deployment_page_size\}" \]\]; then[\s\S]*Production deployments exist, but no successful revision was found[\s\S]*deployment_page="\$\(\(deployment_page \+ 1\)\)"/,
+    runtimeBaselineResolver,
+    /baseline_source=legacy-bootstrap[\s\S]*baseline_source=new-install-bootstrap/,
   );
+  assert.match(runtimeBaselineResolver, /printf 'digest=%s\\n'/);
 });
 
 test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
@@ -408,13 +419,15 @@ test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
   assert.doesNotMatch(maintenanceDetection, /FORCE_SYNC|sync_runtime_config/);
   assert.match(
     maintenanceDetection,
-    /detect-data-service-maintenance\.sh[\s\S]*"\$\{DEPLOYED_SHA\}"[\s\S]*"\$\{GITHUB_SHA\}"/,
+    /detect-data-service-maintenance\.sh[\s\S]*"\$\{RUNTIME_BASELINE_SHA\}"[\s\S]*"\$\{GITHUB_SHA\}"/,
   );
 });
 
 test("should_applyLeastPrivilegePermissionsPerJob", () => {
   const publish = workflowJob(deployWorkflow, "publish");
   const deploy = workflowJob(deployWorkflow, "deploy");
+  const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
+  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
 
   assert.match(publish, /actions: read/);
   assert.match(publish, /contents: read/);
@@ -426,6 +439,19 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
   assert.match(deploy, /id-token: write/);
   assert.doesNotMatch(deploy, /packages: write/);
   assert.match(deploy, /environment: production/);
+
+  assert.match(recordRuntime, /contents: read/);
+  assert.match(recordRuntime, /deployments: write/);
+  assert.doesNotMatch(recordRuntime, /id-token: write|packages: write/);
+
+  assert.match(reconcile, /contents: read/);
+  assert.match(reconcile, /deployments: write/);
+  assert.match(reconcile, /id-token: write/);
+  assert.doesNotMatch(reconcile, /contents: write|packages: write|actions: write/);
+  assert.match(
+    reconcile,
+    /environment:\n      name: production-runtime-config\n      deployment: false/,
+  );
 });
 
 test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
@@ -443,6 +469,59 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+  assert.match(reconcileWorkflow, /uses: tailscale\/github-action@[0-9a-f]{40}/);
+  assert.match(
+    reconcileWorkflow,
+    /inspection_command="inspect-cubing-hub-runtime \$\{EXPECTED_APPLICATION_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_DIGEST\} \$\{EXPECTED_DB_IMAGE\} \$\{EXPECTED_DB_VOLUME\} \$\{EXPECTED_MYSQL_VERSION\}"/,
+  );
+  assert.doesNotMatch(reconcileWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+});
+
+test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
+  const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
+
+  assert.match(recordRuntime, /always\(\)/);
+  assert.match(recordRuntime, /needs\.publish\.result == 'success'/);
+  assert.match(recordRuntime, /needs\.deploy\.result == 'success'/);
+  assert.match(recordRuntime, /runtime_config_mode == 'update'/);
+  assert.match(
+    recordRuntime,
+    /data_service_maintenance_required == 'false'/,
+  );
+  assert.match(
+    recordRuntime,
+    /record-runtime-config-baseline\.sh \\\n+\s+normal-update/,
+  );
+  assert.match(runtimeBaselineRecorder, /environment: \$environment/);
+  assert.match(runtimeBaselineRecorder, /required_contexts: \[\]/);
+  assert.match(runtimeBaselineRecorder, /auto_merge: false/);
+  assert.match(runtimeBaselineRecorder, /state: "success"/);
+  assert.doesNotMatch(
+    workflowJob(deployWorkflow, "publish"),
+    /record-runtime-config-baseline\.sh/,
+  );
+});
+
+test("should_reconcileOnlyExplicitVerifiedHostStateWithoutMutatingProduction", () => {
+  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
+
+  assert.match(reconcileWorkflow, /^on:\n  workflow_dispatch:/m);
+  assert.doesNotMatch(reconcileWorkflow, /\n  push:|\n  pull_request:/);
+  assert.match(reconcile, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(reconcile, /git merge-base --is-ancestor/);
+  assert.match(reconcile, /verify-runtime-baseline-inspection\.sh/);
+  assert.match(
+    reconcile,
+    /record-runtime-config-baseline\.sh \\\n+\s+maintenance-reconcile/,
+  );
+  assert.match(runtimeInspectionVerifier, /APPLICATION_REVISION/);
+  assert.match(runtimeInspectionVerifier, /RUNTIME_CONFIG_REVISION/);
+  assert.match(runtimeInspectionVerifier, /PENDING/);
+  assert.match(runtimeInspectionVerifier, /SERVICE_SET/);
+  assert.doesNotMatch(
+    reconcileWorkflow,
+    /docker compose (?:up|down)|runtime-config\/state|runtime-config\/current|volume rm/,
+  );
 });
 
 test("should_pinEveryExternalActionToFullCommitSha", () => {
@@ -466,6 +545,7 @@ test("should_pinEveryExternalActionToFullCommitSha", () => {
   for (const workflow of [
     validateWorkflow,
     deployWorkflow,
+    reconcileWorkflow,
     benchmarkWorkflow,
   ]) {
     for (const action of actionReferences(workflow)) {
