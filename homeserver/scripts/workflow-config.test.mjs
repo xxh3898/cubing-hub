@@ -8,6 +8,7 @@ const [
   deployWorkflow,
   reconcileWorkflow,
   benchmarkWorkflow,
+  backendBuild,
   pathClassifier,
   runtimeBaselineResolver,
   runtimeBaselineRecorder,
@@ -18,6 +19,7 @@ const [
     read("../../.github/workflows/deploy.yml"),
     read("../../.github/workflows/reconcile-runtime-baseline.yml"),
     read("../../.github/workflows/performance-benchmark.yml"),
+    read("../../backend/build.gradle"),
     read("../../scripts/classify-ci-paths.sh"),
     read("./resolve-runtime-config-baseline.sh"),
     read("./record-runtime-config-baseline.sh"),
@@ -284,6 +286,37 @@ test("should_buildBackendArtifactBeforeApiImage", () => {
     deployWorkflow,
     /name: backend-jar-\$\{\{ github\.sha \}\}/,
   );
+});
+
+test("should_alignJavaProvisioningWithBackendToolchain", () => {
+  const canonicalJavaVersion = javaToolchainVersion(backendBuild);
+  const workflowSetups = [
+    [
+      workflowJob(validateWorkflow, "backend"),
+      `Set up Java ${canonicalJavaVersion}`,
+    ],
+    [
+      workflowJob(benchmarkWorkflow, "benchmark"),
+      `Setup JDK ${canonicalJavaVersion}`,
+    ],
+  ];
+
+  assert.equal(canonicalJavaVersion, "25");
+
+  for (const [workflow, expectedStepName] of workflowSetups) {
+    const setupJavaStep = workflowActionStep(workflow, "actions/setup-java");
+
+    assert.match(
+      setupJavaStep,
+      new RegExp(`^      - name: ${expectedStepName}$`, "m"),
+    );
+    assert.match(
+      setupJavaStep,
+      new RegExp(`^          java-version: "${canonicalJavaVersion}"$`, "m"),
+    );
+    assert.match(setupJavaStep, /^          distribution: "?temurin"?$/m);
+    assert.match(setupJavaStep, /^          cache: gradle$/m);
+  }
 });
 
 test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
@@ -611,6 +644,41 @@ function workflowJob(workflow, jobId) {
   return nextJobOffset >= 0
     ? workflow.slice(start, bodyStart + nextJobOffset)
     : workflow.slice(start);
+}
+
+function workflowActionStep(workflow, actionName) {
+  const actionReferencesForName = actionReferences(workflow).filter(
+    (reference) => reference.startsWith(`${actionName}@`),
+  );
+
+  assert.equal(
+    actionReferencesForName.length,
+    1,
+    `Expected exactly one ${actionName} action`,
+  );
+
+  const actionOffset = workflow.indexOf(
+    `uses: ${actionReferencesForName[0]}`,
+  );
+  const stepStart = workflow.lastIndexOf("\n      - name: ", actionOffset);
+  const nextStepOffset = workflow.indexOf("\n      - name: ", actionOffset);
+
+  assert.ok(stepStart >= 0, `Missing step for ${actionName}`);
+
+  return workflow.slice(
+    stepStart + 1,
+    nextStepOffset >= 0 ? nextStepOffset : workflow.length,
+  );
+}
+
+function javaToolchainVersion(buildGradle) {
+  const versions = [
+    ...buildGradle.matchAll(/JavaLanguageVersion\.of\((\d+)\)/g),
+  ].map((match) => match[1]);
+
+  assert.equal(versions.length, 1, "Expected one Java toolchain version");
+
+  return versions[0];
 }
 
 function countMatches(value, pattern) {
