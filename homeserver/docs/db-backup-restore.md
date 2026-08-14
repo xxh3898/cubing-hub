@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-14
+updated: 2026-08-15
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -366,12 +366,19 @@ Upgrade smoke와 post-upgrade backup까지 성공한 뒤 GitHub Actions의
 `expected_db_volume`, `expected_mysql_version=8.4.11`을 maintenance evidence와
 일치하게 입력한다.
 
-Workflow의 restricted SSH inspector는 production을 변경하지 않는다. Verified
-runtime state·current pointer·release content, pending 부재, 실제 DB image·volume,
+Workflow는 environment가 없는 intent validation 뒤
+`production-runtime-config`의 `deployment: false` authorization job에서 required
+reviewer approval을 받는다. 이 job은 secret을 사용하거나 production에 접속하지
+않는다. Approval success 뒤에만 `production` environment를 `deployment: false`로
+참조하는 inspection job이 기존 Tailscale·SSH secret을 사용한다.
+
+Restricted SSH inspector는 production을 변경하지 않는다. Verified runtime
+state·current pointer·release content, pending 부재, 실제 DB image·volume,
 `SELECT VERSION()`, API/Web/DB/Redis health를 확인하고 operator 입력과 다시
-대조한다. 성공한 경우에만 별도 `production-runtime-config` deployment history에
-runtime revision·digest를 기록한다. 기존 `production` application deployment
-baseline은 유지한다.
+대조한다. 두 environment reference는 automatic Deployment object를 만들지
+않는다. 성공한 경우 recorder가 별도 `production-runtime-config` deployment
+history에 runtime revision·digest를 명시적으로 기록한다. 기존 `production`
+application deployment baseline은 유지한다.
 
 Runtime baseline success를 확인하기 전에는 normal production deploy를 재개하지
 않는다. Artifact publication이나 maintenance worker 성공만으로 GitHub baseline을

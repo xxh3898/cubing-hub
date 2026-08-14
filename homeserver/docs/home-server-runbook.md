@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-14
+updated: 2026-08-15
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -203,21 +203,30 @@ expected_db_volume
 expected_mysql_version
 ```
 
-Workflow는 `production-runtime-config` environment의 approval boundary 안에서
-Tailscale과 restricted SSH를 사용한다. Forced command는 operation lock을
+Workflow는 intent validation, approval과 credential access를 별도 job으로
+분리한다. Environment가 없는 validation job이 exact expected identity와 commit
+ancestry를 먼저 확인한다. 이어지는 authorization job만
+`production-runtime-config` environment를 `deployment: false`로 참조해 required
+reviewer approval을 받으며 secret이나 production connection을 사용하지 않는다.
+
+Inspection job은 authorization success를 `needs`로 요구하고 `production`
+environment를 `deployment: false`로 참조한다. 이 job에서만 기존 production
+Tailscale·restricted SSH secret에 접근한다. Forced command는 operation lock을
 non-blocking으로 확인한 뒤 `state`, `current`, release content hash, pending
 부재, `.env`와 effective Compose binding, 실제 API/Web·DB image, DB volume,
 `SELECT VERSION()`, API/Web/DB/Redis health를 read-only로 검증한다. Host state는
 수정하지 않으며 exact expected value가 하나라도 다르면 GitHub baseline을
 기록하지 않는다.
 
-검증이 성공하면 `production-runtime-config`에 `maintenance-reconcile` success를
-기록한다. `production` application deployment 이력은 바꾸지 않는다. GitHub
-environment에 필요한 reviewer·secret은 repository 밖 운영 prerequisite다.
-Workflow job은 environment approval을 적용하되 별도 자동 deployment record는
-만들지 않도록 구성되어 있다. Custom deployment protection rule을 함께 쓰는
-경우 이 설정과 호환되지 않으므로 사전에 확인한다. Reconciliation success 전에는
-normal production deploy를 재개하지 않는다.
+두 environment job의 `deployment: false`는 environment protection과 secret
+scope를 적용하면서 workflow reference 자체의 automatic Deployment object는
+만들지 않는다. 검증이 성공한 뒤 recorder가 명시적으로
+`production-runtime-config`에 `maintenance-reconcile` success를 기록한다.
+`production` application deployment 이력은 바꾸지 않는다.
+`production-runtime-config` reviewer와 `production` credential secret은
+repository 밖 운영 prerequisite다. Custom deployment protection rule을 함께
+쓰는 경우 `deployment: false`와 호환되지 않으므로 사전에 확인한다.
+Reconciliation success 전에는 normal production deploy를 재개하지 않는다.
 
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
