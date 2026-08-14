@@ -145,7 +145,20 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
     inspector,
     /compose[\s\S]*(?:\bup\b|\bdown\b)|write_state|write_env|ln -s|volume rm/,
   );
-  assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
+  const forcedCommandStart = restrictedWrapper.indexOf(
+    'original_command="${SSH_ORIGINAL_COMMAND:-}"',
+  );
+  const forcedCommandEnd = restrictedWrapper.indexOf(
+    'registry_token="$(/bin/cat)"',
+    forcedCommandStart,
+  );
+  assert.ok(forcedCommandStart >= 0);
+  assert.ok(forcedCommandEnd > forcedCommandStart);
+  const forcedCommandDispatch = restrictedWrapper.slice(
+    forcedCommandStart,
+    forcedCommandEnd,
+  );
+  assert.doesNotMatch(forcedCommandDispatch, /eval|bash -c|sh -c/);
   assert.match(
     restrictedWrapper,
     /\/Users\/homeserver\/Server\/scripts\/deploy\/deploy-cubing-hub\.sh/,
