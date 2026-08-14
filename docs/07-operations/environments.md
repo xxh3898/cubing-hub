@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-08-10
-updated: 2026-08-12
+updated: 2026-08-15
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -33,6 +33,24 @@ local profile은 ddl-auto update와 Flyway disabled를 사용한다. production 
 repository Compose에는 MySQL 8.4.11 LTS, Redis 7.2.14, API, Web이 정의돼 있다. DB·Redis는 internal application network, API는 별도 outbound, Web은 external edge network를 사용한다. image·secret은 env로 주입한다.
 
 일반 application deploy는 실행 중인 data-service image와 candidate runtime config가 다르면 중단한다. MySQL 8.4.11 전환은 [DB와 이미지 백업·복구](../../homeserver/docs/db-backup-restore.md)의 별도 production migration gate를 통과한 뒤 실행한다.
+
+### GitHub production environments
+
+GitHub deployment environment는 application deployment와 runtime-config
+baseline의 책임을 분리한다.
+
+| GitHub environment | 역할 | Reconciliation 책임 |
+| --- | --- | --- |
+| `production` | API/Web application deployment history와 기존 Tailscale·SSH credential scope | Approval 뒤 read-only inspection job이 `deployment: false`로 참조 |
+| `production-runtime-config` | Production에 실제 적용·검증한 runtime-config history와 maintenance reconciliation approval | Secret 없이 authorization job이 `deployment: false`로 참조하고, 성공한 recorder가 baseline을 명시 기록 |
+
+Reconciliation은 environment가 없는 intent validation,
+`production-runtime-config` reviewer authorization, `production` credential을
+사용하는 inspection/record 순서로만 진행한다. 두 environment job 모두
+`deployment: false`이므로 workflow environment reference 자체가 application 또는
+runtime deployment history를 갱신하지 않는다. Inspection이 성공한 뒤
+`record-runtime-config-baseline.sh`만 `production-runtime-config`에 verified
+baseline을 생성한다. `production` application deployment history는 유지한다.
 
 ## Tracked legacy configuration
 
