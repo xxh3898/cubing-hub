@@ -93,7 +93,7 @@ DB image 또는 MySQL volume binding 변경
 → dedicated maintenance worker
 ```
 
-DB maintenance 판정은 마지막 정상 production deployment와 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. `workflow_dispatch.sync_runtime_config=true`는 runtime-config publication을 강제할 뿐 이 판정을 우회하지 않는다.
+DB maintenance 판정은 마지막 정상 production deployment와 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. Release workflow는 production deployment 이력을 pagination해 마지막 success를 찾는다. 이력이 실제로 없을 때만 최초 bootstrap을 허용하고, 이력은 있으나 success를 찾지 못하면 fail closed한다. `workflow_dispatch.sync_runtime_config=true`는 runtime-config publication을 강제할 뿐 이 판정을 우회하지 않는다.
 
 `MAC_MINI_DEPLOY_ENABLED=true`는 현재 publish job과 production deploy job을 모두 enable한다. Data-service maintenance가 필요하면 publish job은 API·Web과 runtime-config artifact를 발행하고, deploy job은 `data_service_maintenance_required` output으로 GitHub Actions에서 skip된다. Tailscale 연결과 SSH command는 실행되지 않는다. Workflow summary에는 runtime mode, runtime revision·digest, maintenance 필요 여부와 deploy skip 상태를 기록한다.
 

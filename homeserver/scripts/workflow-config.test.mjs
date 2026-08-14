@@ -368,6 +368,31 @@ test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", ()
   assert.doesNotMatch(publish, /tailscale\/github-action|home-mini/);
 });
 
+test("should_failClosedWhenProductionHistoryHasNoSuccessfulDeployment", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const deployedBase = publish.slice(
+    publish.indexOf("- name: Resolve last successful production revision"),
+    publish.indexOf("- name: Detect runtime config changes"),
+  );
+
+  assert.match(
+    deployedBase,
+    /deployment_page=1[\s\S]*deployment_page_size=100[\s\S]*saw_production_deployment=false/,
+  );
+  assert.match(
+    deployedBase,
+    /deployments\?environment=production&per_page=\$\{deployment_page_size\}&page=\$\{deployment_page\}/,
+  );
+  assert.match(
+    deployedBase,
+    /deployment_count="\$\(jq -r 'length'[\s\S]*if \[\[ "\$\{deployment_count\}" -eq 0 \]\]; then[\s\S]*if \[\[ "\$\{saw_production_deployment\}" == false \]\]; then[\s\S]*break[\s\S]*Production deployments exist, but no successful revision was found/,
+  );
+  assert.match(
+    deployedBase,
+    /if \[\[ "\$\{deployment_count\}" -lt "\$\{deployment_page_size\}" \]\]; then[\s\S]*Production deployments exist, but no successful revision was found[\s\S]*deployment_page="\$\(\(deployment_page \+ 1\)\)"/,
+  );
+});
+
 test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
   const publish = workflowJob(deployWorkflow, "publish");
   const runtimeDetection = publish.slice(

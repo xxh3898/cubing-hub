@@ -62,19 +62,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          deployments="$(
-            curl \
-              --fail \
-              --retry 3 \
-              --silent \
-              --show-error \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments?environment=production&per_page=30"
-          )"
+          deployment_page=1
+          deployment_page_size=100
+          saw_production_deployment=false
           deployed_sha=0000000000000000000000000000000000000000
-          while IFS=$'\t' read -r deployment_id deployment_candidate_sha; do
-            state="$(
+          while :; do
+            deployments="$(
               curl \
                 --fail \
                 --retry 3 \
@@ -82,14 +75,47 @@ jobs:
                 --show-error \
                 --header "Authorization: Bearer ${GH_TOKEN}" \
                 --header "X-GitHub-Api-Version: 2022-11-28" \
-                "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses?per_page=1" \
-                | jq -r '.[0].state // empty'
+                "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments?environment=production&per_page=${deployment_page_size}&page=${deployment_page}"
             )"
-            if [[ "${state}" == success ]]; then
-              deployed_sha="${deployment_candidate_sha}"
+            if ! jq -e 'type == "array"' <<<"${deployments}" >/dev/null; then
+              printf 'Production deployment history response is invalid\n' >&2
+              exit 1
+            fi
+            deployment_count="$(jq -r 'length' <<<"${deployments}")"
+            if [[ "${deployment_count}" -eq 0 ]]; then
+              if [[ "${saw_production_deployment}" == false ]]; then
+                break
+              fi
+              printf 'Production deployments exist, but no successful revision was found\n' >&2
+              exit 1
+            fi
+            saw_production_deployment=true
+            while IFS=$'\t' read -r deployment_id deployment_candidate_sha; do
+              state="$(
+                curl \
+                  --fail \
+                  --retry 3 \
+                  --silent \
+                  --show-error \
+                  --header "Authorization: Bearer ${GH_TOKEN}" \
+                  --header "X-GitHub-Api-Version: 2022-11-28" \
+                  "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses?per_page=1" \
+                  | jq -r '.[0].state // empty'
+              )"
+              if [[ "${state}" == success ]]; then
+                deployed_sha="${deployment_candidate_sha}"
+                break
+              fi
+            done < <(jq -r '.[] | [.id, .sha] | @tsv' <<<"${deployments}")
+            if [[ "${deployed_sha}" != 0000000000000000000000000000000000000000 ]]; then
               break
             fi
-          done < <(jq -r '.[] | [.id, .sha] | @tsv' <<<"${deployments}")
+            if [[ "${deployment_count}" -lt "${deployment_page_size}" ]]; then
+              printf 'Production deployments exist, but no successful revision was found\n' >&2
+              exit 1
+            fi
+            deployment_page="$((deployment_page + 1))"
+          done
           if [[ ! "${deployed_sha}" =~ ^[0-9a-fA-F]{40}$ ]]; then
             printf 'Last successful deployment revision has an unexpected format\n' >&2
             exit 64

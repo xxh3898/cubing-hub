@@ -24,7 +24,7 @@ Runtime configuration publication과 production deploy는 다음 release mode를
 - DB binding이 그대로인 runtime configuration update는 immutable artifact를 발행하고 정상 deploy로 동기화한다.
 - DB image 또는 MySQL volume binding이 바뀌는 release는 immutable artifact를 발행하지만 production deploy job을 시작하지 않는다. Dedicated data-service maintenance가 필요하다.
 
-Data-service 판정은 runtime 파일의 변경 여부가 아니라 마지막 정상 production deployment와 candidate revision의 Compose를 render한 effective DB image·volume name 비교를 사용한다. Runtime configuration 강제 동기화는 이 판정을 우회하지 않는다.
+Data-service 판정은 runtime 파일의 변경 여부가 아니라 마지막 정상 production deployment와 candidate revision의 Compose를 render한 effective DB image·volume name 비교를 사용한다. Production deployment 이력이 실제로 없을 때만 최초 bootstrap으로 처리한다. 이력은 있으나 성공 revision을 찾지 못하면 release를 중단한다. Runtime configuration 강제 동기화는 이 판정을 우회하지 않는다.
 
 ## Deployment unit
 
