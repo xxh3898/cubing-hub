@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-13
+updated: 2026-08-14
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -73,6 +73,30 @@ runtime-config image를 새로 발행하고 `update`한다. 따라서 설정·sc
 배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만 바뀌면
 `keep`으로 현재 검증된 config digest를 유지한다.
 
+Release workflow는 runtime publication mode와 data-service maintenance gate를 분리한다.
+
+```text
+Application-only
+→ runtime config keep
+→ API/Web publish
+→ normal production deploy
+
+Safe runtime-config update
+→ runtime config update
+→ immutable runtime-config publish
+→ normal production deploy
+
+DB image 또는 MySQL volume binding 변경
+→ runtime config update
+→ immutable runtime-config publish
+→ production deploy job skip
+→ dedicated maintenance worker
+```
+
+DB maintenance 판정은 마지막 정상 production deployment와 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. Release workflow는 production deployment 이력을 pagination해 마지막 success를 찾는다. 이력이 실제로 없을 때만 최초 bootstrap을 허용하고, 이력은 있으나 success를 찾지 못하면 fail closed한다. `workflow_dispatch.sync_runtime_config=true`는 runtime-config publication을 강제할 뿐 이 판정을 우회하지 않는다.
+
+`MAC_MINI_DEPLOY_ENABLED=true`는 현재 publish job과 production deploy job을 모두 enable한다. Data-service maintenance가 필요하면 publish job은 API·Web과 runtime-config artifact를 발행하고, deploy job은 `data_service_maintenance_required` output으로 GitHub Actions에서 skip된다. Tailscale 연결과 SSH command는 실행되지 않는다. Workflow summary에는 runtime mode, runtime revision·digest, maintenance 필요 여부와 deploy skip 상태를 기록한다.
+
 runtime-config image에는 아래 네 파일만 들어간다.
 
 ```text
@@ -136,6 +160,8 @@ MySQL engine image·volume binding은 일반 deploy worker의 예외로 허용�
 ```
 
 Command별 exact 절차, fresh rollback volume 준비, dedicated recovery는 [DB와 이미지 백업·복구](db-backup-restore.md)를 따른다.
+
+Maintenance가 target runtime을 적용해도 GitHub의 마지막 정상 production deployment SHA는 이전 release를 가리킬 수 있다. 다음 application release는 같은 DB binding 변경을 다시 감지해 자동 deploy를 계속 차단할 수 있다. Host current runtime과 GitHub deployment baseline을 맞추는 post-maintenance release 절차를 별도로 확정하기 전에는 normal deploy를 재개하지 않는다.
 
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 

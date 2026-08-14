@@ -309,6 +309,14 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   );
   assert.match(
     deployWorkflow,
+    /data_service_maintenance_required: \$\{\{ steps\.data-service-maintenance\.outputs\.required \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
+    /runtime_config_revision: \$\{\{ steps\.data-service-maintenance\.outputs\.runtime_config_revision \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
     /deployments\?environment=production[\s\S]*steps\.deployed-base\.outputs\.sha/,
   );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
@@ -321,7 +329,86 @@ test("should_requireExplicitRepositoryGateBeforePublishingOrDeploying", () => {
       deployWorkflow,
       /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/g,
     ),
-    2,
+    1,
+  );
+  assert.match(
+    workflowJob(deployWorkflow, "publish"),
+    /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/,
+  );
+  assert.match(
+    workflowJob(deployWorkflow, "deploy"),
+    /if: >-\n      github\.ref == 'refs\/heads\/main'\n      && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'\n      && needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+  );
+});
+
+test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const deploy = workflowJob(deployWorkflow, "deploy");
+
+  assert.match(
+    publish,
+    /- name: Detect data-service maintenance\n        id: data-service-maintenance[\s\S]*detect-data-service-maintenance\.sh \\\n+\s+"\$\{DEPLOYED_SHA\}" \\\n+\s+"\$\{GITHUB_SHA\}"/,
+  );
+  assert.match(
+    publish,
+    /if \[\[ "\$\{required\}" == true && "\$\{RUNTIME_CONFIG_MODE\}" != update \]\]; then[\s\S]*Data-service maintenance requires a runtime config update/,
+  );
+  assert.match(
+    publish,
+    /- name: Build and publish runtime config image[\s\S]*if: steps\.runtime-config-mode\.outputs\.mode == 'update'[\s\S]*push: true/,
+  );
+  assert.match(
+    publish,
+    /Runtime config revision:[\s\S]*Runtime config digest:[\s\S]*Data-service maintenance:[\s\S]*Production deploy:/,
+  );
+  assert.match(
+    deploy,
+    /needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+  );
+  assert.doesNotMatch(publish, /tailscale\/github-action|home-mini/);
+});
+
+test("should_failClosedWhenProductionHistoryHasNoSuccessfulDeployment", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const deployedBase = publish.slice(
+    publish.indexOf("- name: Resolve last successful production revision"),
+    publish.indexOf("- name: Detect runtime config changes"),
+  );
+
+  assert.match(
+    deployedBase,
+    /deployment_page=1[\s\S]*deployment_page_size=100[\s\S]*saw_production_deployment=false/,
+  );
+  assert.match(
+    deployedBase,
+    /deployments\?environment=production&per_page=\$\{deployment_page_size\}&page=\$\{deployment_page\}/,
+  );
+  assert.match(
+    deployedBase,
+    /deployment_count="\$\(jq -r 'length'[\s\S]*if \[\[ "\$\{deployment_count\}" -eq 0 \]\]; then[\s\S]*if \[\[ "\$\{saw_production_deployment\}" == false \]\]; then[\s\S]*break[\s\S]*Production deployments exist, but no successful revision was found/,
+  );
+  assert.match(
+    deployedBase,
+    /if \[\[ "\$\{deployment_count\}" -lt "\$\{deployment_page_size\}" \]\]; then[\s\S]*Production deployments exist, but no successful revision was found[\s\S]*deployment_page="\$\(\(deployment_page \+ 1\)\)"/,
+  );
+});
+
+test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const runtimeDetection = publish.slice(
+    publish.indexOf("- name: Detect runtime config changes"),
+    publish.indexOf("- name: Detect data-service maintenance"),
+  );
+  const maintenanceDetection = publish.slice(
+    publish.indexOf("- name: Detect data-service maintenance"),
+    publish.indexOf("- name: Download backend jar"),
+  );
+
+  assert.match(runtimeDetection, /FORCE_SYNC: \$\{\{ inputs\.sync_runtime_config \|\| false \}\}/);
+  assert.doesNotMatch(maintenanceDetection, /FORCE_SYNC|sync_runtime_config/);
+  assert.match(
+    maintenanceDetection,
+    /detect-data-service-maintenance\.sh[\s\S]*"\$\{DEPLOYED_SHA\}"[\s\S]*"\$\{GITHUB_SHA\}"/,
   );
 });
 

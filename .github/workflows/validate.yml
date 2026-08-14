@@ -120,6 +120,7 @@ jobs:
           bash -n \
             homeserver/scripts/backup-home-server-bootstrap.sh \
             homeserver/scripts/backup-home-server.sh \
+            homeserver/scripts/detect-data-service-maintenance.sh \
             homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
             homeserver/scripts/deploy-home-server.sh \
@@ -127,6 +128,7 @@ jobs:
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
             homeserver/scripts/mysql-maintenance-home-server.sh \
             homeserver/scripts/test-backup-home-server.sh \
+            homeserver/scripts/test-detect-data-service-maintenance.sh \
             homeserver/scripts/test-detect-runtime-config-change.sh \
             homeserver/scripts/test-deploy-home-server.sh \
             homeserver/scripts/test-mysql-maintenance-home-server.sh \
@@ -148,6 +150,7 @@ jobs:
               "${current_sha}" \
               true
           )" = update
+          /bin/bash ./homeserver/scripts/test-detect-data-service-maintenance.sh
           /bin/bash ./homeserver/scripts/test-detect-runtime-config-change.sh
           /bin/bash ./homeserver/scripts/test-runtime-script-bootstrap.sh
 

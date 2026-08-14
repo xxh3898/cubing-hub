@@ -16,6 +16,7 @@ const [
   dockerIgnore,
   runtimeConfigDockerfile,
   runtimeConfigDetector,
+  dataServiceMaintenanceDetector,
   setupGuide,
   runbook,
   backupRestoreGuide,
@@ -38,6 +39,7 @@ const [
   read("../../.dockerignore"),
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
+  read("./detect-data-service-maintenance.sh"),
   read("../docs/mac-mini-server-setup.md"),
   read("../docs/home-server-runbook.md"),
   read("../docs/db-backup-restore.md"),
@@ -184,6 +186,18 @@ test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", (
   assert.match(
     mysqlMaintenanceScript,
     /maintenance target service set is unhealthy[\s\S]*commit_success_state/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /docker[\s\S]*compose[\s\S]*config[\s\S]*--no-env-resolution[\s\S]*--format json/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /services[\s\S]*db[\s\S]*image[\s\S]*volumes[\s\S]*mysql-data[\s\S]*volume_name/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /before_contract[\s\S]*after_contract[\s\S]*printf 'false\\n'[\s\S]*printf 'true\\n'/,
   );
   assert.match(
     backupRestoreGuide,
