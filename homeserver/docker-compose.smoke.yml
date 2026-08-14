@@ -2,7 +2,7 @@ name: cubing-hub-smoke
 
 services:
   api-build:
-    image: gradle:8.14.4-jdk17
+    image: gradle:9.6.1-jdk25
     working_dir: /workspace/backend
     user: "${SMOKE_UID:-501}:${SMOKE_GID:-20}"
     command:
@@ -27,7 +27,7 @@ services:
       - build
 
   mysql:
-    image: mysql:8.0.46
+    image: mysql:8.4.11
     environment:
       MYSQL_DATABASE: ${SMOKE_DB_NAME:-cubing_hub_smoke}
       MYSQL_USER: ${SMOKE_DB_USERNAME:-cubing_hub_smoke}

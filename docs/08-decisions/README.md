@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-12
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -10,7 +10,7 @@ related: []
 ---
 # Architecture Decision Records
 
-ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다. `accepted`는 사용자가 결정을 승인했다는 뜻이며 구현 완료를 의미하지 않는다.
+ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off를 보존한다. status는 proposed, accepted, rejected, superseded 중 하나를 사용한다. `accepted`는 승인된 결정을 뜻하며 구현 완료를 의미하지 않는다.
 
 | ADR | 상태 | 결정 |
 | --- | --- | --- |
@@ -23,6 +23,7 @@ ADR은 구현과 운영에 영향을 주는 중요한 기술 결정과 trade-off
 | [ADR-0007](adr-0007-canonical-timer-time-input-provenance.md) | accepted | Practice Timer canonical time과 Input Method provenance 분리 |
 | [ADR-0008](adr-0008-record-submission-idempotency.md) | accepted | client submission identity 기반 Record 저장 idempotency |
 | [ADR-0009](adr-0009-practice-event-capability.md) | accepted | EventType identity와 WCA_333 Practice capability 분리 |
+| [ADR-0010](adr-0010-current-record-growth-read-contract.md) | accepted | Current Record 기반 private Growth read contract |
 
 과거 최초 결정일을 신뢰성 있게 특정하지 못해, 기존 구현을 ADR로 공식 기록한 2026-08-10을 created로 사용한다.
 

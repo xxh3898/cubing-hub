@@ -1,0 +1,179 @@
+name: Reconcile Production Runtime Baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_application_revision:
+        description: Current production API/Web application revision
+        required: true
+        type: string
+      expected_runtime_config_revision:
+        description: Applied production runtime config revision
+        required: true
+        type: string
+      expected_runtime_config_digest:
+        description: Applied production runtime config sha256 digest
+        required: true
+        type: string
+      expected_db_image:
+        description: Exact production MySQL image tag@digest
+        required: true
+        type: string
+      expected_db_volume:
+        description: Exact production MySQL volume name
+        required: true
+        type: string
+      expected_mysql_version:
+        description: Exact running MySQL patch version
+        required: true
+        default: 8.4.11
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cubing-hub-production
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Verify and record runtime config baseline
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production-runtime-config
+      deployment: false
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate reconciliation intent
+        env:
+          EXPECTED_APPLICATION_REVISION: ${{ inputs.expected_application_revision }}
+          EXPECTED_RUNTIME_CONFIG_REVISION: ${{ inputs.expected_runtime_config_revision }}
+          EXPECTED_RUNTIME_CONFIG_DIGEST: ${{ inputs.expected_runtime_config_digest }}
+          EXPECTED_DB_IMAGE: ${{ inputs.expected_db_image }}
+          EXPECTED_DB_VOLUME: ${{ inputs.expected_db_volume }}
+          EXPECTED_MYSQL_VERSION: ${{ inputs.expected_mysql_version }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ "${EXPECTED_APPLICATION_REVISION}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_RUNTIME_CONFIG_REVISION}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_RUNTIME_CONFIG_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${EXPECTED_DB_IMAGE}" =~ ^mysql:[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}$ ]]
+          [[ "${EXPECTED_DB_VOLUME}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]
+          [[ "${EXPECTED_MYSQL_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+          expected_image_version="${EXPECTED_DB_IMAGE#mysql:}"
+          expected_image_version="${expected_image_version%@sha256:*}"
+          [[ "${expected_image_version}" == "${EXPECTED_MYSQL_VERSION}" ]]
+
+          git cat-file -e "${EXPECTED_APPLICATION_REVISION}^{commit}"
+          git cat-file -e "${EXPECTED_RUNTIME_CONFIG_REVISION}^{commit}"
+          git merge-base --is-ancestor "${EXPECTED_APPLICATION_REVISION}" "${GITHUB_SHA}"
+          git merge-base --is-ancestor "${EXPECTED_RUNTIME_CONFIG_REVISION}" "${GITHUB_SHA}"
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          hostname: cubing-hub-runtime-reconcile-${{ github.run_id }}-${{ github.run_attempt }}
+          ping: home-mini
+
+      - name: Configure restricted SSH identity
+        env:
+          HOME_MINI_SSH_KEY: ${{ secrets.HOME_MINI_SSH_KEY }}
+          HOME_MINI_KNOWN_HOSTS: ${{ secrets.HOME_MINI_KNOWN_HOSTS }}
+        run: |
+          test -n "${HOME_MINI_SSH_KEY}"
+          test -n "${HOME_MINI_KNOWN_HOSTS}"
+
+          umask 077
+          mkdir -p "${HOME}/.ssh"
+          printf '%s\n' "${HOME_MINI_SSH_KEY}" >"${HOME}/.ssh/id_ed25519_home_mini_ci"
+          printf '%s\n' "${HOME_MINI_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
+
+          ssh-keygen -y -f "${HOME}/.ssh/id_ed25519_home_mini_ci" >/dev/null
+          ssh-keygen -lf "${HOME}/.ssh/known_hosts" >/dev/null
+
+      - name: Inspect verified production runtime
+        env:
+          EXPECTED_APPLICATION_REVISION: ${{ inputs.expected_application_revision }}
+          EXPECTED_RUNTIME_CONFIG_REVISION: ${{ inputs.expected_runtime_config_revision }}
+          EXPECTED_RUNTIME_CONFIG_DIGEST: ${{ inputs.expected_runtime_config_digest }}
+          EXPECTED_DB_IMAGE: ${{ inputs.expected_db_image }}
+          EXPECTED_DB_VOLUME: ${{ inputs.expected_db_volume }}
+          EXPECTED_MYSQL_VERSION: ${{ inputs.expected_mysql_version }}
+        run: |
+          set -Eeuo pipefail
+
+          inspection_command="inspect-cubing-hub-runtime ${EXPECTED_APPLICATION_REVISION} ${EXPECTED_RUNTIME_CONFIG_REVISION} ${EXPECTED_RUNTIME_CONFIG_DIGEST} ${EXPECTED_DB_IMAGE} ${EXPECTED_DB_VOLUME} ${EXPECTED_MYSQL_VERSION}"
+          inspection_file="${RUNNER_TEMP}/cubing-hub-runtime-inspection"
+          umask 077
+          ssh \
+            -F /dev/null \
+            -i "${HOME}/.ssh/id_ed25519_home_mini_ci" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            homeserver@home-mini \
+            "${inspection_command}" \
+            >"${inspection_file}"
+
+          test -f "${inspection_file}"
+          test ! -L "${inspection_file}"
+          /bin/bash ./homeserver/scripts/verify-runtime-baseline-inspection.sh \
+            "${EXPECTED_APPLICATION_REVISION}" \
+            "${EXPECTED_RUNTIME_CONFIG_REVISION}" \
+            "${EXPECTED_RUNTIME_CONFIG_DIGEST}" \
+            "${EXPECTED_DB_IMAGE}" \
+            "${EXPECTED_DB_VOLUME}" \
+            "${EXPECTED_MYSQL_VERSION}" \
+            <"${inspection_file}"
+
+      - name: Record reconciled runtime config baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_APPLICATION_REVISION: ${{ inputs.expected_application_revision }}
+          EXPECTED_RUNTIME_CONFIG_REVISION: ${{ inputs.expected_runtime_config_revision }}
+          EXPECTED_RUNTIME_CONFIG_DIGEST: ${{ inputs.expected_runtime_config_digest }}
+          EXPECTED_DB_IMAGE: ${{ inputs.expected_db_image }}
+          EXPECTED_DB_VOLUME: ${{ inputs.expected_db_volume }}
+          EXPECTED_MYSQL_VERSION: ${{ inputs.expected_mysql_version }}
+        run: |
+          result="$(
+            /bin/bash ./homeserver/scripts/record-runtime-config-baseline.sh \
+              maintenance-reconcile \
+              "${EXPECTED_APPLICATION_REVISION}" \
+              "${EXPECTED_RUNTIME_CONFIG_REVISION}" \
+              "${EXPECTED_RUNTIME_CONFIG_DIGEST}" \
+              "${EXPECTED_DB_IMAGE}" \
+              "${EXPECTED_DB_VOLUME}" \
+              "${EXPECTED_MYSQL_VERSION}"
+          )"
+          deployment_id="$(
+            sed -n 's/^deployment_id=//p' <<<"${result}" | tail -n 1
+          )"
+          [[ "${deployment_id}" =~ ^[0-9]+$ ]]
+          {
+            printf '## Production runtime config reconciliation\n\n'
+            printf -- '- Application revision: `%s`\n' "${EXPECTED_APPLICATION_REVISION}"
+            printf -- '- Runtime revision: `%s`\n' "${EXPECTED_RUNTIME_CONFIG_REVISION}"
+            printf -- '- Runtime digest: `%s`\n' "${EXPECTED_RUNTIME_CONFIG_DIGEST}"
+            printf -- '- DB image: `%s`\n' "${EXPECTED_DB_IMAGE}"
+            printf -- '- DB volume: `%s`\n' "${EXPECTED_DB_VOLUME}"
+            printf -- '- MySQL: `%s`\n' "${EXPECTED_MYSQL_VERSION}"
+            printf -- '- Runtime baseline deployment ID: `%s`\n' "${deployment_id}"
+          } >>"${GITHUB_STEP_SUMMARY}"

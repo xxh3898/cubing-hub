@@ -176,6 +176,7 @@ run_deploy() {
         FAKE_CANDIDATE_FLYWAY_ENABLED="${FAKE_CANDIDATE_FLYWAY_ENABLED:-}" \
         FAKE_CANDIDATE_MYSQL_COMMAND_JSON="${FAKE_CANDIDATE_MYSQL_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_MYSQL_VOLUME_EXTRA="${FAKE_CANDIDATE_MYSQL_VOLUME_EXTRA:-}" \
+        FAKE_CANDIDATE_MYSQL_VOLUME_NAME="${FAKE_CANDIDATE_MYSQL_VOLUME_NAME:-}" \
         FAKE_CANDIDATE_REAL_IP_SOURCE="${FAKE_CANDIDATE_REAL_IP_SOURCE:-}" \
         FAKE_CANDIDATE_REDIS_COMMAND_JSON="${FAKE_CANDIDATE_REDIS_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON="${FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON:-}" \
@@ -184,6 +185,8 @@ run_deploy() {
         FAKE_CANDIDATE_WEB_COMMAND_JSON="${FAKE_CANDIDATE_WEB_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_WEB_ENTRYPOINT_JSON="${FAKE_CANDIDATE_WEB_ENTRYPOINT_JSON:-}" \
         FAKE_CANDIDATE_WEB_RESTART="${FAKE_CANDIDATE_WEB_RESTART:-}" \
+        FAKE_ACTUAL_DB_IMAGE_ID="${FAKE_ACTUAL_DB_IMAGE_ID:-}" \
+        FAKE_ACTUAL_DB_VOLUME="${FAKE_ACTUAL_DB_VOLUME:-}" \
         /bin/bash "${test_script}" "$@"
 }
 
@@ -563,6 +566,40 @@ write_legacy_pending_fixture() {
   } >"${pending_file}"
   /bin/chmod 600 "${pending_file}"
 }
+
+{
+  printf 'TRANSACTION_TYPE=MYSQL_MAINTENANCE\n'
+  printf 'CANDIDATE_ID=%064d\n' 1
+  printf 'OPERATION=UPGRADE\n'
+  printf 'SOURCE_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
+  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
+  printf 'SOURCE_DB_IMAGE_ID=sha256:%064d\n' 2
+  printf 'TARGET_DB_IMAGE_ID=sha256:%064d\n' 3
+  printf 'SOURCE_DB_VOLUME=cubing-hub_mysql-data\n'
+  printf 'TARGET_DB_VOLUME=cubing-hub_mysql-data\n'
+  printf 'BACKUP_ID=cubing-hub-production-20260813T000000Z\n'
+  printf 'STARTED_AT=2026-08-13T00:00:00Z\n'
+} >"${pending_file}"
+/bin/chmod 600 "${pending_file}"
+maintenance_pending_env_before="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
+maintenance_pending_state_before="$(
+  /usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}'
+)"
+set +e
+run_recovery >/dev/null 2>&1
+maintenance_pending_exit_code="$?"
+set -e
+if [[ "${maintenance_pending_exit_code}" -ne 1 \
+  || ! -f "${pending_file}" \
+  || "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" != "${maintenance_pending_env_before}" \
+  || "$(/usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}')" != "${maintenance_pending_state_before}" ]]
+then
+  printf 'Normal deploy recovery must preserve and reject MySQL maintenance pending state\n' >&2
+  exit 1
+fi
+/bin/rm -f -- "${pending_file}"
 
 write_pending_fixture \
   "${REVISION_TWO}" \
@@ -1047,8 +1084,14 @@ expect_protected_failure() {
     "${app_dir}/.env"
 }
 
-FAKE_CANDIDATE_DB_IMAGE=mysql:8.4 \
+FAKE_CANDIDATE_DB_IMAGE=mysql:8.0.46 \
   expect_protected_failure "data-service image drift"
+FAKE_CANDIDATE_MYSQL_VOLUME_NAME=cubing-hub_mysql-other \
+  expect_protected_failure "data-service volume drift"
+FAKE_ACTUAL_DB_IMAGE_ID=sha256:9999999999999999999999999999999999999999999999999999999999999999 \
+  expect_protected_failure "running database image drift"
+FAKE_ACTUAL_DB_VOLUME=cubing-hub_mysql-unexpected \
+  expect_protected_failure "running database volume drift"
 FAKE_CANDIDATE_DB_ENTRYPOINT_JSON='["sh","-c","rm -rf /var/lib/mysql"]' \
   expect_protected_failure "database entrypoint drift"
 FAKE_CANDIDATE_REDIS_COMMAND_JSON='["redis-server","--appendonly","no"]' \

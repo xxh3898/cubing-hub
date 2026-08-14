@@ -46,8 +46,13 @@ jobs:
       deployments: read
       packages: write
     outputs:
+      data_service_maintenance_required: ${{ steps.data-service-maintenance.outputs.required }}
+      runtime_baseline_digest: ${{ steps.runtime-baseline.outputs.digest }}
+      runtime_baseline_revision: ${{ steps.runtime-baseline.outputs.revision }}
+      runtime_baseline_source: ${{ steps.runtime-baseline.outputs.source }}
       runtime_config_mode: ${{ steps.runtime-config-mode.outputs.mode }}
       runtime_config_digest: ${{ steps.publish-runtime-config.outputs.digest }}
+      runtime_config_revision: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
 
     steps:
       - name: Check out repository
@@ -55,58 +60,101 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve last successful production revision
-        id: deployed-base
+      - name: Resolve verified runtime config baseline
+        id: runtime-baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          deployments="$(
-            curl \
-              --fail \
-              --retry 3 \
-              --silent \
-              --show-error \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments?environment=production&per_page=30"
+          baseline="$(
+            /bin/bash ./homeserver/scripts/resolve-runtime-config-baseline.sh
           )"
-          deployed_sha=0000000000000000000000000000000000000000
-          while IFS=$'\t' read -r deployment_id deployment_candidate_sha; do
-            state="$(
-              curl \
-                --fail \
-                --retry 3 \
-                --silent \
-                --show-error \
-                --header "Authorization: Bearer ${GH_TOKEN}" \
-                --header "X-GitHub-Api-Version: 2022-11-28" \
-                "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses?per_page=1" \
-                | jq -r '.[0].state // empty'
-            )"
-            if [[ "${state}" == success ]]; then
-              deployed_sha="${deployment_candidate_sha}"
-              break
-            fi
-          done < <(jq -r '.[] | [.id, .sha] | @tsv' <<<"${deployments}")
-          if [[ ! "${deployed_sha}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            printf 'Last successful deployment revision has an unexpected format\n' >&2
+          keys="$(
+            printf '%s\n' "${baseline}" \
+              | awk -F= 'NF >= 2 { print $1 }' \
+              | LC_ALL=C sort
+          )"
+          if [[ "${keys}" != $'digest\nrevision\nsource' ]]; then
+            printf 'Runtime baseline resolver output is invalid\n' >&2
+            exit 1
+          fi
+          runtime_baseline_digest="$(
+            sed -n 's/^digest=//p' <<<"${baseline}" | tail -n 1
+          )"
+          runtime_baseline_revision="$(
+            sed -n 's/^revision=//p' <<<"${baseline}" | tail -n 1
+          )"
+          runtime_baseline_source="$(
+            sed -n 's/^source=//p' <<<"${baseline}" | tail -n 1
+          )"
+          if [[ ! "${runtime_baseline_revision}" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Runtime baseline revision has an unexpected format\n' >&2
             exit 64
           fi
-          printf 'sha=%s\n' "${deployed_sha}" >>"${GITHUB_OUTPUT}"
+          if [[ ! "${runtime_baseline_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            printf 'Runtime baseline digest has an unexpected format\n' >&2
+            exit 64
+          fi
+          if [[ "${runtime_baseline_revision}" != 0000000000000000000000000000000000000000 ]] \
+            && ! git cat-file -e "${runtime_baseline_revision}^{commit}" 2>/dev/null
+          then
+            printf 'Runtime baseline revision is unavailable in repository history\n' >&2
+            exit 1
+          fi
+          case "${runtime_baseline_source}" in
+            runtime|legacy-bootstrap|new-install-bootstrap)
+              ;;
+            *)
+              printf 'Runtime baseline source is invalid\n' >&2
+              exit 64
+              ;;
+          esac
+          printf 'digest=%s\n' "${runtime_baseline_digest}" >>"${GITHUB_OUTPUT}"
+          printf 'revision=%s\n' "${runtime_baseline_revision}" >>"${GITHUB_OUTPUT}"
+          printf 'source=%s\n' "${runtime_baseline_source}" >>"${GITHUB_OUTPUT}"
 
       - name: Detect runtime config changes
         id: runtime-config-mode
         env:
-          DEPLOYED_SHA: ${{ steps.deployed-base.outputs.sha }}
+          RUNTIME_BASELINE_SHA: ${{ steps.runtime-baseline.outputs.revision }}
           FORCE_SYNC: ${{ inputs.sync_runtime_config || false }}
         run: |
           mode="$(
             /bin/bash ./homeserver/scripts/detect-runtime-config-change.sh \
-              "${DEPLOYED_SHA}" \
+              "${RUNTIME_BASELINE_SHA}" \
               "${GITHUB_SHA}" \
               "${FORCE_SYNC}"
           )"
           printf 'mode=%s\n' "${mode}" >>"${GITHUB_OUTPUT}"
+
+      - name: Detect data-service maintenance
+        id: data-service-maintenance
+        env:
+          RUNTIME_BASELINE_SHA: ${{ steps.runtime-baseline.outputs.revision }}
+          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
+        run: |
+          required="$(
+            /bin/bash ./homeserver/scripts/detect-data-service-maintenance.sh \
+              "${RUNTIME_BASELINE_SHA}" \
+              "${GITHUB_SHA}"
+          )"
+          case "${required}" in
+            true|false)
+              ;;
+            *)
+              printf 'Data-service maintenance result is invalid\n' >&2
+              exit 64
+              ;;
+          esac
+          if [[ "${required}" == true && "${RUNTIME_CONFIG_MODE}" != update ]]; then
+            printf 'Data-service maintenance requires a runtime config update\n' >&2
+            exit 1
+          fi
+          printf 'required=%s\n' "${required}" >>"${GITHUB_OUTPUT}"
+          if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
+            printf 'runtime_config_revision=%s\n' "${GITHUB_SHA}" >>"${GITHUB_OUTPUT}"
+          else
+            printf 'runtime_config_revision=\n' >>"${GITHUB_OUTPUT}"
+          fi
 
       - name: Download backend jar
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -180,7 +228,14 @@ jobs:
       - name: Record published images
         env:
           API_IMAGE_DIGEST: ${{ steps.publish-api.outputs.digest }}
+          DATA_SERVICE_MAINTENANCE_REQUIRED: ${{ steps.data-service-maintenance.outputs.required }}
+          RUNTIME_BASELINE_DIGEST: ${{ steps.runtime-baseline.outputs.digest }}
+          RUNTIME_BASELINE_REVISION: ${{ steps.runtime-baseline.outputs.revision }}
+          RUNTIME_BASELINE_SOURCE: ${{ steps.runtime-baseline.outputs.source }}
           WEB_IMAGE_DIGEST: ${{ steps.publish-web.outputs.digest }}
+          RUNTIME_CONFIG_DIGEST: ${{ steps.publish-runtime-config.outputs.digest }}
+          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
+          RUNTIME_CONFIG_REVISION: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
         run: |
           {
             printf '## Published images\n\n'
@@ -189,18 +244,42 @@ jobs:
             printf -- "- Web: \`%s:%s\`\n" "${WEB_IMAGE_NAME}" "${GITHUB_SHA}"
             printf -- "  - Digest: \`%s\`\n" "${WEB_IMAGE_DIGEST}"
             printf -- "- Runtime config mode: \`%s\`\n" \
-              "${{ steps.runtime-config-mode.outputs.mode }}"
-            if [[ "${{ steps.runtime-config-mode.outputs.mode }}" == update ]]; then
+              "${RUNTIME_CONFIG_MODE}"
+            printf -- "- Runtime baseline source: \`%s\`\n" \
+              "${RUNTIME_BASELINE_SOURCE}"
+            printf -- "- Runtime baseline revision: \`%s\`\n" \
+              "${RUNTIME_BASELINE_REVISION}"
+            printf -- "- Runtime baseline digest: \`%s\`\n" \
+              "${RUNTIME_BASELINE_DIGEST}"
+            if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
+              printf -- "- Runtime config revision: \`%s\`\n" \
+                "${RUNTIME_CONFIG_REVISION}"
               printf -- "- Runtime config digest: \`%s\`\n" \
-                "${{ steps.publish-runtime-config.outputs.digest }}"
+                "${RUNTIME_CONFIG_DIGEST}"
             else
               printf -- "- Runtime config: current verified release retained\n"
+            fi
+            if [[ "${DATA_SERVICE_MAINTENANCE_REQUIRED}" == true ]]; then
+              printf -- "- Data-service maintenance: \`required\`\n"
+              printf -- "- Production deploy: \`skipped\`\n"
+              printf -- "- Runtime baseline: \`unchanged\`\n"
+            else
+              printf -- "- Data-service maintenance: \`not required\`\n"
+              printf -- "- Production deploy: \`allowed\`\n"
+              if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
+                printf -- "- Runtime baseline: deploy 성공 후 기록\n"
+              else
+                printf -- "- Runtime baseline: \`unchanged\`\n"
+              fi
             fi
           } >>"${GITHUB_STEP_SUMMARY}"
 
   deploy:
     name: Deploy to home-mini
-    if: github.ref == 'refs/heads/main' && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
+    if: >-
+      github.ref == 'refs/heads/main'
+      && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
+      && needs.publish.outputs.data_service_maintenance_required == 'false'
     needs:
       - publish
     runs-on: ubuntu-24.04
@@ -270,3 +349,55 @@ jobs:
                 -o StrictHostKeyChecking=yes \
                 homeserver@home-mini \
                 "${deploy_command}"
+
+  record-runtime-baseline:
+    name: Record runtime config baseline
+    if: >-
+      always()
+      && github.ref == 'refs/heads/main'
+      && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
+      && needs.publish.result == 'success'
+      && needs.deploy.result == 'success'
+      && needs.publish.outputs.runtime_config_mode == 'update'
+      && needs.publish.outputs.data_service_maintenance_required == 'false'
+    needs:
+      - publish
+      - deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Record verified runtime config baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUNTIME_CONFIG_DIGEST: ${{ needs.publish.outputs.runtime_config_digest }}
+          RUNTIME_CONFIG_REVISION: ${{ needs.publish.outputs.runtime_config_revision }}
+        run: |
+          result="$(
+            /bin/bash ./homeserver/scripts/record-runtime-config-baseline.sh \
+              normal-update \
+              "${GITHUB_SHA}" \
+              "${RUNTIME_CONFIG_REVISION}" \
+              "${RUNTIME_CONFIG_DIGEST}" \
+              - \
+              - \
+              -
+          )"
+          deployment_id="$(
+            sed -n 's/^deployment_id=//p' <<<"${result}" | tail -n 1
+          )"
+          [[ "${deployment_id}" =~ ^[0-9]+$ ]]
+          {
+            printf '## Runtime config baseline\n\n'
+            printf -- '- Operation: `normal-update`\n'
+            printf -- '- Application revision: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- Runtime revision: `%s`\n' "${RUNTIME_CONFIG_REVISION}"
+            printf -- '- Runtime digest: `%s`\n' "${RUNTIME_CONFIG_DIGEST}"
+            printf -- '- Deployment ID: `%s`\n' "${deployment_id}"
+          } >>"${GITHUB_STEP_SUMMARY}"

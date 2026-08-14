@@ -19,7 +19,8 @@ class HealthCheckDocsTest extends RestDocsIntegrationTest {
                 .andExpect(status().isOk())
                 .andDo(document("health-check",
                         responseFields(
-                                fieldWithPath("status").description("애플리케이션 상태 (UP / DOWN)")
+                                fieldWithPath("status").description("애플리케이션 상태 (UP / DOWN)"),
+                                fieldWithPath("groups").description("활성화된 health group 목록")
                         )
                 ));
     }

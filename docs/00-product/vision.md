@@ -2,7 +2,7 @@
 doc_type: product
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -15,7 +15,7 @@ related:
 
 ## 문서 상태
 
-제품 positioning, Primary User, 핵심 문제와 Core Loop는 2026-08-10 사용자 결정으로 확정됐다. 이 문서는 현재 제품 방향의 기준으로 사용한다. 미래 기능의 상세 범위·정책은 각 draft 문서와 [PRD](prd.md)의 gate를 따른다.
+제품 positioning, Primary User, 핵심 문제와 Core Loop는 현재 제품 방향의 기준이다. 미래 기능의 상세 범위·정책은 각 draft 문서와 [PRD](prd.md)의 gate를 따른다.
 
 ## Product Positioning
 

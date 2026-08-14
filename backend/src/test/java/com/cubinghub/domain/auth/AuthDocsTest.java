@@ -13,14 +13,14 @@ import com.cubinghub.domain.user.entity.UserRole;
 import com.cubinghub.domain.user.entity.UserStatus;
 import com.cubinghub.domain.user.repository.UserRepository;
 import com.cubinghub.integration.RestDocsIntegrationTest;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import static org.hamcrest.Matchers.nullValue;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.restdocs.payload.JsonFieldType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -55,7 +55,7 @@ class AuthDocsTest extends RestDocsIntegrationTest {
     @Autowired
     private PasswordResetStore passwordResetStore;
 
-    @MockBean
+    @MockitoBean
     private VerificationEmailSender verificationEmailSender;
 
     private static final String TEST_PASSWORD = "password123!";

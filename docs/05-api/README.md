@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -32,7 +32,7 @@ related:
 
 - 게시글 수정 preload snippet post/detail-edit는 test에 존재하며 index에 연결했다.
 - DELETE /api/admin/memos/{memoId}는 controller와 integration test에 존재하지만 REST Docs test·snippet이 없다.
-- 이번 문서 rebaseline은 application test 변경을 포함하지 않으므로 admin memo delete 항목을 Known Gap으로 명시한다.
+- admin memo delete 항목은 REST Docs contract가 없으므로 Known Gap으로 관리한다.
 
 ## 변경 규칙
 

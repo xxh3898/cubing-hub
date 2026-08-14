@@ -6,14 +6,24 @@ import test from "node:test";
 const [
   validateWorkflow,
   deployWorkflow,
+  reconcileWorkflow,
   benchmarkWorkflow,
+  backendBuild,
   pathClassifier,
+  runtimeBaselineResolver,
+  runtimeBaselineRecorder,
+  runtimeInspectionVerifier,
 ] =
   await Promise.all([
     read("../../.github/workflows/validate.yml"),
     read("../../.github/workflows/deploy.yml"),
+    read("../../.github/workflows/reconcile-runtime-baseline.yml"),
     read("../../.github/workflows/performance-benchmark.yml"),
+    read("../../backend/build.gradle"),
     read("../../scripts/classify-ci-paths.sh"),
+    read("./resolve-runtime-config-baseline.sh"),
+    read("./record-runtime-config-baseline.sh"),
+    read("./verify-runtime-baseline-inspection.sh"),
   ]);
 
 test("should_validateDevPushAndDevAndMainPullRequestsBeforeRelease", () => {
@@ -278,6 +288,37 @@ test("should_buildBackendArtifactBeforeApiImage", () => {
   );
 });
 
+test("should_alignJavaProvisioningWithBackendToolchain", () => {
+  const canonicalJavaVersion = javaToolchainVersion(backendBuild);
+  const workflowSetups = [
+    [
+      workflowJob(validateWorkflow, "backend"),
+      `Set up Java ${canonicalJavaVersion}`,
+    ],
+    [
+      workflowJob(benchmarkWorkflow, "benchmark"),
+      `Setup JDK ${canonicalJavaVersion}`,
+    ],
+  ];
+
+  assert.equal(canonicalJavaVersion, "25");
+
+  for (const [workflow, expectedStepName] of workflowSetups) {
+    const setupJavaStep = workflowActionStep(workflow, "actions/setup-java");
+
+    assert.match(
+      setupJavaStep,
+      new RegExp(`^      - name: ${expectedStepName}$`, "m"),
+    );
+    assert.match(
+      setupJavaStep,
+      new RegExp(`^          java-version: "${canonicalJavaVersion}"$`, "m"),
+    );
+    assert.match(setupJavaStep, /^          distribution: "?temurin"?$/m);
+    assert.match(setupJavaStep, /^          cache: gradle$/m);
+  }
+});
+
 test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   assert.match(
     deployWorkflow,
@@ -309,7 +350,22 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   );
   assert.match(
     deployWorkflow,
-    /deployments\?environment=production[\s\S]*steps\.deployed-base\.outputs\.sha/,
+    /data_service_maintenance_required: \$\{\{ steps\.data-service-maintenance\.outputs\.required \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
+    /runtime_config_revision: \$\{\{ steps\.data-service-maintenance\.outputs\.runtime_config_revision \}\}/,
+  );
+  assert.match(
+    deployWorkflow,
+    /resolve-runtime-config-baseline\.sh[\s\S]*steps\.runtime-baseline\.outputs\.revision/,
+  );
+  assert.match(runtimeBaselineResolver, /RUNTIME_ENVIRONMENT=production-runtime-config/);
+  assert.match(runtimeBaselineResolver, /LEGACY_ENVIRONMENT=production/);
+  assert.match(runtimeBaselineResolver, /task == "runtime-config:baseline"/);
+  assert.match(
+    runtimeBaselineResolver,
+    /payload\.runtimeConfigDigest[\s\S]*sha256:\[0-9a-f\]\{64\}/,
   );
   assert.doesNotMatch(deployWorkflow, /:latest|:main/);
   assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
@@ -321,13 +377,90 @@ test("should_requireExplicitRepositoryGateBeforePublishingOrDeploying", () => {
       deployWorkflow,
       /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/g,
     ),
-    2,
+    1,
+  );
+  assert.match(
+    workflowJob(deployWorkflow, "publish"),
+    /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/,
+  );
+  assert.match(
+    workflowJob(deployWorkflow, "deploy"),
+    /if: >-\n      github\.ref == 'refs\/heads\/main'\n      && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'\n      && needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+  );
+});
+
+test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const deploy = workflowJob(deployWorkflow, "deploy");
+
+  assert.match(
+    publish,
+    /- name: Detect data-service maintenance\n        id: data-service-maintenance[\s\S]*detect-data-service-maintenance\.sh \\\n+\s+"\$\{RUNTIME_BASELINE_SHA\}" \\\n+\s+"\$\{GITHUB_SHA\}"/,
+  );
+  assert.match(
+    publish,
+    /if \[\[ "\$\{required\}" == true && "\$\{RUNTIME_CONFIG_MODE\}" != update \]\]; then[\s\S]*Data-service maintenance requires a runtime config update/,
+  );
+  assert.match(
+    publish,
+    /- name: Build and publish runtime config image[\s\S]*if: steps\.runtime-config-mode\.outputs\.mode == 'update'[\s\S]*push: true/,
+  );
+  assert.match(
+    publish,
+    /Runtime config revision:[\s\S]*Runtime config digest:[\s\S]*Data-service maintenance:[\s\S]*Production deploy:/,
+  );
+  assert.match(
+    deploy,
+    /needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+  );
+  assert.doesNotMatch(publish, /tailscale\/github-action|home-mini/);
+});
+
+test("should_resolveRuntimeBaselineWithExplicitLegacyBootstrapAndPagination", () => {
+  assert.match(runtimeBaselineResolver, /readonly PAGE_SIZE=100/);
+  assert.match(
+    runtimeBaselineResolver,
+    /deployments\?environment=\$\{environment\}&per_page=\$\{PAGE_SIZE\}&page=\$\{page\}/,
+  );
+  assert.match(
+    runtimeBaselineResolver,
+    /resolve_environment "\$\{RUNTIME_ENVIRONMENT\}"[\s\S]*success\)[\s\S]*baseline_source=runtime[\s\S]*empty\)[\s\S]*resolve_environment "\$\{LEGACY_ENVIRONMENT\}"/,
+  );
+  assert.match(
+    runtimeBaselineResolver,
+    /no-success\)[\s\S]*runtime config deployments exist without a successful baseline/,
+  );
+  assert.match(
+    runtimeBaselineResolver,
+    /baseline_source=legacy-bootstrap[\s\S]*baseline_source=new-install-bootstrap/,
+  );
+  assert.match(runtimeBaselineResolver, /printf 'digest=%s\\n'/);
+});
+
+test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
+  const publish = workflowJob(deployWorkflow, "publish");
+  const runtimeDetection = publish.slice(
+    publish.indexOf("- name: Detect runtime config changes"),
+    publish.indexOf("- name: Detect data-service maintenance"),
+  );
+  const maintenanceDetection = publish.slice(
+    publish.indexOf("- name: Detect data-service maintenance"),
+    publish.indexOf("- name: Download backend jar"),
+  );
+
+  assert.match(runtimeDetection, /FORCE_SYNC: \$\{\{ inputs\.sync_runtime_config \|\| false \}\}/);
+  assert.doesNotMatch(maintenanceDetection, /FORCE_SYNC|sync_runtime_config/);
+  assert.match(
+    maintenanceDetection,
+    /detect-data-service-maintenance\.sh[\s\S]*"\$\{RUNTIME_BASELINE_SHA\}"[\s\S]*"\$\{GITHUB_SHA\}"/,
   );
 });
 
 test("should_applyLeastPrivilegePermissionsPerJob", () => {
   const publish = workflowJob(deployWorkflow, "publish");
   const deploy = workflowJob(deployWorkflow, "deploy");
+  const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
+  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
 
   assert.match(publish, /actions: read/);
   assert.match(publish, /contents: read/);
@@ -339,6 +472,19 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
   assert.match(deploy, /id-token: write/);
   assert.doesNotMatch(deploy, /packages: write/);
   assert.match(deploy, /environment: production/);
+
+  assert.match(recordRuntime, /contents: read/);
+  assert.match(recordRuntime, /deployments: write/);
+  assert.doesNotMatch(recordRuntime, /id-token: write|packages: write/);
+
+  assert.match(reconcile, /contents: read/);
+  assert.match(reconcile, /deployments: write/);
+  assert.match(reconcile, /id-token: write/);
+  assert.doesNotMatch(reconcile, /contents: write|packages: write|actions: write/);
+  assert.match(
+    reconcile,
+    /environment:\n      name: production-runtime-config\n      deployment: false/,
+  );
 });
 
 test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
@@ -356,6 +502,59 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+  assert.match(reconcileWorkflow, /uses: tailscale\/github-action@[0-9a-f]{40}/);
+  assert.match(
+    reconcileWorkflow,
+    /inspection_command="inspect-cubing-hub-runtime \$\{EXPECTED_APPLICATION_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_DIGEST\} \$\{EXPECTED_DB_IMAGE\} \$\{EXPECTED_DB_VOLUME\} \$\{EXPECTED_MYSQL_VERSION\}"/,
+  );
+  assert.doesNotMatch(reconcileWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+});
+
+test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
+  const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
+
+  assert.match(recordRuntime, /always\(\)/);
+  assert.match(recordRuntime, /needs\.publish\.result == 'success'/);
+  assert.match(recordRuntime, /needs\.deploy\.result == 'success'/);
+  assert.match(recordRuntime, /runtime_config_mode == 'update'/);
+  assert.match(
+    recordRuntime,
+    /data_service_maintenance_required == 'false'/,
+  );
+  assert.match(
+    recordRuntime,
+    /record-runtime-config-baseline\.sh \\\n+\s+normal-update/,
+  );
+  assert.match(runtimeBaselineRecorder, /environment: \$environment/);
+  assert.match(runtimeBaselineRecorder, /required_contexts: \[\]/);
+  assert.match(runtimeBaselineRecorder, /auto_merge: false/);
+  assert.match(runtimeBaselineRecorder, /state: "success"/);
+  assert.doesNotMatch(
+    workflowJob(deployWorkflow, "publish"),
+    /record-runtime-config-baseline\.sh/,
+  );
+});
+
+test("should_reconcileOnlyExplicitVerifiedHostStateWithoutMutatingProduction", () => {
+  const reconcile = workflowJob(reconcileWorkflow, "reconcile");
+
+  assert.match(reconcileWorkflow, /^on:\n  workflow_dispatch:/m);
+  assert.doesNotMatch(reconcileWorkflow, /\n  push:|\n  pull_request:/);
+  assert.match(reconcile, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(reconcile, /git merge-base --is-ancestor/);
+  assert.match(reconcile, /verify-runtime-baseline-inspection\.sh/);
+  assert.match(
+    reconcile,
+    /record-runtime-config-baseline\.sh \\\n+\s+maintenance-reconcile/,
+  );
+  assert.match(runtimeInspectionVerifier, /APPLICATION_REVISION/);
+  assert.match(runtimeInspectionVerifier, /RUNTIME_CONFIG_REVISION/);
+  assert.match(runtimeInspectionVerifier, /PENDING/);
+  assert.match(runtimeInspectionVerifier, /SERVICE_SET/);
+  assert.doesNotMatch(
+    reconcileWorkflow,
+    /docker compose (?:up|down)|runtime-config\/state|runtime-config\/current|volume rm/,
+  );
 });
 
 test("should_pinEveryExternalActionToFullCommitSha", () => {
@@ -379,6 +578,7 @@ test("should_pinEveryExternalActionToFullCommitSha", () => {
   for (const workflow of [
     validateWorkflow,
     deployWorkflow,
+    reconcileWorkflow,
     benchmarkWorkflow,
   ]) {
     for (const action of actionReferences(workflow)) {
@@ -444,6 +644,41 @@ function workflowJob(workflow, jobId) {
   return nextJobOffset >= 0
     ? workflow.slice(start, bodyStart + nextJobOffset)
     : workflow.slice(start);
+}
+
+function workflowActionStep(workflow, actionName) {
+  const actionReferencesForName = actionReferences(workflow).filter(
+    (reference) => reference.startsWith(`${actionName}@`),
+  );
+
+  assert.equal(
+    actionReferencesForName.length,
+    1,
+    `Expected exactly one ${actionName} action`,
+  );
+
+  const actionOffset = workflow.indexOf(
+    `uses: ${actionReferencesForName[0]}`,
+  );
+  const stepStart = workflow.lastIndexOf("\n      - name: ", actionOffset);
+  const nextStepOffset = workflow.indexOf("\n      - name: ", actionOffset);
+
+  assert.ok(stepStart >= 0, `Missing step for ${actionName}`);
+
+  return workflow.slice(
+    stepStart + 1,
+    nextStepOffset >= 0 ? nextStepOffset : workflow.length,
+  );
+}
+
+function javaToolchainVersion(buildGradle) {
+  const versions = [
+    ...buildGradle.matchAll(/JavaLanguageVersion\.of\((\d+)\)/g),
+  ].map((match) => match[1]);
+
+  assert.equal(versions.length, 1, "Expected one Java toolchain version");
+
+  return versions[0];
 }
 
 function countMatches(value, pattern) {

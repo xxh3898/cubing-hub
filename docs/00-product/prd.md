@@ -2,7 +2,7 @@
 doc_type: product
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -11,6 +11,7 @@ related:
   - docs/00-product/roadmap.md
   - docs/01-domain/solve-model.md
   - docs/02-requirements/features/timer.md
+  - docs/02-requirements/features/growth.md
   - docs/02-requirements/user-flows.md
   - docs/06-quality/acceptance-criteria.md
   - docs/08-decisions/adr-0009-practice-event-capability.md
@@ -19,9 +20,9 @@ related:
 
 ## 상태
 
-제품 Vision과 V2.1 Foundation 범위, Practice event 지원 범위가 승인되어 이 문서는 현재 구현 계약인 `active`다. 사용자는 2026-08-10 현재 DB에 `records`와 `user_pbs` data가 없다고 확인했으며, 이 세션에서는 production query를 실행하지 않았다. 이 확인을 근거로 기존 data 분포 audit을 Event Support 결정의 blocker에서 제거했다.
+제품 Vision, V2.1 Foundation 범위와 Practice event 지원 범위는 현재 구현 계약으로 유지한다. V2.1 Event Support 결정에는 기존 data 분포 audit을 blocker로 두지 않았다.
 
-정확한 Java symbol, SQL, REST Docs와 frontend module은 구현에서 검증하지만, 그 세부 작업이 남았다는 이유만으로 아래 제품 요구사항을 미정으로 보지 않는다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile은 별도 `draft`이며 아래 V2.1 current contract를 변경하지 않는다.
 
 ## Product Definition
 
@@ -203,10 +204,22 @@ V2.1은 다음 기능을 구현하지 않고, 나중에 추가할 때 현재 Rec
 
 ## Implementation / Release Gate 상태
 
-1. 사용자 확인 기준 현재 `records`, `user_pbs` data가 없으므로 event distribution audit blocker를 제거했다.
+1. 기존 `records`와 `user_pbs` data가 없다는 전제에서 event distribution audit blocker를 제거했다.
 2. V2.1 Practice Timer·Scramble·Record·Ranking event를 WCA_333으로 확정했다.
 3. Input Method, idempotency, canonical create response와 pending recovery의 API·data·architecture 계약을 문서화했다.
 4. forward-only additive migration, old application compatibility와 실제 MySQL upgrade test 방식을 확정했다.
-5. Record Foundation과 Timer Foundation은 각각 별도 branch와 dev PR로 구현·통합됐다. dev → main 전에는 integrated Validate와 release smoke checklist를 다시 확인한다.
+5. Record Foundation과 Timer Foundation, recovery·isolated smoke·final review correction이 dev에 통합됐다.
+6. [PR #15](https://github.com/xxh3898/cubing-hub/pull/15)로 dev가 main에 병합됐고 main SHA `b8e243ed65dd016772ffe928d3675979842383e7`의 [Publish and Deploy workflow](https://github.com/xxh3898/cubing-hub/actions/runs/31442512749)가 성공했다. Public URL smoke는 release workflow와 별도 evidence로 관리한다.
 
-제품·기술 결정 gate는 닫혔다. 구현 뒤 발견되는 acceptance defect는 기존 제품 범위를 넓히지 않는 별도 corrective change로 해소한 뒤 release gate를 다시 판단한다.
+V2.1 제품·기술 결정과 release gate는 닫혔다. 이후 발견되는 acceptance defect는 기존 제품 범위를 넓히지 않는 별도 corrective change로 다룬다.
+
+## V2.2 Design Boundary
+
+V2.2는 current Record를 성장 이해와 장기 활동 이력으로 연결하는 다음 제품 단계다. 범위와 metric은 아직 구현 계약이 아니며 다음 `draft`에서 관리한다.
+
+- [Growth 요구사항](../02-requirements/features/growth.md)
+- [Growth Metric Contract](../01-domain/growth-metrics.md)
+- [Growth Architecture](../03-architecture/growth-architecture.md)
+- [Proposed ADR-0010](../08-decisions/adr-0010-current-record-growth-read-contract.md)
+
+V2.2 설계는 Daily Challenge, Verified Record, Competition과 Organizer를 포함하지 않는다.

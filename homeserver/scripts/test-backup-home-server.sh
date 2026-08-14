@@ -94,7 +94,7 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
     '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
-    '  printf "8.0.46\n"' \
+    '  printf "8.4.11\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=record-counts"* ]]; then' \
     '  printf "post_attachments\t0\nusers\t1\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=attachment-keys"* ]]; then' \
@@ -308,7 +308,7 @@ def write_valid(timestamp):
         "environment": "production",
         "database": {
             "engine": "mysql",
-            "version": "8.0.46",
+            "version": "8.4.11",
             "dumpFile": "database/dump",
             "bytes": len(dump),
             "sha256": hashlib.sha256(dump).hexdigest(),
@@ -519,7 +519,7 @@ assert manifest["trigger"] == trigger
 assert manifest["source"]["applicationSha"] == application_sha
 assert manifest["source"]["runtimeConfigDigest"] == config_digest
 assert manifest["database"]["engine"] == "mysql"
-assert manifest["database"]["version"] == "8.0.46"
+assert manifest["database"]["version"] == "8.4.11"
 assert manifest["database"]["recordCounts"] == {"post_attachments": 1, "users": 1}
 assert manifest["database"]["recordCountsSource"] == "database/dump"
 assert manifest["database"]["bytes"] == dump.stat().st_size

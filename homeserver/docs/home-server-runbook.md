@@ -2,7 +2,7 @@
 doc_type: operation
 status: active
 created: 2026-06-19
-updated: 2026-08-11
+updated: 2026-08-14
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -40,6 +40,7 @@ GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에�
 deploy-cubing-hub <40자리 commit SHA> <registry user>
 deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
 deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
+inspect-cubing-hub-runtime <application SHA> <runtime SHA> <runtime digest> <DB image tag@digest> <DB volume> <MySQL version>
 ```
 
 현재 운영 서버에서 v2 workflow를 `main`에 병합하기 전에는 아래 두 stable
@@ -65,13 +66,61 @@ pre-v2 또는 기존 2파일 release의 recovery fallback으로만 보존한다.
 함께 staging하며, 이후 worker 변경도 runtime-config 변경으로 감지해
 자동 동기화한다.
 
-마지막 성공 production deployment 이후 `homeserver/docker-compose.yml`,
+`inspect-cubing-hub-runtime`은 stable deploy wrapper에 포함되는 read-only
+forced command다. Post-maintenance reconciliation 전에 approved repository
+revision의 `deploy-home-server-ci.sh`를 기존 stable wrapper 설치 절차와 별도
+production 승인으로 반영하고 source/install SHA-256, mode `700`,
+`/bin/bash -n`을 다시 확인한다. 기존 설치본이 다르면 자동으로 덮어쓰지
+않는다.
+
+마지막 성공 production runtime-config baseline 이후 `homeserver/docker-compose.yml`,
 pinned Cloudflare real-IP 설정, 허용된 deploy/backup script,
 `.dockerignore`의 runtime artifact 입력 또는
 `homeserver/runtime-config.Dockerfile`이 변경된 배포만 immutable
 runtime-config image를 새로 발행하고 `update`한다. 따라서 설정·script
 배포가 실패해도 다음 배포가 변경을 이어받는다. 애플리케이션만 바뀌면
 `keep`으로 현재 검증된 config digest를 유지한다.
+
+Release workflow는 runtime publication mode와 data-service maintenance gate를 분리한다.
+
+```text
+Application-only
+→ runtime config keep
+→ API/Web publish
+→ normal production deploy
+
+Safe runtime-config update
+→ runtime config update
+→ immutable runtime-config publish
+→ normal production deploy
+
+DB image 또는 MySQL volume binding 변경
+→ runtime config update
+→ immutable runtime-config publish
+→ production deploy job skip
+→ dedicated maintenance worker
+```
+
+DB maintenance 판정은 마지막 정상 `production-runtime-config` baseline과 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. Resolver는 runtime baseline 이력을 100개 단위로 끝까지 확인한다. Runtime baseline 이력이 전혀 없는 최초 전환에만 기존 `production` success를 bootstrap 기준으로 사용한다. Runtime 이력은 있으나 success가 없으면 fail closed하며 legacy production 이력으로 돌아가지 않는다. 두 environment 모두 이력이 없는 신규 설치는 zero revision에서 시작한다. `workflow_dispatch.sync_runtime_config=true`는 runtime-config publication을 강제할 뿐 이 판정을 우회하지 않는다.
+
+`MAC_MINI_DEPLOY_ENABLED=true`는 현재 publish job과 production deploy job을 모두 enable한다. Data-service maintenance가 필요하면 publish job은 API·Web과 runtime-config artifact를 발행하고, deploy job은 `data_service_maintenance_required` output으로 GitHub Actions에서 skip된다. Tailscale 연결과 SSH command는 실행되지 않는다. Workflow summary에는 runtime mode, runtime revision·digest, maintenance 필요 여부와 deploy skip 상태를 기록한다.
+
+GitHub deployment environment는 application과 runtime baseline을 분리한다.
+
+```text
+production
+→ 현재 API/Web application deployment history
+
+production-runtime-config
+→ production에 실제 적용하고 검증한 runtime-config history
+```
+
+Application-only `keep`은 runtime baseline을 갱신하지 않는다. Safe
+runtime-config `update`는 production deploy가 성공한 뒤 별도 job에서 runtime
+baseline success를 기록한다. Maintenance-required release는 artifact만
+발행하고 production deploy와 runtime baseline 기록을 모두 skip한다. Baseline
+recording이 실패하면 release는 실패 상태로 남고, 다음 release는 마지막으로
+확인된 success를 계속 사용한다.
 
 runtime-config image에는 아래 네 파일만 들어간다.
 
@@ -129,6 +178,47 @@ DB·Redis image·실행 명령이나 data-sensitive Spring 설정 등 위 보호
 바꾸는 작업은 일반 runtime config 동기화가 아니라 별도
 migration·backup·rollback 계획으로 진행한다.
 
+MySQL engine image·volume binding은 일반 deploy worker의 예외로 허용하지 않는다. 별도 승인으로 설치한 아래 maintenance worker가 exact runtime release, DB image digest, volume, backup evidence를 하나의 candidate로 검증한 뒤에만 binding을 전환한다.
+
+```text
+/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+```
+
+Command별 exact 절차, fresh rollback volume 준비, dedicated recovery는 [DB와 이미지 백업·복구](db-backup-restore.md)를 따른다.
+
+Maintenance가 target runtime을 적용하면 `APPLICATION_REVISION`은 기존
+application SHA를 유지하고 `RUNTIME_CONFIG_REVISION`만 maintenance release
+SHA로 바뀔 수 있다. 두 revision이 다른 것은 정상이다. MySQL upgrade smoke와
+post-upgrade backup이 끝나면 `Reconcile Production Runtime Baseline` workflow를
+`main`에서 수동 실행한다.
+
+입력은 아래 expected identity를 모두 명시한다.
+
+```text
+expected_application_revision
+expected_runtime_config_revision
+expected_runtime_config_digest
+expected_db_image
+expected_db_volume
+expected_mysql_version
+```
+
+Workflow는 `production-runtime-config` environment의 approval boundary 안에서
+Tailscale과 restricted SSH를 사용한다. Forced command는 operation lock을
+non-blocking으로 확인한 뒤 `state`, `current`, release content hash, pending
+부재, `.env`와 effective Compose binding, 실제 API/Web·DB image, DB volume,
+`SELECT VERSION()`, API/Web/DB/Redis health를 read-only로 검증한다. Host state는
+수정하지 않으며 exact expected value가 하나라도 다르면 GitHub baseline을
+기록하지 않는다.
+
+검증이 성공하면 `production-runtime-config`에 `maintenance-reconcile` success를
+기록한다. `production` application deployment 이력은 바꾸지 않는다. GitHub
+environment에 필요한 reviewer·secret은 repository 밖 운영 prerequisite다.
+Workflow job은 environment approval을 적용하되 별도 자동 deployment record는
+만들지 않도록 구성되어 있다. Custom deployment protection rule을 함께 쓰는
+경우 이 설정과 호환되지 않으므로 사전에 확인한다. Reconciliation success 전에는
+normal production deploy를 재개하지 않는다.
+
 첫 배포는 기존 image SHA가 없으므로 다음 순서로 진행한다.
 
 1. 신규 API/web image pull
@@ -165,6 +255,8 @@ v2 배포가 강제 종료되거나 host가 재시작되어
 `/Users/homeserver/Server/apps/cubing-hub/runtime-config/pending`이 남으면
 후속 v2 배포는 fail closed한다. pending 파일을 직접 삭제하거나 수정하지
 말고 Mac mini에서 다음 recovery 명령을 실행한다.
+
+`TRANSACTION_TYPE=MYSQL_MAINTENANCE`인 pending은 아래 일반 deploy recovery가 아니라 DB maintenance worker의 `recover` 또는 verified rollback candidate로만 처리한다.
 
 ```bash
 /Users/homeserver/Server/scripts/deploy/deploy-cubing-hub-ci.sh recover

@@ -2,7 +2,7 @@
 doc_type: domain
 status: draft
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -14,7 +14,7 @@ related:
 
 ## 현재 상태
 
-Cubing Hub에는 competition과 organizer domain이 구현돼 있지 않다. 이 문서는 향후 논의를 위한 권위와 용어 경계만 정의한다.
+Cubing Hub에는 competition과 organizer domain이 구현돼 있지 않다. 향후 논의를 위한 권위와 용어 경계만 정의한다.
 
 ## 권위 경계
 
@@ -39,4 +39,4 @@ WCA 규정은 현재 버전의 공식 페이지를 링크해 참고하되 내용
 
 ## 비목표
 
-대회 출시 일정, bracket, registration schema, payment, API는 이 문서에서 선설계하지 않는다.
+대회 출시 일정, bracket, registration schema, payment, API는 선설계하지 않는다.

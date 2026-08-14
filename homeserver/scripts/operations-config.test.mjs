@@ -10,11 +10,13 @@ const [
   restrictedWrapper,
   backupScript,
   backupBootstrap,
+  mysqlMaintenanceScript,
   frontendDockerfile,
   launchAgent,
   dockerIgnore,
   runtimeConfigDockerfile,
   runtimeConfigDetector,
+  dataServiceMaintenanceDetector,
   setupGuide,
   runbook,
   backupRestoreGuide,
@@ -31,11 +33,13 @@ const [
   read("./deploy-home-server-ci.sh"),
   read("./backup-home-server.sh"),
   read("./backup-home-server-bootstrap.sh"),
+  read("./mysql-maintenance-home-server.sh"),
   read("../docker/frontend.Dockerfile"),
   read("../launchd/com.homeserver.cubing-hub-backup.plist.example"),
   read("../../.dockerignore"),
   read("../runtime-config.Dockerfile"),
   read("./detect-runtime-config-change.sh"),
+  read("./detect-data-service-maintenance.sh"),
   read("../docs/mac-mini-server-setup.md"),
   read("../docs/home-server-runbook.md"),
   read("../docs/db-backup-restore.md"),
@@ -87,6 +91,13 @@ test("should_useImmutableGhcrImagesAndNoSourceBuild_when_productionRuns", () => 
     envExample,
     /WEB_IMAGE=ghcr\.io\/xxh3898\/cubing-hub-web:[0-9a-f]{40}/,
   );
+  assert.match(compose, /image: \$\{DB_IMAGE:-mysql:8\.4\.11\}/);
+  assert.match(
+    compose,
+    /mysql-data:\n    name: \$\{DB_VOLUME_NAME:-cubing-hub_mysql-data\}/,
+  );
+  assert.match(envExample, /^DB_IMAGE=mysql:8\.4\.11$/m);
+  assert.match(envExample, /^DB_VOLUME_NAME=cubing-hub_mysql-data$/m);
   assert.doesNotMatch(compose, /\bbuild:/);
   assert.doesNotMatch(compose, /DOCKERHUB|IMAGE_TAG|self-hosted/);
 });
@@ -118,20 +129,113 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
     restrictedWrapper,
     /deploy-cubing-hub-v2[\s\S]*keep[\s\S]*deploy-cubing-hub-v2[\s\S]*update/,
   );
-  assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
+  assert.match(
+    restrictedWrapper,
+    /inspect-cubing-hub-runtime\[\[:space:\]\]\(\[0-9a-f\]\{40\}\)/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /inspect_verified_runtime[\s\S]*SELECT VERSION\(\)[\s\S]*SERVICE_SET=healthy/,
+  );
+  const inspector = restrictedWrapper.slice(
+    restrictedWrapper.indexOf("inspect_verified_runtime()"),
+    restrictedWrapper.indexOf("validated_recovery_release()"),
+  );
+  assert.doesNotMatch(
+    inspector,
+    /compose[\s\S]*(?:\bup\b|\bdown\b)|write_state|write_env|ln -s|volume rm/,
+  );
+  const forcedCommandStart = restrictedWrapper.indexOf(
+    'original_command="${SSH_ORIGINAL_COMMAND:-}"',
+  );
+  const forcedCommandEnd = restrictedWrapper.indexOf(
+    'registry_token="$(/bin/cat)"',
+    forcedCommandStart,
+  );
+  assert.ok(forcedCommandStart >= 0);
+  assert.ok(forcedCommandEnd > forcedCommandStart);
+  const forcedCommandDispatch = restrictedWrapper.slice(
+    forcedCommandStart,
+    forcedCommandEnd,
+  );
+  assert.doesNotMatch(forcedCommandDispatch, /eval|bash -c|sh -c/);
   assert.match(
     restrictedWrapper,
     /\/Users\/homeserver\/Server\/scripts\/deploy\/deploy-cubing-hub\.sh/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /MySQL maintenance pending state requires the dedicated maintenance worker/,
   );
 });
 
 test("should_documentPinnedSystemPython_when_operationsScriptsRequireIt", () => {
   assert.match(deployScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
   assert.match(backupScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
+  assert.match(mysqlMaintenanceScript, /readonly PYTHON_BIN=\/usr\/bin\/python3/);
   assert.match(setupGuide, /test -x \/usr\/bin\/python3/);
   assert.match(setupGuide, /test -x \/usr\/bin\/lockf/);
   assert.match(setupGuide, /\/usr\/bin\/python3 --version/);
   assert.match(setupGuide, /Homebrew 도구나 임의[\s\S]*PATH로 대체하지/);
+});
+
+test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", () => {
+  assert.match(
+    deployScript,
+    /running MySQL image or exclusive volume does not match the active verified runtime/,
+  );
+  assert.match(
+    deployScript,
+    /changes require a separate data-service procedure/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /prepare-upgrade[\s\S]*verify-rollback-volume[\s\S]*prepare-rollback[\s\S]*apply[\s\S]*recover/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /expected_db_volume[\s\S]*volume_users[\s\S]*expected container/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /readonly OPERATION_LOCK="\$\{APP_DIR\}\/\.cubing-hub-operation\.lock"/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /readonly RUNTIME_CONFIG_PENDING="\$\{RUNTIME_CONFIG_ROOT\}\/pending"/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /target DB image must be exact mysql:8\.4\.11@sha256:digest/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /rollback must not attach MySQL 8\.0 to the upgraded original volume/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /maintenance target service set is unhealthy[\s\S]*commit_success_state/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /docker[\s\S]*compose[\s\S]*config[\s\S]*--no-env-resolution[\s\S]*--format json/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /services[\s\S]*db[\s\S]*image[\s\S]*volumes[\s\S]*mysql-data[\s\S]*volume_name/,
+  );
+  assert.match(
+    dataServiceMaintenanceDetector,
+    /before_contract[\s\S]*after_contract[\s\S]*printf 'false\\n'[\s\S]*printf 'true\\n'/,
+  );
+  assert.match(
+    backupRestoreGuide,
+    /fresh MySQL 8\.0\.46[\s\S]*MySQL 8\.4[\s\S]*data directory/,
+  );
+  assert.doesNotMatch(
+    mysqlMaintenanceScript,
+    /docker compose down|down[^\n]*(?:--volumes|-v)|volume rm|system prune/,
+  );
 });
 
 test("should_bootstrapEmptyDataServicesAndBackupOnlyBeforeUpdates", () => {

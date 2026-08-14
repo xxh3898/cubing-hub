@@ -120,15 +120,25 @@ jobs:
           bash -n \
             homeserver/scripts/backup-home-server-bootstrap.sh \
             homeserver/scripts/backup-home-server.sh \
+            homeserver/scripts/detect-data-service-maintenance.sh \
             homeserver/scripts/detect-runtime-config-change.sh \
             homeserver/scripts/deploy-home-server-ci.sh \
             homeserver/scripts/deploy-home-server.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-curl.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
+            homeserver/scripts/fixtures/mock-github-deployments-curl.sh \
+            homeserver/scripts/mysql-maintenance-home-server.sh \
+            homeserver/scripts/record-runtime-config-baseline.sh \
+            homeserver/scripts/resolve-runtime-config-baseline.sh \
             homeserver/scripts/test-backup-home-server.sh \
+            homeserver/scripts/test-detect-data-service-maintenance.sh \
             homeserver/scripts/test-detect-runtime-config-change.sh \
             homeserver/scripts/test-deploy-home-server.sh \
-            homeserver/scripts/test-runtime-script-bootstrap.sh
+            homeserver/scripts/test-mysql-maintenance-home-server.sh \
+            homeserver/scripts/test-runtime-baseline-inspection.sh \
+            homeserver/scripts/test-runtime-config-baseline.sh \
+            homeserver/scripts/test-runtime-script-bootstrap.sh \
+            homeserver/scripts/verify-runtime-baseline-inspection.sh
 
       - name: Verify runtime config change detection
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
@@ -146,7 +156,10 @@ jobs:
               "${current_sha}" \
               true
           )" = update
+          /bin/bash ./homeserver/scripts/test-detect-data-service-maintenance.sh
           /bin/bash ./homeserver/scripts/test-detect-runtime-config-change.sh
+          /bin/bash ./homeserver/scripts/test-runtime-config-baseline.sh
+          /bin/bash ./homeserver/scripts/test-runtime-baseline-inspection.sh
           /bin/bash ./homeserver/scripts/test-runtime-script-bootstrap.sh
 
       - name: Test deploy v2 state transitions
@@ -156,6 +169,10 @@ jobs:
       - name: Test production backup Compose selection
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
         run: /bin/bash ./homeserver/scripts/test-backup-home-server.sh
+
+      - name: Test MySQL maintenance state transitions
+        if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
+        run: /bin/bash ./homeserver/scripts/test-mysql-maintenance-home-server.sh
 
       - name: Run infrastructure tests
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
@@ -277,12 +294,12 @@ jobs:
         if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Set up Java 17
+      - name: Set up Java 25
         if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true'
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
           cache: gradle
 
       - name: Run backend tests and build

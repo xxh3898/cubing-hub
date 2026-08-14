@@ -1,6 +1,6 @@
 # Cubing Hub
 
-Cubing Hub는 기록·랭킹·학습·커뮤니티와 서비스 운영 기능을 제공하는 full-stack cubing web service다. 현재 V1 기능은 유지·강화 대상이며, 최종 Vision과 향후 기능 우선순위는 아직 확정하지 않았다.
+Cubing Hub는 기록·랭킹·학습·커뮤니티와 서비스 운영 기능을 제공하는 full-stack cubing web service다. 현재 제품 positioning, Primary User, 핵심 문제와 Core Loop는 [Vision](docs/00-product/vision.md)이 기준이다. 기존 V1 기능은 유지·강화 대상이며, 미래 phase의 상세 범위와 단계별 진입 여부는 PRD, Roadmap, 각 draft 문서에서 관리한다.
 
 문서 체계와 Source of Truth는 [Documentation](docs/README.md)에서 시작한다.
 
@@ -21,7 +21,7 @@ Daily Challenge, Verified Record, Competition, Organizer는 후보 기능이며 
 
 | 영역 | 현재 기준 |
 | --- | --- |
-| Backend | Java 17, Spring Boot 3.5, Gradle, Spring Security, REST Docs |
+| Backend | Java 25, Spring Boot 4.1.0, Gradle 9.6.1, Spring Security, REST Docs |
 | Frontend | React 19, Vite 8, React Router, Vitest |
 | Data | MySQL 8 Source of Truth, Redis 7.2 auth state·ranking Read Model |
 | Storage | MySQL attachment metadata + host post image binary |
@@ -65,8 +65,11 @@ command-level Mac mini 절차는 homeserver/docs의 active runbook이 Source of 
 | --- | --- |
 | ![V1 community](docs/assets/screenshots/v1/community-list.png) | ![V1 MyPage](docs/assets/screenshots/v1/mypage-dashboard.png) |
 
-## 제품 방향 논의
+## 제품 문서
 
-공식 출처 기반 [reference service research](docs/00-product/research/)와 [Market Validation](docs/00-product/market-validation.md)을 먼저 사용한다. 그 다음 사용자와 별도 논의를 거쳐 [Vision](docs/00-product/vision.md), [PRD](docs/00-product/prd.md), [Roadmap](docs/00-product/roadmap.md)을 확정한다.
+- [Vision](docs/00-product/vision.md): 현재 제품 방향
+- [PRD](docs/00-product/prd.md): 현재 구현 범위와 phase gate
+- [Roadmap](docs/00-product/roadmap.md): 단계 순서와 future gate
+- [Market Validation](docs/00-product/market-validation.md)과 [reference service research](docs/00-product/research/): 검증 근거와 미확정 가설
 
 V1 문서와 개발 역사는 [V1 Archive](docs/99-archive/v1/README.md)에 보존한다.

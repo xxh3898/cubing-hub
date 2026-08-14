@@ -2,13 +2,14 @@
 doc_type: quality
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-14
 owner: xxh3898
 project: cubing-hub
 tags: []
 related:
   - .github/workflows/validate.yml
   - AGENTS.md
+  - docs/06-quality/mysql-8-4-upgrade-evidence.md
   - homeserver/docs/release-smoke-runbook.md
 ---
 # Quality Gates
@@ -26,11 +27,13 @@ changed path classifier가 backend, frontend, infrastructure, API image, Web ima
 
 ## Backend gate
 
-CI는 Java 17에서 다음을 실행한다.
+CI는 Java 25에서 다음을 실행한다.
 
     SPRING_PROFILES_ACTIVE=test ./gradlew test jacocoTestReport build --no-daemon
 
 test, REST Docs generation, JaCoCo report, bootJar build가 연결된다. 현재 build 설정에는 수치형 coverage verification task가 없으므로 과거 100% 기록을 지속 보장되는 gate로 표현하지 않는다.
+
+MySQL integration test는 exact `mysql:8.4.11` image를 사용한다. `SELECT VERSION()`으로 engine patch를 확인하고, 기존 Flyway history, 8.0 logical backup의 8.4·8.0 restore parity, Growth 10,000-record query plan을 검증한다.
 
 ## Frontend gate
 
@@ -47,6 +50,8 @@ shell syntax, runtime config detection, deploy·backup mock tests, Node configur
 ## Release gate
 
 main push는 release validation을 시작한다. production deploy enable 상태에서는 GHCR publish와 Mac mini deploy로 이어질 수 있으므로 merge와 deploy는 별도 승인 대상이다.
+
+DB image 또는 MySQL volume binding이 바뀌는 release는 immutable runtime-config artifact까지 발행하고 production deploy job은 skip한다. Dedicated maintenance 완료 전에는 일반 deploy로 data-service binding을 변경하지 않는다.
 
 V2.1처럼 browser/device runtime path가 중요한 release는 automated Validate 이후 isolated release smoke를 수행한다. smoke는 최신 `dev` source를 production Dockerfile로 build하고 disposable MySQL·Redis에 Flyway를 적용하지만 production resource에 연결하지 않는다. exact 실행과 수동 checklist는 [Smoke Runbook](../../homeserver/docs/release-smoke-runbook.md)을 따른다.
 

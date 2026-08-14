@@ -2,12 +2,13 @@
 doc_type: product
 status: draft
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 owner: xxh3898
 project: cubing-hub
 tags: []
 related:
   - docs/00-product/prd.md
+  - docs/02-requirements/features/growth.md
 ---
 # Metrics
 
@@ -23,6 +24,19 @@ related:
 - 학습 콘텐츠 재방문과 단계 탐색
 - 게시글·댓글·Q&A의 건전한 참여
 - 향후 검증형 활동이 도입될 경우 제출 대비 검증 완료 비율
+
+## V2.2 Growth validation 후보
+
+V2.2는 숫자를 많이 노출하는 것보다 `Record → Improve → Profile → Practice`가 실제 행동으로 이어지는지 검증한다.
+
+- Record 저장 사용자의 My Growth 도달 비율
+- 첫 Growth 조회 뒤 7일 이내 재방문
+- Timer에서 Growth로 이동한 비율
+- Growth의 Next Practice action에서 Timer로 돌아간 비율
+- PB progression timeline/chart 확인
+- Growth 조회 전후 Practice Record 저장 빈도. 관찰 cohort 차이를 인과로 표현하지 않음
+
+최소 analytics event property와 사용자 인터뷰 질문은 [Growth 요구사항](../02-requirements/features/growth.md#product-validation)이 관리한다. Analytics infrastructure, target 수치와 retention 정책은 V2.2 application scope에 자동 포함하지 않는다.
 
 ## 품질·운영 지표
 
