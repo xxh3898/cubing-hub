@@ -101,6 +101,16 @@ class GrowthReadServiceTest {
         assertThat(response.asOfDate()).hasToString("2026-08-12");
         assertThat(response.currentPb().recordId()).isEqualTo(1L);
         verify(clock, times(1)).instant();
+        verify(growthReadRepository).findActivitySummary(
+                1L,
+                EventType.WCA_333,
+                Instant.parse("2026-08-05T15:00:00Z"),
+                Instant.parse("2026-08-12T15:00:00Z"),
+                Instant.parse("2026-07-29T15:00:00Z"),
+                Instant.parse("2026-08-05T15:00:00Z"),
+                Instant.parse("2026-07-13T15:00:00Z"),
+                Instant.parse("2026-08-12T15:00:00Z")
+        );
     }
 
     @Test

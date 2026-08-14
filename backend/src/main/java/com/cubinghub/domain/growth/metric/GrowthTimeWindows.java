@@ -28,6 +28,22 @@ public final class GrowthTimeWindows {
         return new ActivityWindow(asOfDate, calendarWindow(fromDate, asOfDate.plusDays(1)));
     }
 
+    public static ActivityComparisonWindow activityComparisonWindow(Clock clock, int days) {
+        Objects.requireNonNull(clock, "clock은 필수입니다.");
+        return activityComparisonWindow(clock.instant(), days);
+    }
+
+    public static ActivityComparisonWindow activityComparisonWindow(Instant generatedAt, int days) {
+        ActivityWindow current = activityWindow(generatedAt, days);
+        LocalDate previousToDateExclusive = current.range().fromDate();
+        CalendarWindow previous = calendarWindow(
+                previousToDateExclusive.minusDays(days),
+                previousToDateExclusive
+        );
+
+        return new ActivityComparisonWindow(current.asOfDate(), current.range(), previous);
+    }
+
     public static PerformanceComparisonWindow performanceComparisonWindow(Clock clock) {
         Objects.requireNonNull(clock, "clock은 필수입니다.");
         return performanceComparisonWindow(clock.instant());
@@ -58,6 +74,22 @@ public final class GrowthTimeWindows {
         public ActivityWindow {
             Objects.requireNonNull(asOfDate, "asOfDate는 필수입니다.");
             Objects.requireNonNull(range, "range는 필수입니다.");
+        }
+    }
+
+    public record ActivityComparisonWindow(
+            LocalDate asOfDate,
+            CalendarWindow currentPeriod,
+            CalendarWindow previousPeriod
+    ) {
+
+        public ActivityComparisonWindow {
+            Objects.requireNonNull(asOfDate, "asOfDate는 필수입니다.");
+            Objects.requireNonNull(currentPeriod, "currentPeriod는 필수입니다.");
+            Objects.requireNonNull(previousPeriod, "previousPeriod는 필수입니다.");
+            if (!previousPeriod.toDateExclusive().equals(currentPeriod.fromDate())) {
+                throw new IllegalArgumentException("activity period는 gap이나 overlap 없이 이어져야 합니다.");
+            }
         }
     }
 

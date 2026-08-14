@@ -63,7 +63,7 @@ public class GrowthReadService {
         User user = findUser(email);
         Instant generatedAt = clock.instant();
 
-        GrowthTimeWindows.ActivityWindow last7Days = GrowthTimeWindows.activityWindow(
+        GrowthTimeWindows.ActivityComparisonWindow activity7Days = GrowthTimeWindows.activityComparisonWindow(
                 generatedAt,
                 ACTIVITY_LAST_7_DAYS
         );
@@ -88,10 +88,10 @@ public class GrowthReadService {
         ActivitySummary activity = growthReadRepository.findActivitySummary(
                 user.getId(),
                 eventType,
-                last7Days.range().fromInclusive(),
-                last7Days.range().toExclusive(),
-                comparisonWindow.previousPeriod().fromInclusive(),
-                comparisonWindow.previousPeriod().toExclusive(),
+                activity7Days.currentPeriod().fromInclusive(),
+                activity7Days.currentPeriod().toExclusive(),
+                activity7Days.previousPeriod().fromInclusive(),
+                activity7Days.previousPeriod().toExclusive(),
                 last30Days.range().fromInclusive(),
                 last30Days.range().toExclusive()
         );

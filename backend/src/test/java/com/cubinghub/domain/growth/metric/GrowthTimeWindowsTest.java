@@ -29,6 +29,26 @@ class GrowthTimeWindowsTest {
     }
 
     @Test
+    @DisplayName("activity comparison은 오늘 포함 7일과 바로 앞 7일을 gap 없이 만든다")
+    void should_create_consecutive_current_and_previous_activity_ranges() {
+        GrowthTimeWindows.ActivityComparisonWindow window = GrowthTimeWindows.activityComparisonWindow(
+                AS_OF_AUGUST_12_KST,
+                7
+        );
+
+        assertThat(window.asOfDate()).hasToString("2026-08-12");
+        assertThat(window.currentPeriod().fromDate()).hasToString("2026-08-06");
+        assertThat(window.currentPeriod().toDateExclusive()).hasToString("2026-08-13");
+        assertThat(window.currentPeriod().fromInclusive()).isEqualTo(Instant.parse("2026-08-05T15:00:00Z"));
+        assertThat(window.currentPeriod().toExclusive()).isEqualTo(Instant.parse("2026-08-12T15:00:00Z"));
+        assertThat(window.previousPeriod().fromDate()).hasToString("2026-07-30");
+        assertThat(window.previousPeriod().toDateExclusive()).hasToString("2026-08-06");
+        assertThat(window.previousPeriod().fromInclusive()).isEqualTo(Instant.parse("2026-07-29T15:00:00Z"));
+        assertThat(window.previousPeriod().toExclusive()).isEqualTo(Instant.parse("2026-08-05T15:00:00Z"));
+        assertThat(window.previousPeriod().toExclusive()).isEqualTo(window.currentPeriod().fromInclusive());
+    }
+
+    @Test
     @DisplayName("performance comparison은 partial today를 제외한 recent와 previous 7-day range를 만든다")
     void should_create_completed_recent_and_previous_seven_day_ranges() {
         GrowthTimeWindows.PerformanceComparisonWindow window = GrowthTimeWindows.performanceComparisonWindow(
