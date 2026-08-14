@@ -119,6 +119,28 @@ class GrowthReadApiIntegrationTest extends JpaIntegrationTest {
     }
 
     @Test
+    @DisplayName("summary activity는 오늘 포함 7일과 바로 앞 7일을 KST boundary로 집계한다")
+    void should_count_consecutive_current_and_previous_activity_windows_at_kst_boundaries() throws Exception {
+        saveRecord(owner, 24000, Penalty.NONE, Instant.parse("2026-07-29T14:59:59Z"));
+        saveRecord(owner, 23000, Penalty.NONE, Instant.parse("2026-07-29T15:00:00Z"));
+        saveRecord(owner, 22000, Penalty.NONE, Instant.parse("2026-08-04T15:00:00Z"));
+        saveRecord(owner, 21000, Penalty.NONE, Instant.parse("2026-08-05T14:59:59Z"));
+        saveRecord(owner, 20000, Penalty.NONE, Instant.parse("2026-08-05T15:00:00Z"));
+        saveRecord(owner, 19000, Penalty.NONE, Instant.parse("2026-08-11T15:00:30Z"));
+
+        mockMvc.perform(get("/api/users/me/growth")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("eventType", EventType.WCA_333.name())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.asOfDate").value("2026-08-12"))
+                .andExpect(jsonPath("$.data.activity.totalSolveCount").value(6))
+                .andExpect(jsonPath("$.data.activity.last7DaysSolveCount").value(2))
+                .andExpect(jsonPath("$.data.activity.previous7DaysSolveCount").value(3))
+                .andExpect(jsonPath("$.data.activity.last30DaysSolveCount").value(6));
+    }
+
+    @Test
     @DisplayName("trend는 30개의 KST date point에서 missing day와 DNF-only day를 구분한다")
     void should_return_fixed_trend_points_when_days_are_missing_or_dnf_only() throws Exception {
         saveRecord(owner, 10000, Penalty.NONE, Instant.parse("2026-08-09T15:30:00Z"));

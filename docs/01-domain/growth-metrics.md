@@ -2,7 +2,7 @@
 doc_type: domain
 status: active
 created: 2026-08-11
-updated: 2026-08-12
+updated: 2026-08-14
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -99,7 +99,13 @@ Median은 이름이 지정된 population의 rankable effective value를 오름�
 - `asOfDate`는 response 생성 시점의 Asia/Seoul 날짜다.
 - 30-day chart/activity window는 `asOfDate - 29일` 00:00 inclusive부터 `asOfDate + 1일` 00:00 exclusive까지다. 오늘은 진행 중인 partial day임을 UI에 표시한다.
 - `last7DaysSolveCount`는 오늘을 포함한 7개 calendar date, `last30DaysSolveCount`는 오늘을 포함한 30개 calendar date다.
+- `previous7DaysSolveCount`는 `last7DaysSolveCount` 구간 바로 전의 연속 7개 calendar date다. 두 activity 구간 사이에는 gap이나 overlap이 없다.
 - performance 비교는 partial day 편향을 피하기 위해 오늘을 제외한 완료 calendar day를 사용한다.
+
+```text
+current activity 7 days  = [asOfDate - 6일 00:00, asOfDate + 1일 00:00)
+previous activity 7 days = [asOfDate - 13일 00:00, asOfDate - 6일 00:00)
+```
 
 ```text
 recent period   = [asOfDate - 7일 00:00, asOfDate 00:00)
