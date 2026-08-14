@@ -126,13 +126,19 @@ jobs:
             homeserver/scripts/deploy-home-server.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-curl.sh \
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
+            homeserver/scripts/fixtures/mock-github-deployments-curl.sh \
             homeserver/scripts/mysql-maintenance-home-server.sh \
+            homeserver/scripts/record-runtime-config-baseline.sh \
+            homeserver/scripts/resolve-runtime-config-baseline.sh \
             homeserver/scripts/test-backup-home-server.sh \
             homeserver/scripts/test-detect-data-service-maintenance.sh \
             homeserver/scripts/test-detect-runtime-config-change.sh \
             homeserver/scripts/test-deploy-home-server.sh \
             homeserver/scripts/test-mysql-maintenance-home-server.sh \
-            homeserver/scripts/test-runtime-script-bootstrap.sh
+            homeserver/scripts/test-runtime-baseline-inspection.sh \
+            homeserver/scripts/test-runtime-config-baseline.sh \
+            homeserver/scripts/test-runtime-script-bootstrap.sh \
+            homeserver/scripts/verify-runtime-baseline-inspection.sh
 
       - name: Verify runtime config change detection
         if: needs.changes.result == 'success' && needs.changes.outputs.infrastructure == 'true'
@@ -152,6 +158,8 @@ jobs:
           )" = update
           /bin/bash ./homeserver/scripts/test-detect-data-service-maintenance.sh
           /bin/bash ./homeserver/scripts/test-detect-runtime-config-change.sh
+          /bin/bash ./homeserver/scripts/test-runtime-config-baseline.sh
+          /bin/bash ./homeserver/scripts/test-runtime-baseline-inspection.sh
           /bin/bash ./homeserver/scripts/test-runtime-script-bootstrap.sh
 
       - name: Test deploy v2 state transitions

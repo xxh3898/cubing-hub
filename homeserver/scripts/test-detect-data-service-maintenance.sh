@@ -6,6 +6,7 @@ readonly PROJECT_ROOT="$(
   CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd
 )"
 readonly DETECTOR="${PROJECT_ROOT}/homeserver/scripts/detect-data-service-maintenance.sh"
+readonly RUNTIME_DETECTOR="${PROJECT_ROOT}/homeserver/scripts/detect-runtime-config-change.sh"
 
 test_root="$(
   /usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-data-service-detector-test.XXXXXX"
@@ -202,5 +203,70 @@ if (
   printf 'Missing candidate revision was accepted\n' >&2
   exit 1
 fi
+
+# A legacy application/runtime baseline must keep detecting the 8.4 binding as
+# maintenance until reconciliation advances only the runtime baseline to M.
+flow_dir="${test_root}/post-maintenance-flow"
+/bin/mkdir -p "${flow_dir}/homeserver" "${flow_dir}/frontend"
+git -C "${flow_dir}" init --quiet
+git -C "${flow_dir}" config user.email test@example.invalid
+git -C "${flow_dir}" config user.name "Runtime Baseline Flow Test"
+write_compose \
+  "${flow_dir}/homeserver/docker-compose.yml" \
+  mysql:8.0.46 \
+  cubing-hub_mysql-data \
+  baseline-a
+printf 'application A\n' >"${flow_dir}/frontend/app.txt"
+git -C "${flow_dir}" add homeserver/docker-compose.yml frontend/app.txt
+git -C "${flow_dir}" commit --quiet -m A
+application_a="$(git -C "${flow_dir}" rev-parse HEAD)"
+
+write_compose \
+  "${flow_dir}/homeserver/docker-compose.yml" \
+  mysql:8.4.11 \
+  cubing-hub_mysql-data \
+  maintenance-m
+git -C "${flow_dir}" add homeserver/docker-compose.yml
+git -C "${flow_dir}" commit --quiet -m M
+maintenance_m="$(git -C "${flow_dir}" rev-parse HEAD)"
+
+printf 'application N\n' >"${flow_dir}/frontend/app.txt"
+git -C "${flow_dir}" add frontend/app.txt
+git -C "${flow_dir}" commit --quiet -m N
+application_n="$(git -C "${flow_dir}" rev-parse HEAD)"
+
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${DETECTOR}" "${application_a}" "${maintenance_m}"
+)" = true
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${DETECTOR}" "${application_a}" "${application_n}"
+)" = true
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${DETECTOR}" "${maintenance_m}" "${application_n}"
+)" = false
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${RUNTIME_DETECTOR}" "${maintenance_m}" "${application_n}" false
+)" = keep
+
+write_compose \
+  "${flow_dir}/homeserver/docker-compose.yml" \
+  mysql:8.4.11 \
+  cubing-hub_mysql-data \
+  safe-runtime-r
+git -C "${flow_dir}" add homeserver/docker-compose.yml
+git -C "${flow_dir}" commit --quiet -m R
+safe_runtime_r="$(git -C "${flow_dir}" rev-parse HEAD)"
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${RUNTIME_DETECTOR}" "${application_n}" "${safe_runtime_r}" false
+)" = update
+test "$(
+  cd "${flow_dir}"
+  /bin/bash "${DETECTOR}" "${application_n}" "${safe_runtime_r}"
+)" = false
 
 printf 'Cubing Hub data-service maintenance detector tests passed\n'

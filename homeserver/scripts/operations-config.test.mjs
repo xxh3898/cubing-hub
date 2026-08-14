@@ -129,6 +129,22 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
     restrictedWrapper,
     /deploy-cubing-hub-v2[\s\S]*keep[\s\S]*deploy-cubing-hub-v2[\s\S]*update/,
   );
+  assert.match(
+    restrictedWrapper,
+    /inspect-cubing-hub-runtime\[\[:space:\]\]\(\[0-9a-f\]\{40\}\)/,
+  );
+  assert.match(
+    restrictedWrapper,
+    /inspect_verified_runtime[\s\S]*SELECT VERSION\(\)[\s\S]*SERVICE_SET=healthy/,
+  );
+  const inspector = restrictedWrapper.slice(
+    restrictedWrapper.indexOf("inspect_verified_runtime()"),
+    restrictedWrapper.indexOf("validated_recovery_release()"),
+  );
+  assert.doesNotMatch(
+    inspector,
+    /compose[\s\S]*(?:\bup\b|\bdown\b)|write_state|write_env|ln -s|volume rm/,
+  );
   assert.doesNotMatch(restrictedWrapper, /eval|bash -c|sh -c/);
   assert.match(
     restrictedWrapper,
