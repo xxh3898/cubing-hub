@@ -46,8 +46,10 @@ jobs:
       deployments: read
       packages: write
     outputs:
+      data_service_maintenance_required: ${{ steps.data-service-maintenance.outputs.required }}
       runtime_config_mode: ${{ steps.runtime-config-mode.outputs.mode }}
       runtime_config_digest: ${{ steps.publish-runtime-config.outputs.digest }}
+      runtime_config_revision: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
 
     steps:
       - name: Check out repository
@@ -107,6 +109,36 @@ jobs:
               "${FORCE_SYNC}"
           )"
           printf 'mode=%s\n' "${mode}" >>"${GITHUB_OUTPUT}"
+
+      - name: Detect data-service maintenance
+        id: data-service-maintenance
+        env:
+          DEPLOYED_SHA: ${{ steps.deployed-base.outputs.sha }}
+          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
+        run: |
+          required="$(
+            /bin/bash ./homeserver/scripts/detect-data-service-maintenance.sh \
+              "${DEPLOYED_SHA}" \
+              "${GITHUB_SHA}"
+          )"
+          case "${required}" in
+            true|false)
+              ;;
+            *)
+              printf 'Data-service maintenance result is invalid\n' >&2
+              exit 64
+              ;;
+          esac
+          if [[ "${required}" == true && "${RUNTIME_CONFIG_MODE}" != update ]]; then
+            printf 'Data-service maintenance requires a runtime config update\n' >&2
+            exit 1
+          fi
+          printf 'required=%s\n' "${required}" >>"${GITHUB_OUTPUT}"
+          if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
+            printf 'runtime_config_revision=%s\n' "${GITHUB_SHA}" >>"${GITHUB_OUTPUT}"
+          else
+            printf 'runtime_config_revision=\n' >>"${GITHUB_OUTPUT}"
+          fi
 
       - name: Download backend jar
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -180,7 +212,11 @@ jobs:
       - name: Record published images
         env:
           API_IMAGE_DIGEST: ${{ steps.publish-api.outputs.digest }}
+          DATA_SERVICE_MAINTENANCE_REQUIRED: ${{ steps.data-service-maintenance.outputs.required }}
           WEB_IMAGE_DIGEST: ${{ steps.publish-web.outputs.digest }}
+          RUNTIME_CONFIG_DIGEST: ${{ steps.publish-runtime-config.outputs.digest }}
+          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
+          RUNTIME_CONFIG_REVISION: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
         run: |
           {
             printf '## Published images\n\n'
@@ -189,18 +225,30 @@ jobs:
             printf -- "- Web: \`%s:%s\`\n" "${WEB_IMAGE_NAME}" "${GITHUB_SHA}"
             printf -- "  - Digest: \`%s\`\n" "${WEB_IMAGE_DIGEST}"
             printf -- "- Runtime config mode: \`%s\`\n" \
-              "${{ steps.runtime-config-mode.outputs.mode }}"
-            if [[ "${{ steps.runtime-config-mode.outputs.mode }}" == update ]]; then
+              "${RUNTIME_CONFIG_MODE}"
+            if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
+              printf -- "- Runtime config revision: \`%s\`\n" \
+                "${RUNTIME_CONFIG_REVISION}"
               printf -- "- Runtime config digest: \`%s\`\n" \
-                "${{ steps.publish-runtime-config.outputs.digest }}"
+                "${RUNTIME_CONFIG_DIGEST}"
             else
               printf -- "- Runtime config: current verified release retained\n"
+            fi
+            if [[ "${DATA_SERVICE_MAINTENANCE_REQUIRED}" == true ]]; then
+              printf -- "- Data-service maintenance: \`required\`\n"
+              printf -- "- Production deploy: \`skipped\`\n"
+            else
+              printf -- "- Data-service maintenance: \`not required\`\n"
+              printf -- "- Production deploy: \`allowed\`\n"
             fi
           } >>"${GITHUB_STEP_SUMMARY}"
 
   deploy:
     name: Deploy to home-mini
-    if: github.ref == 'refs/heads/main' && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
+    if: >-
+      github.ref == 'refs/heads/main'
+      && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
+      && needs.publish.outputs.data_service_maintenance_required == 'false'
     needs:
       - publish
     runs-on: ubuntu-24.04
