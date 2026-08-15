@@ -186,13 +186,26 @@ MySQL engine image·volume binding은 일반 deploy worker의 예외로 허용�
 
 Command별 exact 절차, fresh rollback volume 준비, dedicated recovery는 [DB와 이미지 백업·복구](db-backup-restore.md)를 따른다.
 
-MySQL cutover의 canonical write-stop은 maintenance worker의 `quiesce`다. Worker는 current verified runtime과 DB identity를 검증하고 API·Web을 중지한 뒤 `runtime-config/mysql-maintenance/quiesce.state`에 immutable evidence를 남긴다. 이 상태에서는 normal deploy와 normal deploy recovery가 fail closed하지만, `pending`이 생기기 전 canonical backup bootstrap은 final DB·post-image snapshot을 만들 수 있다. `WRITE_STOP_CONFIRMED` token만으로는 maintenance `apply`를 실행할 수 없다.
+MySQL cutover의 canonical write-stop은 maintenance worker의 `quiesce`다. Worker는 current verified runtime과 DB identity를 검증하고 API·Web을 중지한 뒤 `runtime-config/mysql-maintenance/quiesce.state`에 immutable evidence를 남긴다. 이 상태에서는 normal deploy와 normal deploy recovery가 fail closed한다. Final backup은 approved target runtime worker를 먼저 staging한 뒤 canonical bootstrap의 explicit `maintenance-final` mode로만 만든다. 무인자 bootstrap은 scheduled backup으로 계속 active runtime worker를 사용한다. `WRITE_STOP_CONFIRMED` token만으로는 maintenance `apply`를 실행할 수 없다.
 
 ```bash
 maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+backup_bootstrap=/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
+target_runtime_digest='sha256:<64 lowercase hex>'
+target_runtime_revision='<40 lowercase commit SHA>'
+registry_user='<GHCR user>'
 "${maintenance}" status
 "${maintenance}" quiesce
-# final backup, restore rehearsal, candidate와 rollback evidence 준비
+read -r -s GHCR_READ_TOKEN
+final_backup_worker_evidence_id="$(
+  printf '%s' "${GHCR_READ_TOKEN}" | "${maintenance}" stage-final-backup-worker \
+    "${target_runtime_digest}" \
+    "${target_runtime_revision}" \
+    "${registry_user}"
+)"
+unset GHCR_READ_TOKEN
+"${backup_bootstrap}" maintenance-final "${final_backup_worker_evidence_id}"
+# final backup 검증, restore rehearsal, candidate와 rollback evidence 준비
 "${maintenance}" apply '<candidate-id>' WRITE_STOP_CONFIRMED
 ```
 
@@ -416,9 +429,12 @@ test -f "${runtime_release}/compose.yaml"
 /Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
 ```
 
-고정 backup bootstrap은 `state`, `current`, content hash를 검증해 active
-release의 backup worker를 실행한다. Worker는 MySQL dump와 게시글 이미지
-snapshot을 같은 run으로 만들고,
+고정 backup bootstrap의 무인자 호출은 `state`, `current`, content hash를
+검증해 active release의 backup worker를 실행한다. Maintenance final backup은
+runbook의 explicit `maintenance-final <worker-evidence-id>` 호출만 사용한다.
+이 mode는 approved target release의 exact worker를 실행하지만 snapshot
+source는 active production runtime과 DB binding으로 유지한다. Worker는 MySQL
+dump와 게시글 이미지 snapshot을 같은 run으로 만들고,
 dump에서 파생한 `post_attachments.object_key`가 가리키는 파일이 없으면
 실패한다. Table row count와 object-key reference도 dump에서 파생하며 dump 뒤
 live DB query로 대체하지 않는다.

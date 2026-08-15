@@ -12,6 +12,9 @@ readonly RUNTIME_CONFIG_STATE="${RUNTIME_CONFIG_ROOT}/state"
 readonly RUNTIME_CONFIG_PENDING="${RUNTIME_CONFIG_ROOT}/pending"
 readonly RUNTIME_CONFIG_CURRENT="${RUNTIME_CONFIG_ROOT}/current"
 readonly RUNTIME_CONFIG_INITIALIZED="${APP_DIR}/.runtime-config-v2-initialized"
+readonly MAINTENANCE_ROOT="${RUNTIME_CONFIG_ROOT}/mysql-maintenance"
+readonly MAINTENANCE_QUIESCE="${MAINTENANCE_ROOT}/quiesce.state"
+readonly MAINTENANCE_FINAL_BACKUP_WORKERS="${MAINTENANCE_ROOT}/final-backup-workers"
 readonly OPERATION_LOCK="${APP_DIR}/.cubing-hub-operation.lock"
 readonly ZERO_SHA=0000000000000000000000000000000000000000
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
@@ -59,6 +62,45 @@ acquire_operation_lock() {
 
 is_digest() {
   [[ "$1" =~ ^sha256:[0-9a-f]{64}$ ]] && [[ "$1" != "${ZERO_DIGEST}" ]]
+}
+
+is_sha() {
+  [[ "$1" =~ ^[0-9a-f]{40}$ ]] && [[ "$1" != "${ZERO_SHA}" ]]
+}
+
+is_evidence_id() {
+  [[ "$1" =~ ^[0-9a-f]{64}$ ]]
+}
+
+has_mode() {
+  "${PYTHON_BIN}" -c \
+    'import os, stat, sys; raise SystemExit(0 if stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == int(sys.argv[2], 8) else 1)' \
+    "$1" "$2"
+}
+
+read_exact_value() {
+  local file="$1"
+  local key="$2"
+  local value
+
+  value="$(
+    /usr/bin/awk -F= -v key="${key}" '
+      $1 == key {
+        value = substr($0, index($0, "=") + 1)
+        count += 1
+      }
+      END {
+        if (count != 1) {
+          exit 1
+        }
+        print value
+      }
+    ' "${file}"
+  )" || fail "${key} must appear exactly once in ${file}"
+  if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+    fail "${key} contains an unsafe line break"
+  fi
+  printf '%s' "${value}"
 }
 
 read_state_value() {
@@ -188,8 +230,133 @@ runtime_config_content_sha256() {
   } | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
 }
 
-if [[ "$#" -ne 0 ]]; then
-  printf 'Usage: backup-cubing-hub-bootstrap.sh\n' >&2
+validate_maintenance_final_worker() {
+  local computed_id
+  local current_application_revision
+  local current_runtime_content_sha
+  local current_runtime_digest
+  local current_runtime_revision
+  local evidence_dir
+  local evidence_file
+  local evidence_id="$1"
+  local keys
+  local quiesce_evidence_id
+  local target_release
+  local target_shape
+  local worker_sha
+
+  is_evidence_id "${evidence_id}" \
+    || fail "final backup worker evidence ID is invalid"
+  evidence_dir="${MAINTENANCE_FINAL_BACKUP_WORKERS}/${evidence_id}"
+  evidence_file="${evidence_dir}/worker.env"
+  if [[ ! -d "${MAINTENANCE_ROOT}" || -L "${MAINTENANCE_ROOT}" ]] \
+    || ! has_mode "${MAINTENANCE_ROOT}" 700 \
+    || [[ ! -d "${MAINTENANCE_FINAL_BACKUP_WORKERS}" \
+      || -L "${MAINTENANCE_FINAL_BACKUP_WORKERS}" ]] \
+    || ! has_mode "${MAINTENANCE_FINAL_BACKUP_WORKERS}" 700 \
+    || [[ ! -d "${evidence_dir}" || -L "${evidence_dir}" ]] \
+    || ! has_mode "${evidence_dir}" 500 \
+    || [[ ! -f "${evidence_file}" || -L "${evidence_file}" ]] \
+    || ! has_mode "${evidence_file}" 400
+  then
+    fail "final backup worker evidence is missing, unsafe, or mutable"
+  fi
+  keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${evidence_file}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_WORKER_SHA256\nCREATED_AT\nEVIDENCE_ID\nPROJECT\nQUIESCE_EVIDENCE_ID\nSCHEMA_VERSION\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_MYSQL_VERSION\nSOURCE_RUNTIME_CONFIG_CONTENT_SHA256\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_RUNTIME_CONFIG_REVISION\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]]; then
+    fail "final backup worker evidence keys are invalid"
+  fi
+  computed_id="$(
+    /usr/bin/sed '/^EVIDENCE_ID=/d' "${evidence_file}" \
+      | /usr/bin/shasum -a 256 \
+      | /usr/bin/awk '{print $1}'
+  )"
+  [[ "$(read_exact_value "${evidence_file}" SCHEMA_VERSION)" == 1 ]] \
+    && [[ "$(read_exact_value "${evidence_file}" PROJECT)" == cubing-hub ]] \
+    && [[ "$(read_exact_value "${evidence_file}" EVIDENCE_ID)" == "${evidence_id}" ]] \
+    && [[ "${computed_id}" == "${evidence_id}" ]] \
+    || fail "final backup worker evidence integrity is invalid"
+
+  final_backup_quiesce_evidence_id="$(
+    read_exact_value "${evidence_file}" QUIESCE_EVIDENCE_ID
+  )"
+  final_backup_application_revision="$(
+    read_exact_value "${evidence_file}" APPLICATION_REVISION
+  )"
+  final_backup_source_runtime_revision="$(
+    read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_REVISION
+  )"
+  final_backup_source_runtime_digest="$(
+    read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_DIGEST
+  )"
+  final_backup_source_runtime_content_sha="$(
+    read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_CONTENT_SHA256
+  )"
+  final_backup_target_runtime_revision="$(
+    read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_REVISION
+  )"
+  final_backup_target_runtime_digest="$(
+    read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_DIGEST
+  )"
+  final_backup_target_runtime_content_sha="$(
+    read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_CONTENT_SHA256
+  )"
+  worker_sha="$(read_exact_value "${evidence_file}" BACKUP_WORKER_SHA256)"
+  if ! is_evidence_id "${final_backup_quiesce_evidence_id}" \
+    || ! is_sha "${final_backup_application_revision}" \
+    || ! is_sha "${final_backup_source_runtime_revision}" \
+    || ! is_digest "${final_backup_source_runtime_digest}" \
+    || [[ ! "${final_backup_source_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || ! is_sha "${final_backup_target_runtime_revision}" \
+    || ! is_digest "${final_backup_target_runtime_digest}" \
+    || [[ ! "${final_backup_target_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${worker_sha}" =~ ^[0-9a-f]{64}$ ]]
+  then
+    fail "final backup worker evidence values are invalid"
+  fi
+
+  current_application_revision="$(read_exact_value "${RUNTIME_CONFIG_STATE}" APPLICATION_REVISION)"
+  current_runtime_revision="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_REVISION)"
+  current_runtime_digest="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_DIGEST)"
+  current_runtime_content_sha="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_CONTENT_SHA256)"
+  [[ "${current_application_revision}" == "${final_backup_application_revision}" ]] \
+    && [[ "${current_runtime_revision}" == "${final_backup_source_runtime_revision}" ]] \
+    && [[ "${current_runtime_digest}" == "${final_backup_source_runtime_digest}" ]] \
+    && [[ "${current_runtime_content_sha}" == "${final_backup_source_runtime_content_sha}" ]] \
+    || fail "final backup worker evidence is stale for the current source runtime"
+
+  if [[ ! -f "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]] \
+    || ! has_mode "${MAINTENANCE_QUIESCE}" 400
+  then
+    fail "maintenance final backup requires safe active quiesce evidence"
+  fi
+  quiesce_evidence_id="$(
+    read_exact_value "${MAINTENANCE_QUIESCE}" EVIDENCE_ID
+  )"
+  [[ "${quiesce_evidence_id}" == "${final_backup_quiesce_evidence_id}" ]] \
+    || fail "final backup worker evidence does not match active quiesce"
+
+  target_release="${RUNTIME_CONFIG_RELEASES}/${final_backup_target_runtime_digest#sha256:}"
+  target_shape="$(release_shape "${target_release}")"
+  [[ "${target_shape}" == synced ]] \
+    || fail "final backup worker runtime release must contain synced scripts"
+  validate_synced_scripts "${target_release}"
+  [[ "$(runtime_config_content_sha256 "${target_release}" "${target_shape}")" == "${final_backup_target_runtime_content_sha}" ]] \
+    || fail "final backup worker runtime release integrity check failed"
+  maintenance_backup_script="${target_release}/scripts/backup-cubing-hub.sh"
+  [[ "$(/usr/bin/shasum -a 256 "${maintenance_backup_script}" | /usr/bin/awk '{print $1}')" == "${worker_sha}" ]] \
+    || fail "final backup worker script integrity check failed"
+}
+
+backup_mode=normal
+final_backup_worker_evidence_id=
+if [[ "$#" -eq 2 && "$1" == maintenance-final ]]; then
+  backup_mode=maintenance-final
+  final_backup_worker_evidence_id="$2"
+elif [[ "$#" -ne 0 ]]; then
+  printf 'Usage: backup-cubing-hub-bootstrap.sh [maintenance-final <worker-evidence-id>]\n' >&2
   exit 64
 fi
 acquire_operation_lock
@@ -198,6 +365,8 @@ if [[ -e "${RUNTIME_CONFIG_PENDING}" || -L "${RUNTIME_CONFIG_PENDING}" ]]; then
 fi
 
 if [[ ! -e "${RUNTIME_CONFIG_STATE}" && ! -L "${RUNTIME_CONFIG_STATE}" ]]; then
+  [[ "${backup_mode}" == normal ]] \
+    || fail "maintenance final backup requires verified runtime config v2 state"
   if [[ -e "${RUNTIME_CONFIG_CURRENT}" || -L "${RUNTIME_CONFIG_CURRENT}" ]] \
     || [[ -e "${RUNTIME_CONFIG_INITIALIZED}" || -L "${RUNTIME_CONFIG_INITIALIZED}" ]]
   then
@@ -222,6 +391,12 @@ fi
 shape="$(release_shape "${release_dir}")"
 if [[ "$(runtime_config_content_sha256 "${release_dir}" "${shape}")" != "${expected_content_sha}" ]]; then
   fail "runtime config release integrity check failed"
+fi
+if [[ "${backup_mode}" == maintenance-final ]]; then
+  validate_maintenance_final_worker "${final_backup_worker_evidence_id}"
+  exec "${maintenance_backup_script}" \
+    --trigger maintenance-final \
+    --worker-evidence "${final_backup_worker_evidence_id}"
 fi
 if [[ "${shape}" == legacy ]]; then
   exec "${LEGACY_BACKUP_SCRIPT}"

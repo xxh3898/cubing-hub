@@ -15,12 +15,15 @@ readonly LEGACY_CONFIG_REVISION=3333333333333333333333333333333333333333
 readonly LEGACY_CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 readonly CONFIG_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 readonly INVALID_CONFIG_DIGEST=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+readonly TARGET_CONFIG_DIGEST=sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+readonly TARGET_CONFIG_REVISION=4444444444444444444444444444444444444444
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-script-bootstrap-test.XXXXXX")"
 
 cleanup() {
   if [[ "$(/usr/bin/basename "${test_root}")" == cubing-script-bootstrap-test.* ]]; then
+    /bin/chmod -R u+w "${test_root}" >/dev/null 2>&1 || true
     /bin/rm -rf -- "${test_root}"
   fi
 }
@@ -36,8 +39,10 @@ runtime_compose="${test_root}/runtime-compose.yaml"
 runtime_real_ip="${test_root}/cloudflare-edge-real-ip.conf"
 runtime_deploy_script="${test_root}/runtime-deploy.sh"
 runtime_backup_script="${test_root}/runtime-backup.sh"
+target_runtime_backup_script="${test_root}/target-runtime-backup.sh"
 candidate_log="${test_root}/candidate.log"
 backup_marker="${test_root}/backup.marker"
+target_backup_marker="${test_root}/target-backup.marker"
 legacy_backup_marker="${test_root}/legacy-backup.marker"
 signal_ready="${test_root}/signal.ready"
 signal_marker="${test_root}/signal.marker"
@@ -94,6 +99,12 @@ printf '%s\n' \
 
 printf '%s\n' \
   '#!/bin/bash' \
+  'set -Eeuo pipefail' \
+  'printf "%s\n" "$*" >>"${FAKE_TARGET_BACKUP_MARKER}"' \
+  >"${target_runtime_backup_script}"
+
+printf '%s\n' \
+  '#!/bin/bash' \
   'exit 0' \
   >"${legacy_deploy_script}"
 printf '%s\n' \
@@ -104,6 +115,7 @@ printf '%s\n' \
 /bin/chmod 700 \
   "${runtime_deploy_script}" \
   "${runtime_backup_script}" \
+  "${target_runtime_backup_script}" \
   "${legacy_deploy_script}" \
   "${legacy_backup_script}" \
   "${MOCK_DOCKER}" \
@@ -293,6 +305,168 @@ fi
 test "$(
   /usr/bin/wc -l <"${legacy_backup_marker}" | /usr/bin/tr -d ' '
 )" = "${legacy_backup_count}"
+
+# Staging a distinct approved runtime worker must not change the default
+# scheduled-backup selection. Only the explicit maintenance-final invocation
+# may execute the staged target worker, and it must not mutate active runtime
+# identity.
+target_release="${app_dir}/runtime-config/releases/${TARGET_CONFIG_DIGEST#sha256:}"
+/bin/mkdir -p "${target_release}/nginx" "${target_release}/scripts"
+/bin/cp "${runtime_compose}" "${target_release}/compose.yaml"
+/bin/cp \
+  "${runtime_real_ip}" \
+  "${target_release}/nginx/cloudflare-edge-real-ip.conf"
+/bin/cp \
+  "${target_runtime_backup_script}" \
+  "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/cp \
+  "${runtime_deploy_script}" \
+  "${target_release}/scripts/deploy-cubing-hub.sh"
+/bin/chmod 700 \
+  "${target_release}/scripts/backup-cubing-hub.sh" \
+  "${target_release}/scripts/deploy-cubing-hub.sh"
+target_content_sha="$(runtime_content_sha256 "${target_release}")"
+target_worker_sha="$(
+  /usr/bin/shasum -a 256 "${target_release}/scripts/backup-cubing-hub.sh" \
+    | /usr/bin/awk '{print $1}'
+)"
+source_content_sha="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_CONTENT_SHA256=//p' \
+    "${app_dir}/runtime-config/state"
+)"
+quiesce_evidence_id=5555555555555555555555555555555555555555555555555555555555555555
+maintenance_root="${app_dir}/runtime-config/mysql-maintenance"
+worker_root="${maintenance_root}/final-backup-workers"
+/bin/mkdir -p "${worker_root}"
+/bin/chmod 700 "${maintenance_root}" "${worker_root}"
+printf 'EVIDENCE_ID=%s\n' "${quiesce_evidence_id}" \
+  >"${maintenance_root}/quiesce.state"
+/bin/chmod 400 "${maintenance_root}/quiesce.state"
+worker_evidence_temp="${maintenance_root}/worker.env.tmp"
+{
+  printf 'SCHEMA_VERSION=1\n'
+  printf 'PROJECT=cubing-hub\n'
+  printf 'QUIESCE_EVIDENCE_ID=%s\n' "${quiesce_evidence_id}"
+  printf 'APPLICATION_REVISION=%s\n' "${REVISION_ONE}"
+  printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${REVISION_ONE}"
+  printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${REVISION_ONE}"
+  printf 'SOURCE_RUNTIME_CONFIG_REVISION=%s\n' "${REVISION_ONE}"
+  printf 'SOURCE_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
+  printf 'SOURCE_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${source_content_sha}"
+  printf 'SOURCE_DB_IMAGE_EXACT=mysql:8.0.46@sha256:%064d\n' 8
+  printf 'SOURCE_DB_IMAGE_ID=sha256:%064d\n' 8
+  printf 'SOURCE_DB_VOLUME=cubing-hub_mysql-data\n'
+  printf 'SOURCE_MYSQL_VERSION=8.0.46\n'
+  printf 'TARGET_RUNTIME_CONFIG_REVISION=%s\n' "${TARGET_CONFIG_REVISION}"
+  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${TARGET_CONFIG_DIGEST}"
+  printf 'TARGET_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${target_content_sha}"
+  printf 'BACKUP_WORKER_SHA256=%s\n' "${target_worker_sha}"
+  printf 'CREATED_AT=2026-08-15T00:00:00Z\n'
+} >"${worker_evidence_temp}"
+worker_evidence_id="$(
+  /usr/bin/shasum -a 256 "${worker_evidence_temp}" | /usr/bin/awk '{print $1}'
+)"
+printf 'EVIDENCE_ID=%s\n' "${worker_evidence_id}" >>"${worker_evidence_temp}"
+worker_evidence_dir="${worker_root}/${worker_evidence_id}"
+/bin/mkdir "${worker_evidence_dir}"
+/bin/mv "${worker_evidence_temp}" "${worker_evidence_dir}/worker.env"
+/bin/chmod 400 "${worker_evidence_dir}/worker.env"
+/bin/chmod 500 "${worker_evidence_dir}"
+
+state_before_maintenance_backup="$(
+  /usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" \
+    | /usr/bin/awk '{print $1}'
+)"
+env_before_maintenance_backup="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
+current_before_maintenance_backup="$(
+  /usr/bin/readlink "${app_dir}/runtime-config/current"
+)"
+backup_count_before_staged_worker="$(
+  /usr/bin/wc -l <"${backup_marker}" | /usr/bin/tr -d ' '
+)"
+/usr/bin/env \
+  FAKE_BACKUP_MARKER="${backup_marker}" \
+  FAKE_LEGACY_BACKUP_MARKER="${legacy_backup_marker}" \
+  /bin/bash "${backup_bootstrap}"
+test "$((
+  $(/usr/bin/wc -l <"${backup_marker}" | /usr/bin/tr -d ' ')
+))" -eq "$((backup_count_before_staged_worker + 1))"
+test ! -e "${target_backup_marker}"
+
+/usr/bin/env \
+  FAKE_TARGET_BACKUP_MARKER="${target_backup_marker}" \
+  /bin/bash "${backup_bootstrap}" maintenance-final "${worker_evidence_id}"
+/usr/bin/grep -Fxq -- \
+  "--trigger maintenance-final --worker-evidence ${worker_evidence_id}" \
+  "${target_backup_marker}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" | /usr/bin/awk '{print $1}')" \
+  = "${state_before_maintenance_backup}"
+test "$(/usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}')" \
+  = "${env_before_maintenance_backup}"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" \
+  = "${current_before_maintenance_backup}"
+test ! -e "${app_dir}/runtime-config/pending"
+
+set +e
+/bin/bash "${backup_bootstrap}" maintenance-final \
+  6666666666666666666666666666666666666666666666666666666666666666 \
+  >/dev/null 2>&1
+unknown_worker_exit_code="$?"
+/bin/bash "${backup_bootstrap}" maintenance-final ../../arbitrary-worker \
+  >/dev/null 2>&1
+arbitrary_worker_path_exit_code="$?"
+printf '\n# tampered target worker\n' \
+  >>"${target_release}/scripts/backup-cubing-hub.sh"
+/bin/bash "${backup_bootstrap}" maintenance-final "${worker_evidence_id}" \
+  >/dev/null 2>&1
+tampered_worker_exit_code="$?"
+/bin/cp \
+  "${target_runtime_backup_script}" \
+  "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/chmod 700 "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/mv \
+  "${target_release}/scripts/backup-cubing-hub.sh" \
+  "${target_release}/scripts/backup-cubing-hub.sh.hold"
+/bin/ln -s \
+  backup-cubing-hub.sh.hold \
+  "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/bash "${backup_bootstrap}" maintenance-final "${worker_evidence_id}" \
+  >/dev/null 2>&1
+symlink_worker_exit_code="$?"
+/bin/unlink "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/mv \
+  "${target_release}/scripts/backup-cubing-hub.sh.hold" \
+  "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/chmod 600 "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/bash "${backup_bootstrap}" maintenance-final "${worker_evidence_id}" \
+  >/dev/null 2>&1
+unsafe_worker_exit_code="$?"
+/bin/chmod 700 "${target_release}/scripts/backup-cubing-hub.sh"
+/bin/mv \
+  "${maintenance_root}/quiesce.state" \
+  "${maintenance_root}/quiesce.state.hold"
+/bin/bash "${backup_bootstrap}" maintenance-final "${worker_evidence_id}" \
+  >/dev/null 2>&1
+missing_quiesce_exit_code="$?"
+set -e
+if [[ "${unknown_worker_exit_code}" -ne 1 ]] \
+  || [[ "${arbitrary_worker_path_exit_code}" -ne 1 ]] \
+  || [[ "${tampered_worker_exit_code}" -ne 1 ]] \
+  || [[ "${symlink_worker_exit_code}" -ne 1 ]] \
+  || [[ "${unsafe_worker_exit_code}" -ne 1 ]] \
+  || [[ "${missing_quiesce_exit_code}" -ne 1 ]]
+then
+  printf 'Maintenance final backup worker selection must fail closed\n' >&2
+  exit 1
+fi
+/bin/mv \
+  "${maintenance_root}/quiesce.state.hold" \
+  "${maintenance_root}/quiesce.state"
+/bin/chmod 700 "${worker_evidence_dir}"
+/bin/chmod 600 "${worker_evidence_dir}/worker.env"
+/bin/rm -rf -- "${maintenance_root}"
 
 # Quiesce state persists across commands: deploy and normal recovery must not
 # restart API/Web, while the canonical backup path remains available for the

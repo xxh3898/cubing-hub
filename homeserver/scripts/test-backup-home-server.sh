@@ -15,15 +15,21 @@ readonly APPLICATION_SHA=1111111111111111111111111111111111111111
 readonly PREVIOUS_SHA=2222222222222222222222222222222222222222
 readonly CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 readonly CONFIG_SHA=3333333333333333333333333333333333333333
+readonly TARGET_CONFIG_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+readonly TARGET_CONFIG_SHA=4444444444444444444444444444444444444444
 readonly MYSQL_IMAGE_DIGEST=8484848484848484848484848484848484848484848484848484848484848484
 readonly MYSQL_IMAGE_ID=sha256:8484848484848484848484848484848484848484848484848484848484848484
 readonly MYSQL_IMAGE_EXACT="mysql:8.4.11@sha256:${MYSQL_IMAGE_DIGEST}"
+readonly MYSQL_80_IMAGE_DIGEST=8080808080808080808080808080808080808080808080808080808080808080
+readonly MYSQL_80_IMAGE_ID=sha256:8080808080808080808080808080808080808080808080808080808080808080
+readonly MYSQL_80_IMAGE_EXACT="mysql:8.0.46@sha256:${MYSQL_80_IMAGE_DIGEST}"
 readonly MYSQL_VOLUME=cubing-hub_mysql-data
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-backup-test.XXXXXX")"
 
 cleanup() {
   if [[ "$(basename "${test_root}")" == cubing-backup-test.* ]]; then
+    /bin/chmod -R u+w "${test_root}" >/dev/null 2>&1 || true
     /bin/rm -rf -- "${test_root}"
   fi
 }
@@ -85,13 +91,13 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     'set -Eeuo pipefail' \
     'printf "%s\n" "$*" >>"${DOCKER_LOG}"' \
     'if [[ " $* " == *" image inspect --format {{.Id}} "* ]]; then' \
-    '  printf "%s\n" "sha256:8484848484848484848484848484848484848484848484848484848484848484"' \
+    '  printf "%s\n" "${FAKE_DB_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}"' \
     'elif [[ " $* " == *" image inspect --format {{json .RepoDigests}} "* ]]; then' \
-    '  printf "%s\n" "[\"mysql@sha256:8484848484848484848484848484848484848484848484848484848484848484\"]"' \
+    '  printf "[\"mysql@%s\"]\n" "${FAKE_DB_REPO_DIGEST:-sha256:8484848484848484848484848484848484848484848484848484848484848484}"' \
     'elif [[ " $* " == *" container inspect --format {{.Image}} "* ]]; then' \
-    '  printf "%s\n" "sha256:8484848484848484848484848484848484848484848484848484848484848484"' \
+    '  printf "%s\n" "${FAKE_DB_IMAGE_ID:-sha256:8484848484848484848484848484848484848484848484848484848484848484}"' \
     'elif [[ " $* " == *" container inspect --format {{range .Mounts}}"* ]]; then' \
-    '  printf "%s\n" "cubing-hub_mysql-data"' \
+    '  printf "%s\n" "${FAKE_DB_VOLUME:-cubing-hub_mysql-data}"' \
     'elif [[ " $* " == *"com.docker.compose.project"* ]]; then' \
     '  printf "cubing-hub\n"' \
     'elif [[ " $* " == *"com.docker.compose.service"* ]]; then' \
@@ -108,15 +114,19 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     '    printf "ambient POST_IMAGES_HOST_DIR reached Compose rendering\n" >&2' \
     '    exit 1' \
     '  fi' \
-    '  printf '\''{"services":{"db":{"image":"mysql:8.4.11"},"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
+    '  printf '\''{"services":{"db":{"image":"%s"},"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}},"volumes":{"mysql-data":{"name":"%s"}}}\n'\'' "${FAKE_DB_CONFIG_IMAGE:-mysql:8.4.11}" "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}" "${FAKE_DB_VOLUME:-cubing-hub_mysql-data}"' \
+    'elif [[ " $* " == *" ps --all --format json "* ]]; then' \
+    '  printf '\''[{"Service":"api","State":"%s","Health":""},{"Service":"db","State":"running","Health":"%s"},{"Service":"redis","State":"running","Health":"%s"},{"Service":"web","State":"%s","Health":""}]\n'\'' "${FAKE_API_STATE:-exited}" "${FAKE_DB_HEALTH:-healthy}" "${FAKE_REDIS_HEALTH:-healthy}" "${FAKE_WEB_STATE:-exited}"' \
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
     '  printf "%s\n" "${FAKE_RUNNING_SERVICES:-db}"' \
     'elif [[ " $* " == *" ps -q db "* ]]; then' \
     '  printf "mock-db-container\n"' \
+    'elif [[ " $* " == *" BACKUP_QUERY=maintenance-source-version "* ]]; then' \
+    '  printf "%s\n" "${FAKE_DB_VERSION:-8.0.46}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
     '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
-    '  printf "8.4.11\n"' \
+    '  printf "%s\n" "${FAKE_DB_VERSION:-8.4.11}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=record-counts"* ]]; then' \
     '  printf "post_attachments\t0\nusers\t1\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=attachment-keys"* ]]; then' \
@@ -284,8 +294,13 @@ prepare_app() {
   local post_images_dir="$2"
 
   /bin/mkdir -p "${app_dir}" "${post_images_dir}"
-  printf 'API_IMAGE=example-api\nWEB_IMAGE=example-web\nPOST_IMAGES_HOST_DIR=%s\n' \
-    "${post_images_dir}" >"${app_dir}/.env"
+  {
+    printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${APPLICATION_SHA}"
+    printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_SHA}"
+    printf 'DB_IMAGE=%s\n' "${MYSQL_IMAGE_EXACT}"
+    printf 'DB_VOLUME_NAME=%s\n' "${MYSQL_VOLUME}"
+    printf 'POST_IMAGES_HOST_DIR=%s\n' "${post_images_dir}"
+  } >"${app_dir}/.env"
   printf 'age1testrecipient000000000000000000000000000000000000000000000\n' \
     >"${app_dir}/backup-age-recipient-v1.txt"
   /bin/chmod 600 "${app_dir}/backup-age-recipient-v1.txt"
@@ -575,6 +590,7 @@ assert plan["policy"] == {
     "dailyDays": 7,
     "recent": 4,
 }
+
 assert snapshot.name in plan["keep"]
 assert isinstance(plan["pruneCandidates"], list)
 PY
@@ -627,6 +643,93 @@ PY
   esac
 }
 
+assert_maintenance_snapshot_contract() {
+  local backup_root="$1"
+  local evidence_id="$2"
+  local quiesced_at="$3"
+  local evidence_file="$4"
+  local snapshot
+
+  snapshot="$(
+    /usr/bin/find "${backup_root}" \
+      -mindepth 1 \
+      -maxdepth 2 \
+      -type f \
+      -name manifest.json \
+      -exec /usr/bin/grep -l '"trigger": "maintenance-final"' {} +
+  )"
+  test "$(printf '%s\n' "${snapshot}" | /usr/bin/grep -c .)" = 1
+  snapshot="${snapshot%/manifest.json}"
+  /usr/bin/python3 - \
+    "${snapshot}" \
+    "${APPLICATION_SHA}" \
+    "${CONFIG_DIGEST}" \
+    "${MYSQL_80_IMAGE_EXACT}" \
+    "${MYSQL_80_IMAGE_ID}" \
+    "${MYSQL_VOLUME}" \
+    "${evidence_id}" \
+    "${TARGET_CONFIG_SHA}" \
+    "${TARGET_CONFIG_DIGEST}" \
+    "${quiesced_at}" \
+    "${evidence_file}" <<'PY'
+import datetime as dt
+import hashlib
+import json
+import pathlib
+import sys
+
+(
+    snapshot_value,
+    application_sha,
+    source_runtime_digest,
+    database_image,
+    database_image_id,
+    database_volume,
+    worker_evidence_id,
+    worker_runtime_revision,
+    worker_runtime_digest,
+    quiesced_at_value,
+    evidence_file_value,
+) = sys.argv[1:]
+snapshot = pathlib.Path(snapshot_value)
+manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+evidence = dict(
+    line.split("=", 1)
+    for line in pathlib.Path(evidence_file_value).read_text(
+        encoding="utf-8"
+    ).splitlines()
+)
+dump = snapshot / manifest["database"]["dumpFile"]
+started_at = dt.datetime.strptime(manifest["startedAt"], "%Y-%m-%dT%H:%M:%SZ")
+quiesced_at = dt.datetime.strptime(quiesced_at_value, "%Y-%m-%dT%H:%M:%SZ")
+assert (snapshot / "SUCCESS").is_file()
+assert manifest["trigger"] == "maintenance-final"
+assert manifest["source"] == {
+    "applicationSha": application_sha,
+    "runtimeConfigDigest": source_runtime_digest,
+}
+assert manifest["database"]["engine"] == "mysql"
+assert manifest["database"]["version"] == "8.0.46"
+assert manifest["database"]["image"] == database_image
+assert manifest["database"]["imageId"] == database_image_id
+assert manifest["database"]["volume"] == database_volume
+assert manifest["database"]["sha256"] == hashlib.sha256(dump.read_bytes()).hexdigest()
+assert manifest["maintenanceFinal"]["backupWorkerEvidenceId"] == worker_evidence_id
+assert manifest["maintenanceFinal"]["runtimeConfigRevision"] == worker_runtime_revision
+assert manifest["maintenanceFinal"]["runtimeConfigDigest"] == worker_runtime_digest
+assert manifest["maintenanceFinal"]["quiesceEvidenceId"] == evidence["QUIESCE_EVIDENCE_ID"]
+assert (
+    manifest["maintenanceFinal"]["runtimeConfigContentSha256"]
+    == evidence["TARGET_RUNTIME_CONFIG_CONTENT_SHA256"]
+)
+assert (
+    manifest["maintenanceFinal"]["backupWorkerSha256"]
+    == evidence["BACKUP_WORKER_SHA256"]
+)
+assert started_at > quiesced_at
+PY
+}
+
 v2_app="${test_root}/v2-app"
 v2_backups="${test_root}/v2-backups"
 v2_post_images="${test_root}/v2-post-images"
@@ -644,6 +747,19 @@ printf 'image-one\n' >"${v2_post_images}/image-one.jpg"
 seed_retention_matrix "${v2_backups}" "${v2_retention_expected}"
 prepare_script "${v2_app}" "${v2_backups}" "${v2_script}"
 prepare_runtime_state "${v2_app}" "${v2_script}"
+
+set +e
+"${v2_script}" --worker-evidence ../../arbitrary-worker >/dev/null 2>&1
+arbitrary_worker_path_exit_code="$?"
+"${v2_script}" --trigger maintenance-final >/dev/null 2>&1
+missing_worker_evidence_exit_code="$?"
+set -e
+if [[ "${arbitrary_worker_path_exit_code}" -ne 64 ]] \
+  || [[ "${missing_worker_evidence_exit_code}" -ne 64 ]]
+then
+  printf 'Backup worker must reject unsafe or incomplete maintenance overrides\n' >&2
+  exit 1
+fi
 
 preflight_failure_app="${test_root}/preflight-failure-app"
 preflight_failure_backups="${test_root}/preflight-failure-backups"
@@ -908,6 +1024,233 @@ legacy_v2_release="${legacy_v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha2
 /usr/bin/grep -Fq -- "--file ${legacy_v2_release}/compose.yaml" "${docker_log}"
 test "$(find "${legacy_v2_backups}" -name 'cubing-hub-production-*' -type d | wc -l | tr -d ' ')" = 1
 assert_snapshot_contract "${legacy_v2_backups}" predeploy
+
+# A maintenance final snapshot executes the exact staged target worker while
+# reading the still-active source runtime, source DB, and source post-image
+# directory. The target runtime is worker-code provenance, never backup source
+# provenance or runtime activation.
+maintenance_app="${test_root}/maintenance-app"
+maintenance_backups="${test_root}/maintenance-backups"
+maintenance_post_images="${test_root}/maintenance-post-images"
+maintenance_current_script="${test_root}/maintenance-current-backup.sh"
+maintenance_target_release="${maintenance_app}/runtime-config/releases/${TARGET_CONFIG_DIGEST#sha256:}"
+maintenance_target_script="${maintenance_target_release}/scripts/backup-cubing-hub.sh"
+maintenance_docker_log="${test_root}/maintenance-docker.log"
+prepare_app "${maintenance_app}" "${maintenance_post_images}"
+printf 'image-one\n' >"${maintenance_post_images}/image-one.jpg"
+/bin/mkdir -p "${maintenance_backups}"
+prepare_script \
+  "${maintenance_app}" \
+  "${maintenance_backups}" \
+  "${maintenance_current_script}"
+prepare_runtime_state \
+  "${maintenance_app}" \
+  "${maintenance_current_script}"
+{
+  printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${APPLICATION_SHA}"
+  printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_SHA}"
+  printf 'DB_IMAGE=%s\n' "${MYSQL_80_IMAGE_EXACT}"
+  printf 'DB_VOLUME_NAME=%s\n' "${MYSQL_VOLUME}"
+  printf 'POST_IMAGES_HOST_DIR=%s\n' "${maintenance_post_images}"
+} >"${maintenance_app}/.env"
+
+/bin/mkdir -p \
+  "${maintenance_target_release}/nginx" \
+  "${maintenance_target_release}/scripts"
+/bin/cp \
+  "${maintenance_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}/compose.yaml" \
+  "${maintenance_target_release}/compose.yaml"
+/bin/cp \
+  "${maintenance_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}/nginx/cloudflare-edge-real-ip.conf" \
+  "${maintenance_target_release}/nginx/cloudflare-edge-real-ip.conf"
+prepare_script \
+  "${maintenance_app}" \
+  "${maintenance_backups}" \
+  "${maintenance_target_script}"
+/bin/cp \
+  "${SCRIPT_DIR}/deploy-home-server.sh" \
+  "${maintenance_target_release}/scripts/deploy-cubing-hub.sh"
+/bin/chmod 700 \
+  "${maintenance_target_script}" \
+  "${maintenance_target_release}/scripts/deploy-cubing-hub.sh"
+maintenance_target_content_sha="$(
+  runtime_content_sha256 "${maintenance_target_release}"
+)"
+maintenance_worker_sha="$(
+  /usr/bin/shasum -a 256 "${maintenance_target_script}" \
+    | /usr/bin/awk '{print $1}'
+)"
+maintenance_source_content_sha="$(
+  /usr/bin/sed -n 's/^RUNTIME_CONFIG_CONTENT_SHA256=//p' \
+    "${maintenance_app}/runtime-config/state"
+)"
+maintenance_root="${maintenance_app}/runtime-config/mysql-maintenance"
+maintenance_worker_root="${maintenance_root}/final-backup-workers"
+/bin/mkdir -p "${maintenance_worker_root}"
+/bin/chmod 700 "${maintenance_root}" "${maintenance_worker_root}"
+maintenance_quiesce_temp="${maintenance_root}/quiesce.state.tmp"
+{
+  printf 'SCHEMA_VERSION=1\n'
+  printf 'APPLICATION_REVISION=%s\n' "${APPLICATION_SHA}"
+  printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${APPLICATION_SHA}"
+  printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_SHA}"
+  printf 'RUNTIME_CONFIG_REVISION=%s\n' "${CONFIG_SHA}"
+  printf 'RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
+  printf 'RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${maintenance_source_content_sha}"
+  printf 'DB_IMAGE_EXACT=%s\n' "${MYSQL_80_IMAGE_EXACT}"
+  printf 'DB_IMAGE_ID=%s\n' "${MYSQL_80_IMAGE_ID}"
+  printf 'DB_VOLUME=%s\n' "${MYSQL_VOLUME}"
+  printf 'MYSQL_VERSION=8.0.46\n'
+  printf 'QUIESCED_AT=2000-01-01T00:00:00Z\n'
+} >"${maintenance_quiesce_temp}"
+maintenance_quiesce_id="$(
+  /usr/bin/shasum -a 256 "${maintenance_quiesce_temp}" \
+    | /usr/bin/awk '{print $1}'
+)"
+printf 'EVIDENCE_ID=%s\n' "${maintenance_quiesce_id}" \
+  >>"${maintenance_quiesce_temp}"
+/bin/mv "${maintenance_quiesce_temp}" "${maintenance_root}/quiesce.state"
+/bin/chmod 400 "${maintenance_root}/quiesce.state"
+
+maintenance_worker_temp="${maintenance_root}/worker.env.tmp"
+{
+  printf 'SCHEMA_VERSION=1\n'
+  printf 'PROJECT=cubing-hub\n'
+  printf 'QUIESCE_EVIDENCE_ID=%s\n' "${maintenance_quiesce_id}"
+  printf 'APPLICATION_REVISION=%s\n' "${APPLICATION_SHA}"
+  printf 'API_IMAGE=ghcr.io/xxh3898/cubing-hub-api:%s\n' "${APPLICATION_SHA}"
+  printf 'WEB_IMAGE=ghcr.io/xxh3898/cubing-hub-web:%s\n' "${APPLICATION_SHA}"
+  printf 'SOURCE_RUNTIME_CONFIG_REVISION=%s\n' "${CONFIG_SHA}"
+  printf 'SOURCE_RUNTIME_CONFIG_DIGEST=%s\n' "${CONFIG_DIGEST}"
+  printf 'SOURCE_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${maintenance_source_content_sha}"
+  printf 'SOURCE_DB_IMAGE_EXACT=%s\n' "${MYSQL_80_IMAGE_EXACT}"
+  printf 'SOURCE_DB_IMAGE_ID=%s\n' "${MYSQL_80_IMAGE_ID}"
+  printf 'SOURCE_DB_VOLUME=%s\n' "${MYSQL_VOLUME}"
+  printf 'SOURCE_MYSQL_VERSION=8.0.46\n'
+  printf 'TARGET_RUNTIME_CONFIG_REVISION=%s\n' "${TARGET_CONFIG_SHA}"
+  printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${TARGET_CONFIG_DIGEST}"
+  printf 'TARGET_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' \
+    "${maintenance_target_content_sha}"
+  printf 'BACKUP_WORKER_SHA256=%s\n' "${maintenance_worker_sha}"
+  printf 'CREATED_AT=2026-08-15T00:00:00Z\n'
+} >"${maintenance_worker_temp}"
+maintenance_worker_evidence_id="$(
+  /usr/bin/shasum -a 256 "${maintenance_worker_temp}" \
+    | /usr/bin/awk '{print $1}'
+)"
+printf 'EVIDENCE_ID=%s\n' "${maintenance_worker_evidence_id}" \
+  >>"${maintenance_worker_temp}"
+maintenance_worker_evidence_dir="${maintenance_worker_root}/${maintenance_worker_evidence_id}"
+/bin/mkdir "${maintenance_worker_evidence_dir}"
+/bin/mv \
+  "${maintenance_worker_temp}" \
+  "${maintenance_worker_evidence_dir}/worker.env"
+/bin/chmod 400 "${maintenance_worker_evidence_dir}/worker.env"
+/bin/chmod 500 "${maintenance_worker_evidence_dir}"
+
+run_maintenance_backup() {
+  DOCKER_LOG="${maintenance_docker_log}" \
+  MOCK_POST_IMAGES_DIR="${maintenance_post_images}" \
+  FAKE_DB_CONFIG_IMAGE=mysql:8.0.46 \
+  FAKE_DB_IMAGE_ID="${MYSQL_80_IMAGE_ID}" \
+  FAKE_DB_REPO_DIGEST="sha256:${MYSQL_80_IMAGE_DIGEST}" \
+  FAKE_DB_VERSION=8.0.46 \
+  FAKE_DB_VOLUME="${FAKE_DB_VOLUME:-${MYSQL_VOLUME}}" \
+  FAKE_API_STATE="${FAKE_API_STATE:-exited}" \
+  FAKE_WEB_STATE="${FAKE_WEB_STATE:-exited}" \
+  FAKE_DB_HEALTH="${FAKE_DB_HEALTH:-healthy}" \
+  FAKE_REDIS_HEALTH="${FAKE_REDIS_HEALTH:-healthy}" \
+    "${maintenance_target_script}" \
+      --trigger maintenance-final \
+      --worker-evidence "${maintenance_worker_evidence_id}"
+}
+
+state_before_final_backup="$(
+  /usr/bin/shasum -a 256 "${maintenance_app}/runtime-config/state" \
+    | /usr/bin/awk '{print $1}'
+)"
+env_before_final_backup="$(
+  /usr/bin/shasum -a 256 "${maintenance_app}/.env" \
+    | /usr/bin/awk '{print $1}'
+)"
+current_before_final_backup="$(
+  /usr/bin/readlink "${maintenance_app}/runtime-config/current"
+)"
+: >"${maintenance_docker_log}"
+
+if FAKE_API_STATE=running run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted a running API write path\n' >&2
+  exit 1
+fi
+printf 'foreign pending\n' >"${maintenance_app}/runtime-config/pending"
+if run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted pending recovery state\n' >&2
+  exit 1
+fi
+/bin/unlink "${maintenance_app}/runtime-config/pending"
+/bin/chmod 600 "${maintenance_worker_evidence_dir}/worker.env"
+if run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted mutable worker evidence\n' >&2
+  exit 1
+fi
+/bin/chmod 400 "${maintenance_worker_evidence_dir}/worker.env"
+/bin/chmod 700 "${maintenance_worker_evidence_dir}"
+/bin/mv \
+  "${maintenance_worker_evidence_dir}/worker.env" \
+  "${maintenance_worker_evidence_dir}/worker.env.hold"
+/bin/ln -s \
+  worker.env.hold \
+  "${maintenance_worker_evidence_dir}/worker.env"
+/bin/chmod 500 "${maintenance_worker_evidence_dir}"
+if run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted symlink worker evidence\n' >&2
+  exit 1
+fi
+/bin/chmod 700 "${maintenance_worker_evidence_dir}"
+/bin/unlink "${maintenance_worker_evidence_dir}/worker.env"
+/bin/mv \
+  "${maintenance_worker_evidence_dir}/worker.env.hold" \
+  "${maintenance_worker_evidence_dir}/worker.env"
+/bin/chmod 500 "${maintenance_worker_evidence_dir}"
+/bin/mv \
+  "${maintenance_root}/quiesce.state" \
+  "${maintenance_root}/quiesce.state.hold"
+if run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted missing quiesce evidence\n' >&2
+  exit 1
+fi
+/bin/mv \
+  "${maintenance_root}/quiesce.state.hold" \
+  "${maintenance_root}/quiesce.state"
+if FAKE_DB_VOLUME=cubing-hub_mysql-other run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted DB volume drift\n' >&2
+  exit 1
+fi
+if FAKE_DB_HEALTH=unhealthy run_maintenance_backup >/dev/null 2>&1; then
+  printf 'maintenance final backup accepted unhealthy source DB\n' >&2
+  exit 1
+fi
+
+if ! run_maintenance_backup >/dev/null; then
+  printf 'maintenance final backup failed with valid staged worker evidence\n' >&2
+  exit 1
+fi
+assert_maintenance_snapshot_contract \
+  "${maintenance_backups}" \
+  "${maintenance_worker_evidence_id}" \
+  2000-01-01T00:00:00Z \
+  "${maintenance_worker_evidence_dir}/worker.env"
+test "$(/usr/bin/shasum -a 256 "${maintenance_app}/runtime-config/state" | /usr/bin/awk '{print $1}')" \
+  = "${state_before_final_backup}"
+test "$(/usr/bin/shasum -a 256 "${maintenance_app}/.env" | /usr/bin/awk '{print $1}')" \
+  = "${env_before_final_backup}"
+test "$(/usr/bin/readlink "${maintenance_app}/runtime-config/current")" \
+  = "${current_before_final_backup}"
+test ! -e "${maintenance_app}/runtime-config/pending"
+if /usr/bin/grep -Eq ' (up|down|stop|start|restart|rm) ' "${maintenance_docker_log}"; then
+  printf 'maintenance final backup mutated production container state\n' >&2
+  exit 1
+fi
 
 unsafe_app="${test_root}/unsafe-app"
 unsafe_backups="${test_root}/unsafe-backups"
