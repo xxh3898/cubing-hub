@@ -267,6 +267,11 @@ export default function MyPage() {
     setGrowthTrendReloadKey((current) => current + 1)
   }
 
+  useEffect(() => () => {
+    pbGenerationRef.current += 1
+    pbLoadMoreRequestRef.current = null
+  }, [])
+
   useEffect(() => {
     if (!profileData) {
       return
