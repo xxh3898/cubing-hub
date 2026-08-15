@@ -1122,7 +1122,7 @@ export default function MyPage() {
 
             <section className="mypage-next-practice" aria-labelledby="growth-next-practice"><div><h3 id="growth-next-practice">다음 연습</h3><p>{getNextPracticeAction(growthSummary)}</p></div><button className="primary-button" type="button" onClick={() => navigate('/timer')}>연습 시작</button></section>
           </>
-        ) : null)}
+        ))}
       </div>
 
       <div className="panel mypage-records-panel">
