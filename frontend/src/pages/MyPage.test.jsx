@@ -489,7 +489,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findAllByText('기록 조회 실패')).toHaveLength(2)
+    expect(await screen.findAllByText('기록 조회 실패')).toHaveLength(1)
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
@@ -613,7 +613,7 @@ describe('MyPage', () => {
     expect(await screen.findByText('Current PB')).toBeInTheDocument()
     expect(screen.getByText('Recent Ao5')).toBeInTheDocument()
     expect(screen.getByText('Recent Ao12')).toBeInTheDocument()
-    expect(screen.getByText('최근 7일')).toBeInTheDocument()
+    expect(screen.getAllByText('최근 7일')).toHaveLength(2)
     expect(screen.getByText('30일 추세')).toBeInTheDocument()
     expect(screen.getByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
     expect(screen.getByText('PB Progression')).toBeInTheDocument()
