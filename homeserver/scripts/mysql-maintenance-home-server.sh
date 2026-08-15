@@ -19,6 +19,7 @@ readonly MAINTENANCE_ROOT="${RUNTIME_CONFIG_ROOT}/mysql-maintenance"
 readonly MAINTENANCE_CANDIDATES="${MAINTENANCE_ROOT}/candidates"
 readonly MAINTENANCE_RESTORES="${MAINTENANCE_ROOT}/restores"
 readonly MAINTENANCE_STATE="${MAINTENANCE_ROOT}/state"
+readonly MAINTENANCE_QUIESCE="${MAINTENANCE_ROOT}/quiesce.state"
 readonly OPERATION_LOCK="${APP_DIR}/.cubing-hub-operation.lock"
 readonly RUNTIME_CONFIG_REPOSITORY=ghcr.io/xxh3898/cubing-hub-runtime-config
 readonly API_IMAGE_REPOSITORY=ghcr.io/xxh3898/cubing-hub-api
@@ -32,6 +33,9 @@ readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000
 usage() {
   cat >&2 <<'USAGE'
 Usage:
+  mysql-maintenance-cubing-hub.sh quiesce
+  mysql-maintenance-cubing-hub.sh status
+  mysql-maintenance-cubing-hub.sh resume-source
   mysql-maintenance-cubing-hub.sh prepare-upgrade <runtime-digest> <runtime-revision> <mysql:8.4.11@sha256:digest> <backup-id> <registry-user>
   mysql-maintenance-cubing-hub.sh verify-rollback-volume <upgrade-candidate-id> <rollback-volume> <validation-container>
   mysql-maintenance-cubing-hub.sh prepare-rollback <upgrade-candidate-id> <rollback-volume>
@@ -572,6 +576,7 @@ validate_running_mysql_version() {
       fail "expected MySQL version is unsupported"
       ;;
   esac
+  validated_mysql_version="${actual_version}"
 }
 
 validate_candidate_target_mysql_version() {
@@ -698,17 +703,479 @@ load_current_db_identity() {
     "${current_release}"
 }
 
+load_current_mysql_version() {
+  case "${current_db_image}" in
+    "mysql:${SOURCE_DB_VERSION}"|mysql:8.0.46@sha256:*)
+      current_mysql_expected_version="${SOURCE_DB_VERSION}"
+      ;;
+    "mysql:${TARGET_DB_VERSION}"|mysql:8.4.11@sha256:*)
+      current_mysql_expected_version="${TARGET_DB_VERSION}"
+      ;;
+    *)
+      fail "current MySQL version is unsupported for maintenance quiesce"
+      ;;
+  esac
+  validate_running_mysql_version \
+    "${current_mysql_expected_version}" \
+    "${current_db_image}" \
+    "${current_db_volume}" \
+    "${current_release}"
+  current_mysql_version="${validated_mysql_version}"
+}
+
+validate_running_application_identity() {
+  local actual_image_id
+  local actual_project
+  local actual_service
+  local container_id
+  local expected_image="$2"
+  local expected_image_id
+  local service="$1"
+
+  container_id="$(
+    compose_for \
+      "${current_release}" \
+      "${current_db_image_exact}" \
+      "${current_db_volume}" \
+      ps -q "${service}"
+  )"
+  [[ "${container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] \
+    || fail "${service} container identity is missing or invalid"
+  expected_image_id="$(image_id_for "${expected_image}")"
+  actual_image_id="$(
+    "${DOCKER_BIN}" container inspect --format '{{.Image}}' "${container_id}"
+  )"
+  actual_project="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.project" }}' \
+      "${container_id}"
+  )"
+  actual_service="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.service" }}' \
+      "${container_id}"
+  )"
+  [[ "${actual_image_id}" == "${expected_image_id}" ]] \
+    || fail "${service} container image does not match the committed application"
+  [[ "${actual_project}" == "${PROJECT_NAME}" && "${actual_service}" == "${service}" ]] \
+    || fail "${service} container does not belong to the expected Compose service"
+}
+
+service_set_is_healthy_for() {
+  local db_image="$2"
+  local db_volume="$3"
+  local release_dir="$1"
+  local rendered
+
+  rendered="$(
+    compose_for \
+      "${release_dir}" \
+      "${db_image}" \
+      "${db_volume}" \
+      ps --format json
+  )"
+  printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit("no service status was returned")
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
+entries = value if isinstance(value, list) else [value]
+required = {"api", "db", "redis", "web"}
+seen = set()
+for entry in entries:
+    service = entry.get("Service")
+    if service not in required or str(entry.get("State", "")).lower() != "running":
+        raise SystemExit("service set is not running")
+    seen.add(service)
+    health = str(entry.get("Health", "")).lower()
+    if service in {"db", "redis", "web"} and health != "healthy":
+        raise SystemExit("service health is not ready")
+    if health and health != "healthy":
+        raise SystemExit("service health is invalid")
+if seen != required:
+    raise SystemExit("service set is incomplete")
+'
+}
+
+service_set_is_quiesced_for() {
+  local db_image="$2"
+  local db_volume="$3"
+  local release_dir="$1"
+  local rendered
+
+  rendered="$(
+    compose_for \
+      "${release_dir}" \
+      "${db_image}" \
+      "${db_volume}" \
+      ps --all --format json
+  )"
+  printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit("no quiesce service status was returned")
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
+entries = value if isinstance(value, list) else [value]
+required = {"api", "db", "redis", "web"}
+by_service = {}
+for entry in entries:
+    service = entry.get("Service")
+    if service not in required or service in by_service:
+        raise SystemExit("quiesce service set is invalid")
+    by_service[service] = entry
+if set(by_service) != required:
+    raise SystemExit("quiesce service set is incomplete")
+for service in ("db", "redis"):
+    entry = by_service[service]
+    if (
+        str(entry.get("State", "")).lower() != "running"
+        or str(entry.get("Health", "")).lower() != "healthy"
+    ):
+        raise SystemExit("quiesce data service is not healthy")
+for service in ("api", "web"):
+    if str(by_service[service].get("State", "")).lower() != "exited":
+        raise SystemExit("quiesce application service is not stopped")
+'
+}
+
+application_services_are_stopped_for() {
+  local db_image="$2"
+  local db_volume="$3"
+  local release_dir="$1"
+  local rendered
+
+  rendered="$(
+    compose_for \
+      "${release_dir}" \
+      "${db_image}" \
+      "${db_volume}" \
+      ps --all --format json
+  )"
+  printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit("no application service status was returned")
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
+entries = value if isinstance(value, list) else [value]
+states = {
+    entry.get("Service"): str(entry.get("State", "")).lower()
+    for entry in entries
+    if entry.get("Service") in {"api", "web"}
+}
+if states != {"api": "exited", "web": "exited"}:
+    raise SystemExit("application services are not stopped")
+'
+}
+
+start_current_application() {
+  compose_for \
+    "${current_release}" \
+    "${current_db_image_exact}" \
+    "${current_db_volume}" \
+    up --detach --no-build --pull never --remove-orphans --wait \
+      --wait-timeout "${HEALTH_TIMEOUT_SECONDS}" redis api web
+}
+
+validate_quiesce_evidence() {
+  local computed_id
+  local keys
+
+  if [[ ! -d "${MAINTENANCE_ROOT}" || -L "${MAINTENANCE_ROOT}" ]] \
+    || ! has_mode "${MAINTENANCE_ROOT}" 700 \
+    || [[ ! -f "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]] \
+    || ! has_mode "${MAINTENANCE_QUIESCE}" 400
+  then
+    fail "maintenance quiesce evidence is missing, unsafe, or mutable"
+  fi
+  keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${MAINTENANCE_QUIESCE}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nDB_IMAGE_EXACT\nDB_IMAGE_ID\nDB_VOLUME\nEVIDENCE_ID\nMYSQL_VERSION\nQUIESCED_AT\nRUNTIME_CONFIG_CONTENT_SHA256\nRUNTIME_CONFIG_DIGEST\nRUNTIME_CONFIG_REVISION\nSCHEMA_VERSION\nWEB_IMAGE' ]]; then
+    fail "maintenance quiesce evidence keys are invalid"
+  fi
+  quiesce_application_revision="$(read_exact_value "${MAINTENANCE_QUIESCE}" APPLICATION_REVISION)"
+  quiesce_api_image="$(read_exact_value "${MAINTENANCE_QUIESCE}" API_IMAGE)"
+  quiesce_web_image="$(read_exact_value "${MAINTENANCE_QUIESCE}" WEB_IMAGE)"
+  quiesce_runtime_revision="$(read_exact_value "${MAINTENANCE_QUIESCE}" RUNTIME_CONFIG_REVISION)"
+  quiesce_runtime_digest="$(read_exact_value "${MAINTENANCE_QUIESCE}" RUNTIME_CONFIG_DIGEST)"
+  quiesce_runtime_content_sha="$(read_exact_value "${MAINTENANCE_QUIESCE}" RUNTIME_CONFIG_CONTENT_SHA256)"
+  quiesce_db_image_exact="$(read_exact_value "${MAINTENANCE_QUIESCE}" DB_IMAGE_EXACT)"
+  quiesce_db_image_id="$(read_exact_value "${MAINTENANCE_QUIESCE}" DB_IMAGE_ID)"
+  quiesce_db_volume="$(read_exact_value "${MAINTENANCE_QUIESCE}" DB_VOLUME)"
+  quiesce_mysql_version="$(read_exact_value "${MAINTENANCE_QUIESCE}" MYSQL_VERSION)"
+  quiesced_at="$(read_exact_value "${MAINTENANCE_QUIESCE}" QUIESCED_AT)"
+  quiesce_evidence_id="$(read_exact_value "${MAINTENANCE_QUIESCE}" EVIDENCE_ID)"
+  computed_id="$(
+    /usr/bin/sed '/^EVIDENCE_ID=/d' "${MAINTENANCE_QUIESCE}" \
+      | /usr/bin/shasum -a 256 \
+      | /usr/bin/awk '{print $1}'
+  )"
+  if [[ "$(read_exact_value "${MAINTENANCE_QUIESCE}" SCHEMA_VERSION)" != 1 ]] \
+    || ! is_sha "${quiesce_application_revision}" \
+    || [[ "${quiesce_api_image}" != "${API_IMAGE_REPOSITORY}:${quiesce_application_revision}" ]] \
+    || [[ "${quiesce_web_image}" != "${WEB_IMAGE_REPOSITORY}:${quiesce_application_revision}" ]] \
+    || ! is_sha "${quiesce_runtime_revision}" \
+    || ! is_digest "${quiesce_runtime_digest}" \
+    || [[ ! "${quiesce_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${quiesce_db_image_exact}" =~ ^mysql:(8\.0\.46|8\.4\.11)@sha256:[0-9a-f]{64}$ ]] \
+    || ! is_image_id "${quiesce_db_image_id}" \
+    || ! is_volume_name "${quiesce_db_volume}" \
+    || [[ ! "${quiesced_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+    || ! is_candidate_id "${quiesce_evidence_id}" \
+    || [[ "${quiesce_evidence_id}" != "${computed_id}" ]]
+  then
+    fail "maintenance quiesce evidence values or integrity are invalid"
+  fi
+  "${PYTHON_BIN}" - "${quiesced_at}" <<'PY'
+import datetime as dt
+import sys
+
+dt.datetime.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")
+PY
+  case "${quiesce_db_image_exact}" in
+    mysql:8.0.46@sha256:*)
+      [[ "${quiesce_mysql_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
+        || fail "quiesce MySQL version does not match its DB image"
+      ;;
+    mysql:8.4.11@sha256:*)
+      [[ "${quiesce_mysql_version}" =~ ^8\.4\.11([-+].*)?$ ]] \
+        || fail "quiesce MySQL version does not match its DB image"
+      ;;
+  esac
+}
+
+validate_quiesce_matches_current() {
+  validate_quiesce_evidence
+  [[ "${quiesce_application_revision}" == "${current_application_revision}" ]] \
+    && [[ "${quiesce_api_image}" == "${current_api_image}" ]] \
+    && [[ "${quiesce_web_image}" == "${current_web_image}" ]] \
+    && [[ "${quiesce_runtime_revision}" == "${current_runtime_revision}" ]] \
+    && [[ "${quiesce_runtime_digest}" == "${current_runtime_digest}" ]] \
+    && [[ "${quiesce_runtime_content_sha}" == "${current_runtime_content_sha}" ]] \
+    && [[ "${quiesce_db_image_exact}" == "${current_db_image_exact}" ]] \
+    && [[ "${quiesce_db_image_id}" == "${current_db_image_id}" ]] \
+    && [[ "${quiesce_db_volume}" == "${current_db_volume}" ]] \
+    && [[ "${quiesce_mysql_version}" == "${current_mysql_version}" ]] \
+    || fail "maintenance quiesce evidence does not match the current source runtime"
+}
+
+write_quiesce_evidence() {
+  local evidence_id
+  local evidence_temp
+  local recorded_at
+
+  recorded_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" || return 1
+  evidence_temp="$(/usr/bin/mktemp "${MAINTENANCE_ROOT}/.quiesce.tmp.XXXXXX")" \
+    || return 1
+  if ! {
+    printf 'SCHEMA_VERSION=1\n'
+    printf 'APPLICATION_REVISION=%s\n' "${current_application_revision}"
+    printf 'API_IMAGE=%s\n' "${current_api_image}"
+    printf 'WEB_IMAGE=%s\n' "${current_web_image}"
+    printf 'RUNTIME_CONFIG_REVISION=%s\n' "${current_runtime_revision}"
+    printf 'RUNTIME_CONFIG_DIGEST=%s\n' "${current_runtime_digest}"
+    printf 'RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${current_runtime_content_sha}"
+    printf 'DB_IMAGE_EXACT=%s\n' "${current_db_image_exact}"
+    printf 'DB_IMAGE_ID=%s\n' "${current_db_image_id}"
+    printf 'DB_VOLUME=%s\n' "${current_db_volume}"
+    printf 'MYSQL_VERSION=%s\n' "${current_mysql_version}"
+    printf 'QUIESCED_AT=%s\n' "${recorded_at}"
+  } >"${evidence_temp}"
+  then
+    /bin/rm -f -- "${evidence_temp}"
+    return 1
+  fi
+  evidence_id="$(
+    /usr/bin/shasum -a 256 "${evidence_temp}" | /usr/bin/awk '{print $1}'
+  )" || {
+    /bin/rm -f -- "${evidence_temp}"
+    return 1
+  }
+  printf 'EVIDENCE_ID=%s\n' "${evidence_id}" >>"${evidence_temp}" || {
+    /bin/rm -f -- "${evidence_temp}"
+    return 1
+  }
+  /bin/chmod 400 "${evidence_temp}" || {
+    /bin/rm -f -- "${evidence_temp}"
+    return 1
+  }
+  if [[ -e "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]] \
+    || ! /bin/mv -- "${evidence_temp}" "${MAINTENANCE_QUIESCE}"
+  then
+    /bin/rm -f -- "${evidence_temp}"
+    return 1
+  fi
+  quiesce_evidence_id="${evidence_id}"
+  quiesced_at="${recorded_at}"
+}
+
+remove_quiesce_evidence() {
+  validate_quiesce_evidence
+  /bin/rm -f -- "${MAINTENANCE_QUIESCE}"
+  [[ ! -e "${MAINTENANCE_QUIESCE}" && ! -L "${MAINTENANCE_QUIESCE}" ]] \
+    || fail "maintenance quiesce evidence could not be removed"
+}
+
+validate_candidate_quiesce_evidence() {
+  validate_quiesce_evidence
+  [[ "${quiesce_evidence_id}" == "${candidate_quiesce_evidence_id}" ]] \
+    && [[ "${quiesced_at}" == "${candidate_quiesced_at}" ]] \
+    || fail "maintenance candidate is not bound to the active quiesce evidence"
+}
+
+validate_current_quiesce_for_candidate() {
+  load_current_db_identity
+  load_current_mysql_version
+  validate_quiesce_matches_current
+  validate_candidate_quiesce_evidence
+  service_set_is_quiesced_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "maintenance candidate requires the verified quiesced service state"
+}
+
+quiesce_source() {
+  [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
+    || fail "an incomplete runtime transaction cannot be quiesced"
+  load_current_runtime
+  load_current_db_identity
+  load_current_mysql_version
+
+  if [[ -e "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]]; then
+    validate_quiesce_matches_current
+    service_set_is_quiesced_for \
+      "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+      || fail "existing maintenance quiesce service state is invalid"
+    printf 'Cubing Hub application is already quiesced: %s\n' "${quiesce_evidence_id}"
+    return
+  fi
+
+  ensure_private_directory "${MAINTENANCE_ROOT}"
+  service_set_is_healthy_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "source service set must be healthy before quiesce"
+  validate_running_application_identity api "${current_api_image}"
+  validate_running_application_identity web "${current_web_image}"
+  if ! compose_for \
+    "${current_release}" \
+    "${current_db_image_exact}" \
+    "${current_db_volume}" \
+    stop api web
+  then
+    start_current_application >/dev/null 2>&1 || true
+    fail "application stop failed; source application restart was attempted"
+  fi
+  if ! service_set_is_quiesced_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}"
+  then
+    start_current_application >/dev/null 2>&1 || true
+    fail "application quiesce state validation failed; source application restart was attempted"
+  fi
+  if ! write_quiesce_evidence; then
+    start_current_application >/dev/null 2>&1 || true
+    fail "application was stopped but quiesce evidence could not be committed"
+  fi
+  printf 'Cubing Hub application quiesced: %s\n' "${quiesce_evidence_id}"
+}
+
+resume_source() {
+  [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
+    || fail "source application cannot resume while maintenance is pending"
+  load_current_runtime
+  load_current_db_identity
+  load_current_mysql_version
+  validate_quiesce_matches_current
+  [[ "${current_mysql_expected_version}" == "${SOURCE_DB_VERSION}" ]] \
+    || fail "resume-source is allowed only on the unchanged MySQL 8.0.46 source"
+
+  if service_set_is_quiesced_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}"
+  then
+    start_current_application \
+      || fail "source application startup failed; quiesce evidence was preserved"
+  fi
+  service_set_is_healthy_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "source service set is unhealthy; quiesce evidence was preserved"
+  remove_quiesce_evidence
+  printf 'Cubing Hub source application resumed\n'
+}
+
+show_quiesce_status() {
+  if [[ ! -e "${MAINTENANCE_QUIESCE}" && ! -L "${MAINTENANCE_QUIESCE}" ]]; then
+    [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
+      || fail "maintenance pending state exists without quiesce evidence"
+    printf 'QUIESCE_STATUS=inactive\n'
+    printf 'PENDING=none\n'
+    return
+  fi
+
+  validate_quiesce_evidence
+  if [[ -e "${RUNTIME_CONFIG_PENDING}" || -L "${RUNTIME_CONFIG_PENDING}" ]]; then
+    validate_maintenance_pending
+    validate_candidate_quiesce_evidence
+    printf 'QUIESCE_STATUS=maintenance-pending\n'
+    printf 'PENDING=%s\n' "${pending_candidate_id}"
+  else
+    load_current_runtime
+    load_current_db_identity
+    load_current_mysql_version
+    validate_quiesce_matches_current
+    service_set_is_quiesced_for \
+      "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+      || fail "maintenance quiesce service state is invalid"
+    printf 'QUIESCE_STATUS=active\n'
+    printf 'PENDING=none\n'
+  fi
+  printf 'EVIDENCE_ID=%s\n' "${quiesce_evidence_id}"
+  printf 'QUIESCED_AT=%s\n' "${quiesced_at}"
+}
+
 validate_backup() {
   local backup_id="$1"
   local backup_path="${BACKUP_ROOT}/${backup_id}"
   local expected_application_revision="${2:-}"
   local expected_runtime_digest="${3:-}"
+  local expected_quiesced_at="${4:-}"
+  local expected_db_image_exact="${5:-}"
+  local expected_db_image_id="${6:-}"
+  local expected_db_volume="${7:-}"
 
   is_backup_id "${backup_id}" || fail "backup identifier is invalid"
   if { [[ -n "${expected_application_revision}" ]] && [[ -z "${expected_runtime_digest}" ]]; } \
     || { [[ -z "${expected_application_revision}" ]] && [[ -n "${expected_runtime_digest}" ]]; }
   then
     fail "backup source runtime validation requires both application revision and runtime digest"
+  fi
+  if [[ -n "${expected_quiesced_at}" ]] \
+    && { [[ -z "${expected_application_revision}" ]] || [[ -z "${expected_runtime_digest}" ]]; }
+  then
+    fail "quiesced backup validation requires the complete source runtime identity"
+  fi
+  if [[ -n "${expected_quiesced_at}" ]] \
+    && { [[ -z "${expected_db_image_exact}" ]] \
+      || [[ -z "${expected_db_image_id}" ]] \
+      || [[ -z "${expected_db_volume}" ]]; }
+  then
+    fail "quiesced backup validation requires the complete source DB identity"
   fi
   if [[ ! -d "${backup_path}" || -L "${backup_path}" ]]; then
     fail "verified backup directory is missing or unsafe"
@@ -717,7 +1184,12 @@ validate_backup() {
     "${PYTHON_BIN}" - \
       "${backup_path}" \
       "${expected_application_revision}" \
-      "${expected_runtime_digest}" <<'PY'
+      "${expected_runtime_digest}" \
+      "${expected_quiesced_at}" \
+      "${expected_db_image_exact}" \
+      "${expected_db_image_id}" \
+      "${expected_db_volume}" <<'PY'
+import datetime as dt
 import hashlib
 import json
 import pathlib
@@ -727,6 +1199,10 @@ import sys
 root = pathlib.Path(sys.argv[1])
 expected_application_revision = sys.argv[2]
 expected_runtime_digest = sys.argv[3]
+expected_quiesced_at = sys.argv[4]
+expected_db_image_exact = sys.argv[5]
+expected_db_image_id = sys.argv[6]
+expected_db_volume = sys.argv[7]
 success = root / "SUCCESS"
 manifest_path = root / "manifest.json"
 if (
@@ -739,6 +1215,11 @@ if (
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 database = manifest.get("database", {})
 source = manifest.get("source", {})
+try:
+    started_at = dt.datetime.strptime(manifest.get("startedAt", ""), "%Y-%m-%dT%H:%M:%SZ")
+    completed_at = dt.datetime.strptime(manifest.get("completedAt", ""), "%Y-%m-%dT%H:%M:%SZ")
+except (TypeError, ValueError) as error:
+    raise SystemExit("backup timestamps are invalid") from error
 if (
     manifest.get("schemaVersion") != 1
     or manifest.get("status") != "success"
@@ -755,6 +1236,7 @@ if (
     or database.get("recordCountsSource") != "database/dump"
     or not isinstance(database.get("recordCounts"), dict)
     or not database["recordCounts"]
+    or completed_at < started_at
 ):
     raise SystemExit("backup manifest is not an 8.0.46 production snapshot")
 if expected_application_revision and (
@@ -762,6 +1244,19 @@ if expected_application_revision and (
     or source["runtimeConfigDigest"] != expected_runtime_digest
 ):
     raise SystemExit("backup source runtime does not match the maintenance source")
+if expected_quiesced_at:
+    try:
+        quiesced_at = dt.datetime.strptime(expected_quiesced_at, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise SystemExit("quiesce timestamp is invalid") from error
+    if started_at <= quiesced_at:
+        raise SystemExit("maintenance backup did not start after application quiesce")
+    if (
+        database.get("image") != expected_db_image_exact
+        or database.get("imageId") != expected_db_image_id
+        or database.get("volume") != expected_db_volume
+    ):
+        raise SystemExit("maintenance backup DB binding does not match application quiesce")
 for table, count in database["recordCounts"].items():
     if not re.fullmatch(r"[A-Za-z0-9_]+", table) or type(count) is not int or count < 0:
         raise SystemExit("backup record count inventory is invalid")
@@ -1109,8 +1604,10 @@ write_candidate() {
   created_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   candidate_temp="$(/usr/bin/mktemp "${MAINTENANCE_ROOT}/.candidate.tmp.XXXXXX")"
   {
-    printf 'SCHEMA_VERSION=1\n'
+    printf 'SCHEMA_VERSION=2\n'
     printf 'OPERATION=%s\n' "${candidate_operation}"
+    printf 'QUIESCE_EVIDENCE_ID=%s\n' "${candidate_quiesce_evidence_id}"
+    printf 'QUIESCED_AT=%s\n' "${candidate_quiesced_at}"
     printf 'APPLICATION_REVISION=%s\n' "${candidate_application_revision}"
     printf 'API_IMAGE=%s\n' "${candidate_api_image}"
     printf 'WEB_IMAGE=%s\n' "${candidate_web_image}"
@@ -1179,10 +1676,10 @@ validate_candidate() {
   )"
   candidate_operation="$(read_exact_value "${candidate_file}" OPERATION)"
   if [[ "${candidate_operation}" == UPGRADE ]]; then
-    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
+    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nQUIESCED_AT\nQUIESCE_EVIDENCE_ID\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
       || fail "maintenance candidate keys are invalid"
   elif [[ "${candidate_operation}" == ROLLBACK ]]; then
-    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_UPGRADE_CANDIDATE_ID\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
+    [[ "${keys}" == $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_ID\nBACKUP_MANIFEST_SHA256\nCANDIDATE_ID\nCREATED_AT\nOPERATION\nQUIESCED_AT\nQUIESCE_EVIDENCE_ID\nSCHEMA_VERSION\nSOURCE_DB_IMAGE\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_UPGRADE_CANDIDATE_ID\nTARGET_DB_IMAGE\nTARGET_DB_IMAGE_EXACT\nTARGET_DB_IMAGE_ID\nTARGET_DB_VOLUME\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]] \
       || fail "maintenance candidate keys are invalid"
   else
     fail "maintenance candidate operation is invalid"
@@ -1197,6 +1694,8 @@ validate_candidate() {
     || fail "maintenance candidate integrity check failed"
 
   candidate_application_revision="$(read_exact_value "${candidate_file}" APPLICATION_REVISION)"
+  candidate_quiesce_evidence_id="$(read_exact_value "${candidate_file}" QUIESCE_EVIDENCE_ID)"
+  candidate_quiesced_at="$(read_exact_value "${candidate_file}" QUIESCED_AT)"
   candidate_api_image="$(read_exact_value "${candidate_file}" API_IMAGE)"
   candidate_web_image="$(read_exact_value "${candidate_file}" WEB_IMAGE)"
   candidate_source_runtime_digest="$(read_exact_value "${candidate_file}" SOURCE_RUNTIME_CONFIG_DIGEST)"
@@ -1218,7 +1717,7 @@ validate_candidate() {
     candidate_source_upgrade_id="$(read_exact_value "${candidate_file}" SOURCE_UPGRADE_CANDIDATE_ID)"
   fi
 
-  if [[ "$(read_exact_value "${candidate_file}" SCHEMA_VERSION)" != 1 ]] \
+  if [[ "$(read_exact_value "${candidate_file}" SCHEMA_VERSION)" != 2 ]] \
     || { [[ "${candidate_operation}" != UPGRADE ]] && [[ "${candidate_operation}" != ROLLBACK ]]; } \
     || ! is_sha "${candidate_application_revision}" \
     || [[ "${candidate_api_image}" != "${API_IMAGE_REPOSITORY}:${candidate_application_revision}" ]] \
@@ -1232,10 +1731,18 @@ validate_candidate() {
     || ! is_volume_name "${candidate_source_db_volume}" \
     || ! is_volume_name "${candidate_target_db_volume}" \
     || ! is_backup_id "${candidate_backup_id}" \
-    || [[ ! "${candidate_backup_manifest_sha}" =~ ^[0-9a-f]{64}$ ]]
+    || [[ ! "${candidate_backup_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || ! is_candidate_id "${candidate_quiesce_evidence_id}" \
+    || [[ ! "${candidate_quiesced_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
   then
     fail "maintenance candidate values are invalid"
   fi
+  "${PYTHON_BIN}" - "${candidate_quiesced_at}" <<'PY'
+import datetime as dt
+import sys
+
+dt.datetime.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")
+PY
   if [[ "${candidate_operation}" == UPGRADE ]]; then
     [[ "${candidate_source_db_image}" == "mysql:${SOURCE_DB_VERSION}" ]] \
       || fail "upgrade source must be mysql:${SOURCE_DB_VERSION}"
@@ -1264,7 +1771,11 @@ validate_candidate() {
     validate_backup \
       "${candidate_backup_id}" \
       "${candidate_application_revision}" \
-      "${candidate_source_runtime_digest}"
+      "${candidate_source_runtime_digest}" \
+      "${candidate_quiesced_at}" \
+      "${candidate_source_db_image_exact}" \
+      "${candidate_source_db_image_id}" \
+      "${candidate_source_db_volume}"
   else
     # ROLLBACK provenance is revalidated through its immutable source UPGRADE candidate.
     validate_backup "${candidate_backup_id}"
@@ -1284,6 +1795,8 @@ validate_rollback_source_candidate() {
   local rollback_backup_id="${candidate_backup_id}"
   local rollback_backup_manifest_sha="${candidate_backup_manifest_sha}"
   local rollback_candidate_id="$1"
+  local rollback_quiesce_evidence_id="${candidate_quiesce_evidence_id}"
+  local rollback_quiesced_at="${candidate_quiesced_at}"
   local rollback_source_db_image_exact="${candidate_source_db_image_exact}"
   local rollback_source_db_image_id="${candidate_source_db_image_id}"
   local rollback_source_db_volume="${candidate_source_db_volume}"
@@ -1313,6 +1826,8 @@ validate_rollback_source_candidate() {
     && [[ "${candidate_source_db_image_id}" == "${rollback_target_db_image_id}" ]] \
     && [[ "${candidate_backup_id}" == "${rollback_backup_id}" ]] \
     && [[ "${candidate_backup_manifest_sha}" == "${rollback_backup_manifest_sha}" ]] \
+    && [[ "${rollback_quiesce_evidence_id}" =~ ^[0-9a-f]{64}$ ]] \
+    && [[ "${rollback_quiesced_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
     || fail "rollback candidate does not match its source upgrade candidate"
   validate_candidate "${rollback_candidate_id}"
 }
@@ -1330,7 +1845,9 @@ validate_completed_upgrade_state() {
   local expected_candidate_id="$1"
   local keys
 
-  if [[ ! -f "${MAINTENANCE_STATE}" || -L "${MAINTENANCE_STATE}" ]]; then
+  if [[ ! -f "${MAINTENANCE_STATE}" || -L "${MAINTENANCE_STATE}" ]] \
+    || ! has_mode "${MAINTENANCE_STATE}" 600
+  then
     fail "completed upgrade maintenance state is missing or unsafe"
   fi
   keys="$(
@@ -1350,6 +1867,57 @@ validate_completed_upgrade_state() {
     && [[ "$(read_exact_value "${MAINTENANCE_STATE}" DB_VOLUME)" == "${candidate_target_db_volume}" ]] \
     && [[ "$(read_exact_value "${MAINTENANCE_STATE}" BACKUP_ID)" == "${candidate_backup_id}" ]] \
     || fail "completed upgrade maintenance state does not match the upgrade candidate"
+}
+
+recover_completed_quiesce_cleanup() {
+  local completed_candidate_id
+  local keys
+
+  if [[ ! -f "${MAINTENANCE_STATE}" || -L "${MAINTENANCE_STATE}" ]] \
+    || ! has_mode "${MAINTENANCE_STATE}" 600
+  then
+    fail "completed maintenance state is missing, unsafe, or mutable"
+  fi
+  keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${MAINTENANCE_STATE}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${keys}" != $'APPLICATION_REVISION\nBACKUP_ID\nCANDIDATE_ID\nCOMPLETED_AT\nDB_IMAGE_EXACT\nDB_IMAGE_ID\nDB_VOLUME\nOPERATION\nRUNTIME_CONFIG_DIGEST\nSCHEMA_VERSION' ]]; then
+    fail "completed maintenance state keys are invalid"
+  fi
+  completed_candidate_id="$(read_exact_value "${MAINTENANCE_STATE}" CANDIDATE_ID)"
+  validate_candidate "${completed_candidate_id}"
+  validate_candidate_quiesce_evidence
+  [[ "$(read_exact_value "${MAINTENANCE_STATE}" SCHEMA_VERSION)" == 1 ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" OPERATION)" == "${candidate_operation}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" APPLICATION_REVISION)" == "${candidate_application_revision}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" RUNTIME_CONFIG_DIGEST)" == "${candidate_target_runtime_digest}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" DB_IMAGE_EXACT)" == "${candidate_target_db_image_exact}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" DB_IMAGE_ID)" == "${candidate_target_db_image_id}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" DB_VOLUME)" == "${candidate_target_db_volume}" ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_STATE}" BACKUP_ID)" == "${candidate_backup_id}" ]] \
+    || fail "completed maintenance state does not match its immutable candidate"
+
+  load_current_runtime
+  [[ "${current_application_revision}" == "${candidate_application_revision}" ]] \
+    && [[ "${current_api_image}" == "${candidate_api_image}" ]] \
+    && [[ "${current_web_image}" == "${candidate_web_image}" ]] \
+    && [[ "${current_runtime_digest}" == "${candidate_target_runtime_digest}" ]] \
+    && [[ "${current_runtime_revision}" == "${candidate_target_runtime_revision}" ]] \
+    && [[ "${current_runtime_content_sha}" == "${candidate_target_runtime_content_sha}" ]] \
+    || fail "completed maintenance runtime does not match its immutable candidate"
+  load_current_db_identity
+  load_current_mysql_version
+  [[ "${current_db_image_exact}" == "${candidate_target_db_image_exact}" ]] \
+    && [[ "${current_db_image_id}" == "${candidate_target_db_image_id}" ]] \
+    && [[ "${current_db_volume}" == "${candidate_target_db_volume}" ]] \
+    || fail "completed maintenance DB binding does not match its immutable candidate"
+  service_set_is_healthy_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "completed maintenance service set is unhealthy"
+  remove_quiesce_evidence
+  printf 'Completed Cubing Hub MySQL maintenance quiesce finalized: %s\n' \
+    "${completed_candidate_id}"
 }
 
 write_restore_evidence() {
@@ -1605,45 +2173,14 @@ commit_success_state() {
   write_db_env "${candidate_target_db_image_exact}" "${candidate_target_db_volume}"
   /bin/mv -f -- "${maintenance_temp}" "${MAINTENANCE_STATE}"
   /bin/rm -f -- "${RUNTIME_CONFIG_PENDING}"
+  remove_quiesce_evidence
 }
 
 service_set_is_healthy() {
-  local rendered
-
-  rendered="$(
-    compose_for \
-      "${candidate_target_release}" \
-      "${candidate_target_db_image_exact}" \
-      "${candidate_target_db_volume}" \
-      ps --format json
-  )"
-  printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
-import json
-import sys
-
-raw = sys.stdin.read().strip()
-if not raw:
-    raise SystemExit("no maintenance target service status was returned")
-try:
-    value = json.loads(raw)
-except json.JSONDecodeError:
-    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
-entries = value if isinstance(value, list) else [value]
-required = {"api", "db", "redis", "web"}
-seen = set()
-for entry in entries:
-    service = entry.get("Service")
-    if service not in required or str(entry.get("State", "")).lower() != "running":
-        raise SystemExit("maintenance target service set is not running")
-    seen.add(service)
-    health = str(entry.get("Health", "")).lower()
-    if service in {"db", "redis", "web"} and health != "healthy":
-        raise SystemExit("maintenance target service health is not ready")
-    if health and health != "healthy":
-        raise SystemExit("maintenance target service health is invalid")
-if seen != required:
-    raise SystemExit("maintenance target service set is incomplete")
-'
+  service_set_is_healthy_for \
+    "${candidate_target_release}" \
+    "${candidate_target_db_image_exact}" \
+    "${candidate_target_db_volume}"
 }
 
 apply_candidate() {
@@ -1655,6 +2192,7 @@ apply_candidate() {
   local source_upgrade_candidate_id=
 
   validate_candidate "${candidate_id}"
+  validate_candidate_quiesce_evidence
   if [[ "${candidate_operation}" == ROLLBACK ]] \
     && [[ -e "${RUNTIME_CONFIG_PENDING}" || -L "${RUNTIME_CONFIG_PENDING}" ]]
   then
@@ -1674,11 +2212,11 @@ apply_candidate() {
       || fail "another runtime transaction is pending"
     [[ "${current_runtime_digest}" == "${candidate_source_runtime_digest}" ]] \
       || fail "upgrade candidate source runtime is no longer current"
-    validate_actual_db_identity \
-      "${candidate_source_db_image}" \
-      "${candidate_source_db_image_id}" \
-      "${candidate_source_db_volume}" \
-      "${current_release}"
+    validate_current_quiesce_for_candidate
+    [[ "${current_db_image_exact}" == "${candidate_source_db_image_exact}" ]] \
+      && [[ "${current_db_image_id}" == "${candidate_source_db_image_id}" ]] \
+      && [[ "${current_db_volume}" == "${candidate_source_db_volume}" ]] \
+      || fail "upgrade candidate source DB binding is stale"
   else
     rollback_volume="${candidate_target_db_volume}"
     source_upgrade_candidate_id="${candidate_source_upgrade_id}"
@@ -1707,19 +2245,32 @@ apply_candidate() {
         fail "existing pending transition cannot start or resume rollback"
       fi
       validate_candidate "${candidate_id}"
+      validate_candidate_quiesce_evidence
     else
       [[ "${current_runtime_digest}" == "${candidate_source_runtime_digest}" ]] \
         || fail "rollback candidate source runtime is no longer current"
-      validate_actual_db_identity \
-        "${candidate_source_db_image_exact}" \
-        "${candidate_source_db_image_id}" \
-        "${candidate_source_db_volume}" \
-        "${current_release}"
+      validate_current_quiesce_for_candidate
+      [[ "${current_db_image_exact}" == "${candidate_source_db_image_exact}" ]] \
+        && [[ "${current_db_image_id}" == "${candidate_source_db_image_id}" ]] \
+        && [[ "${current_db_volume}" == "${candidate_source_db_volume}" ]] \
+        || fail "rollback candidate source DB binding is stale"
     fi
   fi
 
   validate_target_artifacts "${rollback_resume}"
   if [[ "${candidate_operation}" == ROLLBACK ]]; then
+    if [[ "${rollback_with_pending}" == true ]]; then
+      compose_for \
+        "${candidate_target_release}" \
+        "${candidate_source_db_image_exact}" \
+        "${candidate_source_db_volume}" \
+        stop api web
+      application_services_are_stopped_for \
+        "${candidate_target_release}" \
+        "${candidate_source_db_image_exact}" \
+        "${candidate_source_db_volume}" \
+        || fail "pending rollback retry could not verify application quiescence"
+    fi
     revalidate_rollback_volume_before_cutover \
       "${candidate_id}" \
       "${rollback_resume}"
@@ -1790,15 +2341,24 @@ prepare_upgrade() {
 
   load_current_runtime
   load_current_db_identity
+  load_current_mysql_version
   if [[ "${current_db_image}" != "mysql:${SOURCE_DB_VERSION}" ]] \
     && [[ ! "${current_db_image}" =~ ^mysql:8\.0\.46@sha256:[0-9a-f]{64}$ ]]
   then
     fail "upgrade source must be exact MySQL ${SOURCE_DB_VERSION}"
   fi
+  validate_quiesce_matches_current
+  service_set_is_quiesced_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "upgrade preparation requires the verified quiesced source service state"
   validate_backup \
     "${backup_id}" \
     "${current_application_revision}" \
-    "${current_runtime_digest}"
+    "${current_runtime_digest}" \
+    "${quiesced_at}" \
+    "${current_db_image_exact}" \
+    "${current_db_image_id}" \
+    "${current_db_volume}"
 
   registry_token="$(/bin/cat)"
   [[ -n "${registry_token}" ]] || fail "GHCR token must not be empty"
@@ -1839,6 +2399,8 @@ prepare_upgrade() {
     "${prepared_release}"
 
   candidate_operation=UPGRADE
+  candidate_quiesce_evidence_id="${quiesce_evidence_id}"
+  candidate_quiesced_at="${quiesced_at}"
   candidate_application_revision="${current_application_revision}"
   candidate_api_image="${current_api_image}"
   candidate_web_image="${current_web_image}"
@@ -1888,12 +2450,16 @@ verify_rollback_volume() {
 prepare_rollback() {
   local baseline_json
   local candidate_json
+  local rollback_quiesce_evidence_id
+  local rollback_quiesced_at
   local upgrade_candidate_id="$1"
 
   rollback_volume="$2"
   validate_candidate "${upgrade_candidate_id}"
   [[ "${candidate_operation}" == UPGRADE ]] \
     || fail "rollback preparation requires an upgrade candidate"
+  rollback_quiesce_evidence_id="${candidate_quiesce_evidence_id}"
+  rollback_quiesced_at="${candidate_quiesced_at}"
   is_volume_name "${rollback_volume}" || fail "rollback volume name is invalid"
   [[ "${rollback_volume}" != "${candidate_source_db_volume}" ]] \
     || fail "rollback volume must differ from the upgraded original volume"
@@ -1909,6 +2475,7 @@ prepare_rollback() {
     [[ "${pending_candidate_id}" == "${upgrade_candidate_id}" ]] \
       || fail "pending maintenance does not match the rollback source"
     validate_candidate "${upgrade_candidate_id}"
+    validate_candidate_quiesce_evidence
   else
     load_current_runtime
     [[ "${current_application_revision}" == "${candidate_application_revision}" ]] \
@@ -1917,12 +2484,19 @@ prepare_rollback() {
       || fail "completed upgrade application images no longer match"
     [[ "${current_runtime_digest}" == "${candidate_target_runtime_digest}" ]] \
       || fail "completed upgrade runtime is no longer current"
-    validate_actual_db_identity \
-      "${candidate_target_db_image_exact}" \
-      "${candidate_target_db_image_id}" \
-      "${candidate_target_db_volume}" \
-      "${current_release}"
+    load_current_db_identity
+    load_current_mysql_version
+    validate_quiesce_matches_current
+    service_set_is_quiesced_for \
+      "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+      || fail "completed upgrade rollback preparation requires a fresh quiesce"
+    [[ "${current_db_image_exact}" == "${candidate_target_db_image_exact}" ]] \
+      && [[ "${current_db_image_id}" == "${candidate_target_db_image_id}" ]] \
+      && [[ "${current_db_volume}" == "${candidate_target_db_volume}" ]] \
+      || fail "completed upgrade DB binding no longer matches the source candidate"
     validate_completed_upgrade_state "${upgrade_candidate_id}"
+    rollback_quiesce_evidence_id="${quiesce_evidence_id}"
+    rollback_quiesced_at="${quiesced_at}"
   fi
 
   baseline_json="$(
@@ -1949,6 +2523,8 @@ prepare_rollback() {
     "${candidate_target_release}"
 
   candidate_operation=ROLLBACK
+  candidate_quiesce_evidence_id="${rollback_quiesce_evidence_id}"
+  candidate_quiesced_at="${rollback_quiesced_at}"
   candidate_source_upgrade_id="${upgrade_candidate_id}"
   candidate_source_runtime_digest="${candidate_target_runtime_digest}"
   candidate_source_db_image="mysql:${TARGET_DB_VERSION}"
@@ -1967,7 +2543,12 @@ recover_transition() {
   local recovery_candidate_id
   local source_upgrade_candidate_id
 
+  if [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]]; then
+    recover_completed_quiesce_cleanup
+    return
+  fi
   validate_maintenance_pending
+  validate_candidate_quiesce_evidence
   recovery_candidate_id="${pending_candidate_id}"
   if [[ "${candidate_operation}" == ROLLBACK ]]; then
     source_upgrade_candidate_id="${candidate_source_upgrade_id}"
@@ -2008,6 +2589,9 @@ command_name="${1:-}"
 shift || true
 
 case "${command_name}" in
+  quiesce|status|resume-source)
+    [[ "$#" -eq 0 ]] || usage
+    ;;
   prepare-upgrade)
     [[ "$#" -eq 5 ]] || usage
     ;;
@@ -2078,6 +2662,15 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 case "${command_name}" in
+  quiesce)
+    quiesce_source
+    ;;
+  status)
+    show_quiesce_status
+    ;;
+  resume-source)
+    resume_source
+    ;;
   prepare-upgrade)
     prepare_upgrade "$@"
     ;;

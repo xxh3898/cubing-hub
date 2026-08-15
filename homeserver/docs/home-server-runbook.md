@@ -186,6 +186,18 @@ MySQL engine image·volume binding은 일반 deploy worker의 예외로 허용�
 
 Command별 exact 절차, fresh rollback volume 준비, dedicated recovery는 [DB와 이미지 백업·복구](db-backup-restore.md)를 따른다.
 
+MySQL cutover의 canonical write-stop은 maintenance worker의 `quiesce`다. Worker는 current verified runtime과 DB identity를 검증하고 API·Web을 중지한 뒤 `runtime-config/mysql-maintenance/quiesce.state`에 immutable evidence를 남긴다. 이 상태에서는 normal deploy와 normal deploy recovery가 fail closed하지만, `pending`이 생기기 전 canonical backup bootstrap은 final DB·post-image snapshot을 만들 수 있다. `WRITE_STOP_CONFIRMED` token만으로는 maintenance `apply`를 실행할 수 없다.
+
+```bash
+maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+"${maintenance}" status
+"${maintenance}" quiesce
+# final backup, restore rehearsal, candidate와 rollback evidence 준비
+"${maintenance}" apply '<candidate-id>' WRITE_STOP_CONFIRMED
+```
+
+DB transition 전에 maintenance를 취소하려면 `pending` 부재와 unchanged MySQL 8.0.46 source를 확인한 뒤 `"${maintenance}" resume-source`를 사용한다. Pending 또는 target binding에서는 normal deploy나 `resume-source`로 복구하지 않고 dedicated `recover`/rollback contract를 따른다. Operation lock은 command 단위 직렬화이고 quiesce evidence는 command 사이 maintenance-window state다.
+
 Maintenance가 target runtime을 적용하면 `APPLICATION_REVISION`은 기존
 application SHA를 유지하고 `RUNTIME_CONFIG_REVISION`만 maintenance release
 SHA로 바뀔 수 있다. 두 revision이 다른 것은 정상이다. MySQL upgrade smoke와

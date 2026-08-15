@@ -13,6 +13,64 @@ if [[ -n "${FAKE_DOCKER_LOG:-}" ]]; then
   printf '%s %s\n' "${command_name}" "$*" >>"${FAKE_DOCKER_LOG}"
 fi
 
+fake_service_state() {
+  local service="$1"
+
+  if [[ -n "${FAKE_SERVICE_STATE_DIR:-}" ]] \
+    && [[ -f "${FAKE_SERVICE_STATE_DIR}/${service}" ]]
+  then
+    /bin/cat "${FAKE_SERVICE_STATE_DIR}/${service}"
+  else
+    printf 'running\n'
+  fi
+}
+
+fake_set_service_state() {
+  local service="$1"
+  local state="$2"
+
+  if [[ -n "${FAKE_SERVICE_STATE_DIR:-}" ]]; then
+    printf '%s\n' "${state}" >"${FAKE_SERVICE_STATE_DIR}/${service}"
+  fi
+}
+
+fake_service_status_json() {
+  local api_health="${FAKE_API_HEALTH:-}"
+  local api_state
+  local service_health="${FAKE_SOURCE_SERVICE_HEALTH:-healthy}"
+  local db_health
+  local db_state
+  local redis_health
+  local redis_state
+  local web_health
+  local web_state
+
+  if [[ -z "${FAKE_DB_STATE_DIR:-}" ]] \
+    || [[ ! -f "${FAKE_DB_STATE_DIR}/image-ref" ]]
+  then
+    service_health="${FAKE_SERVICE_HEALTH:-healthy}"
+  elif [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/image-ref")" == mysql:8.4.11* ]]; then
+    service_health="${FAKE_SERVICE_HEALTH:-healthy}"
+  fi
+  db_health="${service_health}"
+  redis_health="${service_health}"
+  web_health="${service_health}"
+  api_state="$(fake_service_state api)"
+  db_state="$(fake_service_state db)"
+  redis_state="$(fake_service_state redis)"
+  web_state="$(fake_service_state web)"
+  [[ "${api_state}" == running ]] || api_health=
+  [[ "${db_state}" == running ]] || db_health=
+  [[ "${redis_state}" == running ]] || redis_health=
+  [[ "${web_state}" == running ]] || web_health=
+  printf \
+    '[{"Service":"db","State":"%s","Health":"%s"},{"Service":"redis","State":"%s","Health":"%s"},{"Service":"api","State":"%s","Health":"%s"},{"Service":"web","State":"%s","Health":"%s"}]\n' \
+    "${db_state}" "${db_health}" \
+    "${redis_state}" "${redis_health}" \
+    "${api_state}" "${api_health}" \
+    "${web_state}" "${web_health}"
+}
+
 case "${command_name}" in
   pull)
     if [[ -n "${FAKE_HOMEOPS_CONTEXT_CAPTURE:-}" ]] \
@@ -216,13 +274,32 @@ case "${command_name}" in
     done
     case "${query}" in
       running-version)
-        if [[ "${FAKE_RUNNING_DB_VERSION_QUERY_FAIL:-false}" == true ]]; then
+        running_db_is_target=true
+        if [[ -n "${FAKE_DB_STATE_DIR:-}" ]] \
+          && [[ -f "${FAKE_DB_STATE_DIR}/image-ref" ]] \
+          && [[ "$(/bin/cat "${FAKE_DB_STATE_DIR}/image-ref")" != mysql:8.4.11* ]]
+        then
+          running_db_is_target=false
+        elif [[ -n "${FAKE_DB_STATE_DIR:-}" ]] \
+          && [[ ! -f "${FAKE_DB_STATE_DIR}/image-ref" ]]
+        then
+          running_db_is_target=false
+        else
+          running_db_is_target=true
+        fi
+        if [[ "${running_db_is_target}" == true ]] \
+          && [[ "${FAKE_RUNNING_DB_VERSION_QUERY_FAIL:-false}" == true ]]
+        then
           exit 1
         fi
-        if [[ "${FAKE_RUNNING_DB_VERSION_EMPTY:-false}" == true ]]; then
+        if [[ "${running_db_is_target}" == true ]] \
+          && [[ "${FAKE_RUNNING_DB_VERSION_EMPTY:-false}" == true ]]
+        then
           exit 0
         fi
-        if [[ -n "${FAKE_RUNNING_DB_VERSION_OVERRIDE:-}" ]]; then
+        if [[ "${running_db_is_target}" == true ]] \
+          && [[ -n "${FAKE_RUNNING_DB_VERSION_OVERRIDE:-}" ]]
+        then
           printf '%s\n' "${FAKE_RUNNING_DB_VERSION_OVERRIDE}"
         elif [[ -n "${FAKE_DB_STATE_DIR:-}" ]] \
           && [[ -f "${FAKE_DB_STATE_DIR}/image-ref" ]] \
@@ -319,15 +396,10 @@ users}"
       printf '%s\n' "${FAKE_API_CONTAINER_ID:-mock-api-container}"
     elif [[ "${arguments}" == *" ps -q web "* ]]; then
       printf '%s\n' "${FAKE_WEB_CONTAINER_ID:-mock-web-container}"
+    elif [[ "${arguments}" == *" ps --all --format json "* ]]; then
+      fake_service_status_json
     elif [[ "${arguments}" == *" ps --format json "* ]]; then
-      service_health="${FAKE_SERVICE_HEALTH:-healthy}"
-      api_health="${FAKE_API_HEALTH:-}"
-      printf \
-        '[{"Service":"db","State":"running","Health":"%s"},{"Service":"redis","State":"running","Health":"%s"},{"Service":"api","State":"running","Health":"%s"},{"Service":"web","State":"running","Health":"%s"}]\n' \
-        "${service_health}" \
-        "${service_health}" \
-        "${api_health}" \
-        "${service_health}"
+      fake_service_status_json
     elif [[ "${arguments}" == *" --format json "* ]]; then
       compose_file=
       previous_argument=
@@ -513,10 +585,18 @@ users}"
       if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
         printf 'false\n' >"${FAKE_DB_STATE_DIR}/running"
       fi
+      fake_set_service_state db exited
+    elif [[ "${arguments}" == *" stop api web "* ]]; then
+      if [[ "${FAKE_APP_STOP_FAIL:-false}" == true ]]; then
+        exit 1
+      fi
+      fake_set_service_state api exited
+      fake_set_service_state web exited
     elif [[ "${arguments}" == *" stop db "* ]]; then
       if [[ -n "${FAKE_DB_STATE_DIR:-}" ]]; then
         printf 'false\n' >"${FAKE_DB_STATE_DIR}/running"
       fi
+      fake_set_service_state db exited
     elif [[ "${arguments}" == *" up "* ]] && [[ "${arguments}" == *" db "* ]]; then
       if [[ "${FAKE_MAINTENANCE_DB_UP_FAIL:-false}" == true ]]; then
         if [[ "${FAKE_MAINTENANCE_DB_UP_FAIL_AFTER_BIND:-false}" == true ]] \
@@ -533,6 +613,7 @@ users}"
           printf '%s\n' "${DB_VOLUME_NAME:-cubing-hub_mysql-data}" >"${FAKE_DB_STATE_DIR}/volume"
           printf 'unhealthy\n' >"${FAKE_DB_STATE_DIR}/health"
           printf 'true\n' >"${FAKE_DB_STATE_DIR}/running"
+          fake_set_service_state db running
         fi
         exit 1
       fi
@@ -549,11 +630,22 @@ users}"
         printf 'healthy\n' >"${FAKE_DB_STATE_DIR}/health"
         printf 'true\n' >"${FAKE_DB_STATE_DIR}/running"
       fi
+      fake_set_service_state db running
+    elif [[ "${arguments}" == *" up "* ]] \
+      && [[ "${arguments}" == *" redis api web "* ]]
+    then
+      fake_set_service_state redis running
+      fake_set_service_state api running
+      fake_set_service_state web running
     elif [[ "${arguments}" == *" ps --status running --services "* ]]; then
-      printf '%s\n' "${FAKE_RUNNING_SERVICES:-db
-redis
-api
-web}"
+      if [[ -n "${FAKE_RUNNING_SERVICES:-}" ]]; then
+        printf '%s\n' "${FAKE_RUNNING_SERVICES}"
+      else
+        for service in db redis api web; do
+          [[ "$(fake_service_state "${service}")" == running ]] \
+            && printf '%s\n' "${service}"
+        done
+      fi
     fi
     ;;
   ps)

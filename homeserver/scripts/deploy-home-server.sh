@@ -20,6 +20,7 @@ readonly RUNTIME_CONFIG_PENDING="${RUNTIME_CONFIG_ROOT}/pending"
 readonly RUNTIME_CONFIG_HOMEOPS_CONTEXT="${RUNTIME_CONFIG_ROOT}/homeops-deployment"
 readonly RUNTIME_CONFIG_CURRENT="${RUNTIME_CONFIG_ROOT}/current"
 readonly RUNTIME_CONFIG_INITIALIZED="${APP_DIR}/.runtime-config-v2-initialized"
+readonly MAINTENANCE_QUIESCE="${RUNTIME_CONFIG_ROOT}/mysql-maintenance/quiesce.state"
 readonly API_IMAGE_REPOSITORY=ghcr.io/xxh3898/cubing-hub-api
 readonly WEB_IMAGE_REPOSITORY=ghcr.io/xxh3898/cubing-hub-web
 readonly RUNTIME_CONFIG_REPOSITORY=ghcr.io/xxh3898/cubing-hub-runtime-config
@@ -47,6 +48,12 @@ usage() {
 fail() {
   printf 'Cubing Hub deployment failed: %s\n' "$1" >&2
   exit 1
+}
+
+fail_if_maintenance_quiesced() {
+  if [[ -e "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]]; then
+    fail "application is quiesced for MySQL maintenance; use the maintenance worker"
+  fi
 }
 
 require_legacy_compose() {
@@ -145,6 +152,8 @@ fi
 if [[ ! -f "${ENV_FILE}" ]]; then
   fail "production environment configuration is missing"
 fi
+
+fail_if_maintenance_quiesced
 
 if [[ "${recovery_mode}" == false ]] \
   && [[ -e "${RUNTIME_CONFIG_PENDING}" || -L "${RUNTIME_CONFIG_PENDING}" ]]
