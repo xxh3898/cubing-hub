@@ -169,6 +169,17 @@ export function formatGrowthTrendPointDate(point) {
   return point?.isTodayPartial ? `${label} · 오늘, 진행 중` : label
 }
 
+export function formatGrowthDailyTimelineEntry(point, { includeMedian = false, includePenaltyCounts = false } = {}) {
+  const state = includeMedian
+    ? typeof point?.medianTimeMs === 'number'
+      ? `중앙 ${formatRecordTime(point.medianTimeMs)}`
+      : point?.recordCount === 0 ? '기록 없음' : 'DNF-only'
+    : point?.recordCount === 0 ? '기록 없음' : point?.medianTimeMs === null ? 'DNF-only' : null
+  const penalties = includePenaltyCounts ? ` · DNF ${point?.dnfCount ?? 0}회 · +2 ${point?.plusTwoCount ?? 0}회` : ''
+
+  return `${formatGrowthTrendPointDate(point)}: ${state ? `${state} · ` : ''}solve ${point?.recordCount ?? 0}회${penalties}`
+}
+
 export function getNextPracticeAction(summary) {
   const totalSolveCount = summary?.activity?.totalSolveCount ?? 0
 
@@ -295,6 +306,8 @@ export default function MyPage() {
   const totalGrowthSolveCount = growthSummary?.activity?.totalSolveCount ?? 0
   const growthStage = getGrowthStage(totalGrowthSolveCount)
   const consistencyComparisonLabel = getConsistencyComparisonLabel(growthSummary?.consistency)
+  const isInitialGrowthSummaryLoading = isLoadingGrowthSummary && !growthSummary
+  const shouldRenderStandaloneGrowthTrend = Boolean(growthSummaryError) || isInitialGrowthSummaryLoading
   const hasGrowthTrendPoints = growthTrendPoints.length > 0
   const partialGrowthTrendPoint = growthTrendPoints.find((point) => point.isTodayPartial)
 
@@ -954,21 +967,24 @@ export default function MyPage() {
         </div>
 
         {growthSummaryError ? (
-          <>
-            <div className="mypage-growth-feedback">
-              <p className="message error">{growthSummaryError}</p>
-              <button className="ghost-button" type="button" onClick={handleRetryGrowthSummary}>다시 시도</button>
-            </div>
-            <GrowthTrendSection
-              points={growthTrendPoints}
-              isLoading={isLoadingGrowthTrend}
-              error={growthTrendError}
-              onRetry={handleRetryGrowthTrend}
-            />
-          </>
-        ) : isLoadingGrowthSummary && !growthSummary ? (
-          <p className="helper-text">성장 데이터를 불러오는 중입니다.</p>
-        ) : growthStage === 'EMPTY' ? (
+          <div className="mypage-growth-feedback">
+            <p className="message error">{growthSummaryError}</p>
+            <button className="ghost-button" type="button" onClick={handleRetryGrowthSummary}>다시 시도</button>
+          </div>
+        ) : null}
+
+        {isInitialGrowthSummaryLoading ? <p className="helper-text">성장 데이터를 불러오는 중입니다.</p> : null}
+
+        {shouldRenderStandaloneGrowthTrend ? (
+          <GrowthTrendSection
+            points={growthTrendPoints}
+            isLoading={isLoadingGrowthTrend}
+            error={growthTrendError}
+            onRetry={handleRetryGrowthTrend}
+          />
+        ) : null}
+
+        {!growthSummaryError && !isInitialGrowthSummaryLoading && (growthStage === 'EMPTY' ? (
           <div className="mypage-growth-empty">
             <h3>아직 성장 데이터를 만들 기록이 없습니다.</h3>
             <p className="helper-text">타이머에서 첫 기록을 남겨보세요.</p>
@@ -1095,11 +1111,18 @@ export default function MyPage() {
                   <p className="mypage-chart-summary">일별 solve 수: 기록 없는 날은 0회로 표시합니다.</p>
                 </div>
               ) : null}
+              {growthStage !== 'FULL' ? (
+                growthTrendError ? <div className="mypage-growth-feedback"><p className="message error">{growthTrendError}</p><button className="ghost-button" type="button" onClick={handleRetryGrowthTrend}>다시 시도</button></div>
+                  : isLoadingGrowthTrend && !hasGrowthTrendPoints ? <p className="helper-text">30일 활동을 불러오는 중입니다.</p>
+                    : !isLoadingGrowthTrend && !hasGrowthTrendPoints ? <p className="helper-text">아직 표시할 30일 활동이 없습니다.</p>
+                      : hasGrowthTrendPoints ? <GrowthDailyTimeline points={growthTrendPoints} label="30일 활동을 텍스트로 보기" includePenaltyCounts />
+                        : null
+              ) : null}
             </section>
 
             <section className="mypage-next-practice" aria-labelledby="growth-next-practice"><div><h3 id="growth-next-practice">다음 연습</h3><p>{getNextPracticeAction(growthSummary)}</p></div><button className="primary-button" type="button" onClick={() => navigate('/timer')}>연습 시작</button></section>
           </>
-        )}
+        ) : null)}
       </div>
 
       <div className="panel mypage-records-panel">
@@ -1417,17 +1440,21 @@ export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
             </>
           ) : <p className="helper-text">아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>}
           {partialTrendPoint ? <p className="helper-text">오늘 데이터는 진행 중인 기록입니다.</p> : null}
-          <details className="mypage-trend-details">
-            <summary>30일 추세를 텍스트로 보기</summary>
-            <ul>
-              {points.map((point) => (
-                <li key={point.date}>{formatGrowthTrendPointDate(point)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
-              ))}
-            </ul>
-          </details>
+          <GrowthDailyTimeline points={points} label="30일 추세를 텍스트로 보기" includeMedian />
         </>
       ) : null}
     </section>
+  )
+}
+
+export function GrowthDailyTimeline({ points, label, includeMedian = false, includePenaltyCounts = false }) {
+  return (
+    <details className="mypage-trend-details">
+      <summary>{label}</summary>
+      <ul>
+        {points.map((point) => <li key={point.date}>{formatGrowthDailyTimelineEntry(point, { includeMedian, includePenaltyCounts })}</li>)}
+      </ul>
+    </details>
   )
 }
 

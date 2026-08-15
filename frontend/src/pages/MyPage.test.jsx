@@ -683,7 +683,8 @@ describe('MyPage', () => {
     expect(screen.getByText('Recent Ao12')).toBeInTheDocument()
     expect(screen.getAllByText('최근 7일')).toHaveLength(2)
     expect(screen.getByText('30일 추세')).toBeInTheDocument()
-    expect(screen.getByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
+    expect(screen.getAllByText('30일 추세를 텍스트로 보기')).toHaveLength(1)
+    expect(screen.queryByText('30일 활동을 텍스트로 보기')).not.toBeInTheDocument()
     expect(screen.getByText('PB Progression')).toBeInTheDocument()
     expect(await screen.findByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 1개' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'PB progression 텍스트 타임라인' })).toBeInTheDocument()
@@ -820,6 +821,29 @@ describe('MyPage', () => {
     expect(await screen.findByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
   })
 
+  it('should_render_a_successful_trend_while_summary_is_still_loading', async () => {
+    const summary = createDeferred()
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockReturnValue(summary.promise)
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse([
+      { date: '2026-08-15', recordCount: 2, rankableCount: 2, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 0 },
+    ]))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('성장 데이터를 불러오는 중입니다.')).toBeInTheDocument()
+    expect(await screen.findByText('30일 추세')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
+    expect(getMyGrowthPbProgression).not.toHaveBeenCalled()
+
+    act(() => {
+      summary.resolve(createGrowthSummaryResponse())
+    })
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+  })
+
   it('should_render_summary_before_a_slow_pb_progression_request_finishes', async () => {
     const progression = createDeferred()
     vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
@@ -867,6 +891,48 @@ describe('MyPage', () => {
     expect(screen.getByText('30일 추세')).toBeInTheDocument()
     expect(await screen.findByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
     expect(getMyGrowthPbProgression).not.toHaveBeenCalled()
+  })
+
+  it('should_keep_staged_activity_visible_when_the_trend_request_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryForSolveCount(4, {
+      recentAo5: { status: 'INSUFFICIENT_DATA', valueMs: null },
+      recentAo12: { status: 'INSUFFICIENT_DATA', valueMs: null },
+    }))
+    vi.mocked(getMyGrowthTrend).mockRejectedValue(new Error('30일 추세 조회 실패'))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('첫 Ao5까지 1회 남음')).toBeInTheDocument()
+    expect(screen.getByText('연습 활동')).toBeInTheDocument()
+    expect(await screen.findByText('30일 추세 조회 실패')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+  })
+
+  it.each([4, 8])('should_render_an_accessible_activity_timeline_for_%i_staged_solves', async (totalSolveCount) => {
+    const points = [
+      { date: '2026-08-13', recordCount: 0, rankableCount: 0, medianTimeMs: null, dnfCount: 0, plusTwoCount: 0 },
+      { date: '2026-08-14', recordCount: 2, rankableCount: 2, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 1 },
+      { date: '2026-08-15', recordCount: 1, rankableCount: 0, medianTimeMs: null, dnfCount: 1, plusTwoCount: 0 },
+    ]
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryForSolveCount(totalSolveCount, {
+      recentAo5: { status: totalSolveCount < 5 ? 'INSUFFICIENT_DATA' : 'AVAILABLE', valueMs: totalSolveCount < 5 ? null : 10200 },
+      recentAo12: { status: 'INSUFFICIENT_DATA', valueMs: null },
+    }))
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse(points, { todayPartial: true, toDate: '2026-08-15' }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('연습 활동')).toBeInTheDocument()
+    expect(screen.queryByText('30일 추세')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('최근 30일 일별 solve 수 그래프')).toBeInTheDocument()
+    expect(await screen.findByText('30일 활동을 텍스트로 보기')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 13일: 기록 없음 · solve 0회 · DNF 0회 · +2 0회')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 14일: solve 2회 · DNF 0회 · +2 1회')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: DNF-only · solve 1회 · DNF 1회 · +2 0회')).toBeInTheDocument()
   })
 
   it('should_load_one_bounded_next_page_for_pb_progression', async () => {
