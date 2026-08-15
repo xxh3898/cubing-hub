@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../context/useAuth.js'
 import MyPage, {
   GrowthPeriodCard,
+  GrowthTrendSection,
   GrowthPbProgressionTooltip,
   RecordTrendTooltip,
   GrowthTrendTooltip,
@@ -1170,19 +1171,21 @@ describe('MyPage', () => {
     expect(screen.getByText('2026년 8월 2일 오후 6시')).toBeInTheDocument()
   })
 
-  it('should_not_render_partial_trend_label_when_api_marks_today_as_complete', async () => {
+  it('should_not_render_partial_trend_label_when_api_marks_today_as_complete', () => {
     const points = [
       { date: '2026-08-14', recordCount: 2, rankableCount: 2, medianTimeMs: 10100, dnfCount: 0, plusTwoCount: 0 },
       { date: '2026-08-15', recordCount: 3, rankableCount: 3, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 1 },
     ]
-    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
-    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
-    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse())
-    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse(points, { todayPartial: false, toDate: '2026-08-15' }))
+    render(
+      <GrowthTrendSection
+        points={buildGrowthTrendChartData({ todayPartial: false, toDate: '2026-08-15', points })}
+        isLoading={false}
+        error={null}
+        onRetry={vi.fn()}
+      />,
+    )
 
-    render(<MyPage />)
-
-    expect(await screen.findByText('30일 추세')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세')).toBeInTheDocument()
     expect(screen.queryByText('오늘 데이터는 진행 중인 기록입니다.')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
     expect(screen.queryByText(/오늘, 진행 중/)).not.toBeInTheDocument()
