@@ -1177,6 +1177,7 @@ describe('MyPage', () => {
     ]
     vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
     vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse())
     vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse(points, { todayPartial: false, toDate: '2026-08-15' }))
 
     render(<MyPage />)
