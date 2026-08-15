@@ -200,8 +200,14 @@ run_maintenance() {
     FAKE_RUNTIME_REAL_IP="${runtime_real_ip}" \
     FAKE_RUNTIME_BACKUP_SCRIPT="${runtime_backup_script}" \
     FAKE_RUNTIME_DEPLOY_SCRIPT="${runtime_deploy_script}" \
-    FAKE_CONFIG_REVISION="${TARGET_RUNTIME_REVISION}" \
-    FAKE_CONFIG_PROJECT=cubing-hub \
+    FAKE_CONFIG_REVISION="${FAKE_CONFIG_REVISION:-${TARGET_RUNTIME_REVISION}}" \
+    FAKE_CONFIG_PROJECT="${FAKE_CONFIG_PROJECT:-cubing-hub}" \
+    FAKE_RUNTIME_INSECURE_SCRIPT_MODE="${FAKE_RUNTIME_INSECURE_SCRIPT_MODE:-false}" \
+    FAKE_RUNTIME_INVALID_BACKUP_SYNTAX="${FAKE_RUNTIME_INVALID_BACKUP_SYNTAX:-false}" \
+    FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX="${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" \
+    FAKE_RUNTIME_EXTRA_FILE="${FAKE_RUNTIME_EXTRA_FILE:-false}" \
+    FAKE_RUNTIME_EXTRA_DIR="${FAKE_RUNTIME_EXTRA_DIR:-false}" \
+    FAKE_RUNTIME_SYMLINK="${FAKE_RUNTIME_SYMLINK:-false}" \
     FAKE_RENDER_DB_IMAGE=mysql:8.0.46 \
     FAKE_DB_STATE_DIR="${db_state}" \
     FAKE_SERVICE_STATE_DIR="${service_state}" \
@@ -254,6 +260,13 @@ prepare_upgrade_fixture() {
     "${TARGET_RUNTIME_REVISION}" \
     "mysql:8.4.11@sha256:${MYSQL_84_DIGEST}" \
     "${BACKUP_ID}" \
+    test-user
+}
+
+stage_final_backup_worker_fixture() {
+  printf 'test-token' | run_maintenance stage-final-backup-worker \
+    "${TARGET_RUNTIME_DIGEST}" \
+    "${TARGET_RUNTIME_REVISION}" \
     test-user
 }
 
@@ -310,7 +323,13 @@ database.update(
     imageId=expected_image_id,
     volume=expected_volume,
 )
-if mode == "image-mismatch":
+if mode == "old-worker":
+    del database["image"]
+    del database["imageId"]
+    del database["volume"]
+    manifest["trigger"] = "scheduled"
+    manifest.pop("maintenanceFinal", None)
+elif mode == "image-mismatch":
     database["image"] = "mysql:8.0.46@sha256:" + "9" * 64
 elif mode == "image-id-mismatch":
     database["imageId"] = "sha256:" + "9" * 64
@@ -345,6 +364,36 @@ manifest["startedAt"] = started.strftime("%Y-%m-%dT%H:%M:%SZ")
 manifest["completedAt"] = (started + dt.timedelta(seconds=1)).strftime(
     "%Y-%m-%dT%H:%M:%SZ"
 )
+manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+PY
+}
+
+bind_backup_to_final_worker() {
+  local evidence_id="$1"
+  local manifest_path="$2"
+  local evidence_file="${app_dir}/runtime-config/mysql-maintenance/final-backup-workers/${evidence_id}/worker.env"
+
+  /usr/bin/python3 - "${manifest_path}" "${evidence_file}" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest_path = pathlib.Path(sys.argv[1])
+evidence_path = pathlib.Path(sys.argv[2])
+evidence = dict(
+    line.split("=", 1)
+    for line in evidence_path.read_text(encoding="utf-8").splitlines()
+)
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+manifest["trigger"] = "maintenance-final"
+manifest["maintenanceFinal"] = {
+    "backupWorkerEvidenceId": evidence["EVIDENCE_ID"],
+    "backupWorkerSha256": evidence["BACKUP_WORKER_SHA256"],
+    "quiesceEvidenceId": evidence["QUIESCE_EVIDENCE_ID"],
+    "runtimeConfigContentSha256": evidence["TARGET_RUNTIME_CONFIG_CONTENT_SHA256"],
+    "runtimeConfigDigest": evidence["TARGET_RUNTIME_CONFIG_DIGEST"],
+    "runtimeConfigRevision": evidence["TARGET_RUNTIME_CONFIG_REVISION"],
+}
 manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 PY
 }
@@ -405,6 +454,8 @@ PY
 # by proving a healthy source and committing an immutable quiesce record.
 test "$(run_maintenance status)" = $'QUIESCE_STATUS=inactive\nPENDING=none'
 expect_failure "upgrade preparation without quiesce" prepare_upgrade_fixture
+expect_failure "final backup worker staging without quiesce" \
+  stage_final_backup_worker_fixture
 
 printf 'foreign transaction\n' >"${app_dir}/runtime-config/pending"
 expect_failure "quiesce with pending transaction" run_maintenance quiesce
@@ -501,6 +552,81 @@ path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 PY
 expect_failure "backup started at ambiguous quiesce second" prepare_upgrade_fixture
 bind_backup_to_active_quiesce "${backup_path}/manifest.json"
+state_before_worker_stage="$(
+  /usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" \
+    | /usr/bin/awk '{print $1}'
+)"
+env_before_worker_stage="$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)"
+current_before_worker_stage="$(/usr/bin/readlink "${app_dir}/runtime-config/current")"
+expect_failure "invalid final backup target digest" \
+  run_maintenance stage-final-backup-worker invalid-digest \
+    "${TARGET_RUNTIME_REVISION}" test-user
+expect_failure "final backup target revision mismatch" \
+  run_maintenance stage-final-backup-worker \
+    "${TARGET_RUNTIME_DIGEST}" \
+    9999999999999999999999999999999999999999 \
+    test-user
+FAKE_CONFIG_PROJECT=other-project \
+  expect_failure "final backup target project mismatch" \
+    stage_final_backup_worker_fixture
+FAKE_RUNTIME_INSECURE_SCRIPT_MODE=true \
+  expect_failure "insecure staged final backup worker mode" \
+    stage_final_backup_worker_fixture
+FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX=true \
+  expect_failure "invalid staged runtime script syntax" \
+    stage_final_backup_worker_fixture
+FAKE_RUNTIME_INVALID_BACKUP_SYNTAX=true \
+  expect_failure "invalid staged final backup worker syntax" \
+    stage_final_backup_worker_fixture
+FAKE_RUNTIME_SYMLINK=true \
+  expect_failure "staged final backup worker symlink" \
+    stage_final_backup_worker_fixture
+printf 'foreign pending\n' >"${app_dir}/runtime-config/pending"
+expect_failure "final backup worker staging with pending recovery" \
+  stage_final_backup_worker_fixture
+/bin/unlink "${app_dir}/runtime-config/pending"
+printf 'running\n' >"${service_state}/api"
+expect_failure "final backup worker staging with active API writes" \
+  stage_final_backup_worker_fixture
+printf 'exited\n' >"${service_state}/api"
+final_backup_worker_evidence_id="$(stage_final_backup_worker_fixture)"
+[[ "${final_backup_worker_evidence_id}" =~ ^[0-9a-f]{64}$ ]]
+final_backup_worker_evidence_file="${app_dir}/runtime-config/mysql-maintenance/final-backup-workers/${final_backup_worker_evidence_id}/worker.env"
+final_backup_worker_evidence_dir="$(
+  /usr/bin/dirname "${final_backup_worker_evidence_file}"
+)"
+test -f "${final_backup_worker_evidence_file}"
+/usr/bin/python3 - \
+  "${final_backup_worker_evidence_dir}" \
+  "${final_backup_worker_evidence_file}" <<'PY'
+import os
+import stat
+import sys
+
+assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o500
+assert stat.S_IMODE(os.stat(sys.argv[2]).st_mode) == 0o400
+PY
+/usr/bin/grep -Fqx \
+  "SOURCE_RUNTIME_CONFIG_DIGEST=${SOURCE_RUNTIME_DIGEST}" \
+  "${final_backup_worker_evidence_file}"
+/usr/bin/grep -Fqx \
+  "TARGET_RUNTIME_CONFIG_DIGEST=${TARGET_RUNTIME_DIGEST}" \
+  "${final_backup_worker_evidence_file}"
+test "$(
+  /usr/bin/shasum -a 256 "${app_dir}/runtime-config/state" \
+    | /usr/bin/awk '{print $1}'
+)" = "${state_before_worker_stage}"
+test "$(
+  /usr/bin/shasum -a 256 "${app_dir}/.env" | /usr/bin/awk '{print $1}'
+)" = "${env_before_worker_stage}"
+test "$(/usr/bin/readlink "${app_dir}/runtime-config/current")" \
+  = "${current_before_worker_stage}"
+test ! -e "${app_dir}/runtime-config/pending"
+bind_backup_to_final_worker \
+  "${final_backup_worker_evidence_id}" \
+  "${backup_path}/manifest.json"
 
 # Upgrade backups must originate from the exact committed source runtime.
 set_backup_provenance application-mismatch
@@ -516,6 +642,34 @@ set_backup_provenance missing-runtime
 expect_failure "backup runtime provenance missing" prepare_upgrade_fixture
 test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
 set_backup_provenance valid
+
+# The active pre-contract runtime worker can still create an otherwise valid
+# final snapshot without exact DB binding provenance. The strict candidate
+# consumer must reject that historical manifest shape.
+set_backup_database_binding old-worker
+expect_failure "old runtime worker backup without DB binding provenance" \
+  prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+set_backup_database_binding valid
+bind_backup_to_final_worker \
+  "${final_backup_worker_evidence_id}" \
+  "${backup_path}/manifest.json"
+/usr/bin/python3 - "${backup_path}/manifest.json" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+manifest = json.loads(path.read_text(encoding="utf-8"))
+manifest["maintenanceFinal"]["runtimeConfigDigest"] = "sha256:" + "9" * 64
+path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+PY
+expect_failure "final backup worker target provenance mismatch" \
+  prepare_upgrade_fixture
+test ! -e "${app_dir}/runtime-config/mysql-maintenance/candidates"
+bind_backup_to_final_worker \
+  "${final_backup_worker_evidence_id}" \
+  "${backup_path}/manifest.json"
 
 set_backup_database_binding image-mismatch
 expect_failure "backup exact DB image mismatch" prepare_upgrade_fixture
@@ -539,6 +693,10 @@ expect_failure "resume source without evidence" run_maintenance resume-source
 
 run_maintenance quiesce >/dev/null
 bind_backup_to_active_quiesce "${backup_path}/manifest.json"
+final_backup_worker_evidence_id="$(stage_final_backup_worker_fixture)"
+bind_backup_to_final_worker \
+  "${final_backup_worker_evidence_id}" \
+  "${backup_path}/manifest.json"
 quiesce_evidence_id="$(/usr/bin/sed -n 's/^EVIDENCE_ID=//p' "${quiesce_file}")"
 
 # Candidate creation must not change current runtime state or binding.
@@ -1056,6 +1214,10 @@ manifest["database"].update(
 target_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 PY
 bind_backup_to_active_quiesce "${next_backup_path}/manifest.json"
+next_final_backup_worker_evidence_id="$(stage_final_backup_worker_fixture)"
+bind_backup_to_final_worker \
+  "${next_final_backup_worker_evidence_id}" \
+  "${next_backup_path}/manifest.json"
 next_upgrade_candidate="$(
   printf 'test-token' | run_maintenance prepare-upgrade \
     "${TARGET_RUNTIME_DIGEST}" \
