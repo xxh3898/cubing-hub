@@ -676,7 +676,7 @@ test("should_publishValidatedSnapshotsAndPlanRetentionBeforeOffsiteHandoff", () 
   );
   assert.match(
     backupScript,
-    /Usage: backup-cubing-hub\.sh \[--trigger scheduled\|predeploy\]/,
+    /Usage: backup-cubing-hub\.sh \[--trigger scheduled\|predeploy\|maintenance-final\] \[--worker-evidence <id>\]/,
   );
   assert.match(backupScript, /"schemaVersion": 1/);
   assert.match(backupScript, /"status": "success"/);
