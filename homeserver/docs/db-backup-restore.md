@@ -72,8 +72,8 @@ Backup worker는 HomeOps에 실제 경로가 아닌 `cubing-hub/data/...` logica
 5. dump의 제한된 single-row INSERT를 streaming 해석해 같은 transaction
    snapshot의 table row count와 `post_attachments.object_key` 목록 생성
 6. dump reference와 snapshot 파일 대조
-7. DB engine/version, row-count/reference source·SHA-256, 파일
-   count·bytes·SHA-256 기록
+7. 실제 DB exact image·image ID·volume·engine/version,
+   row-count/reference source·SHA-256, 파일 count·bytes·SHA-256 기록
 8. `manifest.json` 생성 뒤 `SUCCESS` marker를 마지막으로 생성
 9. 검증한 임시 directory를 최종 backup 이름으로 원자 이동
 10. 삭제하지 않는 retention dry-run plan 생성
@@ -282,9 +282,32 @@ test "$(/usr/bin/shasum -a 256 "${source_script}" | /usr/bin/awk '{print $1}')" 
 - maintenance worker source/install SHA-256 일치
 - post-maintenance inspection을 지원하는 approved stable deploy wrapper 설치와 SHA-256 검증
 
+### Application quiesce
+
+Maintenance final backup 전에 canonical worker로 application write path를 중단한다. `quiesce`는 current verified runtime, 실제 API·Web container image, DB image·volume·`SELECT VERSION()`을 확인하고 공통 operation lock 아래 API·Web을 중지한다. DB와 Redis는 running·healthy 상태로 유지한다.
+
+```bash
+maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+"${maintenance}" status
+"${maintenance}" quiesce
+"${maintenance}" status
+```
+
+성공하면 `runtime-config/mysql-maintenance/quiesce.state`에 application/runtime identity, runtime content hash, exact DB image와 image ID, volume, MySQL patch, UTC quiesce 시각과 content-derived evidence ID를 mode `400`으로 기록한다. 이 파일은 operation lock을 대신하지 않는다. Lock은 command 실행을 직렬화하고, quiesce evidence는 final backup·restore rehearsal·candidate 준비 사이에 유지되는 maintenance-window state다.
+
+Quiesce evidence가 있으면 stable deploy wrapper와 active deploy worker는 normal deploy와 normal deploy recovery를 fail closed한다. Canonical backup bootstrap은 DB가 healthy하고 maintenance `pending`이 없는 동안 계속 사용할 수 있으므로 stopped API·Web과 정지된 post-image write path에서 final snapshot을 만든다. Read-only inspection은 별도 command contract를 유지한다.
+
+DB transition을 시작하지 않았고 `pending`이 없으며 source runtime과 MySQL 8.0.46 binding이 그대로라면 아래 command만 source API·Web을 다시 시작하고 전체 health를 확인한 뒤 evidence를 제거한다.
+
+```bash
+"${maintenance}" resume-source
+```
+
+`pending`이 생겼거나 DB/runtime binding이 target으로 이동한 뒤에는 `resume-source`를 사용하지 않는다. Dedicated `recover` 또는 verified rollback candidate를 사용한다.
+
 ### Immutable upgrade candidate
 
-Candidate 생성은 running runtime을 변경하지 않는다. `state`, `current`, `.env`, container는 그대로 유지한다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다. Backup manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 candidate source application revision·runtime digest와 정확히 일치해야 한다. Source metadata가 없거나 다른 runtime에서 생성한 backup이면 candidate를 만들지 않는다.
+Candidate 생성은 quiesced source의 `state`, `current`, `.env`, DB/Redis container를 변경하지 않는다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다. Backup manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 candidate source application revision·runtime digest와 정확히 일치해야 한다. Manifest의 DB exact image·image ID·volume도 quiesce evidence와 정확히 일치해야 하며, backup `startedAt`은 active quiesce 시각보다 뒤여야 한다. Source metadata나 DB binding evidence가 없거나 다른 runtime/DB에서 생성했거나 quiesce 이전 또는 같은 초에 시작한 backup이면 candidate를 만들지 않는다.
 
 ```bash
 maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
@@ -315,18 +338,20 @@ target runtime revision/content hash
 source/target DB image tag, repository digest, local image ID
 source/target DB volume
 backup identifier/manifest SHA-256
+quiesce evidence ID/timestamp
 created timestamp
 ```
 
-API·Web image drift, Redis·network·DB command drift, target image digest 불일치, backup evidence 부재·source runtime 불일치, current state/pointer/actual DB 불일치는 candidate 생성을 차단한다.
+API·Web image drift, Redis·network·DB command drift, target image digest 불일치, backup evidence 부재·source runtime 불일치, current state/pointer/actual DB 불일치, missing/stale quiesce evidence는 candidate 생성을 차단한다. 새 candidate schema를 적용하기 전에 만든 candidate는 historical preparation evidence이며 final `apply`에 사용할 수 없다.
 
 ### Upgrade
 
-1. application write를 중단하고 maintenance 상태를 확인한다.
-2. 운영 backup worker로 pre-upgrade logical backup과 게시글 image snapshot을 만든다.
-3. `SUCCESS`, manifest, dump·image checksum, engine/version, row count를 검증한다.
-4. 별도 fresh MySQL 8.4.11 환경에 backup을 restore하고 schema, FK, index, Flyway history, 핵심 row count를 확인한다.
-5. 기록한 candidate ID와 write stop을 다시 확인한 뒤 아래 command를 실행한다.
+1. `status`로 pending·quiesce 상태를 확인하고 `quiesce`로 API·Web을 중단한다. Evidence와 실제 stopped state를 다시 확인한다.
+2. 운영 backup worker로 quiesce 이후 시작한 final logical backup과 게시글 image snapshot을 만든다.
+3. `SUCCESS`, manifest, dump·image checksum, engine/version, row count, source provenance, exact DB image·image ID·volume과 `startedAt > QUIESCED_AT`을 검증한다.
+4. 별도 fresh MySQL 8.4.11 환경에 같은 backup을 restore하고 schema, FK, index, Flyway history, 핵심 row count를 확인한다.
+5. 같은 final backup으로 `prepare-upgrade`를 실행하고 fresh MySQL 8.0.46 rollback volume을 restore한 뒤 `verify-rollback-volume` evidence까지 준비한다.
+6. 기록한 candidate ID, active quiesce evidence와 write stop을 다시 확인한 뒤 아래 command를 실행한다.
 
    ```bash
    maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
@@ -334,17 +359,18 @@ API·Web image drift, Redis·network·DB command drift, target image digest 불�
    "${maintenance}" apply "${candidate_id}" WRITE_STOP_CONFIRMED
    ```
 
-6. Worker는 공통 operation lock을 획득하고 current state·pointer·actual DB identity를 다시 검증한다. 첫 service mutation 전에 canonical `runtime-config/pending`을 생성한 뒤 API/Web과 DB를 정상 종료하고 exact 8.4.11 image에 original volume을 연결한다.
-7. Target DB와 application 전체 health gate를 통과하기 전에는 `.env`, runtime config `state`·`current`가 마지막 committed source binding을 유지한다. Target DB image·volume은 maintenance worker가 Compose process override로만 전달한다.
-8. Exact `mysql:8.4.11@sha256:<digest>` 형식과 Docker image ID만으로 server version을 확정하지 않는다. Target DB health와 image·volume identity 확인 직후 running container에서 `SELECT VERSION()`을 실행하고, `8.4.11` 또는 배포 suffix가 붙은 동일 patch인지 확인한 뒤에만 Redis/API/Web을 시작한다.
-9. MySQL version gate와 application 전체 service health가 성공한 뒤에만 runtime config `state`·`current`, `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다. 이어서 charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
-10. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
-11. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
-12. 모든 gate가 끝난 뒤에만 write를 재개한다.
-13. MySQL 8.4.11 상태에서 post-upgrade backup을 생성하고 manifest·checksum을 검증한다.
-14. 아래 post-maintenance runtime baseline reconciliation을 성공시킨 뒤 normal production deploy를 재개한다.
+7. `WRITE_STOP_CONFIRMED` literal은 operator approval이며 단독 write-stop 증거가 아니다. Worker는 공통 operation lock을 획득한 뒤 quiesce evidence와 candidate identity, API·Web stopped state, source DB health·identity, final backup binding을 모두 재검증한다. 첫 DB mutation 전에 canonical `runtime-config/pending`을 생성하고 이미 stopped인 API·Web stop을 idempotent하게 확인한 뒤 DB를 정상 종료해 exact 8.4.11 image에 original volume을 연결한다.
+8. Target DB와 application 전체 health gate를 통과하기 전에는 `.env`, runtime config `state`·`current`가 마지막 committed source binding을 유지한다. Target DB image·volume은 maintenance worker가 Compose process override로만 전달한다.
+9. Exact `mysql:8.4.11@sha256:<digest>` 형식과 Docker image ID만으로 server version을 확정하지 않는다. Target DB health와 image·volume identity 확인 직후 running container에서 `SELECT VERSION()`을 실행하고, `8.4.11` 또는 배포 suffix가 붙은 동일 patch인지 확인한 뒤에만 Redis/API/Web을 시작한다.
+10. MySQL version gate와 application 전체 service health가 성공한 뒤에만 runtime config `state`·`current`, `.env`의 `DB_IMAGE`·`DB_VOLUME_NAME`, `mysql-maintenance/state`를 확정하고 `pending`을 제거한다. 마지막으로 quiesce evidence를 제거한다. 중간 실패에서는 pending과 evidence를 보존한다.
+11. charset/collation, application DB user의 `caching_sha2_password` 연결, Flyway validation을 확인한다.
+12. users, records, user_pbs, posts/comments 수와 PB·Penalty 분포, Record ID·timestamp 범위를 pre-upgrade evidence와 대조한다.
+13. API health, auth, Record create/PATCH/delete, Ranking, Growth summary/trend/progression, Community와 image read smoke를 수행한다.
+14. 모든 gate가 끝난 뒤에만 write를 재개한다.
+15. MySQL 8.4.11 상태에서 post-upgrade backup을 생성하고 manifest·checksum을 검증한다.
+16. 아래 post-maintenance runtime baseline reconciliation을 성공시킨 뒤 normal production deploy를 재개한다.
 
-`apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 target DB identity와 health를 먼저 확인하고 `SELECT VERSION()`으로 candidate operation의 exact target patch를 다시 검증한 뒤 API·Web을 candidate binding으로 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정한다.
+`apply`가 target DB startup 뒤 state/current 확정 전에 중단됐다면 normal deploy `recover`가 아니라 dedicated maintenance recovery를 사용한다. Recovery는 pending candidate와 active quiesce evidence binding, target DB identity와 health를 먼저 확인하고 `SELECT VERSION()`으로 candidate operation의 exact target patch를 다시 검증한 뒤 API·Web을 candidate binding으로 기동한다. 전체 service가 healthy인 경우에만 partial state를 확정하고 evidence를 제거한다. Success state와 pending 제거까지 완료되고 마지막 evidence unlink만 중단된 경우에도 dedicated `recover`가 completed maintenance state, current target identity와 전체 health를 재검증한 뒤 evidence cleanup만 마친다.
 
 ```bash
 /Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh recover
@@ -516,7 +542,9 @@ rollback_candidate_id="$(
 "${maintenance}" apply "${rollback_candidate_id}" WRITE_STOP_CONFIRMED
 ```
 
-Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME`과 `TARGET_DB_VOLUME`이 같거나 restore evidence가 없으면 candidate/apply를 차단한다. `apply`는 과거 restore evidence만 신뢰하지 않는다. Cutover 직전에 exact MySQL 8.0.46 임시 container로 rollback volume의 version, table inventory, manifest row count를 다시 검증하고 container를 제거한 뒤에만 pending 기록과 service 전환을 시작한다. Production binding으로 시작한 rollback target도 health·identity 뒤 `SELECT VERSION()`이 exact 8.0.46인지 다시 확인하며, 성공 후에도 original upgraded volume은 그대로 보존한다.
+Completed upgrade에서 rollback candidate를 준비하려면 현재 MySQL 8.4.11 source를 먼저 `quiesce`한다. Upgrade `pending`에서 즉시 rollback하는 경우에는 그 pending candidate가 보존한 original quiesce evidence를 이어받는다. State나 evidence를 직접 바꾸어 이 경계를 우회하지 않는다.
+
+Rollback candidate는 target runtime release와 current API·Web image를 유지하고 DB binding만 exact MySQL 8.0.46 image·verified fresh volume로 바꾼다. `SOURCE_DB_VOLUME`과 `TARGET_DB_VOLUME`이 같거나 restore evidence·active quiesce evidence가 없으면 candidate/apply를 차단한다. `apply`는 과거 restore evidence만 신뢰하지 않는다. Cutover 직전에 exact MySQL 8.0.46 임시 container로 rollback volume의 version, table inventory, manifest row count를 다시 검증하고 container를 제거한 뒤에만 pending 기록과 service 전환을 시작한다. Production binding으로 시작한 rollback target도 health·identity 뒤 `SELECT VERSION()`이 exact 8.0.46인지 다시 확인하며, 성공 후에도 original upgraded volume은 그대로 보존한다.
 
 Rollback `apply`가 target MySQL을 healthy 상태로 만들기 전에 중단되면 canonical `pending`의 `OPERATION=ROLLBACK`과 `CANDIDATE_ID`를 확인한 뒤 같은 command를 다시 실행한다. Worker는 동일 rollback candidate와 source upgrade candidate, restore evidence, application image, target image·volume을 모두 다시 검증한다. Candidate와 일치하는 unhealthy target container가 남아 있으면 volume을 보존한 채 container만 stop/remove하고 content parity를 다시 확인한다. 첫 `apply`의 검증 결과를 재사용하지 않으며, 다른 rollback candidate는 pending transaction을 이어받을 수 없다.
 
@@ -532,6 +560,9 @@ Target rollback DB가 이미 healthy하고 application/runtime state 확정만 �
 
 ### State와 중단 처리
 
+- `quiesce.state`는 API·Web write-stop의 persistent evidence다. Candidate는 evidence ID·timestamp를 고정하며 literal confirmation token만으로 `apply`할 수 없다.
+- Operation lock은 deploy·backup·quiesce·resume·prepare·apply·recover command 실행을 직렬화한다. Quiesce evidence는 lock 해제 뒤에도 maintenance window state를 유지한다.
+- Quiesced 상태의 normal deploy와 normal deploy recovery는 fail closed한다. Final backup은 pending이 생기기 전까지 canonical backup bootstrap으로 허용한다.
 - Candidate 생성은 `state`, `current`, `.env`, container를 변경하지 않는다.
 - `apply`는 첫 container stop 전에 canonical `runtime-config/pending`을 원자 생성한다. 이 동안 normal deploy와 backup은 fail closed한다.
 - Target DB와 application 전체 health를 확인하기 전에는 `.env`, `state`, `current`가 source binding을 유지한다. Worker는 candidate DB binding을 Compose process override로만 사용한다.
@@ -539,6 +570,7 @@ Target rollback DB가 이미 healthy하고 application/runtime state 확정만 �
 - `ROLLBACK` pending에서 target DB가 아직 healthy하지 않으면 동일 candidate의 `apply`만 재시도할 수 있다. Pending candidate ID·context나 restore evidence가 다르면 중단한다.
 - Rollback `apply`는 최초 실행과 재시도 모두 cutover 직전에 fresh volume의 current table inventory·row count를 backup manifest와 대조한다. 사전 restore evidence만으로 전환하지 않는다.
 - Target DB가 healthy하지만 application startup이나 success finalization이 끝나지 않았으면 `recover`를 사용한다. `recover`는 pending candidate의 target image ID·volume·health와 actual MySQL patch가 일치할 때만 application을 기동하고, 전체 service health 뒤 source/target 중간 state를 target으로 확정해 `.env` binding을 기록한다.
+- 성공 finalization은 pending을 제거한 뒤 quiesce evidence를 제거한다. 실패하면 evidence를 보존하며, DB transition 전 취소만 `resume-source`로 처리한다.
 - 성공 state의 current/previous runtime은 모두 explicit DB binding을 지원하는 target release를 가리킨다. Maintenance source release는 immutable candidate에 보존한다.
 - Target이 healthy하지 않으면 `recover`로 source를 자동 재연결하지 않는다. Fresh rollback volume을 검증한 뒤 rollback candidate를 적용한다.
 - Candidate, restore evidence, pending, maintenance state에는 secret을 남기지 않는다.

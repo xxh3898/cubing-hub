@@ -65,7 +65,9 @@ application·runtime config 실패는 이전에 검증된 exact pair로 복구�
 - source와 target DB volume
 - verified pre-transition backup
 
-Maintenance도 deploy·backup과 같은 operation lock과 canonical `runtime-config/pending`을 사용한다. 성공 후에만 explicit DB binding, verified runtime `state`·`current`, maintenance audit state를 확정한다. Rollback은 upgraded original volume을 보존하고, backup parity를 검증한 fresh 이전-engine volume으로 binding을 전환한다.
+Maintenance도 deploy·backup과 같은 operation lock과 canonical `runtime-config/pending`을 사용한다. Operation lock은 command 실행을 직렬화하고, 별도 `mysql-maintenance/quiesce.state`는 command 사이의 application write-stop을 증명한다. Quiesce는 verified source에서 API·Web만 중지하고 DB·Redis를 healthy 상태로 유지한다. Normal deploy/recovery는 evidence가 있는 동안 fail closed하며 final backup은 pending 이전 quiesced state에서 허용한다.
+
+Upgrade candidate는 quiesce evidence ID·timestamp와 quiesce 이후 시작한 final backup을 source runtime·DB identity에 묶는다. Human confirmation token만으로 `apply`할 수 없다. 성공 후에만 explicit DB binding, verified runtime `state`·`current`, maintenance audit state를 확정하고 pending과 quiesce evidence를 제거한다. DB transition 전 취소는 unchanged source에서만 `resume-source`가 담당하고, pending 이후에는 dedicated recover/rollback이 우선한다. Rollback은 upgraded original volume을 보존하고, backup parity를 검증한 fresh 이전-engine volume으로 binding을 전환한다.
 
 Main release가 data-service maintenance를 요구하면 GitHub Actions는 runtime-config revision과 digest를 기록한 뒤 production environment, Tailscale, SSH 단계 전에 deploy job을 skip한다. Host deploy worker의 drift guard도 독립된 방어선으로 유지한다.
 

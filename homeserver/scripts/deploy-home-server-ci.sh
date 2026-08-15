@@ -14,6 +14,7 @@ readonly RUNTIME_CONFIG_STATE="${RUNTIME_CONFIG_ROOT}/state"
 readonly RUNTIME_CONFIG_PENDING="${RUNTIME_CONFIG_ROOT}/pending"
 readonly RUNTIME_CONFIG_CURRENT="${RUNTIME_CONFIG_ROOT}/current"
 readonly RUNTIME_CONFIG_INITIALIZED="${APP_DIR}/.runtime-config-v2-initialized"
+readonly MAINTENANCE_QUIESCE="${RUNTIME_CONFIG_ROOT}/mysql-maintenance/quiesce.state"
 readonly OPERATION_LOCK="${APP_DIR}/.cubing-hub-operation.lock"
 readonly PROJECT_NAME=cubing-hub
 readonly RUNTIME_CONFIG_REPOSITORY=ghcr.io/xxh3898/cubing-hub-runtime-config
@@ -23,6 +24,12 @@ readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000
 fail() {
   printf 'Cubing Hub deploy bootstrap failed: %s\n' "$1" >&2
   exit 1
+}
+
+fail_if_maintenance_quiesced() {
+  if [[ -e "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]]; then
+    fail "application is quiesced for MySQL maintenance; use the maintenance worker"
+  fi
 }
 
 acquire_operation_lock() {
@@ -612,6 +619,7 @@ validated_recovery_release() {
 
 if [[ "$#" -eq 1 && "$1" == recover && -z "${SSH_ORIGINAL_COMMAND:-}" ]]; then
   acquire_operation_lock
+  fail_if_maintenance_quiesced
   if [[ -f "${RUNTIME_CONFIG_PENDING}" ]] \
     && [[ "$(
       /usr/bin/sed -n 's/^TRANSACTION_TYPE=//p' "${RUNTIME_CONFIG_PENDING}" \
@@ -663,6 +671,7 @@ if [[ "${original_command}" =~ ^inspect-cubing-hub-runtime[[:space:]]([0-9a-f]{4
 fi
 if [[ "${original_command}" =~ ^deploy-cubing-hub[[:space:]]([0-9a-fA-F]{40})[[:space:]]([A-Za-z0-9_-]+)$ ]]; then
   acquire_operation_lock
+  fail_if_maintenance_quiesced
   exec "${LEGACY_DEPLOY_SCRIPT}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
 fi
 
@@ -692,6 +701,7 @@ if [[ "${config_mode}" == update ]] && ! is_digest "${config_digest}"; then
   exit 64
 fi
 acquire_operation_lock
+fail_if_maintenance_quiesced
 if [[ ! -x "${DOCKER_BIN}" ]]; then
   fail "Docker CLI is not executable: ${DOCKER_BIN}"
 fi
