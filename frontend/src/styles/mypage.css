@@ -135,6 +135,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.dashboard-summary-grid.is-staged {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
 .dashboard-summary-card {
   display: grid;
   gap: 9px;
@@ -553,6 +557,7 @@
 
   .mypage-profile-actions,
   .dashboard-summary-grid,
+  .dashboard-summary-grid.is-staged,
   .mypage-comparison-grid,
   .mypage-consistency-grid,
   .mypage-activity-grid {

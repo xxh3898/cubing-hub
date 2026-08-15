@@ -138,6 +138,26 @@ export function buildPbProgressionChartData(content) {
   return [...(content ?? [])].reverse()
 }
 
+export function getGrowthStage(totalSolveCount) {
+  if (!Number.isFinite(totalSolveCount) || totalSolveCount <= 0) {
+    return 'EMPTY'
+  }
+
+  if (totalSolveCount < 5) {
+    return 'BEFORE_AO5'
+  }
+
+  if (totalSolveCount < 12) {
+    return 'BEFORE_AO12'
+  }
+
+  return 'FULL'
+}
+
+export function getRemainingSolveCount(target, current) {
+  return Math.max(0, target - current)
+}
+
 export function formatPbProgressionAxisTick(value) {
   const formattedDate = formatSeoulDateOnly(value)
   const match = formattedDate.match(/^\d+년 (\d+)월 (\d+)일$/)
@@ -177,6 +197,30 @@ export function getDirectionLabel(direction) {
   }
 
   return '비교 데이터 부족'
+}
+
+export function getConsistencyComparisonLabel(consistency) {
+  if (consistency?.status !== 'AVAILABLE') {
+    return null
+  }
+
+  const difference = typeof consistency.differenceMs === 'number'
+    ? `${formatRecordTime(Math.abs(consistency.differenceMs))} `
+    : ''
+
+  if (consistency.direction === 'NARROWER') {
+    return `비교: ${difference}좁아짐`
+  }
+
+  if (consistency.direction === 'WIDER') {
+    return `비교: ${difference}넓어짐`
+  }
+
+  if (consistency.direction === 'UNCHANGED') {
+    return '비교: 변화 없음'
+  }
+
+  return null
 }
 
 export function buildFirstPageFromRecentRecords(sourcePage) {
@@ -248,6 +292,9 @@ export default function MyPage() {
     () => buildPbProgressionChartData(pbProgression?.content),
     [pbProgression?.content],
   )
+  const totalGrowthSolveCount = growthSummary?.activity?.totalSolveCount ?? 0
+  const growthStage = getGrowthStage(totalGrowthSolveCount)
+  const consistencyComparisonLabel = getConsistencyComparisonLabel(growthSummary?.consistency)
   const hasGrowthTrendPoints = growthTrendPoints.length > 0
   const partialGrowthTrendPoint = growthTrendPoints.find((point) => point.isTodayPartial)
 
@@ -921,7 +968,7 @@ export default function MyPage() {
           </>
         ) : isLoadingGrowthSummary && !growthSummary ? (
           <p className="helper-text">성장 데이터를 불러오는 중입니다.</p>
-        ) : growthSummary?.activity?.totalSolveCount === 0 ? (
+        ) : growthStage === 'EMPTY' ? (
           <div className="mypage-growth-empty">
             <h3>아직 성장 데이터를 만들 기록이 없습니다.</h3>
             <p className="helper-text">타이머에서 첫 기록을 남겨보세요.</p>
@@ -936,71 +983,91 @@ export default function MyPage() {
                   <p className="helper-text">현재 남아 있는 WCA 3x3x3 Practice 기록 기준입니다.</p>
                 </div>
               </div>
-              <div className="dashboard-summary-grid">
+              <div className={`dashboard-summary-grid${growthStage === 'FULL' ? '' : ' is-staged'}`}>
                 <GrowthMetricCard icon={<Trophy size={18} />} label="Current PB" status={growthSummary?.currentPb?.status} valueMs={growthSummary?.currentPb?.effectiveTimeMs} accent />
-                <GrowthMetricCard icon={<Timer size={18} />} label="Recent Ao5" status={growthSummary?.recentAo5?.status} valueMs={growthSummary?.recentAo5?.valueMs} />
-                <GrowthMetricCard icon={<Gauge size={18} />} label="Recent Ao12" status={growthSummary?.recentAo12?.status} valueMs={growthSummary?.recentAo12?.valueMs} />
+                {growthStage !== 'BEFORE_AO5' ? <GrowthMetricCard icon={<Timer size={18} />} label="Recent Ao5" status={growthSummary?.recentAo5?.status} valueMs={growthSummary?.recentAo5?.valueMs} /> : null}
+                {growthStage === 'FULL' ? <GrowthMetricCard icon={<Gauge size={18} />} label="Recent Ao12" status={growthSummary?.recentAo12?.status} valueMs={growthSummary?.recentAo12?.valueMs} /> : null}
               </div>
             </section>
 
-            <section className="mypage-growth-section" aria-labelledby="growth-direction">
-              <div className="mypage-growth-section-heading">
-                <div>
-                  <h3 id="growth-direction">최근 기록 흐름</h3>
-                  <p className="helper-text">완료된 7일 구간의 중앙 기록을 비교합니다.</p>
-                </div>
-                <span className="mypage-direction-label">비교: {getDirectionLabel(growthSummary?.performanceComparison?.direction)}</span>
-              </div>
-              <div className="mypage-comparison-grid">
-                <GrowthPeriodCard label="최근 7일" period={growthSummary?.performanceComparison?.recentPeriod} />
-                <GrowthPeriodCard label="이전 7일" period={growthSummary?.performanceComparison?.previousPeriod} />
-              </div>
-            </section>
-
-            <GrowthTrendSection
-              points={growthTrendPoints}
-              isLoading={isLoadingGrowthTrend}
-              error={growthTrendError}
-              onRetry={handleRetryGrowthTrend}
-            />
-
-            <section className="mypage-growth-section" aria-labelledby="growth-consistency">
-              <div className="mypage-growth-section-heading"><div><h3 id="growth-consistency">최근 일관성</h3><p className="helper-text">최근 12회와 이전 12회의 IQR 및 penalty 수를 표시합니다.</p></div></div>
-              {growthSummary?.consistency?.status === 'AVAILABLE' ? (
-                <div className="mypage-consistency-grid">
-                  <GrowthConsistencyCard label="최근 12회" window={growthSummary.consistency.current} />
-                  <GrowthConsistencyCard label="이전 12회" window={growthSummary.consistency.previous} />
-                </div>
-              ) : <p className="helper-text">데이터 부족: 최근 일관성을 계산할 충분한 기록이 없습니다.</p>}
-            </section>
-
-            <section className="mypage-growth-section" aria-labelledby="growth-pb-progression">
-              <div className="mypage-growth-section-heading"><div><h3 id="growth-pb-progression">PB Progression</h3><p className="helper-text">현재 남아 있는 기록 기준입니다. penalty 변경이나 기록 삭제에 따라 다시 구성될 수 있습니다.</p></div></div>
-              {isLoadingPbProgression && !pbProgression ? <p className="helper-text">PB progression을 불러오는 중입니다.</p> : null}
-              {pbProgressionError && !pbProgression ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionError}</p><button className="ghost-button" type="button" onClick={handleRetryPbProgression}>다시 시도</button></div> : null}
-              {!isLoadingPbProgression && !pbProgressionError && (pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : null}
-              {(pbProgression?.content ?? []).length > 0 ? (
-                <>
-                  <div className="mypage-pb-chart" role="img" aria-label={`PB progression step chart. 현재 불러온 PB ${pbProgressionChartPoints.length}개`}>
-                    <ResponsiveContainer width="100%" height={240}>
-                      <RechartsLineChart data={pbProgressionChartPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
-                        <XAxis dataKey="createdAt" tickFormatter={formatPbProgressionAxisTick} tickLine={false} axisLine={false} minTickGap={32} />
-                        <YAxis dataKey="effectiveTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
-                        <Tooltip content={<GrowthPbProgressionTooltip />} />
-                        <Line type="stepAfter" dataKey="effectiveTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 3, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} />
-                      </RechartsLineChart>
-                    </ResponsiveContainer>
-                    <p className="mypage-chart-summary">오래된 PB부터 현재 PB까지, 현재 불러온 {pbProgressionChartPoints.length}개 milestone을 표시합니다.</p>
+            {growthStage === 'FULL' ? (
+              <>
+                <section className="mypage-growth-section" aria-labelledby="growth-direction">
+                  <div className="mypage-growth-section-heading">
+                    <div>
+                      <h3 id="growth-direction">최근 기록 흐름</h3>
+                      <p className="helper-text">완료된 7일 구간의 중앙 기록을 비교합니다.</p>
+                    </div>
+                    <span className="mypage-direction-label">비교: {getDirectionLabel(growthSummary?.performanceComparison?.direction)}</span>
                   </div>
-                  <ol className="mypage-pb-progression-list" aria-label="PB progression 텍스트 타임라인">
-                    {pbProgression.content.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
-                  </ol>
-                </>
-              ) : null}
-              {pbProgressionLoadMoreError ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionLoadMoreError}</p><button className="ghost-button" type="button" onClick={handleLoadMorePb}>다시 시도</button></div> : null}
-              {pbProgression?.hasNext ? <button className="ghost-button mypage-pb-more-button" type="button" onClick={handleLoadMorePb} disabled={isLoadingMorePb}>{isLoadingMorePb ? '불러오는 중...' : '더 보기'}</button> : null}
-            </section>
+                  <div className="mypage-comparison-grid">
+                    <GrowthPeriodCard label="최근 7일" period={growthSummary?.performanceComparison?.recentPeriod} />
+                    <GrowthPeriodCard label="이전 7일" period={growthSummary?.performanceComparison?.previousPeriod} />
+                  </div>
+                </section>
+
+                <GrowthTrendSection
+                  points={growthTrendPoints}
+                  isLoading={isLoadingGrowthTrend}
+                  error={growthTrendError}
+                  onRetry={handleRetryGrowthTrend}
+                />
+
+                <section className="mypage-growth-section" aria-labelledby="growth-consistency">
+                  <div className="mypage-growth-section-heading">
+                    <div><h3 id="growth-consistency">최근 일관성</h3><p className="helper-text">최근 12회와 이전 12회의 IQR 및 penalty 수를 표시합니다.</p></div>
+                    {consistencyComparisonLabel ? <span className="mypage-direction-label">{consistencyComparisonLabel}</span> : null}
+                  </div>
+                  <div className="mypage-consistency-grid">
+                    <GrowthConsistencyCard label="최근 12회" window={growthSummary.consistency.current} />
+                    <GrowthConsistencyCard label="이전 12회" window={growthSummary.consistency.previous} />
+                  </div>
+                </section>
+
+                <section className="mypage-growth-section" aria-labelledby="growth-pb-progression">
+                  <div className="mypage-growth-section-heading"><div><h3 id="growth-pb-progression">PB Progression</h3><p className="helper-text">현재 남아 있는 기록 기준입니다. penalty 변경이나 기록 삭제에 따라 다시 구성될 수 있습니다.</p></div></div>
+                  {isLoadingPbProgression && !pbProgression ? <p className="helper-text">PB progression을 불러오는 중입니다.</p> : null}
+                  {pbProgressionError && !pbProgression ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionError}</p><button className="ghost-button" type="button" onClick={handleRetryPbProgression}>다시 시도</button></div> : null}
+                  {!isLoadingPbProgression && !pbProgressionError && (pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : null}
+                  {(pbProgression?.content ?? []).length > 0 ? (
+                    <>
+                      <div className="mypage-pb-chart" role="img" aria-label={`PB progression step chart. 현재 불러온 PB ${pbProgressionChartPoints.length}개`}>
+                        <ResponsiveContainer width="100%" height={240}>
+                          <RechartsLineChart data={pbProgressionChartPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                            <XAxis dataKey="createdAt" tickFormatter={formatPbProgressionAxisTick} tickLine={false} axisLine={false} minTickGap={32} />
+                            <YAxis dataKey="effectiveTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
+                            <Tooltip content={<GrowthPbProgressionTooltip />} />
+                            <Line type="stepAfter" dataKey="effectiveTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 3, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} />
+                          </RechartsLineChart>
+                        </ResponsiveContainer>
+                        <p className="mypage-chart-summary">오래된 PB부터 현재 PB까지, 현재 불러온 {pbProgressionChartPoints.length}개 milestone을 표시합니다.</p>
+                      </div>
+                      <ol className="mypage-pb-progression-list" aria-label="PB progression 텍스트 타임라인">
+                        {pbProgressionChartPoints.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
+                      </ol>
+                    </>
+                  ) : null}
+                  {pbProgressionLoadMoreError ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionLoadMoreError}</p><button className="ghost-button" type="button" onClick={handleLoadMorePb}>다시 시도</button></div> : null}
+                  {pbProgression?.hasNext ? <button className="ghost-button mypage-pb-more-button" type="button" onClick={handleLoadMorePb} disabled={isLoadingMorePb}>{isLoadingMorePb ? '불러오는 중...' : '더 보기'}</button> : null}
+                </section>
+              </>
+            ) : (
+              <section className="mypage-growth-section" aria-labelledby="growth-next-stage">
+                <div className="mypage-growth-section-heading">
+                  <div>
+                    <h3 id="growth-next-stage">다음 성장 단계</h3>
+                    <p className="helper-text">저장된 solve 수를 기준으로 다음 평균까지 진행합니다.</p>
+                  </div>
+                </div>
+                <div className="mypage-growth-period-card">
+                  <span className="dashboard-summary-label">현재 {totalGrowthSolveCount}회</span>
+                  <strong>{growthStage === 'BEFORE_AO5'
+                    ? `첫 Ao5까지 ${getRemainingSolveCount(5, totalGrowthSolveCount)}회 남음`
+                    : `Ao12까지 ${getRemainingSolveCount(12, totalGrowthSolveCount)}회 남음`}</strong>
+                </div>
+              </section>
+            )}
 
             <section className="mypage-growth-section" aria-labelledby="growth-activity">
               <div className="mypage-growth-section-heading"><div><h3 id="growth-activity">연습 활동</h3><p className="helper-text">Asia/Seoul 달력일 기준 activity입니다.</p></div></div>

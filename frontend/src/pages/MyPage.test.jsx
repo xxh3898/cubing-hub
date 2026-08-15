@@ -28,10 +28,13 @@ import MyPage, {
   formatGrowthPeriodRange,
   formatPbProgressionAxisTick,
   formatTrendAxisTick,
+  getConsistencyComparisonLabel,
   getNextPracticeAction,
   getDisplayRecordTime,
   getEventLabel,
+  getGrowthStage,
   getPenaltyLabel,
+  getRemainingSolveCount,
   previousCalendarDate,
   resolveEventType,
 } from './MyPage.jsx'
@@ -41,6 +44,7 @@ const mockClearAccessToken = vi.fn()
 const mockUpdateCurrentUser = vi.fn()
 const mockRechartsTooltip = vi.hoisted(() => vi.fn(() => null))
 const mockRechartsLine = vi.hoisted(() => vi.fn(() => null))
+const mockRechartsLineChart = vi.hoisted(() => vi.fn())
 
 vi.mock('../api.js', () => ({
   changeMyPassword: vi.fn(),
@@ -87,7 +91,7 @@ vi.mock('recharts', async () => {
     BarChart: ChartContainer,
     CartesianGrid: ChartElement,
     Line: mockRechartsLine,
-    LineChart: ChartContainer,
+    LineChart: mockRechartsLineChart,
     ReferenceLine: ChartElement,
     ResponsiveContainer: ChartContainer,
     Tooltip: mockRechartsTooltip,
@@ -141,11 +145,26 @@ function createGrowthSummaryResponse(overrides = {}) {
         status: 'AVAILABLE',
         current: { status: 'AVAILABLE', iqrMs: 850, dnfCount: 1, plusTwoCount: 2 },
         previous: { status: 'AVAILABLE', iqrMs: 1100, dnfCount: 0, plusTwoCount: 1 },
+        direction: 'NARROWER',
+        differenceMs: 250,
       },
       activity: { totalSolveCount: 12, last7DaysSolveCount: 7, previous7DaysSolveCount: 5, last30DaysSolveCount: 12, activeDaysLast30Days: 4, firstRecordedAt: '2026-08-01T09:00:00Z', latestRecordedAt: '2026-08-14T09:00:00Z' },
       ...overrides,
     },
   }
+}
+
+function createGrowthSummaryForSolveCount(totalSolveCount, overrides = {}) {
+  const baseSummary = createGrowthSummaryResponse().data
+
+  return createGrowthSummaryResponse({
+    ...overrides,
+    activity: {
+      ...baseSummary.activity,
+      totalSolveCount,
+      ...overrides.activity,
+    },
+  })
 }
 
 function createGrowthTrendResponse(points = [], overrides = {}) {
@@ -183,6 +202,7 @@ describe('MyPage', () => {
     vi.resetAllMocks()
     mockRechartsTooltip.mockImplementation(() => null)
     mockRechartsLine.mockImplementation(() => null)
+    mockRechartsLineChart.mockImplementation(({ children }) => <div>{children}</div>)
     vi.stubGlobal('confirm', vi.fn(() => true))
 
     vi.mocked(useAuth).mockReturnValue({
@@ -668,10 +688,80 @@ describe('MyPage', () => {
     expect(await screen.findByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 1개' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'PB progression 텍스트 타임라인' })).toBeInTheDocument()
     expect(mockRechartsLine.mock.calls.some(([props]) => props.type === 'stepAfter' && props.dataKey === 'effectiveTimeMs')).toBe(true)
+    expect(screen.getByText('비교: 0.250 좁아짐')).toBeInTheDocument()
     expect(screen.getByText('연습 활동')).toBeInTheDocument()
+    expect(screen.queryByText('다음 성장 단계')).not.toBeInTheDocument()
     expect(getMyGrowth).toHaveBeenCalledWith({ eventType: 'WCA_333' })
     expect(getMyGrowthTrend).toHaveBeenCalledWith({ eventType: 'WCA_333', period: '30D' })
     expect(getMyGrowthPbProgression).toHaveBeenCalledWith({ eventType: 'WCA_333', page: 1, size: 50 })
+  })
+
+  it.each([
+    { totalSolveCount: 1, remaining: 4 },
+    { totalSolveCount: 4, remaining: 1 },
+  ])('should_render_pb_activity_and_ao5_progress_for_$totalSolveCount_solves', async ({ totalSolveCount, remaining }) => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryForSolveCount(totalSolveCount, {
+      recentAo5: { status: 'INSUFFICIENT_DATA', valueMs: null },
+      recentAo12: { status: 'INSUFFICIENT_DATA', valueMs: null },
+    }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText(`첫 Ao5까지 ${remaining}회 남음`)).toBeInTheDocument()
+    expect(screen.getByText('Current PB')).toBeInTheDocument()
+    expect(screen.getByText('연습 활동')).toBeInTheDocument()
+    expect(screen.getByText('다음 연습')).toBeInTheDocument()
+    expect(screen.queryByText('Recent Ao5')).not.toBeInTheDocument()
+    expect(screen.queryByText('Recent Ao12')).not.toBeInTheDocument()
+    expect(screen.queryByText('최근 기록 흐름')).not.toBeInTheDocument()
+    expect(screen.queryByText('최근 일관성')).not.toBeInTheDocument()
+    expect(screen.queryByText('PB Progression')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { totalSolveCount: 5, remaining: 7, ao5: { status: 'DNF', valueMs: null }, expectedAo5: 'DNF' },
+    { totalSolveCount: 11, remaining: 1, ao5: { status: 'AVAILABLE', valueMs: 10200 }, expectedAo5: '10.200' },
+  ])('should_render_ao5_and_ao12_progress_for_$totalSolveCount_solves', async ({ totalSolveCount, remaining, ao5, expectedAo5 }) => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryForSolveCount(totalSolveCount, {
+      recentAo5: ao5,
+      recentAo12: { status: 'INSUFFICIENT_DATA', valueMs: null },
+    }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText(`Ao12까지 ${remaining}회 남음`)).toBeInTheDocument()
+    expect(screen.getByText('Recent Ao5')).toBeInTheDocument()
+    expect(screen.getByText(expectedAo5)).toBeInTheDocument()
+    expect(screen.queryByText('Recent Ao12')).not.toBeInTheDocument()
+    expect(screen.queryByText('최근 기록 흐름')).not.toBeInTheDocument()
+    expect(screen.getByText('연습 활동')).toBeInTheDocument()
+    expect(screen.getByText('다음 연습')).toBeInTheDocument()
+  })
+
+  it('should_render_available_consistency_window_when_aggregate_comparison_is_insufficient', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse({
+      consistency: {
+        status: 'INSUFFICIENT_DATA',
+        current: { status: 'AVAILABLE', iqrMs: 850, dnfCount: 1, plusTwoCount: 2 },
+        previous: { status: 'INSUFFICIENT_DATA', iqrMs: null, dnfCount: 0, plusTwoCount: 0 },
+        direction: 'NOT_AVAILABLE',
+        differenceMs: null,
+      },
+    }))
+
+    render(<MyPage />)
+
+    const consistencySection = await screen.findByRole('region', { name: '최근 일관성' })
+    expect(within(consistencySection).getByText('IQR 0.850')).toBeInTheDocument()
+    expect(within(consistencySection).getByText('DNF 1회 · +2 2회')).toBeInTheDocument()
+    expect(within(consistencySection).getByText('데이터 부족')).toBeInTheDocument()
+    expect(within(consistencySection).queryByText(/비교:/)).not.toBeInTheDocument()
   })
 
   it('should_keep_profile_and_record_history_available_when_growth_loading_fails', async () => {
@@ -781,7 +871,7 @@ describe('MyPage', () => {
   it('should_load_one_bounded_next_page_for_pb_progression', async () => {
     vi.mocked(getMyGrowthPbProgression)
       .mockResolvedValueOnce(createPbProgressionResponse([
-        { recordId: 1, effectiveTimeMs: 9344, createdAt: '2026-08-01T09:00:00Z' },
+        { recordId: 3, effectiveTimeMs: 8888, createdAt: '2026-08-03T09:00:00Z' },
       ], { hasNext: true, totalPages: 2 }))
       .mockResolvedValueOnce(createPbProgressionResponse([
         { recordId: 2, effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' },
@@ -796,6 +886,15 @@ describe('MyPage', () => {
       expect(screen.getByText('9.123')).toBeInTheDocument()
       expect(screen.getByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 2개' })).toBeInTheDocument()
     })
+
+    const timeline = screen.getByRole('list', { name: 'PB progression 텍스트 타임라인' })
+    expect(within(timeline).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '9.1232026년 8월 2일 오후 6시',
+      '8.8882026년 8월 3일 오후 6시',
+    ])
+    expect(mockRechartsLineChart.mock.calls.some(([props]) => (
+      props.data?.map((point) => point.recordId).join(',') === '2,3'
+    ))).toBe(true)
   })
 
   it('should_discard_a_stale_pb_load_more_response_after_record_mutation', async () => {
@@ -906,6 +1005,17 @@ describe('MyPage', () => {
     expect(getNextPracticeAction(createGrowthSummaryResponse().data)).toBe('다음 12회에서 10.500 이하 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 4 } })).toBe('첫 Ao5 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 8 }, recentAo5: { status: 'AVAILABLE', valueMs: 11000 } })).toBe('12회까지 기록 이어가기')
+    expect(getGrowthStage(0)).toBe('EMPTY')
+    expect(getGrowthStage(1)).toBe('BEFORE_AO5')
+    expect(getGrowthStage(4)).toBe('BEFORE_AO5')
+    expect(getGrowthStage(5)).toBe('BEFORE_AO12')
+    expect(getGrowthStage(11)).toBe('BEFORE_AO12')
+    expect(getGrowthStage(12)).toBe('FULL')
+    expect(getRemainingSolveCount(5, 1)).toBe(4)
+    expect(getRemainingSolveCount(12, 11)).toBe(1)
+    expect(getRemainingSolveCount(5, 12)).toBe(0)
+    expect(getConsistencyComparisonLabel(createGrowthSummaryResponse().data.consistency)).toBe('비교: 0.250 좁아짐')
+    expect(getConsistencyComparisonLabel({ status: 'INSUFFICIENT_DATA' })).toBeNull()
     expect(resolveEventType('3x3x3')).toBe('WCA_333')
     expect(resolveEventType('CUSTOM')).toBe('CUSTOM')
     expect(resolveEventType(null)).toBeNull()
