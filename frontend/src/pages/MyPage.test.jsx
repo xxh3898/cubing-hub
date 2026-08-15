@@ -734,8 +734,9 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText(`Ao12까지 ${remaining}회 남음`)).toBeInTheDocument()
-    expect(screen.getByText('Recent Ao5')).toBeInTheDocument()
-    expect(screen.getByText(expectedAo5)).toBeInTheDocument()
+    const currentPerformance = screen.getByRole('region', { name: '현재 기록' })
+    expect(within(currentPerformance).getByText('Recent Ao5')).toBeInTheDocument()
+    expect(within(currentPerformance).getByText(expectedAo5)).toBeInTheDocument()
     expect(screen.queryByText('Recent Ao12')).not.toBeInTheDocument()
     expect(screen.queryByText('최근 기록 흐름')).not.toBeInTheDocument()
     expect(screen.getByText('연습 활동')).toBeInTheDocument()
