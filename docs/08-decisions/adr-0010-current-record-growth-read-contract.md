@@ -79,7 +79,7 @@ Option C를 V2.2 Growth read contract로 채택한다.
 
 PR A는 current Record projection을 입력으로 받는 pure metric calculator와 canonical fixture를 구현했다. effective result, Ao5/Ao12, median, period comparison, IQR, PB progression과 Asia/Seoul time window는 해당 calculator가 기준이다.
 
-PR B는 dedicated private read API, lightweight repository projection, MySQL 8 daily aggregate/window query와 REST Docs를 구현했다. My Growth frontend는 후속 PR 범위다. 이 ADR의 accepted status는 UI와 release의 구현 완료를 뜻하지 않는다.
+PR B는 dedicated private read API, lightweight repository projection, MySQL 8 daily aggregate/window query와 REST Docs를 구현했다. PR C는 `/mypage`의 My Growth dashboard consumer를 추가한다. 이 ADR의 accepted status는 legacy Profile consumer transition과 release의 구현 완료를 뜻하지 않는다.
 
 ## Consequences
 
