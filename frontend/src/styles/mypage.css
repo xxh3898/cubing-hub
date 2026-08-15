@@ -196,9 +196,22 @@
   color: var(--color-primary);
 }
 
+.mypage-trend-chart,
+.mypage-pb-chart {
+  min-width: 0;
+}
+
 .mypage-trend-chart {
   min-height: 260px;
   padding: 16px 12px 8px;
+  border: 1px solid rgba(217, 227, 244, 0.82);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, rgba(241, 246, 255, 0.72), rgba(255, 255, 255, 0.94));
+}
+
+.mypage-pb-chart {
+  min-height: 240px;
+  padding: 14px 10px 8px;
   border: 1px solid rgba(217, 227, 244, 0.82);
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, rgba(241, 246, 255, 0.72), rgba(255, 255, 255, 0.94));

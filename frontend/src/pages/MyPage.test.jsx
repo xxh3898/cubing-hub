@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'react-toastify'
 import {
@@ -16,14 +16,17 @@ import {
 import { useAuth } from '../context/useAuth.js'
 import MyPage, {
   GrowthPeriodCard,
+  GrowthPbProgressionTooltip,
   RecordTrendTooltip,
   GrowthTrendTooltip,
+  buildPbProgressionChartData,
   buildGrowthTrendChartData,
   buildFirstPageFromRecentRecords,
   formatDateTime,
   formatGrowthDate,
   formatGrowthMetric,
   formatGrowthPeriodRange,
+  formatPbProgressionAxisTick,
   formatTrendAxisTick,
   getNextPracticeAction,
   getDisplayRecordTime,
@@ -36,6 +39,8 @@ import MyPage, {
 const mockNavigate = vi.fn()
 const mockClearAccessToken = vi.fn()
 const mockUpdateCurrentUser = vi.fn()
+const mockRechartsTooltip = vi.hoisted(() => vi.fn(() => null))
+const mockRechartsLine = vi.hoisted(() => vi.fn(() => null))
 
 vi.mock('../api.js', () => ({
   changeMyPassword: vi.fn(),
@@ -68,6 +73,26 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
+  }
+})
+
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
+  const ChartContainer = ({ children }) => <div>{children}</div>
+  const ChartElement = () => null
+
+  return {
+    ...actual,
+    Bar: ChartElement,
+    BarChart: ChartContainer,
+    CartesianGrid: ChartElement,
+    Line: mockRechartsLine,
+    LineChart: ChartContainer,
+    ReferenceLine: ChartElement,
+    ResponsiveContainer: ChartContainer,
+    Tooltip: mockRechartsTooltip,
+    XAxis: ChartElement,
+    YAxis: ChartElement,
   }
 })
 
@@ -156,6 +181,8 @@ function createDeferred() {
 describe('MyPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    mockRechartsTooltip.mockImplementation(() => null)
+    mockRechartsLine.mockImplementation(() => null)
     vi.stubGlobal('confirm', vi.fn(() => true))
 
     vi.mocked(useAuth).mockReturnValue({
@@ -620,6 +647,7 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText('아직 성장 데이터를 만들 기록이 없습니다.')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /PB progression step chart/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '연습 시작' }))
     expect(mockNavigate).toHaveBeenCalledWith('/timer')
   })
@@ -637,6 +665,9 @@ describe('MyPage', () => {
     expect(screen.getByText('30일 추세')).toBeInTheDocument()
     expect(screen.getByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
     expect(screen.getByText('PB Progression')).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 1개' })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'PB progression 텍스트 타임라인' })).toBeInTheDocument()
+    expect(mockRechartsLine.mock.calls.some(([props]) => props.type === 'stepAfter' && props.dataKey === 'effectiveTimeMs')).toBe(true)
     expect(screen.getByText('연습 활동')).toBeInTheDocument()
     expect(getMyGrowth).toHaveBeenCalledWith({ eventType: 'WCA_333' })
     expect(getMyGrowthTrend).toHaveBeenCalledWith({ eventType: 'WCA_333', period: '30D' })
@@ -763,7 +794,95 @@ describe('MyPage', () => {
     await waitFor(() => {
       expect(getMyGrowthPbProgression).toHaveBeenLastCalledWith({ eventType: 'WCA_333', page: 2, size: 50 })
       expect(screen.getByText('9.123')).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 2개' })).toBeInTheDocument()
     })
+  })
+
+  it('should_discard_a_stale_pb_load_more_response_after_record_mutation', async () => {
+    const stalePage = createDeferred()
+    let pageOneCallCount = 0
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(updateRecordPenalty).mockResolvedValue({ message: '기록 페널티가 수정되었습니다.' })
+    vi.mocked(getMyGrowthPbProgression).mockImplementation(({ page }) => {
+      if (page === 2) {
+        return stalePage.promise
+      }
+
+      pageOneCallCount += 1
+      return Promise.resolve(createPbProgressionResponse([
+        pageOneCallCount === 1
+          ? { recordId: 1, effectiveTimeMs: 9344, createdAt: '2026-08-03T09:00:00Z' }
+          : { recordId: 3, effectiveTimeMs: 8888, createdAt: '2026-08-04T09:00:00Z' },
+      ], { hasNext: true, totalPages: 2 }))
+    })
+
+    render(<MyPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '더 보기' }))
+    await waitFor(() => {
+      expect(getMyGrowthPbProgression).toHaveBeenCalledWith({ eventType: 'WCA_333', page: 2, size: 50 })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '+2' }))
+    await waitFor(() => {
+      const refreshedTimeline = screen.getByRole('list', { name: 'PB progression 텍스트 타임라인' })
+      expect(within(refreshedTimeline).getByText('8.888')).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      stalePage.resolve(createPbProgressionResponse([
+        { recordId: 2, effectiveTimeMs: 7777, createdAt: '2026-08-02T09:00:00Z' },
+      ], { page: 2, hasNext: false, totalPages: 2 }))
+      await stalePage.promise
+    })
+
+    expect(screen.queryByText('7.777')).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'PB progression step chart. 현재 불러온 PB 1개' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '더 보기' })).toBeEnabled()
+    expect(screen.queryByText(/PB progression 조회 실패/)).not.toBeInTheDocument()
+  })
+
+  it('should_refresh_growth_after_penalty_success_when_profile_refresh_fails', async () => {
+    vi.mocked(getMyProfile)
+      .mockResolvedValueOnce({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+      .mockRejectedValueOnce(new Error('프로필 갱신 실패'))
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(updateRecordPenalty).mockResolvedValue({ message: '기록 페널티가 수정되었습니다.' })
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+2' }))
+
+    await waitFor(() => {
+      expect(updateRecordPenalty).toHaveBeenCalledWith(1, { penalty: 'PLUS_TWO' })
+      expect(getMyGrowth).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthTrend).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthPbProgression).toHaveBeenCalledTimes(2)
+    })
+    expect(await screen.findByText('프로필 갱신 실패')).toBeInTheDocument()
+  })
+
+  it('should_refresh_growth_after_delete_success_when_record_history_refresh_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords)
+      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+      .mockRejectedValueOnce(new Error('기록 갱신 실패'))
+    vi.mocked(deleteRecord).mockResolvedValue({ message: '기록이 삭제되었습니다.' })
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '삭제' }))
+
+    await waitFor(() => {
+      expect(deleteRecord).toHaveBeenCalledWith(1)
+      expect(getMyGrowth).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthTrend).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthPbProgression).toHaveBeenCalledTimes(2)
+    })
+    expect(await screen.findByText('기록 갱신 실패')).toBeInTheDocument()
   })
 
   it('should_format_helper_values_for_records_and_events', () => {
@@ -783,6 +902,7 @@ describe('MyPage', () => {
     expect(previousCalendarDate('2024-03-01')).toBe('2024-02-29')
     expect(previousCalendarDate('2026-01-01')).toBe('2025-12-31')
     expect(formatGrowthPeriodRange('2026-08-08', '2026-08-15')).toBe('2026년 8월 8일 ~ 2026년 8월 14일')
+    expect(formatPbProgressionAxisTick('2026-08-02T09:00:00Z')).toBe('8/2')
     expect(getNextPracticeAction(createGrowthSummaryResponse().data)).toBe('다음 12회에서 10.500 이하 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 4 } })).toBe('첫 Ao5 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 8 }, recentAo5: { status: 'AVAILABLE', valueMs: 11000 } })).toBe('12회까지 기록 이어가기')
@@ -801,6 +921,11 @@ describe('MyPage', () => {
       hasNext: false,
       hasPrevious: false,
     })
+    expect(buildPbProgressionChartData([
+      { recordId: 3, effectiveTimeMs: 8888, createdAt: '2026-08-03T09:00:00Z' },
+      { recordId: 2, effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' },
+      { recordId: 1, effectiveTimeMs: 9344, createdAt: '2026-08-01T09:00:00Z' },
+    ]).map((point) => point.recordId)).toEqual([1, 2, 3])
   })
 
   it('should_mark_only_the_backend_declared_final_trend_point_as_partial', () => {
@@ -825,12 +950,47 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText('오늘 데이터는 진행 중인 기록입니다.')).toBeInTheDocument()
+    expect(mockRechartsTooltip.mock.calls.some(([props]) => props.filterNull === false)).toBe(true)
     fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
     expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: 중앙 10.000 · solve 3회')).toBeInTheDocument()
 
     const { rerender } = render(<GrowthTrendTooltip active={false} payload={[]} />)
     rerender(<GrowthTrendTooltip active payload={[{ payload: { ...points[1], isTodayPartial: true } }]} />)
     expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중 · 10.000')).toBeInTheDocument()
+  })
+
+  it('should_render_recordless_and_dnf_only_trend_tooltips_from_preserved_null_points', () => {
+    const { rerender } = render(
+      <GrowthTrendTooltip
+        active
+        payload={[{ payload: { date: '2026-08-14', recordCount: 0, medianTimeMs: null, dnfCount: 0, plusTwoCount: 0 } }]}
+      />,
+    )
+
+    expect(screen.getByText('2026년 8월 14일 · 기록 없음')).toBeInTheDocument()
+    expect(screen.getByText('solve 0회 · DNF 0회 · +2 0회')).toBeInTheDocument()
+
+    rerender(
+      <GrowthTrendTooltip
+        active
+        payload={[{ payload: { date: '2026-08-15', recordCount: 3, medianTimeMs: null, dnfCount: 3, plusTwoCount: 0, isTodayPartial: true } }]}
+      />,
+    )
+
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중 · DNF-only')).toBeInTheDocument()
+    expect(screen.getByText('solve 3회 · DNF 3회 · +2 0회')).toBeInTheDocument()
+  })
+
+  it('should_render_pb_progression_tooltip_with_canonical_time_and_seoul_timestamp', () => {
+    render(
+      <GrowthPbProgressionTooltip
+        active
+        payload={[{ payload: { effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' } }]}
+      />,
+    )
+
+    expect(screen.getByText('PB 9.123')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 2일 오후 6시')).toBeInTheDocument()
   })
 
   it('should_not_render_partial_trend_label_when_api_marks_today_as_complete', async () => {

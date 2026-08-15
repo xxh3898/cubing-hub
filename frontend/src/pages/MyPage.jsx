@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gauge, LineChart as ChartLine, LogOut, Settings, Timer, Trophy } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Line, LineChart as RechartsLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -20,7 +20,7 @@ import GroupedPagination from '../components/GroupedPagination.jsx'
 import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { eventOptions } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
-import { formatSeoulDateTime } from '../utils/dateTime.js'
+import { formatSeoulDateOnly, formatSeoulDateTime } from '../utils/dateTime.js'
 import { formatRecordTime } from '../utils/recordStats.js'
 
 const RECORDS_PAGE_SIZE = 10
@@ -134,6 +134,16 @@ export function buildGrowthTrendChartData(trend) {
   }))
 }
 
+export function buildPbProgressionChartData(content) {
+  return [...(content ?? [])].reverse()
+}
+
+export function formatPbProgressionAxisTick(value) {
+  const formattedDate = formatSeoulDateOnly(value)
+  const match = formattedDate.match(/^\d+년 (\d+)월 (\d+)일$/)
+  return match ? `${match[1]}/${match[2]}` : ''
+}
+
 export function formatGrowthTrendPointDate(point) {
   const label = formatGrowthDate(point?.date)
   return point?.isTodayPartial ? `${label} · 오늘, 진행 중` : label
@@ -229,11 +239,33 @@ export default function MyPage() {
   const [growthTrend, setGrowthTrend] = useState(null)
   const [pbProgression, setPbProgression] = useState(null)
   const [isLoadingMorePb, setIsLoadingMorePb] = useState(false)
+  const pbGenerationRef = useRef(0)
+  const pbLoadMoreRequestRef = useRef(null)
   const { clearAccessToken, currentUser, updateCurrentUser } = useAuth()
   const navigate = useNavigate()
   const growthTrendPoints = useMemo(() => buildGrowthTrendChartData(growthTrend), [growthTrend])
+  const pbProgressionChartPoints = useMemo(
+    () => buildPbProgressionChartData(pbProgression?.content),
+    [pbProgression?.content],
+  )
   const hasGrowthTrendPoints = growthTrendPoints.length > 0
   const partialGrowthTrendPoint = growthTrendPoints.find((point) => point.isTodayPartial)
+
+  const invalidatePbProgressionDataset = useCallback((loading = false) => {
+    pbGenerationRef.current += 1
+    pbLoadMoreRequestRef.current = null
+    setPbProgression(null)
+    setPbProgressionError(null)
+    setPbProgressionLoadMoreError(null)
+    setIsLoadingPbProgression(loading)
+    setIsLoadingMorePb(false)
+  }, [])
+
+  const invalidateGrowthAfterRecordMutation = () => {
+    invalidatePbProgressionDataset(false)
+    setGrowthSummaryReloadKey((current) => current + 1)
+    setGrowthTrendReloadKey((current) => current + 1)
+  }
 
   useEffect(() => {
     if (!profileData) {
@@ -402,22 +434,17 @@ export default function MyPage() {
         setGrowthSummaryError(null)
 
         if (summaryResponse.data?.activity?.totalSolveCount > 0) {
-          setPbProgression(null)
-          setPbProgressionError(null)
-          setPbProgressionLoadMoreError(null)
-          setIsLoadingPbProgression(true)
+          invalidatePbProgressionDataset(true)
           setPbProgressionReloadKey((current) => current + 1)
         } else {
-          setPbProgression(null)
-          setPbProgressionError(null)
-          setPbProgressionLoadMoreError(null)
-          setIsLoadingPbProgression(false)
+          invalidatePbProgressionDataset(false)
         }
       } catch (error) {
         if (isCancelled) {
           return
         }
 
+        invalidatePbProgressionDataset(false)
         setGrowthSummary(null)
         setGrowthSummaryError(error.message)
       } finally {
@@ -432,7 +459,7 @@ export default function MyPage() {
     return () => {
       isCancelled = true
     }
-  }, [growthSummaryReloadKey])
+  }, [growthSummaryReloadKey, invalidatePbProgressionDataset])
 
   useEffect(() => {
     let isCancelled = false
@@ -477,6 +504,7 @@ export default function MyPage() {
     }
 
     let isCancelled = false
+    const requestGeneration = pbGenerationRef.current
 
     const loadPbProgression = async () => {
       setIsLoadingPbProgression(true)
@@ -489,21 +517,21 @@ export default function MyPage() {
           size: GROWTH_PB_PAGE_SIZE,
         })
 
-        if (isCancelled) {
+        if (isCancelled || requestGeneration !== pbGenerationRef.current) {
           return
         }
 
         setPbProgression(progressionResponse.data)
         setPbProgressionError(null)
       } catch (error) {
-        if (isCancelled) {
+        if (isCancelled || requestGeneration !== pbGenerationRef.current) {
           return
         }
 
         setPbProgression(null)
         setPbProgressionError(error.message)
       } finally {
-        if (!isCancelled) {
+        if (!isCancelled && requestGeneration === pbGenerationRef.current) {
           setIsLoadingPbProgression(false)
         }
       }
@@ -535,32 +563,64 @@ export default function MyPage() {
   }
 
   const syncProfileAndRecords = async (page) => {
-    const [profileResponse, recentRecordsResponse, recordsResponse] = await Promise.all([
+    const [profileResult, recentRecordsResult, recordsResult] = await Promise.allSettled([
       getMyProfile(),
       getMyRecords({ page: 1, size: TREND_FETCH_SIZE }),
       page > 1 ? getMyRecords({ page, size: RECORDS_PAGE_SIZE }) : Promise.resolve(null),
     ])
-    const nextRecentRecordsSource = recentRecordsResponse.data
-    const nextRecordsPage = page > 1 ? recordsResponse.data : buildFirstPageFromRecentRecords(nextRecentRecordsSource)
-    const nextProfileData = profileResponse.data
-    setProfileData(nextProfileData)
-    setProfileError(null)
-    setRecentRecordsSource(nextRecentRecordsSource)
-    setRecentRecordsSourceError(null)
-    setGrowthSummaryReloadKey((current) => current + 1)
-    setGrowthTrendReloadKey((current) => current + 1)
+    let firstError = null
+    let nextProfileData = null
+    let nextRecentRecordsSource = null
+    let nextRecordsPage = null
 
-    if (page > 1) {
+    if (profileResult.status === 'fulfilled') {
+      nextProfileData = profileResult.value.data
+      setProfileData(nextProfileData)
+      setProfileError(null)
+    } else {
+      firstError = profileResult.reason
+      setProfileError(profileResult.reason.message)
+    }
+
+    if (recentRecordsResult.status === 'fulfilled') {
+      nextRecentRecordsSource = recentRecordsResult.value.data
+      setRecentRecordsSource(nextRecentRecordsSource)
+      setRecentRecordsSourceError(null)
+    } else {
+      firstError ??= recentRecordsResult.reason
+      setRecentRecordsSourceError(recentRecordsResult.reason.message)
+      setRecordsError(recentRecordsResult.reason.message)
+    }
+
+    if (page > 1 && recordsResult.status === 'fulfilled') {
+      nextRecordsPage = recordsResult.value.data
+    } else if (page > 1) {
+      firstError ??= recordsResult.reason
+      setRecordsError(recordsResult.reason.message)
+    } else if (nextRecentRecordsSource) {
+      nextRecordsPage = buildFirstPageFromRecentRecords(nextRecentRecordsSource)
+    }
+
+    if (nextRecordsPage && page > 1) {
       const normalizedPage = nextRecordsPage.totalPages > 0 ? Math.min(page, nextRecordsPage.totalPages) : 1
 
       if (normalizedPage !== page) {
         setCurrentPage(normalizedPage)
-        return nextProfileData
+      } else {
+        setRecordsPage(nextRecordsPage)
+        if (recentRecordsResult.status === 'fulfilled') {
+          setRecordsError(null)
+        }
       }
+    } else if (nextRecordsPage) {
+      setRecordsPage(nextRecordsPage)
+      setRecordsError(null)
     }
 
-    setRecordsPage(nextRecordsPage)
-    setRecordsError(null)
+    if (firstError) {
+      throw firstError
+    }
+
     return nextProfileData
   }
 
@@ -569,6 +629,7 @@ export default function MyPage() {
 
     try {
       const response = await updateRecordPenalty(recordId, { penalty })
+      invalidateGrowthAfterRecordMutation()
       await syncProfileAndRecords(currentPage)
       toast.success(response.message)
     } catch (error) {
@@ -587,6 +648,7 @@ export default function MyPage() {
 
     try {
       const response = await deleteRecord(recordId)
+      invalidateGrowthAfterRecordMutation()
       await syncProfileAndRecords(currentPage)
       toast.success(response.message)
     } catch (error) {
@@ -605,6 +667,7 @@ export default function MyPage() {
   }
 
   const handleRetryGrowthSummary = () => {
+    invalidatePbProgressionDataset(false)
     setGrowthSummaryReloadKey((current) => current + 1)
   }
 
@@ -613,10 +676,7 @@ export default function MyPage() {
   }
 
   const handleRetryPbProgression = () => {
-    setPbProgression(null)
-    setPbProgressionError(null)
-    setPbProgressionLoadMoreError(null)
-    setIsLoadingPbProgression(true)
+    invalidatePbProgressionDataset(true)
     setPbProgressionReloadKey((current) => current + 1)
   }
 
@@ -625,15 +685,33 @@ export default function MyPage() {
       return
     }
 
+    const requestGeneration = pbGenerationRef.current
+    const request = {
+      generation: requestGeneration,
+      page: pbProgression.page + 1,
+    }
+
+    if (pbLoadMoreRequestRef.current) {
+      return
+    }
+
+    pbLoadMoreRequestRef.current = request
     setIsLoadingMorePb(true)
     setPbProgressionLoadMoreError(null)
 
     try {
       const response = await getMyGrowthPbProgression({
         eventType: GROWTH_EVENT_TYPE,
-        page: pbProgression.page + 1,
+        page: request.page,
         size: GROWTH_PB_PAGE_SIZE,
       })
+
+      if (
+        requestGeneration !== pbGenerationRef.current
+        || pbLoadMoreRequestRef.current !== request
+      ) {
+        return
+      }
 
       setPbProgression((current) => current
         ? {
@@ -642,9 +720,20 @@ export default function MyPage() {
           }
         : response.data)
     } catch (error) {
-      setPbProgressionLoadMoreError(error.message)
+      if (
+        requestGeneration === pbGenerationRef.current
+        && pbLoadMoreRequestRef.current === request
+      ) {
+        setPbProgressionLoadMoreError(error.message)
+      }
     } finally {
-      setIsLoadingMorePb(false)
+      if (
+        requestGeneration === pbGenerationRef.current
+        && pbLoadMoreRequestRef.current === request
+      ) {
+        pbLoadMoreRequestRef.current = null
+        setIsLoadingMorePb(false)
+      }
     }
   }
 
@@ -886,9 +975,23 @@ export default function MyPage() {
               {pbProgressionError && !pbProgression ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionError}</p><button className="ghost-button" type="button" onClick={handleRetryPbProgression}>다시 시도</button></div> : null}
               {!isLoadingPbProgression && !pbProgressionError && (pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : null}
               {(pbProgression?.content ?? []).length > 0 ? (
-                <ol className="mypage-pb-progression-list">
-                  {pbProgression.content.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
-                </ol>
+                <>
+                  <div className="mypage-pb-chart" role="img" aria-label={`PB progression step chart. 현재 불러온 PB ${pbProgressionChartPoints.length}개`}>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <RechartsLineChart data={pbProgressionChartPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                        <XAxis dataKey="createdAt" tickFormatter={formatPbProgressionAxisTick} tickLine={false} axisLine={false} minTickGap={32} />
+                        <YAxis dataKey="effectiveTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
+                        <Tooltip content={<GrowthPbProgressionTooltip />} />
+                        <Line type="stepAfter" dataKey="effectiveTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 3, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} />
+                      </RechartsLineChart>
+                    </ResponsiveContainer>
+                    <p className="mypage-chart-summary">오래된 PB부터 현재 PB까지, 현재 불러온 {pbProgressionChartPoints.length}개 milestone을 표시합니다.</p>
+                  </div>
+                  <ol className="mypage-pb-progression-list" aria-label="PB progression 텍스트 타임라인">
+                    {pbProgression.content.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
+                  </ol>
+                </>
               ) : null}
               {pbProgressionLoadMoreError ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionLoadMoreError}</p><button className="ghost-button" type="button" onClick={handleLoadMorePb}>다시 시도</button></div> : null}
               {pbProgression?.hasNext ? <button className="ghost-button mypage-pb-more-button" type="button" onClick={handleLoadMorePb} disabled={isLoadingMorePb}>{isLoadingMorePb ? '불러오는 중...' : '더 보기'}</button> : null}
@@ -1233,7 +1336,7 @@ export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
                     <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
                     <YAxis dataKey="medianTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
                     {partialTrendPoint ? <ReferenceLine x={partialTrendPoint.date} stroke={CHART_ACTIVE_DOT_COLOR} strokeDasharray="4 4" label={{ value: '오늘, 진행 중', position: 'top', fill: CHART_LINE_COLOR, fontSize: 12 }} /> : null}
-                    <Tooltip content={<GrowthTrendTooltip />} />
+                    <Tooltip filterNull={false} content={<GrowthTrendTooltip />} />
                     <Line type="monotone" dataKey="medianTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 2, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} connectNulls={false} />
                   </RechartsLineChart>
                 </ResponsiveContainer>
@@ -1305,6 +1408,21 @@ export function GrowthTrendTooltip({ active, payload }) {
     <div className="mypage-trend-tooltip">
       <p className="mypage-trend-tooltip-time">{formatGrowthTrendPointDate(point)} · {median}</p>
       <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
+    </div>
+  )
+}
+
+export function GrowthPbProgressionTooltip({ active, payload }) {
+  if (!active || !payload?.length) {
+    return null
+  }
+
+  const point = payload[0].payload
+
+  return (
+    <div className="mypage-trend-tooltip">
+      <p className="mypage-trend-tooltip-time">PB {formatRecordTime(point.effectiveTimeMs)}</p>
+      <p className="mypage-trend-tooltip-date">{formatDateTime(point.createdAt)}</p>
     </div>
   )
 }
