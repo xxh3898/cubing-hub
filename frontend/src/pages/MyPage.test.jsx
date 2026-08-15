@@ -365,6 +365,11 @@ describe('MyPage', () => {
     expect(toast.success).toHaveBeenCalledWith('기록 페널티가 수정되었습니다.')
     expect(getMyProfile).toHaveBeenCalledTimes(2)
     expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 100 })
+    await waitFor(() => {
+      expect(getMyGrowth).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthTrend).toHaveBeenCalledTimes(2)
+      expect(getMyGrowthPbProgression).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('should_request_next_page_when_next_button_is_clicked', async () => {
@@ -648,7 +653,98 @@ describe('MyPage', () => {
     expect(await screen.findByText('성장 데이터 조회 실패')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '계정 관리' })).toBeInTheDocument()
     expect(screen.getByText('전체 기록')).toBeInTheDocument()
-    expect(screen.getByText('9.344')).toBeInTheDocument()
+    expect(await screen.findByText('9.344')).toBeInTheDocument()
+  })
+
+  it('should_keep_summary_and_pb_progression_when_trend_request_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthTrend).mockRejectedValue(new Error('30일 추세 조회 실패'))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    expect(await screen.findByText('30일 추세 조회 실패')).toBeInTheDocument()
+    expect(await screen.findByText('PB Progression')).toBeInTheDocument()
+  })
+
+  it('should_keep_summary_and_trend_when_pb_progression_request_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthPbProgression).mockRejectedValue(new Error('PB progression 조회 실패'))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    expect(await screen.findByText('PB progression 조회 실패')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세')).toBeInTheDocument()
+  })
+
+  it('should_render_summary_before_a_slow_trend_request_finishes', async () => {
+    const trend = createDeferred()
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthTrend).mockReturnValue(trend.promise)
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세를 불러오는 중입니다.')).toBeInTheDocument()
+
+    trend.resolve(createGrowthTrendResponse([
+      { date: '2026-08-15', recordCount: 1, rankableCount: 1, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 0 },
+    ]))
+
+    expect(await screen.findByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
+  })
+
+  it('should_render_summary_before_a_slow_pb_progression_request_finishes', async () => {
+    const progression = createDeferred()
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthPbProgression).mockReturnValue(progression.promise)
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    expect(screen.getByText('PB progression을 불러오는 중입니다.')).toBeInTheDocument()
+
+    progression.resolve(createPbProgressionResponse([
+      { recordId: 2, effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' },
+    ]))
+
+    expect(await screen.findByText('9.123')).toBeInTheDocument()
+  })
+
+  it('should_start_pb_progression_only_after_summary_is_committed', async () => {
+    const summary = createDeferred()
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockReturnValue(summary.promise)
+
+    render(<MyPage />)
+
+    expect(getMyGrowthPbProgression).not.toHaveBeenCalled()
+
+    summary.resolve(createGrowthSummaryResponse())
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(getMyGrowthPbProgression).toHaveBeenCalledWith({ eventType: 'WCA_333', page: 1, size: 50 })
+    })
+  })
+
+  it('should_preserve_a_successful_trend_when_summary_request_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockRejectedValue(new Error('성장 데이터 조회 실패'))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('성장 데이터 조회 실패')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세')).toBeInTheDocument()
+    expect(await screen.findByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
+    expect(getMyGrowthPbProgression).not.toHaveBeenCalled()
   })
 
   it('should_load_one_bounded_next_page_for_pb_progression', async () => {
@@ -815,11 +911,15 @@ describe('MyPage', () => {
     ]))
     vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse([
       { date: '2026-08-14', recordCount: 2, rankableCount: 0, medianTimeMs: null, dnfCount: 2, plusTwoCount: 0 },
-    ]))
+      { date: '2026-08-15', recordCount: 1, rankableCount: 0, medianTimeMs: null, dnfCount: 1, plusTwoCount: 0 },
+    ], { todayPartial: true, toDate: '2026-08-15' }))
 
     render(<MyPage />)
 
     expect(await screen.findByText('아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
+    expect(screen.getByText('2026년 8월 14일: DNF-only · solve 2회')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: DNF-only · solve 1회')).toBeInTheDocument()
   })
 
   it('should_use_default_profile_form_values_when_profile_fields_are_missing', async () => {

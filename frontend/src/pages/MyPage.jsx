@@ -202,11 +202,16 @@ export default function MyPage() {
   const [profileError, setProfileError] = useState(null)
   const [profileFormError, setProfileFormError] = useState(null)
   const [recordsError, setRecordsError] = useState(null)
-  const [growthError, setGrowthError] = useState(null)
+  const [growthSummaryError, setGrowthSummaryError] = useState(null)
+  const [growthTrendError, setGrowthTrendError] = useState(null)
+  const [pbProgressionError, setPbProgressionError] = useState(null)
+  const [pbProgressionLoadMoreError, setPbProgressionLoadMoreError] = useState(null)
   const [passwordFormError, setPasswordFormError] = useState(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
-  const [isLoadingGrowth, setIsLoadingGrowth] = useState(true)
+  const [isLoadingGrowthSummary, setIsLoadingGrowthSummary] = useState(true)
+  const [isLoadingGrowthTrend, setIsLoadingGrowthTrend] = useState(true)
+  const [isLoadingPbProgression, setIsLoadingPbProgression] = useState(false)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -217,7 +222,9 @@ export default function MyPage() {
   const [isLoadingRecentRecordsSource, setIsLoadingRecentRecordsSource] = useState(true)
   const [profileReloadKey, setProfileReloadKey] = useState(0)
   const [recordsReloadKey, setRecordsReloadKey] = useState(0)
-  const [growthReloadKey, setGrowthReloadKey] = useState(0)
+  const [growthSummaryReloadKey, setGrowthSummaryReloadKey] = useState(0)
+  const [growthTrendReloadKey, setGrowthTrendReloadKey] = useState(0)
+  const [pbProgressionReloadKey, setPbProgressionReloadKey] = useState(0)
   const [growthSummary, setGrowthSummary] = useState(null)
   const [growthTrend, setGrowthTrend] = useState(null)
   const [pbProgression, setPbProgression] = useState(null)
@@ -225,7 +232,7 @@ export default function MyPage() {
   const { clearAccessToken, currentUser, updateCurrentUser } = useAuth()
   const navigate = useNavigate()
   const growthTrendPoints = useMemo(() => buildGrowthTrendChartData(growthTrend), [growthTrend])
-  const hasGrowthTrendData = growthTrendPoints.some((point) => typeof point.medianTimeMs === 'number')
+  const hasGrowthTrendPoints = growthTrendPoints.length > 0
   const partialGrowthTrendPoint = growthTrendPoints.find((point) => point.isTodayPartial)
 
   useEffect(() => {
@@ -380,47 +387,134 @@ export default function MyPage() {
   useEffect(() => {
     let isCancelled = false
 
-    const loadGrowth = async () => {
-      setIsLoadingGrowth(true)
-      setGrowthError(null)
+    const loadGrowthSummary = async () => {
+      setIsLoadingGrowthSummary(true)
+      setGrowthSummaryError(null)
 
       try {
-        const [summaryResponse, trendResponse, progressionResponse] = await Promise.all([
-          getMyGrowth({ eventType: GROWTH_EVENT_TYPE }),
-          getMyGrowthTrend({ eventType: GROWTH_EVENT_TYPE, period: GROWTH_TREND_PERIOD }),
-          getMyGrowthPbProgression({ eventType: GROWTH_EVENT_TYPE, page: 1, size: GROWTH_PB_PAGE_SIZE }),
-        ])
+        const summaryResponse = await getMyGrowth({ eventType: GROWTH_EVENT_TYPE })
 
         if (isCancelled) {
           return
         }
 
         setGrowthSummary(summaryResponse.data)
-        setGrowthTrend(trendResponse.data)
-        setPbProgression(progressionResponse.data)
-        setGrowthError(null)
+        setGrowthSummaryError(null)
+
+        if (summaryResponse.data?.activity?.totalSolveCount > 0) {
+          setPbProgression(null)
+          setPbProgressionError(null)
+          setPbProgressionLoadMoreError(null)
+          setIsLoadingPbProgression(true)
+          setPbProgressionReloadKey((current) => current + 1)
+        } else {
+          setPbProgression(null)
+          setPbProgressionError(null)
+          setPbProgressionLoadMoreError(null)
+          setIsLoadingPbProgression(false)
+        }
       } catch (error) {
         if (isCancelled) {
           return
         }
 
         setGrowthSummary(null)
-        setGrowthTrend(null)
-        setPbProgression(null)
-        setGrowthError(error.message)
+        setGrowthSummaryError(error.message)
       } finally {
         if (!isCancelled) {
-          setIsLoadingGrowth(false)
+          setIsLoadingGrowthSummary(false)
         }
       }
     }
 
-    loadGrowth()
+    loadGrowthSummary()
 
     return () => {
       isCancelled = true
     }
-  }, [growthReloadKey])
+  }, [growthSummaryReloadKey])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    const loadGrowthTrend = async () => {
+      setIsLoadingGrowthTrend(true)
+      setGrowthTrendError(null)
+
+      try {
+        const trendResponse = await getMyGrowthTrend({ eventType: GROWTH_EVENT_TYPE, period: GROWTH_TREND_PERIOD })
+
+        if (isCancelled) {
+          return
+        }
+
+        setGrowthTrend(trendResponse.data)
+        setGrowthTrendError(null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setGrowthTrend(null)
+        setGrowthTrendError(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingGrowthTrend(false)
+        }
+      }
+    }
+
+    loadGrowthTrend()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [growthTrendReloadKey])
+
+  useEffect(() => {
+    if (!growthSummary || growthSummary.activity?.totalSolveCount === 0) {
+      return
+    }
+
+    let isCancelled = false
+
+    const loadPbProgression = async () => {
+      setIsLoadingPbProgression(true)
+      setPbProgressionError(null)
+
+      try {
+        const progressionResponse = await getMyGrowthPbProgression({
+          eventType: GROWTH_EVENT_TYPE,
+          page: 1,
+          size: GROWTH_PB_PAGE_SIZE,
+        })
+
+        if (isCancelled) {
+          return
+        }
+
+        setPbProgression(progressionResponse.data)
+        setPbProgressionError(null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setPbProgression(null)
+        setPbProgressionError(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingPbProgression(false)
+        }
+      }
+    }
+
+    loadPbProgression()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [growthSummary, pbProgressionReloadKey])
 
   const handleLogout = async () => {
     if (!window.confirm('로그아웃 하시겠습니까?')) {
@@ -453,7 +547,8 @@ export default function MyPage() {
     setProfileError(null)
     setRecentRecordsSource(nextRecentRecordsSource)
     setRecentRecordsSourceError(null)
-    setGrowthReloadKey((current) => current + 1)
+    setGrowthSummaryReloadKey((current) => current + 1)
+    setGrowthTrendReloadKey((current) => current + 1)
 
     if (page > 1) {
       const normalizedPage = nextRecordsPage.totalPages > 0 ? Math.min(page, nextRecordsPage.totalPages) : 1
@@ -509,8 +604,20 @@ export default function MyPage() {
     setRecordsReloadKey((current) => current + 1)
   }
 
-  const handleRetryGrowth = () => {
-    setGrowthReloadKey((current) => current + 1)
+  const handleRetryGrowthSummary = () => {
+    setGrowthSummaryReloadKey((current) => current + 1)
+  }
+
+  const handleRetryGrowthTrend = () => {
+    setGrowthTrendReloadKey((current) => current + 1)
+  }
+
+  const handleRetryPbProgression = () => {
+    setPbProgression(null)
+    setPbProgressionError(null)
+    setPbProgressionLoadMoreError(null)
+    setIsLoadingPbProgression(true)
+    setPbProgressionReloadKey((current) => current + 1)
   }
 
   const handleLoadMorePb = async () => {
@@ -519,6 +626,7 @@ export default function MyPage() {
     }
 
     setIsLoadingMorePb(true)
+    setPbProgressionLoadMoreError(null)
 
     try {
       const response = await getMyGrowthPbProgression({
@@ -534,7 +642,7 @@ export default function MyPage() {
           }
         : response.data)
     } catch (error) {
-      setGrowthError(error.message)
+      setPbProgressionLoadMoreError(error.message)
     } finally {
       setIsLoadingMorePb(false)
     }
@@ -704,12 +812,20 @@ export default function MyPage() {
           </div>
         </div>
 
-        {growthError ? (
-          <div className="mypage-growth-feedback">
-            <p className="message error">{growthError}</p>
-            <button className="ghost-button" type="button" onClick={handleRetryGrowth}>다시 시도</button>
-          </div>
-        ) : isLoadingGrowth ? (
+        {growthSummaryError ? (
+          <>
+            <div className="mypage-growth-feedback">
+              <p className="message error">{growthSummaryError}</p>
+              <button className="ghost-button" type="button" onClick={handleRetryGrowthSummary}>다시 시도</button>
+            </div>
+            <GrowthTrendSection
+              points={growthTrendPoints}
+              isLoading={isLoadingGrowthTrend}
+              error={growthTrendError}
+              onRetry={handleRetryGrowthTrend}
+            />
+          </>
+        ) : isLoadingGrowthSummary && !growthSummary ? (
           <p className="helper-text">성장 데이터를 불러오는 중입니다.</p>
         ) : growthSummary?.activity?.totalSolveCount === 0 ? (
           <div className="mypage-growth-empty">
@@ -747,42 +863,12 @@ export default function MyPage() {
               </div>
             </section>
 
-            <section className="mypage-growth-section" aria-labelledby="growth-trend">
-              <div className="mypage-growth-section-heading">
-                <div>
-                  <span className="mypage-trend-title-row"><ChartLine size={19} aria-hidden="true" /><h3 id="growth-trend">30일 추세</h3></span>
-                  <p className="helper-text">날짜별 중앙 기록과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙 기록이 없습니다.</p>
-                </div>
-              </div>
-              {hasGrowthTrendData ? (
-                <>
-                  <div className="mypage-trend-chart" aria-label={partialGrowthTrendPoint ? '최근 30일 중앙 기록 그래프. 오늘 데이터는 진행 중입니다.' : '최근 30일 중앙 기록 그래프'}>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <RechartsLineChart data={growthTrendPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
-                        <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
-                        <YAxis dataKey="medianTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
-                        {partialGrowthTrendPoint ? <ReferenceLine x={partialGrowthTrendPoint.date} stroke={CHART_ACTIVE_DOT_COLOR} strokeDasharray="4 4" label={{ value: '오늘, 진행 중', position: 'top', fill: CHART_LINE_COLOR, fontSize: 12 }} /> : null}
-                        <Tooltip content={<GrowthTrendTooltip />} />
-                        <Line type="monotone" dataKey="medianTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 2, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} connectNulls={false} />
-                      </RechartsLineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  {partialGrowthTrendPoint ? <p className="helper-text">오늘 데이터는 진행 중인 기록입니다.</p> : null}
-                  <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {growthTrendPoints.filter((point) => point.recordCount > 0).length}일, 중앙 기록이 있는 날 {growthTrendPoints.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
-                  <details className="mypage-trend-details">
-                    <summary>30일 추세를 텍스트로 보기</summary>
-                    <ul>
-                      {growthTrendPoints.map((point) => (
-                        <li key={point.date}>{formatGrowthTrendPointDate(point)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
-                      ))}
-                    </ul>
-                  </details>
-                </>
-              ) : (
-                <p className="helper-text">아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>
-              )}
-            </section>
+            <GrowthTrendSection
+              points={growthTrendPoints}
+              isLoading={isLoadingGrowthTrend}
+              error={growthTrendError}
+              onRetry={handleRetryGrowthTrend}
+            />
 
             <section className="mypage-growth-section" aria-labelledby="growth-consistency">
               <div className="mypage-growth-section-heading"><div><h3 id="growth-consistency">최근 일관성</h3><p className="helper-text">최근 12회와 이전 12회의 IQR 및 penalty 수를 표시합니다.</p></div></div>
@@ -796,11 +882,15 @@ export default function MyPage() {
 
             <section className="mypage-growth-section" aria-labelledby="growth-pb-progression">
               <div className="mypage-growth-section-heading"><div><h3 id="growth-pb-progression">PB Progression</h3><p className="helper-text">현재 남아 있는 기록 기준입니다. penalty 변경이나 기록 삭제에 따라 다시 구성될 수 있습니다.</p></div></div>
-              {(pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : (
+              {isLoadingPbProgression && !pbProgression ? <p className="helper-text">PB progression을 불러오는 중입니다.</p> : null}
+              {pbProgressionError && !pbProgression ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionError}</p><button className="ghost-button" type="button" onClick={handleRetryPbProgression}>다시 시도</button></div> : null}
+              {!isLoadingPbProgression && !pbProgressionError && (pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : null}
+              {(pbProgression?.content ?? []).length > 0 ? (
                 <ol className="mypage-pb-progression-list">
                   {pbProgression.content.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
                 </ol>
-              )}
+              ) : null}
+              {pbProgressionLoadMoreError ? <div className="mypage-growth-feedback"><p className="message error">{pbProgressionLoadMoreError}</p><button className="ghost-button" type="button" onClick={handleLoadMorePb}>다시 시도</button></div> : null}
               {pbProgression?.hasNext ? <button className="ghost-button mypage-pb-more-button" type="button" onClick={handleLoadMorePb} disabled={isLoadingMorePb}>{isLoadingMorePb ? '불러오는 중...' : '더 보기'}</button> : null}
             </section>
 
@@ -815,7 +905,7 @@ export default function MyPage() {
                 <GrowthActivityItem label="첫 기록일" value={formatDateTime(growthSummary?.activity?.firstRecordedAt)} />
                 <GrowthActivityItem label="최근 기록일" value={formatDateTime(growthSummary?.activity?.latestRecordedAt)} />
               </div>
-              {growthTrendPoints.length > 0 ? (
+              {hasGrowthTrendPoints ? (
                 <div className="mypage-activity-chart" aria-label="최근 30일 일별 solve 수 그래프">
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={growthTrendPoints} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -1114,6 +1204,56 @@ export function getEventLabel(mainEvent) {
 
 export function formatGrowthTrendAxisTick(value) {
   return typeof value === 'string' ? value.slice(5).replace('-', '/') : ''
+}
+
+export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
+  const hasTrendPoints = points.length > 0
+  const hasNumericMedian = points.some((point) => typeof point.medianTimeMs === 'number')
+  const partialTrendPoint = points.find((point) => point.isTodayPartial)
+
+  return (
+    <section className="mypage-growth-section" aria-labelledby="growth-trend">
+      <div className="mypage-growth-section-heading">
+        <div>
+          <span className="mypage-trend-title-row"><ChartLine size={19} aria-hidden="true" /><h3 id="growth-trend">30일 추세</h3></span>
+          <p className="helper-text">날짜별 중앙 기록과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙 기록이 없습니다.</p>
+        </div>
+      </div>
+      {error ? <div className="mypage-growth-feedback"><p className="message error">{error}</p><button className="ghost-button" type="button" onClick={onRetry}>다시 시도</button></div> : null}
+      {isLoading && !hasTrendPoints ? <p className="helper-text">30일 추세를 불러오는 중입니다.</p> : null}
+      {!isLoading && !error && !hasTrendPoints ? <p className="helper-text">아직 표시할 30일 추세가 없습니다.</p> : null}
+      {!error && hasTrendPoints ? (
+        <>
+          {hasNumericMedian ? (
+            <>
+              <div className="mypage-trend-chart" aria-label={partialTrendPoint ? '최근 30일 중앙 기록 그래프. 오늘 데이터는 진행 중입니다.' : '최근 30일 중앙 기록 그래프'}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <RechartsLineChart data={points} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                    <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
+                    <YAxis dataKey="medianTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
+                    {partialTrendPoint ? <ReferenceLine x={partialTrendPoint.date} stroke={CHART_ACTIVE_DOT_COLOR} strokeDasharray="4 4" label={{ value: '오늘, 진행 중', position: 'top', fill: CHART_LINE_COLOR, fontSize: 12 }} /> : null}
+                    <Tooltip content={<GrowthTrendTooltip />} />
+                    <Line type="monotone" dataKey="medianTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 2, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} connectNulls={false} />
+                  </RechartsLineChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {points.filter((point) => point.recordCount > 0).length}일, 중앙 기록이 있는 날 {points.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
+            </>
+          ) : <p className="helper-text">아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>}
+          {partialTrendPoint ? <p className="helper-text">오늘 데이터는 진행 중인 기록입니다.</p> : null}
+          <details className="mypage-trend-details">
+            <summary>30일 추세를 텍스트로 보기</summary>
+            <ul>
+              {points.map((point) => (
+                <li key={point.date}>{formatGrowthTrendPointDate(point)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
+              ))}
+            </ul>
+          </details>
+        </>
+      ) : null}
+    </section>
+  )
 }
 
 export function GrowthMetricCard({ icon, label, status, valueMs, accent = false }) {
