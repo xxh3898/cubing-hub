@@ -4,6 +4,9 @@ import { toast } from 'react-toastify'
 import {
   changeMyPassword,
   deleteRecord,
+  getMyGrowth,
+  getMyGrowthPbProgression,
+  getMyGrowthTrend,
   getMyProfile,
   getMyRecords,
   logout,
@@ -15,7 +18,10 @@ import MyPage, {
   RecordTrendTooltip,
   buildFirstPageFromRecentRecords,
   formatDateTime,
+  formatGrowthDate,
+  formatGrowthMetric,
   formatTrendAxisTick,
+  getNextPracticeAction,
   getDisplayRecordTime,
   getEventLabel,
   getPenaltyLabel,
@@ -29,6 +35,9 @@ const mockUpdateCurrentUser = vi.fn()
 vi.mock('../api.js', () => ({
   changeMyPassword: vi.fn(),
   deleteRecord: vi.fn(),
+  getMyGrowth: vi.fn(),
+  getMyGrowthPbProgression: vi.fn(),
+  getMyGrowthTrend: vi.fn(),
   getMyProfile: vi.fn(),
   getMyRecords: vi.fn(),
   logout: vi.fn(),
@@ -84,6 +93,39 @@ function createRecordsResponse(items, overrides = {}) {
   }
 }
 
+function createGrowthSummaryResponse(overrides = {}) {
+  return {
+    data: {
+      eventType: 'WCA_333',
+      timeZone: 'Asia/Seoul',
+      currentPb: { status: 'AVAILABLE', effectiveTimeMs: 9344 },
+      recentAo5: { status: 'AVAILABLE', valueMs: 10200 },
+      recentAo12: { status: 'AVAILABLE', valueMs: 10500 },
+      performanceComparison: {
+        status: 'AVAILABLE',
+        direction: 'FASTER',
+        recentPeriod: { fromDate: '2026-08-08', toDateExclusive: '2026-08-15', medianTimeMs: 10100, recordCount: 12, dnfCount: 1 },
+        previousPeriod: { fromDate: '2026-08-01', toDateExclusive: '2026-08-08', medianTimeMs: 10800, recordCount: 10, dnfCount: 0 },
+      },
+      consistency: {
+        status: 'AVAILABLE',
+        current: { status: 'AVAILABLE', iqrMs: 850, dnfCount: 1, plusTwoCount: 2 },
+        previous: { status: 'AVAILABLE', iqrMs: 1100, dnfCount: 0, plusTwoCount: 1 },
+      },
+      activity: { totalSolveCount: 12, last7DaysSolveCount: 7, previous7DaysSolveCount: 5, last30DaysSolveCount: 12, activeDaysLast30Days: 4, firstRecordedAt: '2026-08-01T09:00:00Z', latestRecordedAt: '2026-08-14T09:00:00Z' },
+      ...overrides,
+    },
+  }
+}
+
+function createGrowthTrendResponse(points = []) {
+  return { data: { eventType: 'WCA_333', period: '30D', timeZone: 'Asia/Seoul', points } }
+}
+
+function createPbProgressionResponse(content = [], overrides = {}) {
+  return { data: { eventType: 'WCA_333', basis: 'CURRENT_RETAINED_RECORDS', timeZone: 'Asia/Seoul', content, page: 1, size: 50, totalElements: content.length, totalPages: content.length ? 1 : 0, hasNext: false, hasPrevious: false, ...overrides } }
+}
+
 function createDeferred() {
   let resolve
   let reject
@@ -110,6 +152,14 @@ describe('MyPage', () => {
       updateCurrentUser: mockUpdateCurrentUser,
     })
     vi.mocked(logout).mockResolvedValue({ message: '로그아웃되었습니다.' })
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse())
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse([
+      { date: '2026-08-13', recordCount: 2, rankableCount: 2, medianTimeMs: 10100, dnfCount: 0, plusTwoCount: 0 },
+      { date: '2026-08-14', recordCount: 1, rankableCount: 0, medianTimeMs: null, dnfCount: 1, plusTwoCount: 0 },
+    ]))
+    vi.mocked(getMyGrowthPbProgression).mockResolvedValue(createPbProgressionResponse([
+      { recordId: 1, effectiveTimeMs: 9344, createdAt: '2026-08-01T09:00:00Z' },
+    ]))
   })
 
   it('should_render_fallback_profile_initial_when_nickname_is_blank', async () => {
@@ -416,7 +466,7 @@ describe('MyPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
     expect(getMyProfile).toHaveBeenCalledTimes(2)
   })
 
@@ -525,7 +575,7 @@ describe('MyPage', () => {
     })
   })
 
-  it('should_show_empty_graph_message_when_main_event_records_do_not_exist', async () => {
+  it('should_show_growth_empty_state_when_no_growth_records_exist', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       data: {
         userId: 1,
@@ -540,10 +590,69 @@ describe('MyPage', () => {
     })
     vi.mocked(getMyRecords)
       .mockResolvedValueOnce(createRecordsResponse([createRecord({ eventType: 'WCA_222', timeMs: 2444, effectiveTimeMs: 2444 })]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse({
+      currentPb: { status: 'NO_DATA', effectiveTimeMs: null },
+      recentAo5: { status: 'INSUFFICIENT_SAMPLE', valueMs: null },
+      recentAo12: { status: 'INSUFFICIENT_SAMPLE', valueMs: null },
+      activity: { totalSolveCount: 0 },
+    }))
 
     render(<MyPage />)
 
-    expect(await screen.findByText('아직 그래프로 표시할 주 종목 기록이 없습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('아직 성장 데이터를 만들 기록이 없습니다.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '연습 시작' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/timer')
+  })
+
+  it('should_render_growth_dashboard_from_private_growth_endpoints', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('Current PB')).toBeInTheDocument()
+    expect(screen.getByText('Recent Ao5')).toBeInTheDocument()
+    expect(screen.getByText('Recent Ao12')).toBeInTheDocument()
+    expect(screen.getByText('최근 7일')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세')).toBeInTheDocument()
+    expect(screen.getByText('30일 추세를 텍스트로 보기')).toBeInTheDocument()
+    expect(screen.getByText('PB Progression')).toBeInTheDocument()
+    expect(screen.getByText('연습 활동')).toBeInTheDocument()
+    expect(getMyGrowth).toHaveBeenCalledWith({ eventType: 'WCA_333' })
+    expect(getMyGrowthTrend).toHaveBeenCalledWith({ eventType: 'WCA_333', period: '30D' })
+    expect(getMyGrowthPbProgression).toHaveBeenCalledWith({ eventType: 'WCA_333', page: 1, size: 50 })
+  })
+
+  it('should_keep_profile_and_record_history_available_when_growth_loading_fails', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockRejectedValue(new Error('성장 데이터 조회 실패'))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('성장 데이터 조회 실패')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '계정 관리' })).toBeInTheDocument()
+    expect(screen.getByText('전체 기록')).toBeInTheDocument()
+    expect(screen.getByText('9.344')).toBeInTheDocument()
+  })
+
+  it('should_load_one_bounded_next_page_for_pb_progression', async () => {
+    vi.mocked(getMyGrowthPbProgression)
+      .mockResolvedValueOnce(createPbProgressionResponse([
+        { recordId: 1, effectiveTimeMs: 9344, createdAt: '2026-08-01T09:00:00Z' },
+      ], { hasNext: true, totalPages: 2 }))
+      .mockResolvedValueOnce(createPbProgressionResponse([
+        { recordId: 2, effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' },
+      ], { page: 2, hasNext: false, totalPages: 2 }))
+
+    render(<MyPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '더 보기' }))
+
+    await waitFor(() => {
+      expect(getMyGrowthPbProgression).toHaveBeenLastCalledWith({ eventType: 'WCA_333', page: 2, size: 50 })
+      expect(screen.getByText('9.123')).toBeInTheDocument()
+    })
   })
 
   it('should_format_helper_values_for_records_and_events', () => {
@@ -555,6 +664,13 @@ describe('MyPage', () => {
     expect(getDisplayRecordTime({ penalty: 'NONE', timeMs: 8123 })).toBe('8.123')
     expect(formatDateTime(null)).toBe('-')
     expect(formatTrendAxisTick(9344)).toBe('9.344')
+    expect(formatGrowthMetric('DNF', null)).toBe('DNF')
+    expect(formatGrowthMetric('INSUFFICIENT_SAMPLE', null)).toBe('데이터 부족')
+    expect(formatGrowthMetric('NO_DATA', null)).toBe('기록 없음')
+    expect(formatGrowthDate('2026-08-14')).toBe('2026년 8월 14일')
+    expect(getNextPracticeAction(createGrowthSummaryResponse().data)).toBe('다음 12회에서 10.500 이하 만들기')
+    expect(getNextPracticeAction({ activity: { totalSolveCount: 4 } })).toBe('첫 Ao5 만들기')
+    expect(getNextPracticeAction({ activity: { totalSolveCount: 8 }, recentAo5: { status: 'AVAILABLE', valueMs: 11000 } })).toBe('12회까지 기록 이어가기')
     expect(resolveEventType('3x3x3')).toBe('WCA_333')
     expect(resolveEventType('CUSTOM')).toBe('CUSTOM')
     expect(resolveEventType(null)).toBeNull()
@@ -605,10 +721,10 @@ describe('MyPage', () => {
 
     expect(await screen.findByText('Tester')).toBeInTheDocument()
     expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('0 회')).toBeInTheDocument()
+    expect(screen.getByText('나의 성장')).toBeInTheDocument()
   })
 
-  it('should_show_all_dnf_graph_message_when_recent_main_event_records_are_all_dnf', async () => {
+  it('should_preserve_dnf_only_trend_as_non_numeric_growth_data', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       data: {
         userId: 1,
@@ -625,10 +741,13 @@ describe('MyPage', () => {
       createRecord({ penalty: 'DNF', effectiveTimeMs: null, timeMs: 9344 }),
       createRecord({ id: 2, penalty: 'DNF', effectiveTimeMs: null, timeMs: 9544 }),
     ]))
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse([
+      { date: '2026-08-14', recordCount: 2, rankableCount: 0, medianTimeMs: null, dnfCount: 2, plusTwoCount: 0 },
+    ]))
 
     render(<MyPage />)
 
-    expect(await screen.findByText('최근 기록이 모두 DNF라 그래프를 그릴 수 없습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.')).toBeInTheDocument()
   })
 
   it('should_use_default_profile_form_values_when_profile_fields_are_missing', async () => {
@@ -653,7 +772,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
 
@@ -680,7 +799,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '로그아웃' }))
 
@@ -707,7 +826,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '로그아웃' }))
 
@@ -744,7 +863,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
     fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
@@ -784,7 +903,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
     const profilePanel = screen.getByRole('tabpanel')
@@ -816,7 +935,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('0 회')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '계정 관리' }))
     fireEvent.click(screen.getByRole('tab', { name: '비밀번호 변경' }))
@@ -853,7 +972,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('아직 그래프로 표시할 주 종목 기록이 없습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('나의 성장')).toBeInTheDocument()
     expect(await screen.findByText('아직 저장된 기록이 없습니다.')).toBeInTheDocument()
   })
 

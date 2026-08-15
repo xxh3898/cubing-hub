@@ -310,6 +310,191 @@
   gap: 8px;
 }
 
+.mypage-growth-section,
+.mypage-growth-feedback,
+.mypage-growth-empty {
+  display: grid;
+  gap: 14px;
+}
+
+.mypage-growth-section {
+  padding-top: 4px;
+}
+
+.mypage-growth-section + .mypage-growth-section {
+  padding-top: 22px;
+  border-top: 1px solid rgba(217, 227, 244, 0.82);
+}
+
+.mypage-growth-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mypage-growth-section-heading h3,
+.mypage-growth-empty h3,
+.mypage-next-practice h3 {
+  margin: 0;
+}
+
+.mypage-growth-empty {
+  padding: 22px;
+  border: 1px dashed rgba(0, 93, 167, 0.36);
+  border-radius: var(--radius-card);
+  background: var(--color-primary-tint);
+}
+
+.mypage-growth-empty .primary-button,
+.mypage-next-practice .primary-button {
+  width: fit-content;
+}
+
+.mypage-direction-label {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.mypage-comparison-grid,
+.mypage-consistency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mypage-growth-period-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(217, 227, 244, 0.82);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.mypage-growth-period-card strong {
+  font-size: 1.28rem;
+}
+
+.mypage-growth-period-card p,
+.mypage-growth-period-card span:last-child,
+.mypage-chart-summary {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.mypage-chart-summary {
+  padding: 0 2px;
+}
+
+.mypage-trend-details {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.mypage-trend-details summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 850;
+}
+
+.mypage-trend-details ul {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.mypage-pb-progression-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mypage-pb-progression-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary-tint);
+}
+
+.mypage-pb-progression-list li span {
+  color: var(--color-accent);
+  font-weight: 900;
+}
+
+.mypage-pb-progression-list time {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  text-align: right;
+}
+
+.mypage-pb-more-button {
+  width: fit-content;
+}
+
+.mypage-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mypage-activity-item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(217, 227, 244, 0.82);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.mypage-activity-item span {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.mypage-activity-item strong {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.mypage-activity-chart {
+  padding: 14px 12px 8px;
+  border: 1px solid rgba(217, 227, 244, 0.82);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, rgba(241, 246, 255, 0.72), rgba(255, 255, 255, 0.94));
+}
+
+.mypage-next-practice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--color-primary-tint);
+}
+
+.mypage-next-practice p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 900px) {
   .mypage-profile-panel,
   .mypage-dashboard-panel,
@@ -323,6 +508,10 @@
 
   .dashboard-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mypage-activity-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -350,7 +539,10 @@
   }
 
   .mypage-profile-actions,
-  .dashboard-summary-grid {
+  .dashboard-summary-grid,
+  .mypage-comparison-grid,
+  .mypage-consistency-grid,
+  .mypage-activity-grid {
     grid-template-columns: 1fr;
   }
 
@@ -366,9 +558,24 @@
 
   .mypage-panel-heading,
   .mypage-records-header,
-  .mypage-modal-header {
+  .mypage-modal-header,
+  .mypage-growth-section-heading,
+  .mypage-next-practice {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .mypage-direction-label {
+    width: fit-content;
+  }
+
+  .mypage-pb-progression-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mypage-pb-progression-list time {
+    text-align: left;
   }
 
   .mypage-account-actions,

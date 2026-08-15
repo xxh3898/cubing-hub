@@ -2,11 +2,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gauge, LineChart as ChartLine, LogOut, Settings, Timer, Trophy } from 'lucide-react'
-import { CartesianGrid, Line, LineChart as RechartsLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Line, LineChart as RechartsLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'react-toastify'
 import {
   changeMyPassword,
   deleteRecord,
+  getMyGrowth,
+  getMyGrowthPbProgression,
+  getMyGrowthTrend,
   getMyProfile,
   getMyRecords,
   logout,
@@ -18,12 +21,14 @@ import { INPUT_LIMITS, PASSWORD_MIN_LENGTH } from '../constants/inputLimits.js'
 import { eventOptions } from '../constants/eventOptions.js'
 import { useAuth } from '../context/useAuth.js'
 import { formatSeoulDateTime } from '../utils/dateTime.js'
-import { buildTrendChartData, filterLatestRecordsByEvent, formatRecordTime } from '../utils/recordStats.js'
+import { formatRecordTime } from '../utils/recordStats.js'
 
 const RECORDS_PAGE_SIZE = 10
 const TREND_FETCH_SIZE = 100
-const TREND_RECORD_LIMIT = 30
 const DEFAULT_MAIN_EVENT = eventOptions[0].value
+const GROWTH_EVENT_TYPE = 'WCA_333'
+const GROWTH_TREND_PERIOD = '30D'
+const GROWTH_PB_PAGE_SIZE = 50
 const CHART_LINE_COLOR = '#005da7'
 const CHART_ACTIVE_DOT_COLOR = '#fd8b00'
 const CHART_GRID_COLOR = 'rgba(193, 199, 211, 0.56)'
@@ -64,6 +69,61 @@ export function formatTrendAxisTick(value) {
   return formatRecordTime(value)
 }
 
+export function formatGrowthMetric(status, valueMs) {
+  if (status === 'DNF') {
+    return 'DNF'
+  }
+
+  if (status === 'AVAILABLE' && typeof valueMs === 'number') {
+    return formatRecordTime(valueMs)
+  }
+
+  if (status === 'INSUFFICIENT_DATA' || status === 'INSUFFICIENT_SAMPLE') {
+    return '데이터 부족'
+  }
+
+  return '기록 없음'
+}
+
+export function formatGrowthDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return '-'
+  }
+
+  const [year, month, day] = value.split('-').map(Number)
+  return `${year}년 ${month}월 ${day}일`
+}
+
+export function getNextPracticeAction(summary) {
+  const totalSolveCount = summary?.activity?.totalSolveCount ?? 0
+
+  if (summary?.recentAo12?.status === 'AVAILABLE' && typeof summary.recentAo12.valueMs === 'number') {
+    return `다음 12회에서 ${formatRecordTime(summary.recentAo12.valueMs)} 이하 만들기`
+  }
+
+  if (summary?.recentAo5?.status === 'AVAILABLE' && typeof summary.recentAo5.valueMs === 'number') {
+    return '12회까지 기록 이어가기'
+  }
+
+  return totalSolveCount < 5 ? '첫 Ao5 만들기' : '12회까지 기록 이어가기'
+}
+
+export function getDirectionLabel(direction) {
+  if (direction === 'FASTER') {
+    return '빨라짐'
+  }
+
+  if (direction === 'SLOWER') {
+    return '느려짐'
+  }
+
+  if (direction === 'UNCHANGED') {
+    return '비슷함'
+  }
+
+  return '비교 데이터 부족'
+}
+
 export function buildFirstPageFromRecentRecords(sourcePage) {
   const totalElements = sourcePage?.totalElements ?? 0
   const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / RECORDS_PAGE_SIZE)
@@ -94,15 +154,14 @@ export default function MyPage() {
     passwordConfirm: '',
   })
   const [recordsPage, setRecordsPage] = useState(null)
-  const [trendRecords, setTrendRecords] = useState([])
   const [profileError, setProfileError] = useState(null)
   const [profileFormError, setProfileFormError] = useState(null)
   const [recordsError, setRecordsError] = useState(null)
-  const [trendError, setTrendError] = useState(null)
+  const [growthError, setGrowthError] = useState(null)
   const [passwordFormError, setPasswordFormError] = useState(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [isLoadingRecords, setIsLoadingRecords] = useState(true)
-  const [isLoadingTrend, setIsLoadingTrend] = useState(true)
+  const [isLoadingGrowth, setIsLoadingGrowth] = useState(true)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -113,14 +172,15 @@ export default function MyPage() {
   const [isLoadingRecentRecordsSource, setIsLoadingRecentRecordsSource] = useState(true)
   const [profileReloadKey, setProfileReloadKey] = useState(0)
   const [recordsReloadKey, setRecordsReloadKey] = useState(0)
+  const [growthReloadKey, setGrowthReloadKey] = useState(0)
+  const [growthSummary, setGrowthSummary] = useState(null)
+  const [growthTrend, setGrowthTrend] = useState(null)
+  const [pbProgression, setPbProgression] = useState(null)
+  const [isLoadingMorePb, setIsLoadingMorePb] = useState(false)
   const { clearAccessToken, currentUser, updateCurrentUser } = useAuth()
   const navigate = useNavigate()
-  const mainEventRecordType = useMemo(
-    () => resolveEventType(profileData?.mainEvent),
-    [profileData?.mainEvent],
-  )
-  const trendChartData = useMemo(() => buildTrendChartData(trendRecords), [trendRecords])
-  const hasTrendChartData = trendChartData.some((point) => typeof point.value === 'number')
+  const growthTrendPoints = useMemo(() => growthTrend?.points ?? [], [growthTrend])
+  const hasGrowthTrendData = growthTrendPoints.some((point) => typeof point.medianTimeMs === 'number')
 
   useEffect(() => {
     if (!profileData) {
@@ -272,38 +332,49 @@ export default function MyPage() {
   }, [currentPage, isLoadingRecentRecordsSource, recentRecordsSource, recentRecordsSourceError])
 
   useEffect(() => {
-    if (!mainEventRecordType) {
-      setTrendRecords([])
-      setTrendError(null)
-      setIsLoadingTrend(false)
-      return
+    let isCancelled = false
+
+    const loadGrowth = async () => {
+      setIsLoadingGrowth(true)
+      setGrowthError(null)
+
+      try {
+        const [summaryResponse, trendResponse, progressionResponse] = await Promise.all([
+          getMyGrowth({ eventType: GROWTH_EVENT_TYPE }),
+          getMyGrowthTrend({ eventType: GROWTH_EVENT_TYPE, period: GROWTH_TREND_PERIOD }),
+          getMyGrowthPbProgression({ eventType: GROWTH_EVENT_TYPE, page: 1, size: GROWTH_PB_PAGE_SIZE }),
+        ])
+
+        if (isCancelled) {
+          return
+        }
+
+        setGrowthSummary(summaryResponse.data)
+        setGrowthTrend(trendResponse.data)
+        setPbProgression(progressionResponse.data)
+        setGrowthError(null)
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        setGrowthSummary(null)
+        setGrowthTrend(null)
+        setPbProgression(null)
+        setGrowthError(error.message)
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingGrowth(false)
+        }
+      }
     }
 
-    setIsLoadingTrend(isLoadingRecentRecordsSource)
+    loadGrowth()
 
-    if (isLoadingRecentRecordsSource) {
-      return
+    return () => {
+      isCancelled = true
     }
-
-    if (recentRecordsSourceError) {
-      setTrendRecords([])
-      setTrendError(recentRecordsSourceError)
-      return
-    }
-
-    if (!recentRecordsSource) {
-      setTrendRecords([])
-      setTrendError(null)
-      setIsLoadingTrend(false)
-      return
-    }
-
-    setTrendRecords(
-      filterLatestRecordsByEvent(recentRecordsSource.items, mainEventRecordType, TREND_RECORD_LIMIT),
-    )
-    setTrendError(null)
-    setIsLoadingTrend(false)
-  }, [mainEventRecordType, recentRecordsSource, recentRecordsSourceError, isLoadingRecentRecordsSource])
+  }, [growthReloadKey])
 
   const handleLogout = async () => {
     if (!window.confirm('로그아웃 하시겠습니까?')) {
@@ -332,16 +403,11 @@ export default function MyPage() {
     const nextRecentRecordsSource = recentRecordsResponse.data
     const nextRecordsPage = page > 1 ? recordsResponse.data : buildFirstPageFromRecentRecords(nextRecentRecordsSource)
     const nextProfileData = profileResponse.data
-    const nextMainEventRecordType = resolveEventType(nextProfileData.mainEvent)
-
     setProfileData(nextProfileData)
     setProfileError(null)
     setRecentRecordsSource(nextRecentRecordsSource)
     setRecentRecordsSourceError(null)
-    setTrendRecords(
-      filterLatestRecordsByEvent(nextRecentRecordsSource.items, nextMainEventRecordType, TREND_RECORD_LIMIT),
-    )
-    setTrendError(null)
+    setGrowthReloadKey((current) => current + 1)
 
     if (page > 1) {
       const normalizedPage = nextRecordsPage.totalPages > 0 ? Math.min(page, nextRecordsPage.totalPages) : 1
@@ -395,6 +461,37 @@ export default function MyPage() {
 
   const handleRetryRecords = () => {
     setRecordsReloadKey((current) => current + 1)
+  }
+
+  const handleRetryGrowth = () => {
+    setGrowthReloadKey((current) => current + 1)
+  }
+
+  const handleLoadMorePb = async () => {
+    if (!pbProgression?.hasNext || isLoadingMorePb) {
+      return
+    }
+
+    setIsLoadingMorePb(true)
+
+    try {
+      const response = await getMyGrowthPbProgression({
+        eventType: GROWTH_EVENT_TYPE,
+        page: pbProgression.page + 1,
+        size: GROWTH_PB_PAGE_SIZE,
+      })
+
+      setPbProgression((current) => current
+        ? {
+            ...response.data,
+            content: [...(current.content ?? []), ...(response.data.content ?? [])],
+          }
+        : response.data)
+    } catch (error) {
+      setGrowthError(error.message)
+    } finally {
+      setIsLoadingMorePb(false)
+    }
   }
 
   const handleOpenAccountModal = (tabKey = ACCOUNT_TABS[0].key) => {
@@ -498,7 +595,6 @@ export default function MyPage() {
   }
 
   const records = recordsPage?.items ?? []
-  const summary = profileData?.summary
   const nickname = profileData?.nickname ?? currentUser?.nickname ?? '-'
   const mainEvent = getEventLabel(profileData?.mainEvent)
   const totalPages = recordsPage?.totalPages ?? 0
@@ -506,9 +602,9 @@ export default function MyPage() {
   return (
     <section className="page-grid mypage">
       <div className="mypage-page-header">
-        <p className="eyebrow">My Page</p>
-        <h2>마이페이지</h2>
-        <p className="helper-text">나의 큐빙 기록과 성장을 확인하세요.</p>
+        <p className="eyebrow">My Growth</p>
+        <h2>나의 성장</h2>
+        <p className="helper-text">나의 큐빙 기록과 성장 흐름을 확인하세요.</p>
       </div>
 
       <div className="panel mypage-profile-panel">
@@ -545,95 +641,151 @@ export default function MyPage() {
             </button>
           </div>
         </div>
+        {profileError ? (
+          <div className="mypage-growth-feedback">
+            <p className="message error">{profileError}</p>
+            <button className="ghost-button" type="button" onClick={handleRetryProfile}>다시 시도</button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="panel mypage-dashboard-panel">
+      <div className="panel mypage-dashboard-panel" aria-live="polite">
         <div className="mypage-panel-heading">
           <div>
-            <h2>기록 요약</h2>
-            <p className="helper-text">프로필 기준으로 계산한 현재 기록 상태입니다.</p>
+            <p className="eyebrow">WCA 3x3x3</p>
+            <h2>성장 대시보드</h2>
+            <p className="helper-text">WCA 3x3x3 Practice 기록을 기준으로 현재 기록 흐름을 확인합니다.</p>
           </div>
         </div>
-        {profileError ? (
-          <>
-            <p className="message error">{profileError}</p>
-            <button className="ghost-button" type="button" onClick={handleRetryProfile}>
-              다시 시도
-            </button>
-          </>
-        ) : isLoadingProfile ? (
-          <p className="helper-text">마이페이지 요약을 불러오는 중입니다.</p>
-        ) : (
-          <div className="dashboard-summary-grid">
-            <div className="dashboard-summary-card">
-              <span className="dashboard-summary-icon" aria-hidden="true">
-                <Timer size={18} />
-              </span>
-              <span className="dashboard-summary-label">전체 기록 수</span>
-              <span className="dashboard-summary-value">{summary?.totalSolveCount ?? 0} 회</span>
-            </div>
-            <div className="dashboard-summary-card">
-              <span className="dashboard-summary-icon accent" aria-hidden="true">
-                <Trophy size={18} />
-              </span>
-              <span className="dashboard-summary-label">최고 기록 (PB)</span>
-              <span className="dashboard-summary-value pb-value">{formatRecordTime(summary?.personalBestTimeMs)}</span>
-            </div>
-            <div className="dashboard-summary-card">
-              <span className="dashboard-summary-icon" aria-hidden="true">
-                <Gauge size={18} />
-              </span>
-              <span className="dashboard-summary-label">전체 평균</span>
-              <span className="dashboard-summary-value">{formatRecordTime(summary?.averageTimeMs)}</span>
-            </div>
-          </div>
-        )}
 
-        <div className="mypage-trend-panel">
-          <div className="mypage-trend-header">
-            <div>
-              <span className="mypage-trend-title-row">
-                <ChartLine size={19} aria-hidden="true" />
-                <h3>기록 추세</h3>
-              </span>
-              <p className="helper-text">{`${mainEvent} 최근 ${trendRecords.length}개 기준`}</p>
-            </div>
+        {growthError ? (
+          <div className="mypage-growth-feedback">
+            <p className="message error">{growthError}</p>
+            <button className="ghost-button" type="button" onClick={handleRetryGrowth}>다시 시도</button>
           </div>
-          {trendError ? (
-            <>
-              <p className="message error">{trendError}</p>
-              <button className="ghost-button" type="button" onClick={handleRetryRecords}>
-                다시 시도
-              </button>
-            </>
-          ) : isLoadingTrend ? (
-            <p className="helper-text">기록 그래프를 불러오는 중입니다.</p>
-          ) : trendRecords.length === 0 ? (
-            <p className="helper-text">아직 그래프로 표시할 주 종목 기록이 없습니다.</p>
-          ) : !hasTrendChartData ? (
-            <p className="helper-text">최근 기록이 모두 DNF라 그래프를 그릴 수 없습니다.</p>
-          ) : (
-            <div className="mypage-trend-chart" aria-label="기록 추세 그래프">
-              <ResponsiveContainer width="100%" height={260}>
-                <RechartsLineChart data={trendChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                  <YAxis tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
-                  <Tooltip content={<RecordTrendTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={CHART_LINE_COLOR}
-                    strokeWidth={3}
-                    dot={{ r: 3, strokeWidth: 0, fill: CHART_LINE_COLOR }}
-                    activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }}
-                    connectNulls={false}
-                  />
-                </RechartsLineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+        ) : isLoadingGrowth ? (
+          <p className="helper-text">성장 데이터를 불러오는 중입니다.</p>
+        ) : growthSummary?.activity?.totalSolveCount === 0 ? (
+          <div className="mypage-growth-empty">
+            <h3>아직 성장 데이터를 만들 기록이 없습니다.</h3>
+            <p className="helper-text">타이머에서 첫 기록을 남겨보세요.</p>
+            <button className="primary-button" type="button" onClick={() => navigate('/timer')}>연습 시작</button>
+          </div>
+        ) : (
+          <>
+            <section className="mypage-growth-section" aria-labelledby="growth-current-performance">
+              <div className="mypage-growth-section-heading">
+                <div>
+                  <h3 id="growth-current-performance">현재 기록</h3>
+                  <p className="helper-text">현재 남아 있는 WCA 3x3x3 Practice 기록 기준입니다.</p>
+                </div>
+              </div>
+              <div className="dashboard-summary-grid">
+                <GrowthMetricCard icon={<Trophy size={18} />} label="Current PB" status={growthSummary?.currentPb?.status} valueMs={growthSummary?.currentPb?.effectiveTimeMs} accent />
+                <GrowthMetricCard icon={<Timer size={18} />} label="Recent Ao5" status={growthSummary?.recentAo5?.status} valueMs={growthSummary?.recentAo5?.valueMs} />
+                <GrowthMetricCard icon={<Gauge size={18} />} label="Recent Ao12" status={growthSummary?.recentAo12?.status} valueMs={growthSummary?.recentAo12?.valueMs} />
+              </div>
+            </section>
+
+            <section className="mypage-growth-section" aria-labelledby="growth-direction">
+              <div className="mypage-growth-section-heading">
+                <div>
+                  <h3 id="growth-direction">최근 기록 흐름</h3>
+                  <p className="helper-text">완료된 7일 구간의 중앙 기록을 비교합니다.</p>
+                </div>
+                <span className="mypage-direction-label">비교: {getDirectionLabel(growthSummary?.performanceComparison?.direction)}</span>
+              </div>
+              <div className="mypage-comparison-grid">
+                <GrowthPeriodCard label="최근 7일" period={growthSummary?.performanceComparison?.recentPeriod} />
+                <GrowthPeriodCard label="이전 7일" period={growthSummary?.performanceComparison?.previousPeriod} />
+              </div>
+            </section>
+
+            <section className="mypage-growth-section" aria-labelledby="growth-trend">
+              <div className="mypage-growth-section-heading">
+                <div>
+                  <span className="mypage-trend-title-row"><ChartLine size={19} aria-hidden="true" /><h3 id="growth-trend">30일 추세</h3></span>
+                  <p className="helper-text">날짜별 중앙 기록과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙 기록이 없습니다.</p>
+                </div>
+              </div>
+              {hasGrowthTrendData ? (
+                <>
+                  <div className="mypage-trend-chart" aria-label="최근 30일 중앙 기록 그래프">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <RechartsLineChart data={growthTrendPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
+                        <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
+                        <YAxis dataKey="medianTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
+                        <Tooltip content={<GrowthTrendTooltip />} />
+                        <Line type="monotone" dataKey="medianTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 2, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} connectNulls={false} />
+                      </RechartsLineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {growthTrendPoints.filter((point) => point.recordCount > 0).length}일, 중앙 기록이 있는 날 {growthTrendPoints.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
+                  <details className="mypage-trend-details">
+                    <summary>30일 추세를 텍스트로 보기</summary>
+                    <ul>
+                      {growthTrendPoints.map((point) => (
+                        <li key={point.date}>{formatGrowthDate(point.date)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
+                      ))}
+                    </ul>
+                  </details>
+                </>
+              ) : (
+                <p className="helper-text">아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>
+              )}
+            </section>
+
+            <section className="mypage-growth-section" aria-labelledby="growth-consistency">
+              <div className="mypage-growth-section-heading"><div><h3 id="growth-consistency">최근 일관성</h3><p className="helper-text">최근 12회와 이전 12회의 IQR 및 penalty 수를 표시합니다.</p></div></div>
+              {growthSummary?.consistency?.status === 'AVAILABLE' ? (
+                <div className="mypage-consistency-grid">
+                  <GrowthConsistencyCard label="최근 12회" window={growthSummary.consistency.current} />
+                  <GrowthConsistencyCard label="이전 12회" window={growthSummary.consistency.previous} />
+                </div>
+              ) : <p className="helper-text">데이터 부족: 최근 일관성을 계산할 충분한 기록이 없습니다.</p>}
+            </section>
+
+            <section className="mypage-growth-section" aria-labelledby="growth-pb-progression">
+              <div className="mypage-growth-section-heading"><div><h3 id="growth-pb-progression">PB Progression</h3><p className="helper-text">현재 남아 있는 기록 기준입니다. penalty 변경이나 기록 삭제에 따라 다시 구성될 수 있습니다.</p></div></div>
+              {(pbProgression?.content ?? []).length === 0 ? <p className="helper-text">아직 표시할 PB progression이 없습니다.</p> : (
+                <ol className="mypage-pb-progression-list">
+                  {pbProgression.content.map((point) => <li key={point.recordId}><span>{formatRecordTime(point.effectiveTimeMs)}</span><time dateTime={point.createdAt}>{formatDateTime(point.createdAt)}</time></li>)}
+                </ol>
+              )}
+              {pbProgression?.hasNext ? <button className="ghost-button mypage-pb-more-button" type="button" onClick={handleLoadMorePb} disabled={isLoadingMorePb}>{isLoadingMorePb ? '불러오는 중...' : '더 보기'}</button> : null}
+            </section>
+
+            <section className="mypage-growth-section" aria-labelledby="growth-activity">
+              <div className="mypage-growth-section-heading"><div><h3 id="growth-activity">연습 활동</h3><p className="helper-text">Asia/Seoul 달력일 기준 activity입니다.</p></div></div>
+              <div className="mypage-activity-grid">
+                <GrowthActivityItem label="전체 solve" value={`${growthSummary?.activity?.totalSolveCount ?? 0}회`} />
+                <GrowthActivityItem label="최근 7일" value={`${growthSummary?.activity?.last7DaysSolveCount ?? 0}회`} />
+                <GrowthActivityItem label="이전 7일" value={`${growthSummary?.activity?.previous7DaysSolveCount ?? 0}회`} />
+                <GrowthActivityItem label="최근 30일" value={`${growthSummary?.activity?.last30DaysSolveCount ?? 0}회`} />
+                <GrowthActivityItem label="활동 일수" value={`${growthSummary?.activity?.activeDaysLast30Days ?? 0}일`} />
+                <GrowthActivityItem label="첫 기록일" value={formatDateTime(growthSummary?.activity?.firstRecordedAt)} />
+                <GrowthActivityItem label="최근 기록일" value={formatDateTime(growthSummary?.activity?.latestRecordedAt)} />
+              </div>
+              {growthTrendPoints.length > 0 ? (
+                <div className="mypage-activity-chart" aria-label="최근 30일 일별 solve 수 그래프">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={growthTrendPoints} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
+                      <Tooltip content={<GrowthActivityTooltip />} />
+                      <Bar dataKey="recordCount" name="solve 수" fill={CHART_LINE_COLOR} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <p className="mypage-chart-summary">일별 solve 수: 기록 없는 날은 0회로 표시합니다.</p>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="mypage-next-practice" aria-labelledby="growth-next-practice"><div><h3 id="growth-next-practice">다음 연습</h3><p>{getNextPracticeAction(growthSummary)}</p></div><button className="primary-button" type="button" onClick={() => navigate('/timer')}>연습 시작</button></section>
+          </>
+        )}
       </div>
 
       <div className="panel mypage-records-panel">
@@ -909,6 +1061,78 @@ export function getEventLabel(mainEvent) {
   )
 
   return matchedOption?.label ?? mainEvent
+}
+
+export function formatGrowthTrendAxisTick(value) {
+  return typeof value === 'string' ? value.slice(5).replace('-', '/') : ''
+}
+
+export function GrowthMetricCard({ icon, label, status, valueMs, accent = false }) {
+  return (
+    <div className="dashboard-summary-card">
+      <span className={`dashboard-summary-icon${accent ? ' accent' : ''}`} aria-hidden="true">{icon}</span>
+      <span className="dashboard-summary-label">{label}</span>
+      <span className={`dashboard-summary-value${accent ? ' pb-value' : ''}`}>{formatGrowthMetric(status, valueMs)}</span>
+    </div>
+  )
+}
+
+export function GrowthPeriodCard({ label, period }) {
+  return (
+    <div className="mypage-growth-period-card">
+      <span className="dashboard-summary-label">{label}</span>
+      <strong>{typeof period?.medianTimeMs === 'number' ? formatRecordTime(period.medianTimeMs) : '데이터 부족'}</strong>
+      <p>{period?.fromDate && period?.toDateExclusive ? `${formatGrowthDate(period.fromDate)} ~ ${formatGrowthDate(period.toDateExclusive)}` : '완료된 구간 없음'}</p>
+      <span>solve {period?.recordCount ?? 0}회 · DNF {period?.dnfCount ?? 0}회</span>
+    </div>
+  )
+}
+
+export function GrowthConsistencyCard({ label, window }) {
+  return (
+    <div className="mypage-growth-period-card">
+      <span className="dashboard-summary-label">{label}</span>
+      <strong>{window?.status === 'AVAILABLE' && typeof window.iqrMs === 'number' ? `IQR ${formatRecordTime(window.iqrMs)}` : '데이터 부족'}</strong>
+      <span>DNF {window?.dnfCount ?? 0}회 · +2 {window?.plusTwoCount ?? 0}회</span>
+    </div>
+  )
+}
+
+export function GrowthActivityItem({ label, value }) {
+  return <div className="mypage-activity-item"><span>{label}</span><strong>{value}</strong></div>
+}
+
+export function GrowthTrendTooltip({ active, payload }) {
+  if (!active || !payload?.length) {
+    return null
+  }
+
+  const point = payload[0].payload
+  const median = typeof point.medianTimeMs === 'number'
+    ? formatRecordTime(point.medianTimeMs)
+    : point.recordCount === 0 ? '기록 없음' : 'DNF-only'
+
+  return (
+    <div className="mypage-trend-tooltip">
+      <p className="mypage-trend-tooltip-time">{formatGrowthDate(point.date)} · {median}</p>
+      <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
+    </div>
+  )
+}
+
+export function GrowthActivityTooltip({ active, payload }) {
+  if (!active || !payload?.length) {
+    return null
+  }
+
+  const point = payload[0].payload
+
+  return (
+    <div className="mypage-trend-tooltip">
+      <p className="mypage-trend-tooltip-time">{formatGrowthDate(point.date)}</p>
+      <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
+    </div>
+  )
 }
 
 export function RecordTrendTooltip({ active, payload }) {

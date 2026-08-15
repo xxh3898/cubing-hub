@@ -182,6 +182,39 @@ export async function getMyRecords(params) {
   }
 }
 
+export async function getMyGrowth(params) {
+  try {
+    const response = await apiClient.get('/api/users/me/growth', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getMyGrowthTrend(params) {
+  try {
+    const response = await apiClient.get('/api/users/me/growth/trend', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
+export async function getMyGrowthPbProgression(params) {
+  try {
+    const response = await apiClient.get('/api/users/me/growth/pb-progression', {
+      params,
+    })
+    return unwrapResponse(response)
+  } catch (error) {
+    throw new Error(toErrorMessage(error))
+  }
+}
+
 export async function changeMyPassword(payload) {
   try {
     const response = await apiClient.patch('/api/users/me/password', payload)

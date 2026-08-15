@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator와 private Growth read API, repository projection, MySQL query는 구현했다. My Growth UI와 release는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query와 My Growth UI consumer는 구현했다. Legacy Profile consumer transition과 release evidence는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
 
 ```text
 Current
@@ -36,7 +36,7 @@ Current
 - Redis ranking read model
 
 Next implementation
-- My Growth dashboard와 Record mutation 뒤 refresh
+- Legacy Profile consumer transition과 release evidence
 
 Future candidate
 - observed cost에 근거한 PB progression cache/projection
