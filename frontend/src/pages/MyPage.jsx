@@ -24,7 +24,6 @@ import { formatSeoulDateOnly, formatSeoulDateTime } from '../utils/dateTime.js'
 import { formatRecordTime } from '../utils/recordStats.js'
 
 const RECORDS_PAGE_SIZE = 10
-const TREND_FETCH_SIZE = 100
 const DEFAULT_MAIN_EVENT = eventOptions[0].value
 const GROWTH_EVENT_TYPE = 'WCA_333'
 const GROWTH_TREND_PERIOD = '30D'
@@ -234,21 +233,6 @@ export function getConsistencyComparisonLabel(consistency) {
   return null
 }
 
-export function buildFirstPageFromRecentRecords(sourcePage) {
-  const totalElements = sourcePage?.totalElements ?? 0
-  const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / RECORDS_PAGE_SIZE)
-
-  return {
-    items: sourcePage?.items?.slice(0, RECORDS_PAGE_SIZE) ?? [],
-    page: 1,
-    size: RECORDS_PAGE_SIZE,
-    totalElements,
-    totalPages,
-    hasNext: totalPages > 1,
-    hasPrevious: false,
-  }
-}
-
 export default function MyPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
@@ -282,9 +266,6 @@ export default function MyPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [updatingRecordId, setUpdatingRecordId] = useState(null)
   const [deletingRecordId, setDeletingRecordId] = useState(null)
-  const [recentRecordsSource, setRecentRecordsSource] = useState(null)
-  const [recentRecordsSourceError, setRecentRecordsSourceError] = useState(null)
-  const [isLoadingRecentRecordsSource, setIsLoadingRecentRecordsSource] = useState(true)
   const [profileReloadKey, setProfileReloadKey] = useState(0)
   const [recordsReloadKey, setRecordsReloadKey] = useState(0)
   const [growthSummaryReloadKey, setGrowthSummaryReloadKey] = useState(0)
@@ -382,64 +363,6 @@ export default function MyPage() {
   useEffect(() => {
     let isCancelled = false
 
-    const loadRecentRecordsSource = async () => {
-      setIsLoadingRecentRecordsSource(true)
-      setRecentRecordsSourceError(null)
-
-      try {
-        const response = await getMyRecords({ page: 1, size: TREND_FETCH_SIZE })
-
-        if (isCancelled) {
-          return
-        }
-
-        setRecentRecordsSource(response.data)
-        setRecentRecordsSourceError(null)
-      } catch (error) {
-        if (isCancelled) {
-          return
-        }
-
-        setRecentRecordsSource(null)
-        setRecentRecordsSourceError(error.message)
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingRecentRecordsSource(false)
-        }
-      }
-    }
-
-    loadRecentRecordsSource()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [recordsReloadKey])
-
-  useEffect(() => {
-    if (currentPage === 1) {
-      setIsLoadingRecords(isLoadingRecentRecordsSource)
-
-      if (isLoadingRecentRecordsSource) {
-        return
-      }
-
-      if (recentRecordsSourceError) {
-        setRecordsPage(null)
-        setRecordsError(recentRecordsSourceError)
-        return
-      }
-
-      if (recentRecordsSource) {
-        setRecordsPage(buildFirstPageFromRecentRecords(recentRecordsSource))
-        setRecordsError(null)
-      }
-
-      return
-    }
-
-    let isCancelled = false
-
     const loadRecordsPage = async () => {
       setIsLoadingRecords(true)
       setRecordsError(null)
@@ -451,7 +374,15 @@ export default function MyPage() {
           return
         }
 
-        const nextPage = response.data
+        const nextPage = response.data ?? {
+          items: [],
+          page: currentPage,
+          size: RECORDS_PAGE_SIZE,
+          totalElements: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false,
+        }
         const normalizedPage = nextPage.totalPages > 0 ? Math.min(currentPage, nextPage.totalPages) : 1
 
         if (normalizedPage !== currentPage) {
@@ -479,7 +410,7 @@ export default function MyPage() {
     return () => {
       isCancelled = true
     }
-  }, [currentPage, isLoadingRecentRecordsSource, recentRecordsSource, recentRecordsSourceError])
+  }, [currentPage, recordsReloadKey])
 
   useEffect(() => {
     let isCancelled = false
@@ -627,75 +558,13 @@ export default function MyPage() {
     }
   }
 
-  const syncProfileAndRecords = async (page) => {
-    const [profileResult, recentRecordsResult, recordsResult] = await Promise.allSettled([
-      getMyProfile(),
-      getMyRecords({ page: 1, size: TREND_FETCH_SIZE }),
-      page > 1 ? getMyRecords({ page, size: RECORDS_PAGE_SIZE }) : Promise.resolve(null),
-    ])
-    let firstError = null
-    let nextProfileData = null
-    let nextRecentRecordsSource = null
-    let nextRecordsPage = null
-
-    if (profileResult.status === 'fulfilled') {
-      nextProfileData = profileResult.value.data
-      setProfileData(nextProfileData)
-      setProfileError(null)
-    } else {
-      firstError = profileResult.reason
-      setProfileError(profileResult.reason.message)
-    }
-
-    if (recentRecordsResult.status === 'fulfilled') {
-      nextRecentRecordsSource = recentRecordsResult.value.data
-      setRecentRecordsSource(nextRecentRecordsSource)
-      setRecentRecordsSourceError(null)
-    } else {
-      firstError ??= recentRecordsResult.reason
-      setRecentRecordsSourceError(recentRecordsResult.reason.message)
-      setRecordsError(recentRecordsResult.reason.message)
-    }
-
-    if (page > 1 && recordsResult.status === 'fulfilled') {
-      nextRecordsPage = recordsResult.value.data
-    } else if (page > 1) {
-      firstError ??= recordsResult.reason
-      setRecordsError(recordsResult.reason.message)
-    } else if (nextRecentRecordsSource) {
-      nextRecordsPage = buildFirstPageFromRecentRecords(nextRecentRecordsSource)
-    }
-
-    if (nextRecordsPage && page > 1) {
-      const normalizedPage = nextRecordsPage.totalPages > 0 ? Math.min(page, nextRecordsPage.totalPages) : 1
-
-      if (normalizedPage !== page) {
-        setCurrentPage(normalizedPage)
-      } else {
-        setRecordsPage(nextRecordsPage)
-        if (recentRecordsResult.status === 'fulfilled') {
-          setRecordsError(null)
-        }
-      }
-    } else if (nextRecordsPage) {
-      setRecordsPage(nextRecordsPage)
-      setRecordsError(null)
-    }
-
-    if (firstError) {
-      throw firstError
-    }
-
-    return nextProfileData
-  }
-
   const handleUpdateRecordPenalty = async (recordId, penalty) => {
     setUpdatingRecordId(recordId)
 
     try {
       const response = await updateRecordPenalty(recordId, { penalty })
       invalidateGrowthAfterRecordMutation()
-      await syncProfileAndRecords(currentPage)
+      setRecordsReloadKey((current) => current + 1)
       toast.success(response.message)
     } catch (error) {
       toast.error(error.message)
@@ -714,7 +583,7 @@ export default function MyPage() {
     try {
       const response = await deleteRecord(recordId)
       invalidateGrowthAfterRecordMutation()
-      await syncProfileAndRecords(currentPage)
+      setRecordsReloadKey((current) => current + 1)
       toast.success(response.message)
     } catch (error) {
       toast.error(error.message)
@@ -849,8 +718,11 @@ export default function MyPage() {
         nickname,
         mainEvent: profileForm.mainEvent,
       })
-      const nextProfileData = await syncProfileAndRecords(currentPage)
-      updateCurrentUser({ nickname: nextProfileData.nickname })
+      const profileResponse = await getMyProfile()
+      const nextProfileData = profileResponse.data
+      setProfileData(nextProfileData)
+      setProfileError(null)
+      updateCurrentUser({ nickname: nextProfileData?.nickname ?? nickname })
 
       handleCloseAccountModal()
       toast.success(response.message)
@@ -1537,21 +1409,6 @@ export function GrowthActivityTooltip({ active, payload }) {
     <div className="mypage-trend-tooltip">
       <p className="mypage-trend-tooltip-time">{formatGrowthTrendPointDate(point)}</p>
       <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
-    </div>
-  )
-}
-
-export function RecordTrendTooltip({ active, payload }) {
-  if (!active || !payload?.length) {
-    return null
-  }
-
-  const point = payload[0].payload
-
-  return (
-    <div className="mypage-trend-tooltip">
-      <p className="mypage-trend-tooltip-time">{point.displayTime}</p>
-      <p className="mypage-trend-tooltip-date">{formatDateTime(point.createdAt)}</p>
     </div>
   )
 }

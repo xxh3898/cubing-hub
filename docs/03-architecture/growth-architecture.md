@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query와 My Growth UI consumer는 구현했다. Legacy Profile consumer transition과 release evidence는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query, My Growth UI consumer와 legacy MyPage consumer transition은 dev에서 구현했다. release evidence는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
 
 ```text
 Current
@@ -36,7 +36,7 @@ Current
 - Redis ranking read model
 
 Next implementation
-- Legacy Profile consumer transition과 release evidence
+- release evidence
 
 Future candidate
 - observed cost에 근거한 PB progression cache/projection
@@ -81,7 +81,7 @@ DNF      -> numeric result 없음
 - page size 상한은 100이다.
 - `GET /api/users/me/profile`의 `totalRecords`와 `averageTimeMs`는 모든 event를 섞는다. average는 DNF를 제외한 all-time arithmetic mean이며 population이 UI label에 드러나지 않는다.
 - Timer는 WCA_333 recent 12 Record를 받아 Ao5/Ao12를 frontend에서 계산한다.
-- MyPage는 all-event 첫 100 Record를 받은 뒤 client에서 event filter하고 최근 30 raw result line을 그린다. 이는 bounded transfer이지만 mixed event나 100개 밖의 target event가 있으면 Growth population으로 정확하지 않다.
+- MyPage는 Record History만 `GET /api/users/me/records?page={page}&size=10`으로 읽는다. Growth metric이나 chart를 위해 Record page를 bulk fetch하거나 client에서 raw trend를 계산하지 않는다.
 - public user Profile route/API는 없다. Ranking은 nickname, event와 PB를 보여 주지만 stable public user profile contract를 제공하지 않는다.
 
 따라서 current history API를 canonical Growth 계산에 그대로 사용하는 것은 client별 metric drift와 불필요한 Record payload를 만든다. 기존 endpoint는 Record 관리와 detail pagination에 유지하고 Growth는 별도 read contract로 둔다.
@@ -385,6 +385,8 @@ User timezone이 도입되면 historical day regrouping, profile setting, cache 
 - progression은 summary 뒤 lazy load한다. page 1을 먼저 표시하고 사용자가 전체 이력을 열 때 다음 page를 읽는다.
 - chart에는 text summary/timeline을 함께 제공하고 mobile tick 수를 줄인다.
 - Record create/PATCH/delete 성공 후 관련 Growth query를 invalidate/refetch한다.
+- Record penalty PATCH/delete 성공 후 current Record History page도 refetch한다. Profile/account request는 다시 시작하지 않는다.
+- Profile PATCH 성공 후 Profile read와 AuthContext nickname만 동기화한다. Record History와 Growth query를 다시 시작하지 않는다.
 
 ## Test 전략
 
@@ -467,11 +469,12 @@ Build와 CI success는 production request 성공을 뜻하지 않는다. main me
 
 ### PR D — Legacy Profile consumer 전환
 
-- scope: Home/MyPage의 ambiguous all-event average 제거, additive API field deprecation 문서, duplicate calculation 정리
+- status: implemented on dev
+- scope: MyPage의 legacy 100-record source와 raw Record trend 제거, Profile/Record/Growth refresh ownership 분리
 - dependency: PR C가 Growth replacement 제공
-- acceptance: existing account/history/PB consumer 회귀 없음, breaking API removal 없음
-- tests: profile service/REST Docs regression, frontend routes
-- rollback risk: legacy UI label 복원 가능. API field 제거는 별도 compatibility 결정 전 금지
+- acceptance: existing account/history/PB consumer 회귀 없음, Record History server pagination 유지, breaking API removal 없음
+- tests: frontend route와 pagination·mutation refresh regression
+- rollback risk: MyPage consumer transition만 되돌릴 수 있다. API field 제거는 별도 compatibility 결정 전 금지
 
 ### PR E — Release evidence
 

@@ -19,18 +19,19 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API와 My Growth dashboard consumer는 구현했지만, legacy Profile consumer transition과 release evidence는 아직 application contract나 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage consumer transition은 dev에서 구현했다. release evidence는 아직 application contract나 출시 약속이 아니다.
 
 ```text
 Current
 - Timer의 recent Ao5/Ao12
-- private MyPage의 전체 요약, 최근 raw Record chart, history 관리
+- private MyPage의 canonical Growth API consumer
+- server pagination을 사용하는 Record History
+- Account/Profile 관리
 - Ranking의 nickname과 event PB
 - current Record projection을 계산하는 Growth metric calculator
 - event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- legacy Profile consumer transition
 - release evidence
 
 Future candidate

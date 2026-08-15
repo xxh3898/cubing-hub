@@ -18,11 +18,9 @@ import MyPage, {
   GrowthPeriodCard,
   GrowthTrendSection,
   GrowthPbProgressionTooltip,
-  RecordTrendTooltip,
   GrowthTrendTooltip,
   buildPbProgressionChartData,
   buildGrowthTrendChartData,
-  buildFirstPageFromRecentRecords,
   formatDateTime,
   formatGrowthDate,
   formatGrowthMetric,
@@ -273,9 +271,7 @@ describe('MyPage', () => {
           },
         },
       })
-    vi.mocked(getMyRecords)
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
-      .mockResolvedValueOnce(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyRecords).mockResolvedValueOnce(createRecordsResponse([createRecord()]))
     vi.mocked(updateMyProfile).mockResolvedValue({
       message: '내 정보를 수정했습니다.',
       data: null,
@@ -308,6 +304,7 @@ describe('MyPage', () => {
       expect(screen.queryByRole('dialog', { name: '계정 관리' })).not.toBeInTheDocument()
     })
     expect(await screen.findAllByText('2x2x2')).not.toHaveLength(0)
+    expect(getMyRecords).toHaveBeenCalledTimes(1)
   })
 
   it('should_clear_session_and_redirect_to_login_when_password_change_succeeds', async () => {
@@ -360,7 +357,7 @@ describe('MyPage', () => {
     })
   })
 
-  it('should_refresh_profile_and_records_when_record_penalty_update_succeeds', async () => {
+  it('should_refresh_record_history_and_growth_without_refetching_profile_when_record_penalty_update_succeeds', async () => {
     vi.mocked(getMyProfile)
       .mockResolvedValueOnce({
         data: {
@@ -411,8 +408,8 @@ describe('MyPage', () => {
 
     expect((await screen.findAllByText('11.344')).length).toBeGreaterThan(0)
     expect(toast.success).toHaveBeenCalledWith('기록 페널티가 수정되었습니다.')
-    expect(getMyProfile).toHaveBeenCalledTimes(2)
-    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 100 })
+    expect(getMyProfile).toHaveBeenCalledTimes(1)
+    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
     await waitFor(() => {
       expect(getMyGrowth).toHaveBeenCalledTimes(2)
       expect(getMyGrowthTrend).toHaveBeenCalledTimes(2)
@@ -445,6 +442,8 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
+    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
+    expect(getMyRecords).not.toHaveBeenCalledWith({ page: 1, size: 100 })
 
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
 
@@ -453,7 +452,7 @@ describe('MyPage', () => {
     expect(screen.getByRole('button', { name: '2' })).toBeDisabled()
   })
 
-  it('should_refresh_profile_and_records_when_record_delete_succeeds', async () => {
+  it('should_refresh_record_history_and_growth_without_refetching_profile_when_record_delete_succeeds', async () => {
     vi.mocked(getMyProfile)
       .mockResolvedValueOnce({
         data: {
@@ -498,7 +497,12 @@ describe('MyPage', () => {
     })
 
     expect(toast.success).toHaveBeenCalledWith('기록이 삭제되었습니다.')
-    expect(screen.getByText('아직 저장된 기록이 없습니다.')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(getMyRecords).toHaveBeenCalledTimes(2)
+      expect(screen.queryByText('2026년 4월 4일 오후 6시 11분')).not.toBeInTheDocument()
+    })
+    expect(getMyProfile).toHaveBeenCalledTimes(1)
+    expect(getMyRecords).toHaveBeenCalledWith({ page: 1, size: 10 })
   })
 
   it('should_show_error_message_when_profile_loading_fails', async () => {
@@ -531,6 +535,8 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findByText('프로필 조회 실패')).toBeInTheDocument()
+    expect(screen.getByText('Current PB')).toBeInTheDocument()
+    expect(screen.getByText('아직 저장된 기록이 없습니다.')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
@@ -558,6 +564,8 @@ describe('MyPage', () => {
     render(<MyPage />)
 
     expect(await screen.findAllByText('기록 조회 실패')).toHaveLength(1)
+    expect(screen.getByText('Tester')).toBeInTheDocument()
+    expect(screen.getByText('Current PB')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: '다시 시도' })[0])
 
@@ -696,6 +704,34 @@ describe('MyPage', () => {
     expect(getMyGrowth).toHaveBeenCalledWith({ eventType: 'WCA_333' })
     expect(getMyGrowthTrend).toHaveBeenCalledWith({ eventType: 'WCA_333', period: '30D' })
     expect(getMyGrowthPbProgression).toHaveBeenCalledWith({ eventType: 'WCA_333', page: 1, size: 50 })
+  })
+
+  it('should_not_use_profile_summary_values_for_growth_metrics', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      data: {
+        userId: 1,
+        nickname: 'Tester',
+        mainEvent: 'WCA_333',
+        summary: {
+          totalSolveCount: 999,
+          personalBestTimeMs: 19999,
+          averageTimeMs: 88888,
+        },
+      },
+    })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowth).mockResolvedValue(createGrowthSummaryResponse({
+      currentPb: { status: 'AVAILABLE', effectiveTimeMs: 9344 },
+      recentAo5: { status: 'AVAILABLE', valueMs: 10200 },
+      recentAo12: { status: 'AVAILABLE', valueMs: 10500 },
+    }))
+
+    render(<MyPage />)
+
+    const currentPerformance = await screen.findByRole('region', { name: '현재 기록' })
+    expect(within(currentPerformance).getByText('9.344')).toBeInTheDocument()
+    expect(within(currentPerformance).queryByText('19.999')).not.toBeInTheDocument()
+    expect(within(currentPerformance).queryByText('88.888')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -1010,10 +1046,8 @@ describe('MyPage', () => {
     expect(screen.queryByText(/PB progression 조회 실패/)).not.toBeInTheDocument()
   })
 
-  it('should_refresh_growth_after_penalty_success_when_profile_refresh_fails', async () => {
-    vi.mocked(getMyProfile)
-      .mockResolvedValueOnce({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
-      .mockRejectedValueOnce(new Error('프로필 갱신 실패'))
+  it('should_refresh_growth_after_penalty_success_without_requesting_profile_again', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
     vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
     vi.mocked(updateRecordPenalty).mockResolvedValue({ message: '기록 페널티가 수정되었습니다.' })
 
@@ -1028,7 +1062,7 @@ describe('MyPage', () => {
       expect(getMyGrowthTrend).toHaveBeenCalledTimes(2)
       expect(getMyGrowthPbProgression).toHaveBeenCalledTimes(2)
     })
-    expect(await screen.findByText('프로필 갱신 실패')).toBeInTheDocument()
+    expect(getMyProfile).toHaveBeenCalledTimes(1)
   })
 
   it('should_refresh_growth_after_delete_success_when_record_history_refresh_fails', async () => {
@@ -1090,15 +1124,6 @@ describe('MyPage', () => {
     expect(getEventLabel('WCA_222')).toBe('2x2x2')
     expect(getEventLabel('CUSTOM')).toBe('CUSTOM')
     expect(getEventLabel(null)).toBe('-')
-    expect(buildFirstPageFromRecentRecords(null)).toEqual({
-      items: [],
-      page: 1,
-      size: 10,
-      totalElements: 0,
-      totalPages: 0,
-      hasNext: false,
-      hasPrevious: false,
-    })
     expect(buildPbProgressionChartData([
       { recordId: 3, effectiveTimeMs: 8888, createdAt: '2026-08-03T09:00:00Z' },
       { recordId: 2, effectiveTimeMs: 9123, createdAt: '2026-08-02T09:00:00Z' },
@@ -1195,29 +1220,6 @@ describe('MyPage', () => {
     render(<GrowthPeriodCard label="최근 7일" period={{ fromDate: '2026-08-08', toDateExclusive: '2026-08-15', medianTimeMs: 10100, recordCount: 12, dnfCount: 1 }} />)
 
     expect(screen.getByText('2026년 8월 8일 ~ 2026년 8월 14일')).toBeInTheDocument()
-  })
-
-  it('should_render_record_trend_tooltip_when_payload_is_active', () => {
-    const { rerender } = render(<RecordTrendTooltip active={false} payload={[]} />)
-
-    expect(screen.queryByText('9.344')).not.toBeInTheDocument()
-
-    rerender(
-      <RecordTrendTooltip
-        active
-        payload={[
-          {
-            payload: {
-              displayTime: '9.344',
-              createdAt: '2026-04-04T18:11:00',
-            },
-          },
-        ]}
-      />,
-    )
-
-    expect(screen.getByText('9.344')).toBeInTheDocument()
-    expect(screen.getByText('2026년 4월 4일 오후 6시 11분')).toBeInTheDocument()
   })
 
   it('should_use_current_user_fallbacks_when_profile_payload_is_missing', async () => {
@@ -1468,7 +1470,7 @@ describe('MyPage', () => {
     expect(await screen.findByText('비밀번호 변경 실패')).toBeInTheDocument()
   })
 
-  it('should_show_empty_states_when_recent_records_source_payload_is_null', async () => {
+  it('should_show_empty_states_when_record_page_payload_is_null', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       data: {
         userId: 1,
@@ -1527,7 +1529,7 @@ describe('MyPage', () => {
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
   })
 
-  it('should_normalize_current_page_after_record_penalty_update_when_synced_page_count_shrinks', async () => {
+  it('should_normalize_current_page_after_record_delete_when_record_page_count_shrinks', async () => {
     vi.mocked(getMyProfile)
       .mockResolvedValueOnce({
         data: {
@@ -1558,17 +1560,9 @@ describe('MyPage', () => {
       .mockResolvedValueOnce(createRecordsResponse([
         createRecord({ id: 11, createdAt: '2026-04-04T18:22:00' }),
       ], { page: 2, totalElements: 11, totalPages: 2, hasPrevious: true }))
-      .mockResolvedValueOnce(createRecordsResponse([], { totalElements: 0, totalPages: 0 }))
       .mockResolvedValueOnce(createRecordsResponse([], { page: 2, totalElements: 0, totalPages: 0 }))
-    vi.mocked(updateRecordPenalty).mockResolvedValue({
-      message: '기록 페널티가 수정되었습니다.',
-      data: {
-        id: 11,
-        timeMs: 9344,
-        effectiveTimeMs: 11344,
-        penalty: 'PLUS_TWO',
-      },
-    })
+      .mockResolvedValueOnce(createRecordsResponse([], { totalElements: 0, totalPages: 0 }))
+    vi.mocked(deleteRecord).mockResolvedValue({ message: '기록이 삭제되었습니다.', data: null })
 
     render(<MyPage />)
 
@@ -1577,7 +1571,7 @@ describe('MyPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '다음' }))
     expect(await screen.findByText('2026년 4월 4일 오후 6시 22분')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '+2' }))
+    fireEvent.click(screen.getByRole('button', { name: '삭제' }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '1' })).toBeDisabled()
@@ -1669,7 +1663,7 @@ describe('MyPage', () => {
     expect(screen.queryByText('2026년 4월 4일 오후 6시 22분')).not.toBeInTheDocument()
   })
 
-  it('should_keep_current_page_when_record_penalty_update_sync_returns_same_page_count', async () => {
+  it('should_keep_current_page_when_record_penalty_update_returns_same_page_count', async () => {
     let pageOneFetchCount = 0
     let pageTwoFetchCount = 0
     vi.mocked(getMyProfile)
@@ -1685,20 +1679,8 @@ describe('MyPage', () => {
           },
         },
       })
-      .mockResolvedValueOnce({
-        data: {
-          userId: 1,
-          nickname: 'Tester',
-          mainEvent: 'WCA_333',
-          summary: {
-            totalSolveCount: 11,
-            personalBestTimeMs: 11344,
-            averageTimeMs: 11344,
-          },
-        },
-      })
     vi.mocked(getMyRecords).mockImplementation(({ page, size }) => {
-      if (page === 1 && size === 100) {
+      if (page === 1 && size === 10) {
         pageOneFetchCount += 1
         return Promise.resolve(
           createRecordsResponse([createRecord()], { totalElements: 11, totalPages: 2, hasNext: true }),
@@ -1746,12 +1728,13 @@ describe('MyPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '+2' }))
 
     await waitFor(() => {
-      expect(pageOneFetchCount).toBeGreaterThanOrEqual(2)
+      expect(pageOneFetchCount).toBe(1)
       expect(pageTwoFetchCount).toBeGreaterThanOrEqual(2)
       expect(screen.getByRole('button', { name: '2' })).toBeDisabled()
       expect(screen.getByRole('button', { name: '다음' })).toBeDisabled()
       expect(screen.getAllByText('11.344').length).toBeGreaterThanOrEqual(1)
     })
+    expect(getMyProfile).toHaveBeenCalledTimes(1)
   })
 
   it('should_ignore_pending_profile_and_record_requests_when_component_is_unmounted', async () => {
