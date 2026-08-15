@@ -1,4 +1,4 @@
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
 import { clearPendingTimerSolve } from '../lib/pendingTimerSolveStorage.js'
 import {
@@ -27,11 +27,23 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isSessionSyncing, setIsSessionSyncing] = useState(false)
-  const currentUserRef = useRef(currentUser)
+  const confirmedUserIdRef = useRef(null)
 
-  useEffect(() => {
-    currentUserRef.current = currentUser
-  }, [currentUser])
+  const commitAuthenticatedUser = useCallback((nextUser) => {
+    const nextUserId = nextUser?.userId
+
+    if (Number.isSafeInteger(nextUserId) && nextUserId > 0) {
+      const previousUserId = confirmedUserIdRef.current
+
+      if (previousUserId != null && previousUserId !== nextUserId) {
+        clearPendingTimerSolve(previousUserId)
+      }
+
+      confirmedUserIdRef.current = nextUserId
+    }
+
+    setCurrentUser(nextUser ?? null)
+  }, [])
 
   useEffect(() => {
     return subscribeToAccessToken((nextToken) => {
@@ -86,7 +98,7 @@ export function AuthProvider({ children }) {
           return
         }
 
-        setCurrentUser(currentUserResponse.data ?? null)
+        commitAuthenticatedUser(currentUserResponse.data ?? null)
       } catch {
         if (isCancelled) {
           return
@@ -108,7 +120,7 @@ export function AuthProvider({ children }) {
     return () => {
       isCancelled = true
     }
-  }, [])
+  }, [commitAuthenticatedUser])
 
   const setAccessToken = async (nextToken) => {
     if (!nextToken) {
@@ -121,7 +133,7 @@ export function AuthProvider({ children }) {
 
     try {
       const response = await getMe()
-      setCurrentUser(response.data ?? null)
+      commitAuthenticatedUser(response.data ?? null)
     } catch (error) {
       clearStoredAccessToken()
       setCurrentUser(null)
@@ -132,7 +144,8 @@ export function AuthProvider({ children }) {
   }
 
   const clearAccessToken = () => {
-    clearPendingTimerSolve(currentUserRef.current?.userId)
+    clearPendingTimerSolve(confirmedUserIdRef.current)
+    confirmedUserIdRef.current = null
     setCurrentUser(null)
     setIsSessionSyncing(false)
     clearStoredAccessToken()
