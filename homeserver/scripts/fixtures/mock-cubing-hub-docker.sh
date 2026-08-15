@@ -112,6 +112,9 @@ case "${command_name}" in
     if [[ "${FAKE_RUNTIME_INVALID_DEPLOY_SYNTAX:-false}" == true ]]; then
       printf '\nif\n' >>"${destination}/scripts/deploy-cubing-hub.sh"
     fi
+    if [[ "${FAKE_RUNTIME_INVALID_BACKUP_SYNTAX:-false}" == true ]]; then
+      printf '\nif\n' >>"${destination}/scripts/backup-cubing-hub.sh"
+    fi
     if [[ "${FAKE_RUNTIME_INSECURE_SCRIPT_MODE:-false}" == true ]]; then
       /bin/chmod 755 "${destination}/scripts/backup-cubing-hub.sh"
     fi
@@ -400,6 +403,8 @@ users}"
       fake_service_status_json
     elif [[ "${arguments}" == *" ps --format json "* ]]; then
       fake_service_status_json
+    elif [[ "${arguments}" == *" BACKUP_QUERY=maintenance-source-version "* ]]; then
+      printf '%s\n' "${FAKE_BACKUP_SOURCE_VERSION:-8.0.46}"
     elif [[ "${arguments}" == *" --format json "* ]]; then
       compose_file=
       previous_argument=

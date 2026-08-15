@@ -18,6 +18,7 @@ readonly RUNTIME_CONFIG_INITIALIZED="${APP_DIR}/.runtime-config-v2-initialized"
 readonly MAINTENANCE_ROOT="${RUNTIME_CONFIG_ROOT}/mysql-maintenance"
 readonly MAINTENANCE_CANDIDATES="${MAINTENANCE_ROOT}/candidates"
 readonly MAINTENANCE_RESTORES="${MAINTENANCE_ROOT}/restores"
+readonly MAINTENANCE_FINAL_BACKUP_WORKERS="${MAINTENANCE_ROOT}/final-backup-workers"
 readonly MAINTENANCE_STATE="${MAINTENANCE_ROOT}/state"
 readonly MAINTENANCE_QUIESCE="${MAINTENANCE_ROOT}/quiesce.state"
 readonly OPERATION_LOCK="${APP_DIR}/.cubing-hub-operation.lock"
@@ -36,6 +37,7 @@ Usage:
   mysql-maintenance-cubing-hub.sh quiesce
   mysql-maintenance-cubing-hub.sh status
   mysql-maintenance-cubing-hub.sh resume-source
+  mysql-maintenance-cubing-hub.sh stage-final-backup-worker <runtime-digest> <runtime-revision> <registry-user>
   mysql-maintenance-cubing-hub.sh prepare-upgrade <runtime-digest> <runtime-revision> <mysql:8.4.11@sha256:digest> <backup-id> <registry-user>
   mysql-maintenance-cubing-hub.sh verify-rollback-volume <upgrade-candidate-id> <rollback-volume> <validation-container>
   mysql-maintenance-cubing-hub.sh prepare-rollback <upgrade-candidate-id> <rollback-volume>
@@ -1149,6 +1151,179 @@ show_quiesce_status() {
   printf 'QUIESCED_AT=%s\n' "${quiesced_at}"
 }
 
+final_backup_worker_file_for() {
+  printf '%s/%s/worker.env' "${MAINTENANCE_FINAL_BACKUP_WORKERS}" "$1"
+}
+
+validate_final_backup_worker_evidence() {
+  local computed_id
+  local evidence_dir
+  local evidence_file
+  local evidence_id="$1"
+  local keys
+  local target_release
+
+  is_candidate_id "${evidence_id}" \
+    || fail "final backup worker evidence ID is invalid"
+  evidence_dir="${MAINTENANCE_FINAL_BACKUP_WORKERS}/${evidence_id}"
+  evidence_file="$(final_backup_worker_file_for "${evidence_id}")"
+  if [[ ! -d "${MAINTENANCE_ROOT}" || -L "${MAINTENANCE_ROOT}" ]] \
+    || ! has_mode "${MAINTENANCE_ROOT}" 700 \
+    || [[ ! -d "${MAINTENANCE_FINAL_BACKUP_WORKERS}" \
+      || -L "${MAINTENANCE_FINAL_BACKUP_WORKERS}" ]] \
+    || ! has_mode "${MAINTENANCE_FINAL_BACKUP_WORKERS}" 700 \
+    || [[ ! -d "${evidence_dir}" || -L "${evidence_dir}" ]] \
+    || ! has_mode "${evidence_dir}" 500 \
+    || [[ ! -f "${evidence_file}" || -L "${evidence_file}" ]] \
+    || ! has_mode "${evidence_file}" 400
+  then
+    fail "final backup worker evidence is missing, unsafe, or mutable"
+  fi
+  keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${evidence_file}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_WORKER_SHA256\nCREATED_AT\nEVIDENCE_ID\nPROJECT\nQUIESCE_EVIDENCE_ID\nSCHEMA_VERSION\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_MYSQL_VERSION\nSOURCE_RUNTIME_CONFIG_CONTENT_SHA256\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_RUNTIME_CONFIG_REVISION\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]]; then
+    fail "final backup worker evidence keys are invalid"
+  fi
+
+  final_backup_project="$(read_exact_value "${evidence_file}" PROJECT)"
+  final_backup_quiesce_evidence_id="$(read_exact_value "${evidence_file}" QUIESCE_EVIDENCE_ID)"
+  final_backup_application_revision="$(read_exact_value "${evidence_file}" APPLICATION_REVISION)"
+  final_backup_api_image="$(read_exact_value "${evidence_file}" API_IMAGE)"
+  final_backup_web_image="$(read_exact_value "${evidence_file}" WEB_IMAGE)"
+  final_backup_source_runtime_revision="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_REVISION)"
+  final_backup_source_runtime_digest="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_DIGEST)"
+  final_backup_source_runtime_content_sha="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_CONTENT_SHA256)"
+  final_backup_source_db_image_exact="$(read_exact_value "${evidence_file}" SOURCE_DB_IMAGE_EXACT)"
+  final_backup_source_db_image_id="$(read_exact_value "${evidence_file}" SOURCE_DB_IMAGE_ID)"
+  final_backup_source_db_volume="$(read_exact_value "${evidence_file}" SOURCE_DB_VOLUME)"
+  final_backup_source_mysql_version="$(read_exact_value "${evidence_file}" SOURCE_MYSQL_VERSION)"
+  final_backup_target_runtime_revision="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_REVISION)"
+  final_backup_target_runtime_digest="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_DIGEST)"
+  final_backup_target_runtime_content_sha="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_CONTENT_SHA256)"
+  final_backup_worker_sha="$(read_exact_value "${evidence_file}" BACKUP_WORKER_SHA256)"
+  final_backup_created_at="$(read_exact_value "${evidence_file}" CREATED_AT)"
+  computed_id="$(
+    /usr/bin/sed '/^EVIDENCE_ID=/d' "${evidence_file}" \
+      | /usr/bin/shasum -a 256 \
+      | /usr/bin/awk '{print $1}'
+  )"
+
+  if [[ "$(read_exact_value "${evidence_file}" SCHEMA_VERSION)" != 1 ]] \
+    || [[ "$(read_exact_value "${evidence_file}" EVIDENCE_ID)" != "${evidence_id}" ]] \
+    || [[ "${computed_id}" != "${evidence_id}" ]] \
+    || [[ "${final_backup_project}" != "${PROJECT_NAME}" ]] \
+    || ! is_candidate_id "${final_backup_quiesce_evidence_id}" \
+    || ! is_sha "${final_backup_application_revision}" \
+    || [[ "${final_backup_api_image}" != "${API_IMAGE_REPOSITORY}:${final_backup_application_revision}" ]] \
+    || [[ "${final_backup_web_image}" != "${WEB_IMAGE_REPOSITORY}:${final_backup_application_revision}" ]] \
+    || ! is_sha "${final_backup_source_runtime_revision}" \
+    || ! is_digest "${final_backup_source_runtime_digest}" \
+    || [[ ! "${final_backup_source_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${final_backup_source_db_image_exact}" =~ ^mysql:8\.0\.46@sha256:[0-9a-f]{64}$ ]] \
+    || ! is_image_id "${final_backup_source_db_image_id}" \
+    || ! is_volume_name "${final_backup_source_db_volume}" \
+    || [[ ! "${final_backup_source_mysql_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
+    || ! is_sha "${final_backup_target_runtime_revision}" \
+    || ! is_digest "${final_backup_target_runtime_digest}" \
+    || [[ ! "${final_backup_target_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${final_backup_worker_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${final_backup_created_at}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+  then
+    fail "final backup worker evidence values or integrity are invalid"
+  fi
+  "${PYTHON_BIN}" - "${final_backup_created_at}" <<'PY'
+import datetime as dt
+import sys
+
+dt.datetime.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")
+PY
+
+  target_release="${RUNTIME_CONFIG_RELEASES}/${final_backup_target_runtime_digest#sha256:}"
+  validate_release_files "${target_release}"
+  [[ "$(runtime_config_content_sha256 "${target_release}")" == "${final_backup_target_runtime_content_sha}" ]] \
+    || fail "final backup worker runtime release integrity check failed"
+  [[ "$(/usr/bin/shasum -a 256 "${target_release}/scripts/backup-cubing-hub.sh" | /usr/bin/awk '{print $1}')" == "${final_backup_worker_sha}" ]] \
+    || fail "final backup worker script integrity check failed"
+}
+
+write_final_backup_worker_evidence() {
+  local created_at
+  local evidence_dir
+  local evidence_file
+  local evidence_id
+  local evidence_temp
+  local worker_sha
+
+  ensure_private_directory "${MAINTENANCE_ROOT}"
+  ensure_private_directory "${MAINTENANCE_FINAL_BACKUP_WORKERS}"
+  created_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  worker_sha="$(
+    /usr/bin/shasum -a 256 "${prepared_release}/scripts/backup-cubing-hub.sh" \
+      | /usr/bin/awk '{print $1}'
+  )"
+  [[ "${worker_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || fail "prepared final backup worker digest is invalid"
+  evidence_temp="$(
+    /usr/bin/mktemp "${MAINTENANCE_ROOT}/.final-backup-worker.tmp.XXXXXX"
+  )"
+  if ! {
+    printf 'SCHEMA_VERSION=1\n'
+    printf 'PROJECT=%s\n' "${PROJECT_NAME}"
+    printf 'QUIESCE_EVIDENCE_ID=%s\n' "${quiesce_evidence_id}"
+    printf 'APPLICATION_REVISION=%s\n' "${current_application_revision}"
+    printf 'API_IMAGE=%s\n' "${current_api_image}"
+    printf 'WEB_IMAGE=%s\n' "${current_web_image}"
+    printf 'SOURCE_RUNTIME_CONFIG_REVISION=%s\n' "${current_runtime_revision}"
+    printf 'SOURCE_RUNTIME_CONFIG_DIGEST=%s\n' "${current_runtime_digest}"
+    printf 'SOURCE_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' "${current_runtime_content_sha}"
+    printf 'SOURCE_DB_IMAGE_EXACT=%s\n' "${current_db_image_exact}"
+    printf 'SOURCE_DB_IMAGE_ID=%s\n' "${current_db_image_id}"
+    printf 'SOURCE_DB_VOLUME=%s\n' "${current_db_volume}"
+    printf 'SOURCE_MYSQL_VERSION=%s\n' "${current_mysql_version}"
+    printf 'TARGET_RUNTIME_CONFIG_REVISION=%s\n' "${staged_final_backup_runtime_revision}"
+    printf 'TARGET_RUNTIME_CONFIG_DIGEST=%s\n' "${staged_final_backup_runtime_digest}"
+    printf 'TARGET_RUNTIME_CONFIG_CONTENT_SHA256=%s\n' \
+      "$(runtime_config_content_sha256 "${prepared_release}")"
+    printf 'BACKUP_WORKER_SHA256=%s\n' "${worker_sha}"
+    printf 'CREATED_AT=%s\n' "${created_at}"
+  } >"${evidence_temp}"
+  then
+    /bin/rm -f -- "${evidence_temp}"
+    fail "final backup worker evidence could not be written"
+  fi
+  evidence_id="$(
+    /usr/bin/shasum -a 256 "${evidence_temp}" | /usr/bin/awk '{print $1}'
+  )"
+  if [[ ! "${evidence_id}" =~ ^[0-9a-f]{64}$ ]] \
+    || ! printf 'EVIDENCE_ID=%s\n' "${evidence_id}" >>"${evidence_temp}" \
+    || ! /bin/chmod 400 "${evidence_temp}"
+  then
+    /bin/rm -f -- "${evidence_temp}"
+    fail "final backup worker evidence could not be finalized"
+  fi
+  evidence_dir="${MAINTENANCE_FINAL_BACKUP_WORKERS}/${evidence_id}"
+  evidence_file="$(final_backup_worker_file_for "${evidence_id}")"
+  if [[ -e "${evidence_dir}" || -L "${evidence_dir}" ]]; then
+    if [[ ! -d "${evidence_dir}" || -L "${evidence_dir}" ]] \
+      || [[ ! -f "${evidence_file}" || -L "${evidence_file}" ]] \
+      || ! /usr/bin/cmp -s "${evidence_temp}" "${evidence_file}"
+    then
+      /bin/rm -f -- "${evidence_temp}"
+      fail "existing final backup worker evidence is unsafe or differs"
+    fi
+    /bin/rm -f -- "${evidence_temp}"
+  else
+    /bin/mkdir "${evidence_dir}"
+    /bin/mv -- "${evidence_temp}" "${evidence_file}"
+    /bin/chmod 400 "${evidence_file}"
+    /bin/chmod 500 "${evidence_dir}"
+  fi
+  validate_final_backup_worker_evidence "${evidence_id}"
+  printf '%s\n' "${evidence_id}"
+}
+
 validate_backup() {
   local backup_id="$1"
   local backup_path="${BACKUP_ROOT}/${backup_id}"
@@ -1158,6 +1333,10 @@ validate_backup() {
   local expected_db_image_exact="${5:-}"
   local expected_db_image_id="${6:-}"
   local expected_db_volume="${7:-}"
+  local expected_quiesce_evidence_id="${8:-}"
+  local expected_target_runtime_digest="${9:-}"
+  local expected_target_runtime_revision="${10:-}"
+  local validation_result
 
   is_backup_id "${backup_id}" || fail "backup identifier is invalid"
   if { [[ -n "${expected_application_revision}" ]] && [[ -z "${expected_runtime_digest}" ]]; } \
@@ -1173,14 +1352,17 @@ validate_backup() {
   if [[ -n "${expected_quiesced_at}" ]] \
     && { [[ -z "${expected_db_image_exact}" ]] \
       || [[ -z "${expected_db_image_id}" ]] \
-      || [[ -z "${expected_db_volume}" ]]; }
+      || [[ -z "${expected_db_volume}" ]] \
+      || [[ -z "${expected_quiesce_evidence_id}" ]] \
+      || [[ -z "${expected_target_runtime_digest}" ]] \
+      || [[ -z "${expected_target_runtime_revision}" ]]; }
   then
-    fail "quiesced backup validation requires the complete source DB identity"
+    fail "quiesced backup validation requires complete source, target, and worker identity"
   fi
   if [[ ! -d "${backup_path}" || -L "${backup_path}" ]]; then
     fail "verified backup directory is missing or unsafe"
   fi
-  backup_manifest_sha="$(
+  validation_result="$(
     "${PYTHON_BIN}" - \
       "${backup_path}" \
       "${expected_application_revision}" \
@@ -1188,7 +1370,10 @@ validate_backup() {
       "${expected_quiesced_at}" \
       "${expected_db_image_exact}" \
       "${expected_db_image_id}" \
-      "${expected_db_volume}" <<'PY'
+      "${expected_db_volume}" \
+      "${expected_quiesce_evidence_id}" \
+      "${expected_target_runtime_digest}" \
+      "${expected_target_runtime_revision}" <<'PY'
 import datetime as dt
 import hashlib
 import json
@@ -1203,6 +1388,9 @@ expected_quiesced_at = sys.argv[4]
 expected_db_image_exact = sys.argv[5]
 expected_db_image_id = sys.argv[6]
 expected_db_volume = sys.argv[7]
+expected_quiesce_evidence_id = sys.argv[8]
+expected_target_runtime_digest = sys.argv[9]
+expected_target_runtime_revision = sys.argv[10]
 success = root / "SUCCESS"
 manifest_path = root / "manifest.json"
 if (
@@ -1215,6 +1403,7 @@ if (
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 database = manifest.get("database", {})
 source = manifest.get("source", {})
+maintenance_final = manifest.get("maintenanceFinal", {})
 try:
     started_at = dt.datetime.strptime(manifest.get("startedAt", ""), "%Y-%m-%dT%H:%M:%SZ")
     completed_at = dt.datetime.strptime(manifest.get("completedAt", ""), "%Y-%m-%dT%H:%M:%SZ")
@@ -1257,6 +1446,39 @@ if expected_quiesced_at:
         or database.get("volume") != expected_db_volume
     ):
         raise SystemExit("maintenance backup DB binding does not match application quiesce")
+    if manifest.get("trigger") != "maintenance-final" or not isinstance(
+        maintenance_final, dict
+    ):
+        raise SystemExit("maintenance backup was not created by the final backup path")
+    if set(maintenance_final) != {
+        "backupWorkerEvidenceId",
+        "backupWorkerSha256",
+        "quiesceEvidenceId",
+        "runtimeConfigContentSha256",
+        "runtimeConfigDigest",
+        "runtimeConfigRevision",
+    }:
+        raise SystemExit("maintenance backup worker provenance is incomplete")
+    if (
+        maintenance_final.get("quiesceEvidenceId")
+        != expected_quiesce_evidence_id
+        or maintenance_final.get("runtimeConfigDigest")
+        != expected_target_runtime_digest
+        or maintenance_final.get("runtimeConfigRevision")
+        != expected_target_runtime_revision
+        or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            maintenance_final.get("backupWorkerEvidenceId", ""),
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            maintenance_final.get("runtimeConfigContentSha256", ""),
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", maintenance_final.get("backupWorkerSha256", "")
+        )
+    ):
+        raise SystemExit("maintenance backup worker provenance does not match intent")
 for table, count in database["recordCounts"].items():
     if not re.fullmatch(r"[A-Za-z0-9_]+", table) or type(count) is not int or count < 0:
         raise SystemExit("backup record count inventory is invalid")
@@ -1270,11 +1492,41 @@ with dump.open("rb") as handle:
 digest = hasher.hexdigest()
 if dump.stat().st_size != database.get("bytes") or digest != database.get("sha256"):
     raise SystemExit("backup dump size or checksum does not match the manifest")
-print(hashlib.sha256(manifest_path.read_bytes()).hexdigest(), end="")
+print(
+    "\t".join(
+        (
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            str(maintenance_final.get("backupWorkerEvidenceId", "")),
+            str(maintenance_final.get("runtimeConfigContentSha256", "")),
+            str(maintenance_final.get("backupWorkerSha256", "")),
+        )
+    ),
+    end="",
+)
 PY
   )" || fail "backup evidence validation failed"
+  IFS=$'\t' read -r \
+    backup_manifest_sha \
+    backup_worker_evidence_id \
+    backup_worker_runtime_content_sha \
+    backup_worker_sha \
+    <<<"${validation_result}"
   [[ "${backup_manifest_sha}" =~ ^[0-9a-f]{64}$ ]] \
     || fail "backup manifest digest is invalid"
+  if [[ -n "${expected_quiesced_at}" ]]; then
+    validate_final_backup_worker_evidence "${backup_worker_evidence_id}"
+    [[ "${final_backup_quiesce_evidence_id}" == "${expected_quiesce_evidence_id}" ]] \
+      && [[ "${final_backup_application_revision}" == "${expected_application_revision}" ]] \
+      && [[ "${final_backup_source_runtime_digest}" == "${expected_runtime_digest}" ]] \
+      && [[ "${final_backup_source_db_image_exact}" == "${expected_db_image_exact}" ]] \
+      && [[ "${final_backup_source_db_image_id}" == "${expected_db_image_id}" ]] \
+      && [[ "${final_backup_source_db_volume}" == "${expected_db_volume}" ]] \
+      && [[ "${final_backup_target_runtime_digest}" == "${expected_target_runtime_digest}" ]] \
+      && [[ "${final_backup_target_runtime_revision}" == "${expected_target_runtime_revision}" ]] \
+      && [[ "${final_backup_target_runtime_content_sha}" == "${backup_worker_runtime_content_sha}" ]] \
+      && [[ "${final_backup_worker_sha}" == "${backup_worker_sha}" ]] \
+      || fail "maintenance backup worker evidence does not match the verified backup"
+  fi
 }
 
 validate_rollback_volume_metadata() {
@@ -1588,6 +1840,61 @@ prepare_runtime_release() {
   prepared_release="${release_dir}"
 }
 
+login_runtime_registry() {
+  local registry_token
+  local registry_user="$1"
+
+  [[ "${registry_user}" =~ ^[A-Za-z0-9_-]+$ ]] \
+    || fail "registry user is invalid"
+  registry_token="$(/bin/cat)"
+  [[ -n "${registry_token}" ]] || fail "GHCR token must not be empty"
+  docker_config_dir="$(
+    /usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-maintenance-docker.XXXXXX"
+  )"
+  printf '%s' "${registry_token}" \
+    | "${DOCKER_BIN}" --config "${docker_config_dir}" login ghcr.io \
+        --username "${registry_user}" --password-stdin >/dev/null
+  logged_in=true
+  registry_token=
+}
+
+stage_final_backup_worker() {
+  local config_image
+  local registry_user="$3"
+  local target_runtime_digest="$1"
+  local target_runtime_revision="$2"
+
+  [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
+    || fail "an incomplete runtime transaction requires recovery"
+  is_digest "${target_runtime_digest}" \
+    || fail "target runtime digest is invalid"
+  is_sha "${target_runtime_revision}" \
+    || fail "target runtime revision is invalid"
+
+  load_current_runtime
+  load_current_db_identity
+  load_current_mysql_version
+  if [[ "${current_db_image}" != "mysql:${SOURCE_DB_VERSION}" ]] \
+    && [[ ! "${current_db_image}" =~ ^mysql:8\.0\.46@sha256:[0-9a-f]{64}$ ]]
+  then
+    fail "final upgrade backup source must be exact MySQL ${SOURCE_DB_VERSION}"
+  fi
+  validate_quiesce_matches_current
+  service_set_is_quiesced_for \
+    "${current_release}" "${current_db_image_exact}" "${current_db_volume}" \
+    || fail "final backup worker staging requires the verified quiesced source service state"
+
+  login_runtime_registry "${registry_user}"
+  config_image="${RUNTIME_CONFIG_REPOSITORY}@${target_runtime_digest}"
+  prepare_runtime_release \
+    "${config_image}" \
+    "${target_runtime_digest}" \
+    "${target_runtime_revision}"
+  staged_final_backup_runtime_digest="${target_runtime_digest}"
+  staged_final_backup_runtime_revision="${target_runtime_revision}"
+  write_final_backup_worker_evidence
+}
+
 candidate_file_for() {
   printf '%s/%s/candidate.env' "${MAINTENANCE_CANDIDATES}" "$1"
 }
@@ -1775,7 +2082,10 @@ PY
       "${candidate_quiesced_at}" \
       "${candidate_source_db_image_exact}" \
       "${candidate_source_db_image_id}" \
-      "${candidate_source_db_volume}"
+      "${candidate_source_db_volume}" \
+      "${candidate_quiesce_evidence_id}" \
+      "${candidate_target_runtime_digest}" \
+      "${candidate_target_runtime_revision}"
   else
     # ROLLBACK provenance is revalidated through its immutable source UPGRADE candidate.
     validate_backup "${candidate_backup_id}"
@@ -2328,7 +2638,6 @@ prepare_upgrade() {
   local baseline_json
   local candidate_json
   local config_image
-  local registry_token
 
   [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
     || fail "an incomplete runtime transaction requires recovery"
@@ -2336,8 +2645,6 @@ prepare_upgrade() {
   is_sha "${target_runtime_revision}" || fail "target runtime revision is invalid"
   [[ "${target_db_image_exact}" =~ ^mysql:8\.4\.11@sha256:[0-9a-f]{64}$ ]] \
     || fail "target DB image must be exact mysql:8.4.11@sha256:digest"
-  [[ "${registry_user}" =~ ^[A-Za-z0-9_-]+$ ]] \
-    || fail "registry user is invalid"
 
   load_current_runtime
   load_current_db_identity
@@ -2358,16 +2665,12 @@ prepare_upgrade() {
     "${quiesced_at}" \
     "${current_db_image_exact}" \
     "${current_db_image_id}" \
-    "${current_db_volume}"
+    "${current_db_volume}" \
+    "${quiesce_evidence_id}" \
+    "${target_runtime_digest}" \
+    "${target_runtime_revision}"
 
-  registry_token="$(/bin/cat)"
-  [[ -n "${registry_token}" ]] || fail "GHCR token must not be empty"
-  docker_config_dir="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-maintenance-docker.XXXXXX")"
-  printf '%s' "${registry_token}" \
-    | "${DOCKER_BIN}" --config "${docker_config_dir}" login ghcr.io \
-        --username "${registry_user}" --password-stdin >/dev/null
-  logged_in=true
-  registry_token=
+  login_runtime_registry "${registry_user}"
 
   config_image="${RUNTIME_CONFIG_REPOSITORY}@${target_runtime_digest}"
   prepare_runtime_release \
@@ -2592,6 +2895,9 @@ case "${command_name}" in
   quiesce|status|resume-source)
     [[ "$#" -eq 0 ]] || usage
     ;;
+  stage-final-backup-worker)
+    [[ "$#" -eq 3 ]] || usage
+    ;;
   prepare-upgrade)
     [[ "$#" -eq 5 ]] || usage
     ;;
@@ -2670,6 +2976,9 @@ case "${command_name}" in
     ;;
   resume-source)
     resume_source
+    ;;
+  stage-final-backup-worker)
+    stage_final_backup_worker "$@"
     ;;
   prepare-upgrade)
     prepare_upgrade "$@"

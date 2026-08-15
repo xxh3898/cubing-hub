@@ -295,7 +295,30 @@ maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubin
 
 성공하면 `runtime-config/mysql-maintenance/quiesce.state`에 application/runtime identity, runtime content hash, exact DB image와 image ID, volume, MySQL patch, UTC quiesce 시각과 content-derived evidence ID를 mode `400`으로 기록한다. 이 파일은 operation lock을 대신하지 않는다. Lock은 command 실행을 직렬화하고, quiesce evidence는 final backup·restore rehearsal·candidate 준비 사이에 유지되는 maintenance-window state다.
 
-Quiesce evidence가 있으면 stable deploy wrapper와 active deploy worker는 normal deploy와 normal deploy recovery를 fail closed한다. Canonical backup bootstrap은 DB가 healthy하고 maintenance `pending`이 없는 동안 계속 사용할 수 있으므로 stopped API·Web과 정지된 post-image write path에서 final snapshot을 만든다. Read-only inspection은 별도 command contract를 유지한다.
+Quiesce evidence가 있으면 stable deploy wrapper와 active deploy worker는 normal deploy와 normal deploy recovery를 fail closed한다. 일반 scheduled backup의 무인자 bootstrap은 계속 active runtime worker를 사용하므로 maintenance final backup command로 사용하지 않는다. Final snapshot은 approved target runtime artifact의 worker를 immutable evidence로 staging한 뒤 explicit `maintenance-final` mode에서만 만든다. Read-only inspection은 별도 command contract를 유지한다.
+
+```bash
+maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
+backup_bootstrap=/Users/homeserver/Server/scripts/backup/backup-cubing-hub-bootstrap.sh
+target_runtime_digest='sha256:<64 lowercase hex>'
+target_runtime_revision='<40 lowercase commit SHA>'
+registry_user='<GHCR user>'
+
+read -r -s GHCR_READ_TOKEN
+final_backup_worker_evidence_id="$(
+  printf '%s' "${GHCR_READ_TOKEN}" | "${maintenance}" stage-final-backup-worker \
+    "${target_runtime_digest}" \
+    "${target_runtime_revision}" \
+    "${registry_user}"
+)"
+unset GHCR_READ_TOKEN
+
+"${backup_bootstrap}" maintenance-final "${final_backup_worker_evidence_id}"
+```
+
+`stage-final-backup-worker`와 bootstrap은 각각 공통 operation lock을 획득하는 별도 command다. Staging은 arbitrary host path를 받지 않고 exact runtime digest·revision, OCI project label, runtime content hash와 backup worker SHA를 검증한다. Target release는 immutable materialization일 뿐 `state`, `current`, `pending`, `.env`와 container를 변경하지 않는다.
+
+Final manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 target runtime이 아니라 current production source를 가리킨다. `database.image`, `database.imageId`, `database.volume`도 current source binding이다. 별도 `maintenanceFinal`은 approved worker evidence ID, quiesce evidence ID, target worker runtime revision·digest·content hash와 worker SHA를 기록한다.
 
 DB transition을 시작하지 않았고 `pending`이 없으며 source runtime과 MySQL 8.0.46 binding이 그대로라면 아래 command만 source API·Web을 다시 시작하고 전체 health를 확인한 뒤 evidence를 제거한다.
 
@@ -307,7 +330,7 @@ DB transition을 시작하지 않았고 `pending`이 없으며 source runtime과
 
 ### Immutable upgrade candidate
 
-Candidate 생성은 quiesced source의 `state`, `current`, `.env`, DB/Redis container를 변경하지 않는다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다. Backup manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 candidate source application revision·runtime digest와 정확히 일치해야 한다. Manifest의 DB exact image·image ID·volume도 quiesce evidence와 정확히 일치해야 하며, backup `startedAt`은 active quiesce 시각보다 뒤여야 한다. Source metadata나 DB binding evidence가 없거나 다른 runtime/DB에서 생성했거나 quiesce 이전 또는 같은 초에 시작한 backup이면 candidate를 만들지 않는다.
+Candidate 생성은 quiesced source의 `state`, `current`, `.env`, DB/Redis container를 변경하지 않는다. Exact runtime release가 없으면 `runtime-config/releases/<digest>`에 검증본을 staging하고, `runtime-config/mysql-maintenance/candidates/<candidate-id>/candidate.env`를 생성한다. Backup manifest의 `source.applicationSha`와 `source.runtimeConfigDigest`는 candidate source application revision·runtime digest와 정확히 일치해야 한다. Manifest의 DB exact image·image ID·volume도 quiesce evidence와 정확히 일치해야 하며, backup `startedAt`은 active quiesce 시각보다 뒤여야 한다. `trigger=maintenance-final`과 immutable worker evidence가 candidate target runtime과 일치해야 한다. Source metadata, DB binding 또는 worker provenance가 없거나 다른 runtime/DB에서 생성했거나 quiesce 이전 또는 같은 초에 시작한 backup이면 candidate를 만들지 않는다.
 
 ```bash
 maintenance=/Users/homeserver/Server/scripts/maintenance/mysql-maintenance-cubing-hub.sh
@@ -347,8 +370,8 @@ API·Web image drift, Redis·network·DB command drift, target image digest 불�
 ### Upgrade
 
 1. `status`로 pending·quiesce 상태를 확인하고 `quiesce`로 API·Web을 중단한다. Evidence와 실제 stopped state를 다시 확인한다.
-2. 운영 backup worker로 quiesce 이후 시작한 final logical backup과 게시글 image snapshot을 만든다.
-3. `SUCCESS`, manifest, dump·image checksum, engine/version, row count, source provenance, exact DB image·image ID·volume과 `startedAt > QUIESCED_AT`을 검증한다.
+2. Approved target worker를 `stage-final-backup-worker`로 staging하고, canonical bootstrap의 `maintenance-final <worker-evidence-id>` mode로 quiesce 이후 시작한 final logical backup과 게시글 image snapshot을 만든다.
+3. `SUCCESS`, manifest, dump·image checksum, engine/version, row count, current source provenance, exact DB image·image ID·volume, target worker provenance와 `startedAt > QUIESCED_AT`을 검증한다.
 4. 별도 fresh MySQL 8.4.11 환경에 같은 backup을 restore하고 schema, FK, index, Flyway history, 핵심 row count를 확인한다.
 5. 같은 final backup으로 `prepare-upgrade`를 실행하고 fresh MySQL 8.0.46 rollback volume을 restore한 뒤 `verify-rollback-volume` evidence까지 준비한다.
 6. 기록한 candidate ID, active quiesce evidence와 write stop을 다시 확인한 뒤 아래 command를 실행한다.

@@ -22,8 +22,12 @@ readonly HEARTBEAT_CONFIG_FILE="${APP_DIR}/backup-heartbeats.conf"
 readonly RUNTIME_CONFIG_ROOT="${APP_DIR}/runtime-config"
 readonly RUNTIME_CONFIG_RELEASES="${RUNTIME_CONFIG_ROOT}/releases"
 readonly RUNTIME_CONFIG_STATE="${RUNTIME_CONFIG_ROOT}/state"
+readonly RUNTIME_CONFIG_PENDING="${RUNTIME_CONFIG_ROOT}/pending"
 readonly RUNTIME_CONFIG_CURRENT="${RUNTIME_CONFIG_ROOT}/current"
 readonly RUNTIME_CONFIG_INITIALIZED="${APP_DIR}/.runtime-config-v2-initialized"
+readonly MAINTENANCE_ROOT="${RUNTIME_CONFIG_ROOT}/mysql-maintenance"
+readonly MAINTENANCE_QUIESCE="${MAINTENANCE_ROOT}/quiesce.state"
+readonly MAINTENANCE_FINAL_BACKUP_WORKERS="${MAINTENANCE_ROOT}/final-backup-workers"
 readonly ZERO_SHA=0000000000000000000000000000000000000000
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
 
@@ -78,9 +82,15 @@ offsite_staged=false
 local_heartbeat_url=
 icloud_stage_heartbeat_url=
 trigger=scheduled
+worker_evidence_id=
+maintenance_quiesce_evidence_id=
+maintenance_worker_runtime_revision=
+maintenance_worker_runtime_digest=
+maintenance_worker_runtime_content_sha=
+maintenance_worker_sha=
 
 usage() {
-  printf 'Usage: backup-cubing-hub.sh [--trigger scheduled|predeploy]\n' >&2
+  printf 'Usage: backup-cubing-hub.sh [--trigger scheduled|predeploy|maintenance-final] [--worker-evidence <id>]\n' >&2
 }
 
 fail() {
@@ -96,6 +106,37 @@ import sys
 
 print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode))[2:])
 PY
+}
+
+has_mode() {
+  "${PYTHON_BIN}" -c \
+    'import os, stat, sys; raise SystemExit(0 if stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == int(sys.argv[2], 8) else 1)' \
+    "$1" "$2"
+}
+
+read_exact_value() {
+  local file="$1"
+  local key="$2"
+  local value
+
+  value="$(
+    /usr/bin/awk -F= -v key="${key}" '
+      $1 == key {
+        value = substr($0, index($0, "=") + 1)
+        count += 1
+      }
+      END {
+        if (count != 1) {
+          exit 1
+        }
+        print value
+      }
+    ' "${file}"
+  )" || fail "${key} must appear exactly once in ${file}"
+  if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+    fail "${key} contains an unsafe line break"
+  fi
+  printf '%s' "${value}"
 }
 
 prepare_private_directory() {
@@ -159,6 +200,14 @@ while [[ "$#" -gt 0 ]]; do
       trigger="$2"
       shift 2
       ;;
+    --worker-evidence)
+      if [[ "$#" -lt 2 ]]; then
+        usage
+        exit 64
+      fi
+      worker_evidence_id="$2"
+      shift 2
+      ;;
     *)
       usage
       exit 64
@@ -166,7 +215,14 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ "${trigger}" != scheduled && "${trigger}" != predeploy ]]; then
+if [[ "${trigger}" == maintenance-final ]]; then
+  [[ "${worker_evidence_id}" =~ ^[0-9a-f]{64}$ ]] || {
+    usage
+    exit 64
+  }
+elif [[ "${trigger}" != scheduled && "${trigger}" != predeploy ]] \
+  || [[ -n "${worker_evidence_id}" ]]
+then
   usage
   exit 64
 fi
@@ -592,6 +648,212 @@ print("{}@{}".format(configured.split("@", 1)[0], digests[0]), end="")
   backup_db_volume="${actual_volume}"
 }
 
+validate_maintenance_final_context() {
+  local computed_evidence_id
+  local computed_quiesce_id
+  local current_application_revision
+  local current_runtime_content_sha
+  local current_runtime_digest
+  local current_runtime_revision
+  local evidence_dir
+  local evidence_file
+  local evidence_keys
+  local expected_worker_path
+  local quiesce_keys
+  local quiesce_value
+  local rendered
+  local source_mysql_version
+  local target_release
+
+  [[ ! -e "${RUNTIME_CONFIG_PENDING}" && ! -L "${RUNTIME_CONFIG_PENDING}" ]] \
+    || fail "maintenance final backup is forbidden while runtime recovery is pending"
+  evidence_dir="${MAINTENANCE_FINAL_BACKUP_WORKERS}/${worker_evidence_id}"
+  evidence_file="${evidence_dir}/worker.env"
+  if [[ ! -d "${MAINTENANCE_ROOT}" || -L "${MAINTENANCE_ROOT}" ]] \
+    || ! has_mode "${MAINTENANCE_ROOT}" 700 \
+    || [[ ! -d "${MAINTENANCE_FINAL_BACKUP_WORKERS}" \
+      || -L "${MAINTENANCE_FINAL_BACKUP_WORKERS}" ]] \
+    || ! has_mode "${MAINTENANCE_FINAL_BACKUP_WORKERS}" 700 \
+    || [[ ! -d "${evidence_dir}" || -L "${evidence_dir}" ]] \
+    || ! has_mode "${evidence_dir}" 500 \
+    || [[ ! -f "${evidence_file}" || -L "${evidence_file}" ]] \
+    || ! has_mode "${evidence_file}" 400
+  then
+    fail "maintenance final backup worker evidence is missing, unsafe, or mutable"
+  fi
+  evidence_keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${evidence_file}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${evidence_keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nBACKUP_WORKER_SHA256\nCREATED_AT\nEVIDENCE_ID\nPROJECT\nQUIESCE_EVIDENCE_ID\nSCHEMA_VERSION\nSOURCE_DB_IMAGE_EXACT\nSOURCE_DB_IMAGE_ID\nSOURCE_DB_VOLUME\nSOURCE_MYSQL_VERSION\nSOURCE_RUNTIME_CONFIG_CONTENT_SHA256\nSOURCE_RUNTIME_CONFIG_DIGEST\nSOURCE_RUNTIME_CONFIG_REVISION\nTARGET_RUNTIME_CONFIG_CONTENT_SHA256\nTARGET_RUNTIME_CONFIG_DIGEST\nTARGET_RUNTIME_CONFIG_REVISION\nWEB_IMAGE' ]]; then
+    fail "maintenance final backup worker evidence keys are invalid"
+  fi
+  computed_evidence_id="$(
+    /usr/bin/sed '/^EVIDENCE_ID=/d' "${evidence_file}" \
+      | /usr/bin/shasum -a 256 \
+      | /usr/bin/awk '{print $1}'
+  )"
+  [[ "$(read_exact_value "${evidence_file}" SCHEMA_VERSION)" == 1 ]] \
+    && [[ "$(read_exact_value "${evidence_file}" PROJECT)" == "${PROJECT_NAME}" ]] \
+    && [[ "$(read_exact_value "${evidence_file}" EVIDENCE_ID)" == "${worker_evidence_id}" ]] \
+    && [[ "${computed_evidence_id}" == "${worker_evidence_id}" ]] \
+    || fail "maintenance final backup worker evidence integrity is invalid"
+
+  maintenance_quiesce_evidence_id="$(read_exact_value "${evidence_file}" QUIESCE_EVIDENCE_ID)"
+  maintenance_application_revision="$(read_exact_value "${evidence_file}" APPLICATION_REVISION)"
+  maintenance_api_image="$(read_exact_value "${evidence_file}" API_IMAGE)"
+  maintenance_web_image="$(read_exact_value "${evidence_file}" WEB_IMAGE)"
+  maintenance_source_runtime_revision="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_REVISION)"
+  maintenance_source_runtime_digest="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_DIGEST)"
+  maintenance_source_runtime_content_sha="$(read_exact_value "${evidence_file}" SOURCE_RUNTIME_CONFIG_CONTENT_SHA256)"
+  maintenance_source_db_image_exact="$(read_exact_value "${evidence_file}" SOURCE_DB_IMAGE_EXACT)"
+  maintenance_source_db_image_id="$(read_exact_value "${evidence_file}" SOURCE_DB_IMAGE_ID)"
+  maintenance_source_db_volume="$(read_exact_value "${evidence_file}" SOURCE_DB_VOLUME)"
+  maintenance_source_mysql_version="$(read_exact_value "${evidence_file}" SOURCE_MYSQL_VERSION)"
+  maintenance_worker_runtime_revision="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_REVISION)"
+  maintenance_worker_runtime_digest="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_DIGEST)"
+  maintenance_worker_runtime_content_sha="$(read_exact_value "${evidence_file}" TARGET_RUNTIME_CONFIG_CONTENT_SHA256)"
+  maintenance_worker_sha="$(read_exact_value "${evidence_file}" BACKUP_WORKER_SHA256)"
+  if [[ ! "${maintenance_quiesce_evidence_id}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${maintenance_application_revision}" =~ ^[0-9a-f]{40}$ ]] \
+    || [[ "${maintenance_api_image}" != "ghcr.io/xxh3898/cubing-hub-api:${maintenance_application_revision}" ]] \
+    || [[ "${maintenance_web_image}" != "ghcr.io/xxh3898/cubing-hub-web:${maintenance_application_revision}" ]] \
+    || [[ ! "${maintenance_source_runtime_revision}" =~ ^[0-9a-f]{40}$ ]] \
+    || ! is_digest "${maintenance_source_runtime_digest}" \
+    || [[ ! "${maintenance_source_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${maintenance_source_db_image_exact}" =~ ^mysql:8\.0\.46@sha256:[0-9a-f]{64}$ ]] \
+    || [[ ! "${maintenance_source_db_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || [[ ! "${maintenance_source_db_volume}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] \
+    || [[ ! "${maintenance_source_mysql_version}" =~ ^8\.0\.46([-+].*)?$ ]] \
+    || [[ ! "${maintenance_worker_runtime_revision}" =~ ^[0-9a-f]{40}$ ]] \
+    || ! is_digest "${maintenance_worker_runtime_digest}" \
+    || [[ ! "${maintenance_worker_runtime_content_sha}" =~ ^[0-9a-f]{64}$ ]] \
+    || [[ ! "${maintenance_worker_sha}" =~ ^[0-9a-f]{64}$ ]]
+  then
+    fail "maintenance final backup worker evidence values are invalid"
+  fi
+
+  current_application_revision="$(read_exact_value "${RUNTIME_CONFIG_STATE}" APPLICATION_REVISION)"
+  current_runtime_revision="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_REVISION)"
+  current_runtime_digest="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_DIGEST)"
+  current_runtime_content_sha="$(read_exact_value "${RUNTIME_CONFIG_STATE}" RUNTIME_CONFIG_CONTENT_SHA256)"
+  [[ "${current_application_revision}" == "${maintenance_application_revision}" ]] \
+    && [[ "${current_runtime_revision}" == "${maintenance_source_runtime_revision}" ]] \
+    && [[ "${current_runtime_digest}" == "${maintenance_source_runtime_digest}" ]] \
+    && [[ "${current_runtime_content_sha}" == "${maintenance_source_runtime_content_sha}" ]] \
+    && [[ "$(read_exact_value "${ENV_FILE}" API_IMAGE)" == "${maintenance_api_image}" ]] \
+    && [[ "$(read_exact_value "${ENV_FILE}" WEB_IMAGE)" == "${maintenance_web_image}" ]] \
+    || fail "maintenance final backup source runtime is stale"
+
+  if [[ ! -f "${MAINTENANCE_QUIESCE}" || -L "${MAINTENANCE_QUIESCE}" ]] \
+    || ! has_mode "${MAINTENANCE_QUIESCE}" 400
+  then
+    fail "maintenance final backup requires safe active quiesce evidence"
+  fi
+  quiesce_keys="$(
+    /usr/bin/awk -F= 'NF >= 2 { print $1 }' "${MAINTENANCE_QUIESCE}" \
+      | LC_ALL=C /usr/bin/sort
+  )"
+  if [[ "${quiesce_keys}" != $'API_IMAGE\nAPPLICATION_REVISION\nDB_IMAGE_EXACT\nDB_IMAGE_ID\nDB_VOLUME\nEVIDENCE_ID\nMYSQL_VERSION\nQUIESCED_AT\nRUNTIME_CONFIG_CONTENT_SHA256\nRUNTIME_CONFIG_DIGEST\nRUNTIME_CONFIG_REVISION\nSCHEMA_VERSION\nWEB_IMAGE' ]]; then
+    fail "maintenance quiesce evidence keys are invalid"
+  fi
+  computed_quiesce_id="$(
+    /usr/bin/sed '/^EVIDENCE_ID=/d' "${MAINTENANCE_QUIESCE}" \
+      | /usr/bin/shasum -a 256 \
+      | /usr/bin/awk '{print $1}'
+  )"
+  [[ "$(read_exact_value "${MAINTENANCE_QUIESCE}" SCHEMA_VERSION)" == 1 ]] \
+    && [[ "$(read_exact_value "${MAINTENANCE_QUIESCE}" EVIDENCE_ID)" == "${maintenance_quiesce_evidence_id}" ]] \
+    && [[ "${computed_quiesce_id}" == "${maintenance_quiesce_evidence_id}" ]] \
+    || fail "maintenance quiesce evidence integrity is invalid"
+  for quiesce_value in \
+    "APPLICATION_REVISION=${maintenance_application_revision}" \
+    "API_IMAGE=${maintenance_api_image}" \
+    "WEB_IMAGE=${maintenance_web_image}" \
+    "RUNTIME_CONFIG_REVISION=${maintenance_source_runtime_revision}" \
+    "RUNTIME_CONFIG_DIGEST=${maintenance_source_runtime_digest}" \
+    "RUNTIME_CONFIG_CONTENT_SHA256=${maintenance_source_runtime_content_sha}" \
+    "DB_IMAGE_EXACT=${maintenance_source_db_image_exact}" \
+    "DB_IMAGE_ID=${maintenance_source_db_image_id}" \
+    "DB_VOLUME=${maintenance_source_db_volume}" \
+    "MYSQL_VERSION=${maintenance_source_mysql_version}"
+  do
+    /usr/bin/grep -Fqx "${quiesce_value}" "${MAINTENANCE_QUIESCE}" \
+      || fail "maintenance final backup worker evidence is stale for active quiesce"
+  done
+  maintenance_quiesced_at="$(read_exact_value "${MAINTENANCE_QUIESCE}" QUIESCED_AT)"
+  "${PYTHON_BIN}" - "${maintenance_quiesced_at}" "${started_at}" <<'PY'
+import datetime as dt
+import sys
+
+quiesced_at = dt.datetime.strptime(sys.argv[1], "%Y-%m-%dT%H:%M:%SZ")
+started_at = dt.datetime.strptime(sys.argv[2], "%Y-%m-%dT%H:%M:%SZ")
+if started_at <= quiesced_at:
+    raise SystemExit("maintenance final backup must start after quiesce")
+PY
+
+  [[ "${backup_db_image_exact}" == "${maintenance_source_db_image_exact}" ]] \
+    && [[ "${backup_db_image_id}" == "${maintenance_source_db_image_id}" ]] \
+    && [[ "${backup_db_volume}" == "${maintenance_source_db_volume}" ]] \
+    || fail "maintenance final backup DB binding is stale"
+  source_mysql_version="$(
+    compose exec -T --env BACKUP_QUERY=maintenance-source-version db /bin/sh -ceu '
+      export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+      exec mysql --user=root --batch --skip-column-names "${MYSQL_DATABASE}" \
+        --execute "SELECT VERSION()"
+    '
+  )"
+  [[ "${source_mysql_version}" == "${maintenance_source_mysql_version}" ]] \
+    || fail "maintenance final backup MySQL version is stale"
+
+  rendered="$(compose ps --all --format json)"
+  printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit("no maintenance service status was returned")
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
+entries = value if isinstance(value, list) else [value]
+by_service = {}
+for entry in entries:
+    service = entry.get("Service")
+    if service not in {"api", "db", "redis", "web"} or service in by_service:
+        raise SystemExit("maintenance service set is invalid")
+    by_service[service] = entry
+if set(by_service) != {"api", "db", "redis", "web"}:
+    raise SystemExit("maintenance service set is incomplete")
+for service in ("api", "web"):
+    if str(by_service[service].get("State", "")).lower() != "exited":
+        raise SystemExit("application writes are not quiesced")
+for service in ("db", "redis"):
+    entry = by_service[service]
+    if (
+        str(entry.get("State", "")).lower() != "running"
+        or str(entry.get("Health", "")).lower() != "healthy"
+    ):
+        raise SystemExit("maintenance dependency is not healthy")
+'
+
+  target_release="${RUNTIME_CONFIG_RELEASES}/${maintenance_worker_runtime_digest#sha256:}"
+  validate_release_files "${target_release}"
+  [[ "$(runtime_config_content_sha256 "${target_release}")" == "${maintenance_worker_runtime_content_sha}" ]] \
+    || fail "maintenance final backup worker runtime integrity check failed"
+  expected_worker_path="${target_release}/scripts/backup-cubing-hub.sh"
+  if [[ "$0" != "${expected_worker_path}" ]] \
+    || [[ ! -f "$0" || -L "$0" ]] \
+    || ! has_mode "$0" 700 \
+    || ! /bin/bash -n "$0" \
+    || [[ "$(/usr/bin/shasum -a 256 "$0" | /usr/bin/awk '{print $1}')" != "${maintenance_worker_sha}" ]]
+  then
+    fail "maintenance final backup did not execute the approved runtime worker"
+  fi
+}
+
 resolve_post_images_host_dir() {
   local rendered
 
@@ -639,6 +901,9 @@ if ! /usr/bin/grep -qx db <<<"${running_services}"; then
   fail "production db service is not running"
 fi
 resolve_database_identity
+if [[ "${trigger}" == maintenance-final ]]; then
+  validate_maintenance_final_context
+fi
 
 prepare_private_directory "${BACKUP_ROOT}"
 
@@ -1013,6 +1278,12 @@ completed_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   "${backup_db_image_exact}" \
   "${backup_db_image_id}" \
   "${backup_db_volume}" \
+  "${worker_evidence_id}" \
+  "${maintenance_quiesce_evidence_id}" \
+  "${maintenance_worker_runtime_revision}" \
+  "${maintenance_worker_runtime_digest}" \
+  "${maintenance_worker_runtime_content_sha}" \
+  "${maintenance_worker_sha}" \
   "${db_version_file}" \
   "${record_counts_file}" \
   "${post_images_stats}" \
@@ -1033,6 +1304,12 @@ import sys
     database_image,
     database_image_id,
     database_volume,
+    worker_evidence_id,
+    quiesce_evidence_id,
+    worker_runtime_revision,
+    worker_runtime_digest,
+    worker_runtime_content_sha,
+    worker_sha,
     version_file_value,
     record_counts_file_value,
     file_stats_value,
@@ -1128,6 +1405,27 @@ manifest = {
         "recovery": "rebuild rankings from MySQL",
     },
 }
+if trigger == "maintenance-final":
+    maintenance_values = (
+        worker_evidence_id,
+        quiesce_evidence_id,
+        worker_runtime_content_sha,
+        worker_sha,
+    )
+    if any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in maintenance_values):
+        raise SystemExit("maintenance final backup evidence identity is invalid")
+    if not re.fullmatch(r"[0-9a-f]{40}", worker_runtime_revision) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", worker_runtime_digest
+    ):
+        raise SystemExit("maintenance final backup worker runtime identity is invalid")
+    manifest["maintenanceFinal"] = {
+        "backupWorkerEvidenceId": worker_evidence_id,
+        "backupWorkerSha256": worker_sha,
+        "quiesceEvidenceId": quiesce_evidence_id,
+        "runtimeConfigContentSha256": worker_runtime_content_sha,
+        "runtimeConfigDigest": worker_runtime_digest,
+        "runtimeConfigRevision": worker_runtime_revision,
+    }
 if not manifest["database"]["version"]:
     raise SystemExit("database version is empty")
 (work_dir / "manifest.json").write_text(

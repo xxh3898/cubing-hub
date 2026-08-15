@@ -190,7 +190,7 @@ test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", (
   );
   assert.match(
     mysqlMaintenanceScript,
-    /quiesce[\s\S]*status[\s\S]*resume-source[\s\S]*prepare-upgrade[\s\S]*verify-rollback-volume[\s\S]*prepare-rollback[\s\S]*apply[\s\S]*recover/,
+    /quiesce[\s\S]*status[\s\S]*resume-source[\s\S]*stage-final-backup-worker[\s\S]*prepare-upgrade[\s\S]*verify-rollback-volume[\s\S]*prepare-rollback[\s\S]*apply[\s\S]*recover/,
   );
   assert.match(
     mysqlMaintenanceScript,
@@ -263,7 +263,34 @@ test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", (
       /application is quiesced for MySQL maintenance; use the maintenance worker/,
     );
   }
-  assert.doesNotMatch(backupBootstrap, /MAINTENANCE_QUIESCE/);
+  assert.match(
+    backupBootstrap,
+    /maintenance-final <worker-evidence-id>[\s\S]*validate_maintenance_final_worker[\s\S]*--trigger maintenance-final[\s\S]*--worker-evidence/,
+  );
+  assert.match(
+    backupBootstrap,
+    /if \[\[ "\$\{backup_mode\}" == maintenance-final \]\][\s\S]*exec "\$\{maintenance_backup_script\}"[\s\S]*exec "\$\{release_dir\}\/scripts\/backup-cubing-hub\.sh"/,
+  );
+  assert.match(
+    backupScript,
+    /validate_maintenance_final_context[\s\S]*maintenanceFinal[\s\S]*backupWorkerEvidenceId[\s\S]*runtimeConfigDigest/,
+  );
+  assert.match(
+    backupScript,
+    /maintenance final backup source runtime is stale[\s\S]*maintenance final backup DB binding is stale[\s\S]*application writes are not quiesced/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /stage_final_backup_worker[\s\S]*prepare_runtime_release[\s\S]*write_final_backup_worker_evidence/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /maintenance backup was not created by the final backup path[\s\S]*maintenance backup worker provenance is incomplete/,
+  );
+  assert.doesNotMatch(
+    mysqlMaintenanceScript,
+    /stage_final_backup_worker[\s\S]*backup-cubing-hub-bootstrap/,
+  );
   assert.match(
     dataServiceMaintenanceDetector,
     /docker[\s\S]*compose[\s\S]*config[\s\S]*--no-env-resolution[\s\S]*--format json/,
