@@ -294,6 +294,56 @@ test "$(
   /usr/bin/wc -l <"${legacy_backup_marker}" | /usr/bin/tr -d ' '
 )" = "${legacy_backup_count}"
 
+# Quiesce state persists across commands: deploy and normal recovery must not
+# restart API/Web, while the canonical backup path remains available for the
+# final maintenance snapshot.
+quiesce_root="${app_dir}/runtime-config/mysql-maintenance"
+quiesce_file="${quiesce_root}/quiesce.state"
+/bin/mkdir -p "${quiesce_root}"
+/bin/chmod 700 "${quiesce_root}"
+printf 'fixture quiesce\n' >"${quiesce_file}"
+/bin/chmod 400 "${quiesce_file}"
+candidate_count_before_quiesce="$((
+  $(/usr/bin/wc -l <"${candidate_log}" | /usr/bin/tr -d ' ')
+))"
+set +e
+run_update >/dev/null 2>&1
+quiesced_deploy_exit_code="$?"
+/usr/bin/env \
+  FAKE_CANDIDATE_LOG="${candidate_log}" \
+  /bin/bash "${deploy_bootstrap}" recover >/dev/null 2>&1
+quiesced_recover_exit_code="$?"
+set -e
+if [[ "${quiesced_deploy_exit_code}" -ne 1 ]] \
+  || [[ "${quiesced_recover_exit_code}" -ne 1 ]] \
+  || [[ "$(/usr/bin/wc -l <"${candidate_log}" | /usr/bin/tr -d ' ')" != "${candidate_count_before_quiesce}" ]]
+then
+  printf 'Deploy and recover must fail closed while maintenance quiesce exists\n' >&2
+  exit 1
+fi
+backup_count_before_quiesce="$((
+  $(/usr/bin/wc -l <"${backup_marker}" | /usr/bin/tr -d ' ')
+))"
+/usr/bin/env \
+  FAKE_BACKUP_MARKER="${backup_marker}" \
+  FAKE_LEGACY_BACKUP_MARKER="${legacy_backup_marker}" \
+  /bin/bash "${backup_bootstrap}"
+test "$((
+  $(/usr/bin/wc -l <"${backup_marker}" | /usr/bin/tr -d ' ')
+))" -eq "$((backup_count_before_quiesce + 1))"
+/bin/rm -f -- "${quiesce_file}"
+printf 'unsafe quiesce\n' >"${test_root}/unsafe-quiesce"
+/bin/ln -s "${test_root}/unsafe-quiesce" "${quiesce_file}"
+set +e
+run_update >/dev/null 2>&1
+unsafe_quiesce_exit_code="$?"
+set -e
+if [[ "${unsafe_quiesce_exit_code}" -ne 1 ]]; then
+  printf 'Deploy must fail closed for an unsafe quiesce path\n' >&2
+  exit 1
+fi
+/bin/unlink "${quiesce_file}"
+
 assert_preflight_failure() {
   local label="$1"
   local candidate_count_before

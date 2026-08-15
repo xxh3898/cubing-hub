@@ -15,6 +15,10 @@ readonly APPLICATION_SHA=1111111111111111111111111111111111111111
 readonly PREVIOUS_SHA=2222222222222222222222222222222222222222
 readonly CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 readonly CONFIG_SHA=3333333333333333333333333333333333333333
+readonly MYSQL_IMAGE_DIGEST=8484848484848484848484848484848484848484848484848484848484848484
+readonly MYSQL_IMAGE_ID=sha256:8484848484848484848484848484848484848484848484848484848484848484
+readonly MYSQL_IMAGE_EXACT="mysql:8.4.11@sha256:${MYSQL_IMAGE_DIGEST}"
+readonly MYSQL_VOLUME=cubing-hub_mysql-data
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-backup-test.XXXXXX")"
 
@@ -80,7 +84,23 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     '#!/bin/bash' \
     'set -Eeuo pipefail' \
     'printf "%s\n" "$*" >>"${DOCKER_LOG}"' \
-    'if [[ " $* " != *" --project-name cubing-hub "* ]]; then' \
+    'if [[ " $* " == *" image inspect --format {{.Id}} "* ]]; then' \
+    '  printf "%s\n" "sha256:8484848484848484848484848484848484848484848484848484848484848484"' \
+    'elif [[ " $* " == *" image inspect --format {{json .RepoDigests}} "* ]]; then' \
+    '  printf "%s\n" "[\"mysql@sha256:8484848484848484848484848484848484848484848484848484848484848484\"]"' \
+    'elif [[ " $* " == *" container inspect --format {{.Image}} "* ]]; then' \
+    '  printf "%s\n" "sha256:8484848484848484848484848484848484848484848484848484848484848484"' \
+    'elif [[ " $* " == *" container inspect --format {{range .Mounts}}"* ]]; then' \
+    '  printf "%s\n" "cubing-hub_mysql-data"' \
+    'elif [[ " $* " == *"com.docker.compose.project"* ]]; then' \
+    '  printf "cubing-hub\n"' \
+    'elif [[ " $* " == *"com.docker.compose.service"* ]]; then' \
+    '  printf "db\n"' \
+    'elif [[ " $* " == *" container inspect --format {{if .State.Health}}"* ]]; then' \
+    '  printf "healthy\n"' \
+    'elif [[ " $* " == *" ps -a --no-trunc --filter volume=cubing-hub_mysql-data "* ]]; then' \
+    '  printf "mock-db-container\n"' \
+    'elif [[ " $* " != *" --project-name cubing-hub "* ]]; then' \
     '  printf "Compose project name was not pinned: %s\n" "$*" >&2' \
     '  exit 1' \
     'elif [[ " $* " == *" config --format json "* ]]; then' \
@@ -88,9 +108,11 @@ export MOCK_DUMP_FILE="${default_dump_file}"
     '    printf "ambient POST_IMAGES_HOST_DIR reached Compose rendering\n" >&2' \
     '    exit 1' \
     '  fi' \
-    '  printf '\''{"services":{"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
+    '  printf '\''{"services":{"db":{"image":"mysql:8.4.11"},"api":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]},"web":{"volumes":[{"type":"bind","source":"%s","target":"/data/post-images"}]}},"volumes":{"mysql-data":{"name":"cubing-hub_mysql-data"}}}\n'\'' "${MOCK_POST_IMAGES_DIR}" "${MOCK_POST_IMAGES_DIR}"' \
     'elif [[ " $* " == *" ps --status running --services "* ]]; then' \
     '  printf "%s\n" "${FAKE_RUNNING_SERVICES:-db}"' \
+    'elif [[ " $* " == *" ps -q db "* ]]; then' \
+    '  printf "mock-db-container\n"' \
     'elif [[ "$*" == *"BACKUP_QUERY=dump"* ]]; then' \
     '  /bin/cat "${MOCK_DUMP_FILE}"' \
     'elif [[ "$*" == *"BACKUP_QUERY=version"* ]]; then' \
@@ -500,7 +522,10 @@ assert_snapshot_contract() {
     "${backup_root}/retention-plan.json" \
     "${expected_trigger}" \
     "${APPLICATION_SHA}" \
-    "${CONFIG_DIGEST}" <<'PY'
+    "${CONFIG_DIGEST}" \
+    "${MYSQL_IMAGE_EXACT}" \
+    "${MYSQL_IMAGE_ID}" \
+    "${MYSQL_VOLUME}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -508,7 +533,14 @@ import sys
 
 snapshot = pathlib.Path(sys.argv[1])
 plan_path = pathlib.Path(sys.argv[2])
-trigger, application_sha, config_digest = sys.argv[3:]
+(
+    trigger,
+    application_sha,
+    config_digest,
+    database_image,
+    database_image_id,
+    database_volume,
+) = sys.argv[3:]
 manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
 dump = snapshot / manifest["database"]["dumpFile"]
 assert manifest["schemaVersion"] == 1
@@ -520,6 +552,9 @@ assert manifest["source"]["applicationSha"] == application_sha
 assert manifest["source"]["runtimeConfigDigest"] == config_digest
 assert manifest["database"]["engine"] == "mysql"
 assert manifest["database"]["version"] == "8.4.11"
+assert manifest["database"]["image"] == database_image
+assert manifest["database"]["imageId"] == database_image_id
+assert manifest["database"]["volume"] == database_volume
 assert manifest["database"]["recordCounts"] == {"post_attachments": 1, "users": 1}
 assert manifest["database"]["recordCountsSource"] == "database/dump"
 assert manifest["database"]["bytes"] == dump.stat().st_size
@@ -637,13 +672,17 @@ fi
 /usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
 /usr/bin/grep -Fq '"status":"FAILED"' "${event_log}"
 
-COMPOSE_PROJECT_NAME=ambient-project \
-POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \
-DOCKER_LOG="${docker_log}" \
-HEARTBEAT_LOG="${heartbeat_log}" \
-FAIL_HOMEOPS_SIZE=true \
-MOCK_POST_IMAGES_DIR="${v2_post_images}" \
-  "${v2_script}" >"${v2_output}" 2>&1
+if ! COMPOSE_PROJECT_NAME=ambient-project \
+  POST_IMAGES_HOST_DIR="${test_root}/ambient-post-images" \
+  DOCKER_LOG="${docker_log}" \
+  HEARTBEAT_LOG="${heartbeat_log}" \
+  FAIL_HOMEOPS_SIZE=true \
+  MOCK_POST_IMAGES_DIR="${v2_post_images}" \
+    "${v2_script}" >"${v2_output}" 2>&1
+then
+  /bin/cat "${v2_output}" >&2
+  exit 1
+fi
 expected_release="${v2_app}/runtime-config/releases/${CONFIG_DIGEST#sha256:}"
 /usr/bin/grep -Fq -- "--project-name cubing-hub" "${docker_log}"
 /usr/bin/grep -Fq -- "--project-directory ${expected_release}" "${docker_log}"

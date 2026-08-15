@@ -190,7 +190,44 @@ test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", (
   );
   assert.match(
     mysqlMaintenanceScript,
-    /prepare-upgrade[\s\S]*verify-rollback-volume[\s\S]*prepare-rollback[\s\S]*apply[\s\S]*recover/,
+    /quiesce[\s\S]*status[\s\S]*resume-source[\s\S]*prepare-upgrade[\s\S]*verify-rollback-volume[\s\S]*prepare-rollback[\s\S]*apply[\s\S]*recover/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /readonly MAINTENANCE_QUIESCE="\$\{MAINTENANCE_ROOT\}\/quiesce\.state"/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /QUIESCE_EVIDENCE_ID/,
+  );
+  assert.match(mysqlMaintenanceScript, /QUIESCED_AT/);
+  assert.match(
+    mysqlMaintenanceScript,
+    /maintenance backup did not start after application quiesce/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /maintenance backup DB binding does not match application quiesce/,
+  );
+  assert.match(
+    backupScript,
+    /"image": database_image,[\s\S]*"imageId": database_image_id,[\s\S]*"volume": database_volume/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /validate_running_application_identity api[\s\S]*validate_running_application_identity web[\s\S]*stop api web/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /validate_candidate_quiesce_evidence[\s\S]*maintenance candidate is not bound to the active quiesce evidence/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /stop api web[\s\S]*service_set_is_quiesced_for[\s\S]*write_quiesce_evidence/,
+  );
+  assert.match(
+    mysqlMaintenanceScript,
+    /\/bin\/rm -f -- "\$\{RUNTIME_CONFIG_PENDING\}"[\s\S]*remove_quiesce_evidence/,
   );
   assert.match(
     mysqlMaintenanceScript,
@@ -216,6 +253,17 @@ test("should_isolateMySqlMaintenanceFromNormalDeploy_when_dataServiceChanges", (
     mysqlMaintenanceScript,
     /maintenance target service set is unhealthy[\s\S]*commit_success_state/,
   );
+  for (const deployEntryPoint of [restrictedWrapper, deployScript]) {
+    assert.match(
+      deployEntryPoint,
+      /MAINTENANCE_QUIESCE[\s\S]*fail_if_maintenance_quiesced/,
+    );
+    assert.match(
+      deployEntryPoint,
+      /application is quiesced for MySQL maintenance; use the maintenance worker/,
+    );
+  }
+  assert.doesNotMatch(backupBootstrap, /MAINTENANCE_QUIESCE/);
   assert.match(
     dataServiceMaintenanceDetector,
     /docker[\s\S]*compose[\s\S]*config[\s\S]*--no-env-resolution[\s\S]*--format json/,

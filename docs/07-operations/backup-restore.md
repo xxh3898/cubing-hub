@@ -31,6 +31,8 @@ Redis는 현재 backup set에서 제외된다. ranking은 MySQL에서 rebuild하
 
 restore는 격리된 target, write freeze, source snapshot, schema·engine version, expected count와 rollback을 먼저 확인한다. DB와 image를 같은 set에서 복구하고 application smoke와 ranking rebuild를 수행한다.
 
-MySQL engine rollback은 upgraded original volume을 downgrade하지 않는다. Pre-upgrade backup을 fresh 이전-engine volume에 restore·검증한 뒤 dedicated maintenance candidate로 runtime binding을 전환한다. Candidate·restore evidence·exact command는 command-level Source of Truth를 따른다.
+MySQL engine maintenance의 final backup은 canonical quiesce evidence가 만들어진 뒤 시작해야 한다. Quiesce는 API·Web write path와 post-image write를 중지하고 DB를 healthy 상태로 유지한다. Backup manifest는 실제 DB exact image·image ID·volume을 기록하고, candidate는 source runtime·DB identity와 backup 시작 시각을 quiesce evidence에 결합한다. Human confirmation token만으로 cutover를 허용하지 않는다.
+
+MySQL engine rollback은 upgraded original volume을 downgrade하지 않는다. Pre-upgrade backup을 fresh 이전-engine volume에 restore·검증한 뒤 dedicated maintenance candidate로 runtime binding을 전환한다. Candidate·quiesce·restore evidence·exact command는 command-level Source of Truth를 따른다.
 
 실제 backup, restore, retention 삭제는 각각 별도 운영·data 승인 대상이다.

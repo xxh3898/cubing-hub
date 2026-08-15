@@ -485,6 +485,113 @@ compose() {
     "$@"
 }
 
+resolve_database_identity() {
+  local actual_health
+  local actual_image_id
+  local actual_project
+  local actual_service
+  local actual_volume
+  local configured_image
+  local configured_volume
+  local container_id
+  local expected_image_id
+  local rendered
+  local repo_digests
+  local volume_users
+
+  rendered="$(
+    unset POST_IMAGES_HOST_DIR
+    compose config --format json
+  )"
+  IFS=$'\t' read -r configured_image configured_volume <<<"$(
+    printf '%s' "${rendered}" | "${PYTHON_BIN}" -c '
+import json
+import re
+import sys
+
+config = json.load(sys.stdin)
+database = config.get("services", {}).get("db", {})
+volume = config.get("volumes", {}).get("mysql-data", {})
+image = database.get("image")
+volume_name = volume.get("name")
+if not isinstance(image, str) or not image:
+    raise SystemExit("backup DB image contract is invalid")
+if not isinstance(volume_name, str) or not re.fullmatch(
+    r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", volume_name
+):
+    raise SystemExit("backup DB volume contract is invalid")
+print(f"{image}\t{volume_name}", end="")
+'
+  )"
+  container_id="$(compose ps -q db)"
+  [[ "${container_id}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] \
+    || fail "backup DB container identity is missing or invalid"
+  expected_image_id="$(
+    "${DOCKER_BIN}" image inspect --format '{{.Id}}' "${configured_image}"
+  )"
+  actual_image_id="$(
+    "${DOCKER_BIN}" container inspect --format '{{.Image}}' "${container_id}"
+  )"
+  actual_volume="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}' \
+      "${container_id}"
+  )"
+  actual_project="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.project" }}' \
+      "${container_id}"
+  )"
+  actual_service="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{ index .Config.Labels "com.docker.compose.service" }}' \
+      "${container_id}"
+  )"
+  actual_health="$(
+    "${DOCKER_BIN}" container inspect \
+      --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      "${container_id}"
+  )"
+  volume_users="$(
+    "${DOCKER_BIN}" ps -a --no-trunc \
+      --filter "volume=${configured_volume}" \
+      --format '{{.ID}}'
+  )"
+  [[ "${expected_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    && [[ "${actual_image_id}" == "${expected_image_id}" ]] \
+    || fail "backup DB image does not match the active Compose binding"
+  [[ "${actual_volume}" == "${configured_volume}" ]] \
+    || fail "backup DB volume does not match the active Compose binding"
+  [[ "${actual_project}" == "${PROJECT_NAME}" && "${actual_service}" == db ]] \
+    || fail "backup DB container does not belong to the active Compose service"
+  [[ "${actual_health}" == healthy && "${volume_users}" == "${container_id}" ]] \
+    || fail "backup DB health or exclusive volume attachment is invalid"
+
+  repo_digests="$(
+    "${DOCKER_BIN}" image inspect --format '{{json .RepoDigests}}' "${configured_image}"
+  )"
+  backup_db_image_exact="$(
+    printf '%s' "${repo_digests}" | "${PYTHON_BIN}" -c '
+import json
+import re
+import sys
+
+configured = sys.argv[1]
+values = json.load(sys.stdin)
+digests = []
+for value in values:
+    match = re.search(r"@(?P<digest>sha256:[0-9a-f]{64})$", value)
+    if match:
+        digests.append(match.group("digest"))
+if len(set(digests)) != 1:
+    raise SystemExit("backup DB image does not resolve to one repository digest")
+print("{}@{}".format(configured.split("@", 1)[0], digests[0]), end="")
+' "${configured_image}"
+  )"
+  backup_db_image_id="${actual_image_id}"
+  backup_db_volume="${actual_volume}"
+}
+
 resolve_post_images_host_dir() {
   local rendered
 
@@ -531,6 +638,7 @@ running_services="$(compose ps --status running --services)"
 if ! /usr/bin/grep -qx db <<<"${running_services}"; then
   fail "production db service is not running"
 fi
+resolve_database_identity
 
 prepare_private_directory "${BACKUP_ROOT}"
 
@@ -902,6 +1010,9 @@ completed_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   "${completed_at}" \
   "${application_sha}" \
   "${runtime_config_digest}" \
+  "${backup_db_image_exact}" \
+  "${backup_db_image_id}" \
+  "${backup_db_volume}" \
   "${db_version_file}" \
   "${record_counts_file}" \
   "${post_images_stats}" \
@@ -919,6 +1030,9 @@ import sys
     completed_at,
     application_sha,
     runtime_config_digest,
+    database_image,
+    database_image_id,
+    database_volume,
     version_file_value,
     record_counts_file_value,
     file_stats_value,
@@ -935,6 +1049,12 @@ if runtime_config_digest != "unknown" and not re.fullmatch(
     r"sha256:[0-9a-f]{64}", runtime_config_digest
 ):
     raise SystemExit("runtime config digest has an unexpected format")
+if not re.fullmatch(r"mysql:[^@\s]+@sha256:[0-9a-f]{64}", database_image):
+    raise SystemExit("database image identity has an unexpected format")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", database_image_id):
+    raise SystemExit("database image ID has an unexpected format")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", database_volume):
+    raise SystemExit("database volume has an unexpected format")
 
 record_counts = {}
 for raw_line in pathlib.Path(record_counts_file_value).read_text(encoding="utf-8").splitlines():
@@ -980,6 +1100,9 @@ manifest = {
     "database": {
         "engine": "mysql",
         "version": pathlib.Path(version_file_value).read_text(encoding="utf-8").strip(),
+        "image": database_image,
+        "imageId": database_image_id,
+        "volume": database_volume,
         "dumpFile": "database/dump",
         "bytes": dump_file.stat().st_size,
         "sha256": sha256(dump_file),
