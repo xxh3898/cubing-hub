@@ -15,16 +15,21 @@ import {
 } from '../api.js'
 import { useAuth } from '../context/useAuth.js'
 import MyPage, {
+  GrowthPeriodCard,
   RecordTrendTooltip,
+  GrowthTrendTooltip,
+  buildGrowthTrendChartData,
   buildFirstPageFromRecentRecords,
   formatDateTime,
   formatGrowthDate,
   formatGrowthMetric,
+  formatGrowthPeriodRange,
   formatTrendAxisTick,
   getNextPracticeAction,
   getDisplayRecordTime,
   getEventLabel,
   getPenaltyLabel,
+  previousCalendarDate,
   resolveEventType,
 } from './MyPage.jsx'
 
@@ -118,8 +123,18 @@ function createGrowthSummaryResponse(overrides = {}) {
   }
 }
 
-function createGrowthTrendResponse(points = []) {
-  return { data: { eventType: 'WCA_333', period: '30D', timeZone: 'Asia/Seoul', points } }
+function createGrowthTrendResponse(points = [], overrides = {}) {
+  return {
+    data: {
+      eventType: 'WCA_333',
+      period: '30D',
+      timeZone: 'Asia/Seoul',
+      todayPartial: false,
+      toDate: points.at(-1)?.date,
+      points,
+      ...overrides,
+    },
+  }
 }
 
 function createPbProgressionResponse(content = [], overrides = {}) {
@@ -668,6 +683,10 @@ describe('MyPage', () => {
     expect(formatGrowthMetric('INSUFFICIENT_SAMPLE', null)).toBe('데이터 부족')
     expect(formatGrowthMetric('NO_DATA', null)).toBe('기록 없음')
     expect(formatGrowthDate('2026-08-14')).toBe('2026년 8월 14일')
+    expect(previousCalendarDate('2026-03-01')).toBe('2026-02-28')
+    expect(previousCalendarDate('2024-03-01')).toBe('2024-02-29')
+    expect(previousCalendarDate('2026-01-01')).toBe('2025-12-31')
+    expect(formatGrowthPeriodRange('2026-08-08', '2026-08-15')).toBe('2026년 8월 8일 ~ 2026년 8월 14일')
     expect(getNextPracticeAction(createGrowthSummaryResponse().data)).toBe('다음 12회에서 10.500 이하 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 4 } })).toBe('첫 Ao5 만들기')
     expect(getNextPracticeAction({ activity: { totalSolveCount: 8 }, recentAo5: { status: 'AVAILABLE', valueMs: 11000 } })).toBe('12회까지 기록 이어가기')
@@ -686,6 +705,59 @@ describe('MyPage', () => {
       hasNext: false,
       hasPrevious: false,
     })
+  })
+
+  it('should_mark_only_the_backend_declared_final_trend_point_as_partial', () => {
+    const points = [
+      { date: '2026-08-14', recordCount: 2, medianTimeMs: 10100, dnfCount: 0, plusTwoCount: 0 },
+      { date: '2026-08-15', recordCount: 3, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 1 },
+    ]
+
+    expect(buildGrowthTrendChartData({ todayPartial: true, toDate: '2026-08-15', points }).map((point) => point.isTodayPartial)).toEqual([false, true])
+    expect(buildGrowthTrendChartData({ todayPartial: false, toDate: '2026-08-15', points }).some((point) => point.isTodayPartial)).toBe(false)
+  })
+
+  it('should_render_today_partial_in_trend_chart_text_and_tooltip_only_when_declared_by_api', async () => {
+    const points = [
+      { date: '2026-08-14', recordCount: 2, rankableCount: 2, medianTimeMs: 10100, dnfCount: 0, plusTwoCount: 0 },
+      { date: '2026-08-15', recordCount: 3, rankableCount: 3, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 1 },
+    ]
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse(points, { todayPartial: true, toDate: '2026-08-15' }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('오늘 데이터는 진행 중인 기록입니다.')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: 중앙 10.000 · solve 3회')).toBeInTheDocument()
+
+    const { rerender } = render(<GrowthTrendTooltip active={false} payload={[]} />)
+    rerender(<GrowthTrendTooltip active payload={[{ payload: { ...points[1], isTodayPartial: true } }]} />)
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중 · 10.000')).toBeInTheDocument()
+  })
+
+  it('should_not_render_partial_trend_label_when_api_marks_today_as_complete', async () => {
+    const points = [
+      { date: '2026-08-14', recordCount: 2, rankableCount: 2, medianTimeMs: 10100, dnfCount: 0, plusTwoCount: 0 },
+      { date: '2026-08-15', recordCount: 3, rankableCount: 3, medianTimeMs: 10000, dnfCount: 0, plusTwoCount: 1 },
+    ]
+    vi.mocked(getMyProfile).mockResolvedValue({ data: { userId: 1, nickname: 'Tester', mainEvent: 'WCA_333' } })
+    vi.mocked(getMyRecords).mockResolvedValue(createRecordsResponse([createRecord()]))
+    vi.mocked(getMyGrowthTrend).mockResolvedValue(createGrowthTrendResponse(points, { todayPartial: false, toDate: '2026-08-15' }))
+
+    render(<MyPage />)
+
+    expect(await screen.findByText('30일 추세')).toBeInTheDocument()
+    expect(screen.queryByText('오늘 데이터는 진행 중인 기록입니다.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
+    expect(screen.queryByText(/오늘, 진행 중/)).not.toBeInTheDocument()
+  })
+
+  it('should_display_growth_period_with_inclusive_end_date', () => {
+    render(<GrowthPeriodCard label="최근 7일" period={{ fromDate: '2026-08-08', toDateExclusive: '2026-08-15', medianTimeMs: 10100, recordCount: 12, dnfCount: 1 }} />)
+
+    expect(screen.getByText('2026년 8월 8일 ~ 2026년 8월 14일')).toBeInTheDocument()
   })
 
   it('should_render_record_trend_tooltip_when_payload_is_active', () => {

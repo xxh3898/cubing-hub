@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gauge, LineChart as ChartLine, LogOut, Settings, Timer, Trophy } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Line, LineChart as RechartsLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Line, LineChart as RechartsLineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { toast } from 'react-toastify'
 import {
   changeMyPassword,
@@ -94,6 +94,51 @@ export function formatGrowthDate(value) {
   return `${year}년 ${month}월 ${day}일`
 }
 
+export function previousCalendarDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  date.setUTCDate(date.getUTCDate() - 1)
+  return date.toISOString().slice(0, 10)
+}
+
+export function formatGrowthPeriodRange(fromDate, toDateExclusive) {
+  const inclusiveEndDate = previousCalendarDate(toDateExclusive)
+
+  if (!fromDate || !inclusiveEndDate) {
+    return '완료된 구간 없음'
+  }
+
+  return `${formatGrowthDate(fromDate)} ~ ${formatGrowthDate(inclusiveEndDate)}`
+}
+
+export function buildGrowthTrendChartData(trend) {
+  const points = trend?.points ?? []
+  const partialDate = trend?.todayPartial === true ? trend?.toDate : null
+
+  return points.map((point, index) => ({
+    ...point,
+    isTodayPartial: partialDate !== null && index === points.length - 1 && point.date === partialDate,
+  }))
+}
+
+export function formatGrowthTrendPointDate(point) {
+  const label = formatGrowthDate(point?.date)
+  return point?.isTodayPartial ? `${label} · 오늘, 진행 중` : label
+}
+
 export function getNextPracticeAction(summary) {
   const totalSolveCount = summary?.activity?.totalSolveCount ?? 0
 
@@ -179,8 +224,9 @@ export default function MyPage() {
   const [isLoadingMorePb, setIsLoadingMorePb] = useState(false)
   const { clearAccessToken, currentUser, updateCurrentUser } = useAuth()
   const navigate = useNavigate()
-  const growthTrendPoints = useMemo(() => growthTrend?.points ?? [], [growthTrend])
+  const growthTrendPoints = useMemo(() => buildGrowthTrendChartData(growthTrend), [growthTrend])
   const hasGrowthTrendData = growthTrendPoints.some((point) => typeof point.medianTimeMs === 'number')
+  const partialGrowthTrendPoint = growthTrendPoints.find((point) => point.isTodayPartial)
 
   useEffect(() => {
     if (!profileData) {
@@ -710,23 +756,25 @@ export default function MyPage() {
               </div>
               {hasGrowthTrendData ? (
                 <>
-                  <div className="mypage-trend-chart" aria-label="최근 30일 중앙 기록 그래프">
+                  <div className="mypage-trend-chart" aria-label={partialGrowthTrendPoint ? '최근 30일 중앙 기록 그래프. 오늘 데이터는 진행 중입니다.' : '최근 30일 중앙 기록 그래프'}>
                     <ResponsiveContainer width="100%" height={260}>
                       <RechartsLineChart data={growthTrendPoints} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
                         <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
                         <YAxis dataKey="medianTimeMs" tickFormatter={formatTrendAxisTick} tickLine={false} axisLine={false} width={64} />
+                        {partialGrowthTrendPoint ? <ReferenceLine x={partialGrowthTrendPoint.date} stroke={CHART_ACTIVE_DOT_COLOR} strokeDasharray="4 4" label={{ value: '오늘, 진행 중', position: 'top', fill: CHART_LINE_COLOR, fontSize: 12 }} /> : null}
                         <Tooltip content={<GrowthTrendTooltip />} />
                         <Line type="monotone" dataKey="medianTimeMs" stroke={CHART_LINE_COLOR} strokeWidth={3} dot={{ r: 2, strokeWidth: 0, fill: CHART_LINE_COLOR }} activeDot={{ r: 5, fill: CHART_ACTIVE_DOT_COLOR }} connectNulls={false} />
                       </RechartsLineChart>
                     </ResponsiveContainer>
                   </div>
+                  {partialGrowthTrendPoint ? <p className="helper-text">오늘 데이터는 진행 중인 기록입니다.</p> : null}
                   <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {growthTrendPoints.filter((point) => point.recordCount > 0).length}일, 중앙 기록이 있는 날 {growthTrendPoints.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
                   <details className="mypage-trend-details">
                     <summary>30일 추세를 텍스트로 보기</summary>
                     <ul>
                       {growthTrendPoints.map((point) => (
-                        <li key={point.date}>{formatGrowthDate(point.date)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
+                        <li key={point.date}>{formatGrowthTrendPointDate(point)}: {typeof point.medianTimeMs === 'number' ? `중앙 ${formatRecordTime(point.medianTimeMs)}` : point.recordCount === 0 ? '기록 없음' : 'DNF-only'} · solve {point.recordCount}회</li>
                       ))}
                     </ul>
                   </details>
@@ -774,6 +822,7 @@ export default function MyPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} vertical={false} />
                       <XAxis dataKey="date" tickFormatter={formatGrowthTrendAxisTick} tickLine={false} axisLine={false} minTickGap={24} />
                       <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
+                      {partialGrowthTrendPoint ? <ReferenceLine x={partialGrowthTrendPoint.date} stroke={CHART_ACTIVE_DOT_COLOR} strokeDasharray="4 4" /> : null}
                       <Tooltip content={<GrowthActivityTooltip />} />
                       <Bar dataKey="recordCount" name="solve 수" fill={CHART_LINE_COLOR} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -1082,7 +1131,7 @@ export function GrowthPeriodCard({ label, period }) {
     <div className="mypage-growth-period-card">
       <span className="dashboard-summary-label">{label}</span>
       <strong>{typeof period?.medianTimeMs === 'number' ? formatRecordTime(period.medianTimeMs) : '데이터 부족'}</strong>
-      <p>{period?.fromDate && period?.toDateExclusive ? `${formatGrowthDate(period.fromDate)} ~ ${formatGrowthDate(period.toDateExclusive)}` : '완료된 구간 없음'}</p>
+      <p>{formatGrowthPeriodRange(period?.fromDate, period?.toDateExclusive)}</p>
       <span>solve {period?.recordCount ?? 0}회 · DNF {period?.dnfCount ?? 0}회</span>
     </div>
   )
@@ -1114,7 +1163,7 @@ export function GrowthTrendTooltip({ active, payload }) {
 
   return (
     <div className="mypage-trend-tooltip">
-      <p className="mypage-trend-tooltip-time">{formatGrowthDate(point.date)} · {median}</p>
+      <p className="mypage-trend-tooltip-time">{formatGrowthTrendPointDate(point)} · {median}</p>
       <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
     </div>
   )
@@ -1129,7 +1178,7 @@ export function GrowthActivityTooltip({ active, payload }) {
 
   return (
     <div className="mypage-trend-tooltip">
-      <p className="mypage-trend-tooltip-time">{formatGrowthDate(point.date)}</p>
+      <p className="mypage-trend-tooltip-time">{formatGrowthTrendPointDate(point)}</p>
       <p className="mypage-trend-tooltip-date">solve {point.recordCount}회 · DNF {point.dnfCount}회 · +2 {point.plusTwoCount}회</p>
     </div>
   )
