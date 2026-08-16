@@ -30,7 +30,7 @@ Current
 - legacy MyPage/Home arithmetic mean consumer 제거
 
 Next implementation
-- manual browser/mobile release evidence와 release approval
+- release approval
 
 Future candidate
 - best Ao progression, pre-aggregation, user timezone

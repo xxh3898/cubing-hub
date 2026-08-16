@@ -19,7 +19,7 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI와 isolated runtime evidence는 release candidate 문서에 기록하며 manual browser/mobile evidence는 아직 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI, isolated runtime과 manual browser/mobile evidence는 release candidate 문서에 기록한다. 이 근거는 `main` merge나 production release를 뜻하지 않는다.
 
 ```text
 Current
@@ -33,7 +33,7 @@ Current
 - event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- manual browser/mobile release evidence와 release approval
+- release approval
 
 Future candidate
 - best Ao, Ao progression, opt-in public Profile

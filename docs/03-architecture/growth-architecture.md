@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query, My Growth UI consumer와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI와 isolated runtime evidence는 [release evidence](../06-quality/v2-2-growth-release-evidence.md)에 기록하며 manual browser/mobile gate는 pending이다. Exact request·response는 Spring REST Docs test가 Source of Truth다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query, My Growth UI consumer와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI, isolated runtime과 manual browser/mobile evidence는 [release evidence](../06-quality/v2-2-growth-release-evidence.md)에 기록한다. 이 근거는 `main` merge나 production release를 뜻하지 않는다. Exact request·response는 Spring REST Docs test가 Source of Truth다.
 
 ```text
 Current
@@ -36,7 +36,7 @@ Current
 - Redis ranking read model
 
 Next implementation
-- manual browser/mobile release evidence와 release approval
+- release approval
 
 Future candidate
 - observed cost에 근거한 PB progression cache/projection
@@ -480,7 +480,7 @@ Build와 CI success는 production request 성공을 뜻하지 않는다. main me
 
 ### PR E — Release evidence
 
-- status: automated and isolated runtime evidence recorded; manual browser/mobile pending
+- status: automated, isolated runtime and manual browser/mobile evidence recorded on dev candidate
 - scope: acceptance/quality 문서, targeted smoke checklist와 query evidence 갱신
 - dependency: PR A~D integrated on dev
 - acceptance: required Validate, no blocker, metric parity와 mobile smoke evidence
