@@ -22,7 +22,7 @@ related:
 
 ## 문서 상태와 경계
 
-V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query, My Growth UI consumer와 legacy MyPage consumer transition은 dev에서 구현했다. release evidence는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
+V2.2 Growth & Profile architecture는 `draft`다. pure metric calculator, private Growth read API, repository projection, MySQL query, My Growth UI consumer와 legacy MyPage/Home consumer transition은 dev에서 구현했다. release evidence는 아직 구현하지 않았다. exact request·response는 Spring REST Docs test가 Source of Truth다.
 
 ```text
 Current
@@ -80,6 +80,7 @@ DNF      -> numeric result 없음
 - `GET /api/users/me/records`는 optional `eventType`, 1-based page, `created_at DESC, id DESC` ordering을 제공한다.
 - page size 상한은 100이다.
 - `GET /api/users/me/profile`의 `totalRecords`와 `averageTimeMs`는 모든 event를 섞는다. average는 DNF를 제외한 all-time arithmetic mean이며 population이 UI label에 드러나지 않는다.
+- `GET /api/home`의 additive `summary.averageTimeMs`도 Profile summary를 그대로 전달하는 같은 all-event, all-time arithmetic mean이다. MyPage와 Home은 이 값을 canonical Growth metric으로 렌더링하지 않는다.
 - Timer는 WCA_333 recent 12 Record를 받아 Ao5/Ao12를 frontend에서 계산한다.
 - MyPage는 Record History만 `GET /api/users/me/records?page={page}&size=10`으로 읽는다. Growth metric이나 chart를 위해 Record page를 bulk fetch하거나 client에서 raw trend를 계산하지 않는다.
 - public user Profile route/API는 없다. Ranking은 nickname, event와 PB를 보여 주지만 stable public user profile contract를 제공하지 않는다.

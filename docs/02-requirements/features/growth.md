@@ -19,7 +19,7 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage consumer transition은 dev에서 구현했다. release evidence는 아직 application contract나 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. release evidence는 아직 application contract나 출시 약속이 아니다.
 
 ```text
 Current
@@ -27,6 +27,7 @@ Current
 - private MyPage의 canonical Growth API consumer
 - server pagination을 사용하는 Record History
 - Account/Profile 관리
+- Home에서 legacy arithmetic mean을 제외한 account/Record summary
 - Ranking의 nickname과 event PB
 - current Record projection을 계산하는 Growth metric calculator
 - event별 private Growth summary, 30-day trend, paginated PB progression API
@@ -371,15 +372,13 @@ Proposal: Option A. current Growth 범위에 집중하고 public Profile 가치�
 Default without a separate decision: Option A.
 ```
 
-### 2. Legacy 전체 평균을 어떻게 전환할 것인가
+### 2. Legacy 전체 평균 전환
 
 ```text
-Question: current profile/home `averageTimeMs`를 V2.2에서 즉시 제거할 것인가?
-Why it matters: event·population이 없는 all-time mean은 V2.2 metric 원칙과 충돌하지만 existing consumer compatibility가 있다.
-Option A: UI에서는 제거하고 API field는 한 release 동안 유지·deprecated 처리한 뒤 별도 제거한다.
-Option B: API와 UI에서 같은 PR에 제거한다.
-Proposal: Option A. Growth API를 additive하게 도입하고 consumer 전환을 분리한다.
-Default without a separate decision: Option A.
+Decision: MyPage와 Home UI consumer에서 제거한다.
+Reason: event·population이 없는 all-time mean은 V2.2 metric 원칙과 충돌한다.
+Provider: Profile/Home API field는 compatibility를 위해 유지한다.
+Follow-up: field deprecation 또는 제거는 REST/API compatibility를 별도로 검토한다.
 ```
 
 ### 3. Consistency 표현을 노출할 것인가

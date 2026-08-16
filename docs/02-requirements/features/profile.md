@@ -27,7 +27,7 @@ related:
 - Growth metric, trend, PB progression, activity는 private Growth aggregate API로만 표시한다.
 - nickname과 주 종목 변경, 현재 비밀번호 확인 후 비밀번호 변경, Record penalty 수정과 삭제를 유지한다.
 
-Profile response의 additive `summary.averageTimeMs`는 all-event, all-time arithmetic mean이고 DNF를 제외한다. MyPage는 이 값을 V2.2 canonical Growth metric으로 사용하지 않는다. provider field의 compatibility cleanup은 별도 API 결정이다.
+Profile response와 Home summary의 additive `averageTimeMs`는 all-event, all-time arithmetic mean이고 DNF를 제외한다. MyPage와 Home은 이 값을 V2.2 canonical Growth metric으로 사용하지 않는다. provider field의 compatibility cleanup은 별도 API 결정이다.
 
 ## 요구사항
 
@@ -67,6 +67,7 @@ Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-
 - Full Record history를 client metric 계산용으로 전송하지 않고 private Growth aggregate API를 사용한다.
 - Record mutation은 Growth와 current Record History page를 갱신하며 Profile/account request를 다시 시작하지 않는다.
 - Profile 수정은 Profile/account state와 AuthContext nickname만 갱신하며 Record History를 다시 읽지 않는다.
+- Home은 Profile/Home arithmetic mean을 Growth metric으로 표시하지 않는다.
 
 ### Public Profile
 
