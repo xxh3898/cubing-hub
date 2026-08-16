@@ -2,7 +2,7 @@
 doc_type: product
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -22,7 +22,7 @@ related:
 
 제품 Vision, V2.1 Foundation 범위와 Practice event 지원 범위는 현재 구현 계약으로 유지한다. V2.1 Event Support 결정에는 기존 data 분포 audit을 blocker로 두지 않았다.
 
-V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile은 별도 `draft`이며 아래 V2.1 current contract를 변경하지 않는다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile implementation은 `dev`에 통합됐고 pre-main release evidence를 확보했다. Final `dev → main` Validate, main merge와 release/deploy 승인은 별도 gate로 남아 있다.
 
 ## Product Definition
 
@@ -215,11 +215,11 @@ V2.1 제품·기술 결정과 release gate는 닫혔다. 이후 발견되는 acc
 
 ## V2.2 Design Boundary
 
-V2.2는 current Record를 성장 이해와 장기 활동 이력으로 연결하는 다음 제품 단계다. 범위와 metric은 아직 구현 계약이 아니며 다음 `draft`에서 관리한다.
+V2.2는 current Record를 성장 이해와 장기 활동 이력으로 연결한다. 현재 범위와 metric contract, `dev` implementation은 다음 문서에서 관리한다.
 
 - [Growth 요구사항](../02-requirements/features/growth.md)
 - [Growth Metric Contract](../01-domain/growth-metrics.md)
 - [Growth Architecture](../03-architecture/growth-architecture.md)
-- [Proposed ADR-0010](../08-decisions/adr-0010-current-record-growth-read-contract.md)
+- [Accepted ADR-0010](../08-decisions/adr-0010-current-record-growth-read-contract.md)
 
 V2.2 설계는 Daily Challenge, Verified Record, Competition과 Organizer를 포함하지 않는다.

@@ -38,7 +38,7 @@ Repository current capability
 approved visual language
 ```
 
-`active`는 이 분류·생성·승인 절차를 현재 mockup 작업에 적용한다는 뜻이다. V2.2 Growth의 draft requirement나 proposed ADR을 current functionality 또는 구현 승인으로 바꾸지 않는다. [UI Visual Direction](ui-visual-direction.md)은 visual intent, [Frontend Design System](../03-architecture/frontend-design-system.md)은 implementation architecture, 이 문서는 screen capability와 image-generation input을 담당한다.
+`active`는 이 분류·생성·승인 절차를 현재 mockup 작업에 적용한다는 뜻이다. 문서나 future proposal이 있다는 이유만으로 capability를 `CURRENT`로 승격하지 않으며, 현재 `dev`의 route, component, API와 executable test evidence를 대조해 분류한다. [UI Visual Direction](ui-visual-direction.md)은 visual intent, [Frontend Design System](../03-architecture/frontend-design-system.md)은 implementation architecture, 이 문서는 screen capability와 image-generation input을 담당한다.
 
 ## Capability classification
 
@@ -46,7 +46,7 @@ approved visual language
 | --- | --- | --- | --- |
 | `CURRENT` | 현재 `dev`의 실행 가능한 code·test·API에서 실제 제공하는 기능 | 사용 가능 | 해당 target에 필요한 current shell·기능만 사용 가능 |
 | `REDESIGN-APPROVED` | 새 backend/domain capability를 만들지 않는 승인된 presentation·interaction behavior | 지정된 화면에서만 사용 가능 | 지정된 화면에서만 사용 가능 |
-| `V2.2 TARGET` | V2.2 Growth 문서에서 설계됐지만 아직 구현되지 않은 목표 기능 | 사용 금지 | My Growth target에만 사용 가능 |
+| `V2.2 TARGET PRESENTATION` | My Growth의 current capability를 future screen migration에서 재배치하는 visual target. capability 추가 권한이 아님 | current-safe mockup label로 사용하지 않음 | `CURRENT`와 해당 화면의 `REDESIGN-APPROVED` capability만 사용 가능 |
 | `FUTURE / OUT` | future 후보이거나 승인·근거가 없는 기능 | 사용 금지 | 명시적인 별도 target 승인 전까지 사용 금지 |
 
 분류는 기능 이름이 아니라 화면에 실제로 제공할 수 있는 data와 behavior를 기준으로 한다. enum, draft, repository field 또는 미래 아이디어가 존재한다는 사실만으로 `CURRENT`가 되지 않는다.
@@ -97,12 +97,12 @@ frontend route
 | Signup / Verification | `/signup` | Guest-only | `frontend/src/pages/SignupPage.jsx` |
 | Password Reset | `/reset-password` | Public recovery | `frontend/src/pages/ResetPasswordPage.jsx` |
 | MyPage / Records | `/mypage` | Authenticated | `frontend/src/pages/MyPage.jsx` |
+| My Growth | `/mypage` 내 dashboard surface | Authenticated | `frontend/src/App.jsx`, `frontend/src/pages/MyPage.jsx` |
 | Feedback | `/feedback` | Authenticated | `frontend/src/pages/FeedbackPage.jsx` |
 | Admin | `/admin` | ADMIN | `frontend/src/pages/AdminPage.jsx` |
 | Admin Feedback Detail | `/admin/feedbacks/:id` | ADMIN | `frontend/src/pages/AdminFeedbackDetailPage.jsx` |
 | Admin Memo Detail | `/admin/memos/:id` | ADMIN | `frontend/src/pages/AdminMemoDetailPage.jsx` |
 | Not Found | unmatched route | Public | `frontend/src/pages/NotFoundPage.jsx` |
-| My Growth | route 없음 | V2.2 target only | [Growth requirement](../02-requirements/features/growth.md), [Growth Architecture](../03-architecture/growth-architecture.md) |
 
 `/auth`는 `/login` redirect이며 독립 화면이 아니다.
 
@@ -116,15 +116,15 @@ frontend route
 | Timer | `TimerPage.jsx`, `useCubeTimer.js`, keyboard/touch hooks, guest/pending storage | `ScrambleController.java`, `RecordController.java`, submission/record/scramble services and repositories, V1/V3 migration | Timer hooks/page/storage tests, Record/Scramble REST Docs and integration tests, Timer requirement, ADR-0007~0009 |
 | Rankings | `RankingsPage.jsx`, `api.js` | `RankingController.java`, `RankingRedisService.java`, `UserPBRepositoryImpl.java`, `RankingRedisRepository.java`, V1 `user_pbs` | Rankings page/API tests, `RankingDocsTest.java`, `RankingControllerIntegrationTest.java`, Ranking Rules/requirement, ADR-0002/0009 |
 | MyPage / Records | `MyPage.jsx`, `api.js` | `UserProfileController.java`, `UserProfileService.java`, profile/record DTO, `UserRepository.java`, `RecordRepository.java`, V1/V3 migration | MyPage tests, `UserProfileDocsTest.java`, `UserProfileIntegrationTest.java`, Profile requirement |
+| My Growth | `App.jsx`, `MyPage.jsx`, `api.js`의 `getMyGrowth`/`getMyGrowthTrend`/`getMyGrowthPbProgression` | `GrowthController.java`, `GrowthReadService.java`, `GrowthReadRepository.java`, Growth response DTO, existing `records`/`user_pbs` | `MyPage.test.jsx`, `GrowthDocsTest.java`, `GrowthReadApiIntegrationTest.java`, `GrowthReadServiceTest.java`, `GrowthQueryPlanIntegrationTest.java`, Growth Metrics/requirement/architecture, ADR-0010 accepted |
 | Community | Community list/detail/write pages and `api.js` | Post/Comment controllers, services, repositories, storage service, DTO, V1/V2 migration | Community page tests, Post/Comment REST Docs and integration/search tests, Community requirement |
 | Q&A / Feedback | Q&A list/detail and Feedback pages, `api.js` | Public/Admin/User Feedback controllers, `FeedbackService.java`, `FeedbackRepository.java`, public/admin DTO, V1 migration | Q&A/Feedback page tests, Feedback REST Docs and three controller integration test groups, Feedback requirement |
 | Learning | `LearningPage.jsx`, `mockLearning.js`, `visualCube.js` | backend 없음 | Learning page/static-data/VisualCube tests, Learning requirement |
 | Auth | Login/Signup/Reset pages, auth provider/client and route guards | `AuthController.java`, `AuthService.java`, verification/reset stores, `UserRepository.java`, V1 users | Auth page/route/API tests, `AuthDocsTest.java`, `AuthControllerIntegrationTest.java`, Authentication requirement, ADR-0003 |
 | Admin | Admin, Feedback Detail, Memo Detail pages and `api.js` | Admin Feedback/Memo controllers, services, repositories, DTO, V1 feedback/admin_memos | Admin page tests, management/Admin Memo REST Docs, integration/security tests, Feedback requirement |
 | Not Found | `App.jsx`, `NotFoundPage.jsx` | backend 없음 | route tests |
-| My Growth | route/component/client 없음 | controller/service/repository/migration 없음 | Growth Metrics/requirement/architecture draft와 ADR-0010 proposed만 존재 |
 
-Flyway에는 users, records, user_pbs, posts, comments, attachments, views, feedbacks, admin_memos와 record foundation field만 있다. Growth, social, verification, competition, streak, session 또는 recommendation schema는 없다.
+Flyway에는 users, records, user_pbs, posts, comments, attachments, views, feedbacks, admin_memos와 record foundation field가 있다. Current Growth read capability는 existing canonical `records`와 `user_pbs`를 요청 시 계산하며 Growth 전용 snapshot/aggregate table, Redis model 또는 새 Flyway migration은 없다. Social, verification, competition, streak, session 또는 recommendation schema도 없다.
 
 ## Anti-Invention rule
 
@@ -192,7 +192,7 @@ Mockup의 brand text는 정확히 `Cubing Hub`다. `큐빙 허브`를 brand name
 Create one realistic production-ready web application screenshot for Cubing Hub. Treat this as a strict repository-grounded UI screen contract, not an invitation to design new product features.
 
 CAPABILITY RULE
-Use only: (1) repository CURRENT capabilities explicitly listed in the attached screen prompt, (2) REDESIGN-APPROVED UI-only behavior explicitly listed for that screen, (3) V2.2 TARGET capabilities only when the screen is explicitly labeled My Growth V2.2 TARGET, and (4) the approved visual language below. Never infer a feature from empty space, a familiar dashboard pattern, or visual convention. Leave space empty or solve it with spacing and layout. Do not create a new metric, chart, badge, filter, action, status, data field, navigation item, content type, or social signal.
+Use only: (1) repository CURRENT capabilities explicitly listed in the attached screen prompt, (2) REDESIGN-APPROVED UI-only behavior explicitly listed for that screen, and (3) the approved visual language below. A My Growth V2.2 TARGET PRESENTATION label changes only the visual target; it never authorizes a non-CURRENT capability. Never infer a feature from empty space, a familiar dashboard pattern, or visual convention. Leave space empty or solve it with spacing and layout. Do not create a new metric, chart, badge, filter, action, status, data field, navigation item, content type, or social signal.
 
 VISUAL LANGUAGE
 Use Measured Momentum with Precision Bench numeric discipline on Timer. The product should feel like precision cubing practice and performance tracking: calm, focused, trustworthy, and medium-high density. Use a light-first warm neutral canvas, minimal shadow, controlled radius, typography/spacing/divider hierarchy, and measured surfaces; not every section is a card. Align times and metrics with tabular numerals. Use subtle 3x3 geometry only where it supports identity. Keep the result feasible in ordinary React and CSS.
@@ -291,11 +291,12 @@ Screen goal은 다음 행동을 빠르게 선택하게 하고 Practice 복귀를
 | --- | --- | --- | --- | --- | --- | --- |
 | Home | 오늘의 WCA_333 scramble과 Timer 이동 | `CURRENT` | `HomePage.jsx`; `HomeController.java`; `HomeService.java`; `HomeDocsTest.java` | 허용 | 해당 없음 | Practice 복귀의 primary block이다. |
 | Home | nickname, main event | `CURRENT` | `HomeSummaryResponse.java`; `HomePage.jsx` | 인증 화면에 허용 | 해당 없음 | compact profile context로만 사용한다. |
-| Home | total solve count, PB, 전체 DNF 제외 평균 | `CURRENT` | `HomeSummaryResponse.java`; Home tests | 인증 화면에 허용 | 해당 없음 | Growth metric이나 recent trend로 이름을 바꾸지 않는다. |
+| Home | total solve count, PB | `CURRENT` | `HomePage.jsx`; `HomeSummaryResponse.java`; Home tests | 인증 화면에 허용 | 해당 없음 | Profile/Home summary의 current visible field다. |
+| Home | `summary.averageTimeMs` provider field | `CURRENT data-only` | `HomeSummaryResponse.java`; `HomePage.test.jsx` legacy average 비노출 regression | 금지 | 금지 | API compatibility를 위해 남아 있지만 Home이나 Growth UI에 노출하지 않는다. |
 | Home | 최근 Record 최대 5건의 event, result, penalty, scramble, date | `CURRENT` | `HomeRecentRecordResponse.java`; `HomePage.jsx`; Home REST Docs | 인증 화면에 허용 | 해당 없음 | compact preview이며 full history가 아니다. |
 | Home | 최근 Community post 최대 3건 | `CURRENT` | `HomeResponse.java`; `HomeService.java`; guest `HomePage.jsx` | guest 화면에 허용 | 해당 없음 | auth target에 억지로 추가하지 않는다. |
 | Home | Learning·Community·Rankings 등 current route 소개 | `CURRENT` | `HomePage.jsx`; `App.jsx` | guest capability entry에 허용 | 해당 없음 | recommendation이 아니라 route 안내다. |
-| Home | 7-day median, 30-day trend, IQR, active days, streak, DNF change, PB progression, Growth chart | `V2.2 TARGET` 또는 `FUTURE / OUT` | Growth docs 또는 근거 없음 | 금지 | Home에는 금지 | Growth metric을 current Home에 선반영하지 않는다. |
+| Home | 7-day median, 30-day trend, IQR, active days, streak, DNF change, PB progression, Growth chart | `FUTURE / OUT` for Home | current Home source에 없음; 일부 metric은 My Growth에서만 `CURRENT` | 금지 | Home에는 금지 | My Growth capability를 Home capability로 확대하지 않는다. |
 | Home | next-practice recommendation, estimated practice time | `FUTURE / OUT` | current Home API 근거 없음 | 금지 | Home에는 금지 | Timer CTA를 추천 engine으로 표현하지 않는다. |
 
 Information hierarchy는 `오늘의 scramble + Practice CTA → 인증 시 compact summary → 최근 Record preview`다. guest target은 `Practice CTA → current capability entry → 최근 Community`로 분리한다. Desktop은 wide hero가 아니라 compact action band를 사용하고, Mobile은 첫 viewport에서 Practice CTA가 보이게 한다.
@@ -319,7 +320,7 @@ Information hierarchy는 `WCA_333 context + nickname search → restrained Top 3
 
 ### MyPage / Records
 
-Current target의 목적은 `Record management + Account utility`다. V2.2 Growth를 구현한 것처럼 보이는 tab, placeholder, chart를 만들지 않는다.
+Records-specific target의 목적은 `Record management + Account utility`다. Current My Growth는 같은 `/mypage` route에 존재하지만 이 target은 Records와 Account surface만 다루며 Growth dashboard를 복제하거나 placeholder로 만들지 않는다.
 
 | Screen | Capability | Classification | Source evidence | Current mockup | V2.2 target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -328,26 +329,27 @@ Current target의 목적은 `Record management + Account utility`다. V2.2 Growt
 | MyPage / Records | event, raw time, effective result, penalty, date | `CURRENT` | `MyProfileRecordResponse.java`; `UserProfileDocsTest.java` | 필요한 field만 허용 | Records target에 허용 | scramble은 response에 없다. |
 | MyPage / Records | record pagination, event filter | `CURRENT` | `MyRecordPageResponse.java`; `MyPage.jsx`; profile tests | 허용 | Records target에 허용 | page는 current contract를 따른다. |
 | MyPage / Records | penalty correction, delete | `CURRENT` | `RecordController.java`; `MyPage.jsx`; tests | 허용 | Records target에 허용 | destructive action은 명확한 confirmation hierarchy를 둔다. |
-| MyPage / Records | total count, PB, 전체 평균, raw recent trend | `CURRENT` | `MyPage.jsx`; profile summary/repository tests | inventory만 인정, current Records target에는 제외 | Growth target에는 그대로 사용 금지 | approved MyPage IA에서 Record 관리와 Growth를 분리한다. |
+| MyPage / Records | Profile `totalSolveCount`, `personalBestTimeMs`, `averageTimeMs` provider field | `CURRENT data-only` | `MyProfileSummaryResponse.java`; `MyPage.test.jsx` Growth source isolation | 금지 | 금지 | legacy summary/raw trend UI consumer는 제거됐다. Visible Growth metric은 private Growth API만 사용한다. |
 | MyPage / Records | input method | `CURRENT data-only` | `MyProfileRecordResponse.java`; V3 migration; profile requirement | 금지 | 별도 결정 전 금지 | 현재 화면 노출 여부가 미확정이다. |
 | MyPage / Records | scramble | `FUTURE / OUT` | MyPage record response에 없음 | 금지 | 금지 | Timer/Home record response와 혼동하지 않는다. |
-| MyPage / Records | 7-day Growth, PB progression, IQR, active days, recommendation, streak, AI analysis | `V2.2 TARGET` 또는 `FUTURE / OUT` | Growth docs 또는 근거 없음 | 금지 | My Growth의 허용 metric만 별도 사용 | Records target에 섞지 않는다. |
+| MyPage / Records | 7-day performance comparison, PB progression, IQR/recent consistency, activity, deterministic Next Practice | `CURRENT` on My Growth surface | `MyPage.jsx`; Growth API client/backend/tests | Records target에는 금지 | My Growth target presentation에 허용 | 같은 route의 current Growth capability지만 Records surface에 섞지 않는다. |
+| MyPage / Records | streak, AI analysis/coaching | `FUTURE / OUT` | Growth explicit non-goals | 금지 | 금지 | deterministic Next Practice를 AI recommendation으로 표현하지 않는다. |
 
 Information hierarchy는 `compact profile context → Records filter/list → correction/delete → pagination → separated account utility`다. Desktop은 dense table을, Mobile은 field를 잃지 않는 compact rows와 accessible action menu를 사용한다. progressive loading을 새 behavior로 만들지 않고 current pagination을 보존한다.
 
-### My Growth — V2.2 TARGET
+### My Growth — CURRENT capability / V2.2 target presentation
 
-이 화면만 V2.2 target이다. WCA_333, private owner view, 현재 남아 있는 canonical Record를 기준으로 하며 current 기능처럼 표기하지 않는다. 화면 상단에 작업 metadata로 `V2.2 TARGET — not current functionality`를 전달하되 제품 UI badge로 꾸미지 않는다.
+My Growth capability는 current `dev`의 `/mypage`에 구현됐다. WCA_333 private owner view이며 현재 남아 있는 canonical Record를 기준으로 한다. 아래 capability는 current-safe mockup과 future Target Mockup presentation에서 모두 사용할 수 있다. `V2.2 TARGET PRESENTATION`은 아직 승인되지 않은 redesigned presentation을 뜻하며 current capability를 future 기능으로 낮추거나 새 capability를 허용하지 않는다.
 
 | Screen | Capability | Classification | Source evidence | Current mockup | V2.2 target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| My Growth | Current PB, Recent Ao5, Recent Ao12 | `V2.2 TARGET` | [Growth Metrics](../01-domain/growth-metrics.md); Growth requirement; ADR-0010 proposed | 금지 | 허용 | WCA_333 only, rankable sample rule 적용. |
-| My Growth | 최근 완료 7일 중앙값과 직전 완료 7일 중앙값 비교 | `V2.2 TARGET` | Growth Metrics; Growth Architecture | 금지 | 허용 | 오늘을 제외한 완료 기간, Asia/Seoul service day다. |
-| My Growth | 30-day daily median | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | UI label은 `일별 중앙값`처럼 median임을 드러낸다. |
-| My Growth | latest 12 vs previous 12 IQR, DNF/+2 count·rate, sample | `V2.2 TARGET` | Growth Metrics; Growth Architecture | 금지 | 허용 | `최근 12회 기록 범위`; rankable 8개 미만 gate를 표시한다. |
-| My Growth | PB progression | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | strictly improving running minimum, `현재 남아 있는 기록 기준`. |
-| My Growth | 7/previous 7/30-day record count, 30-day active days/daily count, first/latest recorded activity | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | streak가 아니라 `기록된 활동`이다. |
-| My Growth | deterministic Next Practice CTA | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | Ao sample rule 기반 Timer link. AI coaching·prediction이 아니다. |
+| My Growth | Current PB, Recent Ao5, Recent Ao12 | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthMetricCalculator.java`; MyPage/Growth tests; [Growth Metrics](../01-domain/growth-metrics.md); ADR-0010 accepted | 허용 | 허용 | WCA_333 only, rankable sample rule 적용. |
+| My Growth | 최근 완료 7일 중앙값과 직전 완료 7일 중앙값 비교 | `CURRENT` | `MyPage.jsx`; `GrowthReadService.java`; `GrowthSummaryResponse.java`; calculator/API tests; Growth Metrics/Architecture | 허용 | 허용 | 오늘을 제외한 완료 기간, Asia/Seoul service day다. |
+| My Growth | 30-day daily median | `CURRENT` | `MyPage.jsx`; `getMyGrowthTrend`; `GrowthTrendResponse.java`; `GrowthReadRepository.java`; REST Docs/API tests | 허용 | 허용 | UI label은 `일별 중앙값`처럼 median임을 드러낸다. |
+| My Growth | latest 12 vs previous 12 IQR, DNF/+2 count·rate, sample | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthMetricCalculator.java`; MyPage/calculator tests | 허용 | 허용 | `최근 12회 기록 범위`; rankable 8개 미만 gate를 표시한다. |
+| My Growth | PB progression | `CURRENT` | `MyPage.jsx`; `getMyGrowthPbProgression`; `GrowthPbProgressionPageResponse.java`; `GrowthReadRepository.java`; REST Docs/API/query tests | 허용 | 허용 | strictly improving running minimum, `현재 남아 있는 기록 기준`. |
+| My Growth | 7/previous 7/30-day record count, 30-day active days/daily count, first/latest recorded activity | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthTrendResponse.java`; `GrowthReadService.java`; MyPage/API tests | 허용 | 허용 | streak가 아니라 `기록된 활동`이다. |
+| My Growth | deterministic Next Practice CTA | `CURRENT` | `MyPage.jsx`; `MyPage.test.jsx`; Growth Metrics/requirement | 허용 | 허용 | Ao sample rule 기반 Timer link. AI coaching·prediction이 아니다. |
 | My Growth | streak, generic mean, stability score, standard deviation, session, AI technique/F2L analysis | `FUTURE / OUT` | Growth explicit non-goals | 금지 | 금지 | arbitrary analytics로 채우지 않는다. |
 | My Growth | smart cube telemetry, Public Profile, social comparison | `FUTURE / OUT` | Growth explicit non-goals | 금지 | 금지 | owner-private target을 유지한다. |
 
@@ -542,7 +544,7 @@ Negative constraints: apply every Master negative constraint unchanged; no new f
 ~~~text
 SCREEN: Home Desktop — CURRENT-SAFE, authenticated, 1440×900.
 Screen goal: help the member choose the next action immediately, with return to Practice as the clear priority.
-Allowed features: today's WCA_333 scramble, primary Timer CTA, compact nickname/main-event context, total saved solve count, PB, all-time DNF-excluded average, and up to five recent records with event/result/penalty/scramble/date.
+Allowed features: today's WCA_333 scramble, primary Timer CTA, compact nickname/main-event context, total saved solve count, PB, and up to five recent records with event/result/penalty/scramble/date.
 Forbidden/invented features: Ao5, Ao12, 7-day median, 30-day trend, IQR, active days, streak, DNF change rate, PB progression, Growth chart, estimated practice time, next-practice recommendation, or full Timer/History duplication.
 Information hierarchy: compact Practice action band → member summary with only current fields → recent Record preview and link to full Records.
 Desktop layout: use a wide but restrained content grid; keep the Practice action above the fold and use dividers/spacing instead of a row of oversized metric cards.
@@ -557,7 +559,7 @@ Negative constraints: apply every Master negative constraint unchanged; do not a
 ~~~text
 SCREEN: Home Mobile — CURRENT-SAFE, authenticated, 390×844.
 Screen goal: expose the Timer return action in the first viewport and provide only a compact current snapshot below it.
-Allowed features: today's WCA_333 scramble, Timer CTA, nickname/main event, total solve count, PB, all-time DNF-excluded average, and compact recent records using current fields.
+Allowed features: today's WCA_333 scramble, Timer CTA, nickname/main event, total solve count, PB, and compact recent records using current fields.
 Forbidden/invented features: Ao5/Ao12, median/trend/IQR, active days, streak, recommendations, estimated duration, Growth chart, full Timer controls, or full Record History.
 Information hierarchy: scramble and Practice CTA → condensed current summary → recent Record rows → Records link.
 Mobile layout: intentional portrait reading order, bottom navigation with safe-area spacing, compact summary rows rather than desktop cards stacked vertically, no horizontal table overflow.
@@ -605,9 +607,9 @@ Negative constraints: apply every Master negative constraint unchanged; do not f
 
 ~~~text
 SCREEN: MyPage Records Desktop — CURRENT-SAFE, authenticated, 1440×900.
-Screen goal: manage saved Records and reach account utilities without presenting unimplemented Growth.
+Screen goal: manage saved Records and reach account utilities without duplicating the current My Growth dashboard.
 Allowed features: compact nickname/main-event profile context, event filter, records with event/effective result/penalty/date, current pagination, penalty correction, delete confirmation/action, profile update, password change, and logout in a separated account area.
-Forbidden/invented features: My Growth tab or placeholder, 7-day Growth, PB progression, IQR, active days, Growth recommendation, streak, AI analysis, scramble column, input-method column, progressive loading, or unsupported summary chart.
+Forbidden/invented features: duplicate My Growth dashboard or placeholder inside this Records-specific target, 7-day Growth, PB progression, IQR, active days, deterministic Next Practice, streak, AI analysis, scramble column, input-method column, progressive loading, or unsupported summary chart.
 Information hierarchy: profile context and account entry → Records filter/list → correction/delete actions → pagination; account forms remain separate from the data surface.
 Desktop layout: dense table with restrained action controls and clear destructive hierarchy; do not add a dashboard row above the records.
 Shared visual system: apply the complete Master Prompt, Measured Momentum, exact palette, tabular results, compact surface hierarchy, and desktop shell.
@@ -622,11 +624,11 @@ Negative constraints: apply every Master negative constraint unchanged; no fake 
 SCREEN: MyPage Records Mobile — CURRENT-SAFE, authenticated, 390×844.
 Screen goal: review and manage current records with reachable account utility on mobile.
 Allowed features: compact profile context, event filter, event/effective result/penalty/date rows, current pagination, penalty correction, delete action with clear confirmation, and separated account entry.
-Forbidden/invented features: My Growth placeholder, Growth metrics, streak, AI analysis, scramble, input method, infinite scroll, progressive loading, or full desktop summary chart.
+Forbidden/invented features: duplicate My Growth dashboard or placeholder inside this Records-specific target, Growth metrics, streak, AI analysis, scramble, input method, infinite scroll, progressive loading, or full desktop summary chart.
 Information hierarchy: profile/account context → filter → readable Record rows and actions → pagination.
 Mobile layout: no horizontal overflow, no card-per-field nesting, accessible action target or compact menu, persistent bottom navigation outside modal states.
 Shared visual system: apply the full Master Prompt, exact palette, Measured Momentum, tabular results, dividers, and controlled mobile density.
-Korean label rule: Korean UI with +2/DNF; brand text exactly “Cubing Hub”; no future Growth label.
+Korean label rule: Korean UI with +2/DNF; brand text exactly “Cubing Hub”; Records surface를 Growth section으로 잘못 label하지 않는다.
 Rendering target: a production-ready responsive Records screenshot feasible with React/CSS and current pagination behavior.
 Negative constraints: apply every Master negative constraint unchanged; do not turn empty space into analytics or social/profile content.
 ~~~
@@ -636,11 +638,11 @@ Negative constraints: apply every Master negative constraint unchanged; do not t
 #### My Growth Desktop
 
 ~~~text
-SCREEN: My Growth Desktop — V2.2 TARGET, private authenticated owner view, WCA_333, 1440×900.
+SCREEN: My Growth Desktop — CURRENT CAPABILITY / V2.2 TARGET PRESENTATION, private authenticated owner view, WCA_333, 1440×900.
 Screen goal: explain current skill, recent direction, consistency, PB development, recorded Practice activity, and the next deterministic Practice action in that order.
 Allowed features: Current PB, Recent Ao5, Recent Ao12; recent completed 7-day median versus previous completed 7-day median; 30-day daily median; latest-12 versus previous-12 IQR with DNF/+2 count, rate, sample and insufficient-sample gate; retained-record PB progression; approved 7/previous-7/30-day counts, 30-day active days/daily counts, first/latest recorded activity; deterministic Next Practice Timer CTA.
 Forbidden/invented features: streak, generic mean score, stability score, standard deviation, session analytics, AI coaching, technique/F2L weakness analysis, smart cube telemetry, Public Profile, social comparison, prediction, or arbitrary metric.
-Information hierarchy: 현재 실력 → 최근 방향 → 안정성 → PB 발전 → Practice 활동 → 다음 Practice; state clearly in generation metadata that this is a V2.2 target, not current functionality.
+Information hierarchy: 현재 실력 → 최근 방향 → 안정성 → PB 발전 → Practice 활동 → 다음 Practice; state clearly in generation metadata that the capability is current while the redesigned presentation is an unapproved V2.2 target artifact.
 Desktop layout: one primary reading column with supporting two-column regions where useful, limited charts, dividers and measured surfaces rather than one rounded card per metric.
 Shared visual system: apply the full Master Prompt, Measured Momentum, exact palette, tabular numerals, restrained PB amber, sparse chart grid, and desktop shell.
 Korean label rule: use `중앙값`, `일별 중앙값`, `최근 12회 기록 범위`, `기록된 활동`, `현재 남아 있는 기록 기준`; preserve PB/Ao5/Ao12/+2/DNF; brand text exactly “Cubing Hub”.
@@ -651,7 +653,7 @@ Negative constraints: apply every Master negative constraint unchanged; Next Pra
 #### My Growth Mobile
 
 ~~~text
-SCREEN: My Growth Mobile — V2.2 TARGET, private authenticated owner view, WCA_333, 390×844.
+SCREEN: My Growth Mobile — CURRENT CAPABILITY / V2.2 TARGET PRESENTATION, private authenticated owner view, WCA_333, 390×844.
 Screen goal: preserve the exact V2.2 Growth question order while keeping each metric and chart readable on mobile.
 Allowed features: the same approved PB/Ao5/Ao12, completed 7-day median comparison, 30-day daily median, latest-12 IQR with DNF/+2 count/rate/sample, retained-record PB progression, recorded-activity metrics, and deterministic Timer CTA as the desktop target.
 Forbidden/invented features: streak, average score, stability score, standard deviation, session, coaching, technique analysis, smart-cube data, public/social profile, prediction, or extra activity metric.
@@ -1011,7 +1013,7 @@ Rankings Mobile
 MyPage Records Desktop
 MyPage Records Mobile
 
-V2.2 TARGET
+V2.2 TARGET PRESENTATION
 My Growth Desktop
 My Growth Mobile
 
@@ -1231,7 +1233,7 @@ mockup과 accessibility 또는 usability가 충돌하면 functional/accessibilit
 ## Contract maintenance
 
 - current code/API가 바뀌면 관련 capability row와 screen prompt를 같은 변경에서 갱신한다.
-- V2.2 Growth가 accepted·implemented 단계로 이동하면 `V2.2 TARGET`을 자동으로 `CURRENT`로 바꾸지 않고 route, API, test, migration을 다시 대조한다.
+- capability state가 바뀌면 route, component, API, test와 migration evidence를 다시 대조한 뒤 `CURRENT` classification과 관련 prompt를 같은 변경에서 갱신한다.
 - 새 screen target은 capability classification과 prompt가 먼저 승인된 뒤 exploration을 시작한다.
 - prompt 수정으로 허용 기능이 늘어나면 product/requirement 승인부터 다시 확인한다.
 - 새 Approved Target을 import할 때 image file뿐 아니라 이 문서의 repository state와 generation sequence 상태를 갱신한다.

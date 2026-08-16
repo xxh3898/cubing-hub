@@ -7,6 +7,7 @@ owner: xxh3898
 project: cubing-hub
 tags: []
 related:
+  - docs/00-product/ui-mockup-contract.md
   - docs/01-domain/growth-metrics.md
   - docs/02-requirements/features/growth.md
   - docs/02-requirements/features/profile.md
@@ -43,6 +44,8 @@ related:
 | Growth median terminology | PR #48 merge `7ca9c7f47e0af4f77efc975cb8876d959264d770`; user-facing median 표현을 `중앙값`으로 통일 |
 
 Frontend runtime source에는 `TREND_FETCH_SIZE`, `recentRecordsSource`, `buildFirstPageFromRecentRecords`, `RecordTrendTooltip`, `전체 평균`, `DNF 제외 평균 기록` consumer가 없다. `HomePage.test.jsx`의 두 한글 문자열은 legacy 카드 비노출 regression assertion으로만 남아 있다.
+
+[UI Mockup Screen Contract](../00-product/ui-mockup-contract.md)의 active capability ledger도 current executable evidence와 동기화했다. My Growth는 authenticated `/mypage`의 `CURRENT` capability이며, 별도의 redesigned Target Mockup은 capability 추가 권한이 없는 presentation target으로 구분한다. Home/Profile의 legacy summary provider field는 API compatibility를 위한 data-only contract로 남고 current UI capability로 분류하지 않는다.
 
 ## Metric Correctness
 
