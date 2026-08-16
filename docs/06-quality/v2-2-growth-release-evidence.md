@@ -153,7 +153,7 @@ Static markup과 component regression에서 다음 automated evidence를 확인�
 
 Responsive CSS에는 mobile breakpoint와 bounded chart container가 있다. Actual Chrome 390×844 rendering과 touch emulation 결과는 아래 manual/mobile evidence에 기록한다.
 
-`frontend-design-system.md`의 1440×900 target screenshot, 200% zoom, contrast와 reduced-motion focused check는 approved Target Mockup 기반 screen-migration PR gate다. V2.2 My Growth는 기존 canonical UI를 유지한 기능 implementation이므로 `SCREEN_MIGRATION_ACCESSIBILITY_GATE=NOT_APPLICABLE`이다. Growth release의 accessibility evidence는 Growth requirement/architecture, quality gate, ADR-0010, component regression과 actual browser/mobile smoke를 따른다.
+`frontend-design-system.md`의 My Growth Desktop/Mobile Target Mockup approval과 1440×900 target screenshot, 200% zoom, contrast, reduced-motion focused check는 approved Target Mockup 기반 screen-migration PR gate다. V2.2 My Growth는 기존 canonical UI를 유지한 기능 implementation이므로 `TARGET_MOCKUP_APPROVAL=NOT_APPLICABLE`이며 screen-migration 전용 accessibility gate도 적용하지 않는다. Growth release의 accessibility evidence는 Growth requirement/architecture, quality gate, ADR-0010, component regression과 actual browser/mobile smoke를 따른다.
 
 ## Auth Regression
 
