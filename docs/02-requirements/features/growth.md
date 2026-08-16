@@ -2,7 +2,7 @@
 doc_type: requirement
 status: draft
 created: 2026-08-11
-updated: 2026-08-12
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -175,7 +175,7 @@ Next Practice
 
 Performance Direction
 ----------------------------------------------------
-최근 완료 7일 중앙 기록 20.100
+최근 완료 7일 중앙값 20.100
 직전 7일 21.350보다 5.9% 빨라짐 · 표본 24 / 18
 [30-day daily median line chart]
 
@@ -335,7 +335,7 @@ Analytics infrastructure는 V2.2에 포함하지 않는다. 향후에도 raw tim
 
 1. 지금은 기록이 빨라지고 있는지 어떤 방식으로 확인하는가?
 2. PB와 최근 Ao12 중 현재 실력을 더 잘 설명한다고 느끼는 것은 무엇이며 왜 그런가?
-3. 최근 7일 중앙 기록과 직전 7일 비교가 이해되는가? 어떤 표현이 더 자연스러운가?
+3. 최근 7일 중앙값과 직전 7일 비교가 이해되는가? 어떤 표현이 더 자연스러운가?
 4. 기록이 없는 날을 chart의 빈칸으로 보는 것이 이해되는가?
 5. `최근 12회 기록 범위`가 안정성을 이해하는 데 도움이 되는가, 아니면 복잡한가?
 6. PB progression에서 가장 보고 싶은 정보는 time, 날짜, penalty 중 무엇인가?

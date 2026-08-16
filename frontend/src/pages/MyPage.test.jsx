@@ -691,7 +691,11 @@ describe('MyPage', () => {
     expect(screen.getByText('Recent Ao5')).toBeInTheDocument()
     expect(screen.getByText('Recent Ao12')).toBeInTheDocument()
     expect(screen.getAllByText('최근 7일')).toHaveLength(2)
+    expect(screen.getByText('완료된 7일 구간의 중앙값을 비교합니다.')).toBeInTheDocument()
     expect(screen.getByText('30일 추세')).toBeInTheDocument()
+    expect(screen.getByText('날짜별 중앙값과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙값이 없습니다.')).toBeInTheDocument()
+    expect(screen.getByLabelText('최근 30일 중앙값 그래프')).toBeInTheDocument()
+    expect(screen.getByText('최근 30일 중 기록이 있는 날 2일, 중앙값이 있는 날 1일')).toBeInTheDocument()
     expect(screen.getAllByText('30일 추세를 텍스트로 보기')).toHaveLength(1)
     expect(screen.queryByText('30일 활동을 텍스트로 보기')).not.toBeInTheDocument()
     expect(screen.getByText('PB Progression')).toBeInTheDocument()
@@ -1155,7 +1159,7 @@ describe('MyPage', () => {
     expect(await screen.findByText('오늘 데이터는 진행 중인 기록입니다.')).toBeInTheDocument()
     expect(mockRechartsTooltip.mock.calls.some(([props]) => props.filterNull === false)).toBe(true)
     fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
-    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: 중앙 10.000 · solve 3회')).toBeInTheDocument()
+    expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: 중앙값 10.000 · solve 3회')).toBeInTheDocument()
 
     const { rerender } = render(<GrowthTrendTooltip active={false} payload={[]} />)
     rerender(<GrowthTrendTooltip active payload={[{ payload: { ...points[1], isTodayPartial: true } }]} />)
@@ -1259,7 +1263,7 @@ describe('MyPage', () => {
 
     render(<MyPage />)
 
-    expect(await screen.findByText('아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.')).toBeInTheDocument()
+    expect(await screen.findByText('아직 숫자로 표시할 일별 중앙값이 없습니다. DNF-only 기록은 solve 수로만 남습니다.')).toBeInTheDocument()
     fireEvent.click(screen.getByText('30일 추세를 텍스트로 보기'))
     expect(screen.getByText('2026년 8월 14일: DNF-only · solve 2회')).toBeInTheDocument()
     expect(screen.getByText('2026년 8월 15일 · 오늘, 진행 중: DNF-only · solve 1회')).toBeInTheDocument()

@@ -92,7 +92,7 @@ Median은 이름이 지정된 population의 rankable effective value를 오름�
 - 짝수 `n`: 가운데 두 값의 산술평균을 integer millisecond로 반올림
 - DNF: numeric population에서 제외하고 같은 window의 DNF count/rate로 함께 제공
 
-`평균`이라는 일반 label 대신 `최근 7일 median`, `일별 median`처럼 population을 표시한다. 한국어 UI는 `중앙 기록`을 기본 label로 사용하고 tooltip에서 median 정의를 설명한다.
+`평균`이라는 일반 label 대신 `최근 7일 median`, `일별 median`처럼 population을 표시한다. 한국어 UI는 `중앙값`을 기본 label로 사용하고 tooltip에서 median 정의를 설명한다.
 
 ### 기간과 timezone
 
