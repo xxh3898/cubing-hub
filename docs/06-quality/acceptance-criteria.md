@@ -2,7 +2,7 @@
 doc_type: quality
 status: active
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -11,6 +11,7 @@ related:
   - docs/02-requirements/non-functional-requirements.md
   - docs/02-requirements/features/timer.md
   - docs/06-quality/test-strategy.md
+  - docs/06-quality/v2-2-growth-release-evidence.md
 ---
 # Acceptance Criteria
 
@@ -66,6 +67,21 @@ related:
 - 이전 application과 새 application의 expand-and-contract compatibility를 검토한다.
 - clean `create-drop` schema 성공만으로 migration upgrade를 완료했다고 판단하지 않는다.
 - migration이 application rollback으로 자동 복구되지 않음을 명시한다.
+
+## V2.2 Growth & Profile
+
+- Growth summary, trend와 PB progression은 authenticated owner에게만 제공한다.
+- public Growth capability는 WCA_333만 지원하며 known unsupported event는 400으로 거절한다.
+- `NONE`, `PLUS_TWO`, `DNF`, numeric, insufficient와 DNF-only state를 구분한다.
+- 30-day activity와 completed 7-day comparison은 Asia/Seoul calendar boundary와 `todayPartial` 의미를 유지한다.
+- current PB는 current retained Record에서 재구성한 PB progression의 newest point와 일치한다.
+- Growth response는 bounded aggregate와 minimal PB milestone만 제공하고 scramble, provenance와 raw full Record history를 노출하지 않는다.
+- Record History는 1-based server pagination과 page size 10을 사용하며 Growth 계산을 위해 bulk fetch하지 않는다.
+- MyPage와 Home은 legacy all-event/all-time arithmetic mean을 Growth metric으로 사용하지 않는다.
+- penalty 변경과 delete 뒤 Growth summary, trend, PB progression과 current Record History가 갱신되며 Profile을 불필요하게 refetch하지 않는다.
+- trend, Activity와 PB chart의 핵심 정보는 접근 가능한 text alternative로도 제공한다.
+- release 전 isolated runtime smoke, browser interaction과 mobile layout evidence를 [V2.2 Growth Release Evidence](v2-2-growth-release-evidence.md)에 기록한다.
+- V2.2 Growth는 새 Flyway migration, Redis model 또는 snapshot table을 추가하지 않는다.
 
 ## Community와 Upload
 

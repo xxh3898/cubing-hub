@@ -2,7 +2,7 @@
 doc_type: domain
 status: active
 created: 2026-08-11
-updated: 2026-08-14
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -17,18 +17,20 @@ related:
 
 ## 문서 상태
 
-V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator와 PR B의 private Growth read API는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
+V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator, PR B의 private Growth read API와 PR C의 My Growth dashboard는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
 
-My Growth UI와 release는 아직 구현하지 않았다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
+My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에 통합됐다. Release evidence는 automated/runtime gate와 manual browser/mobile gate를 분리한다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
 
 ```text
 Current
 - V2.1 Record, current PB projection, event history, Timer Ao5/Ao12
 - Growth pure calculator와 canonical unit fixture
 - private Growth summary, 30-day trend, paginated PB progression API
+- My Growth dashboard와 server-paginated Record History
+- legacy MyPage/Home arithmetic mean consumer 제거
 
 Next implementation
-- My Growth dashboard
+- release approval
 
 Future candidate
 - best Ao progression, pre-aggregation, user timezone

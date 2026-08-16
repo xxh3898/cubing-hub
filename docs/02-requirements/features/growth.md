@@ -19,7 +19,7 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. release evidence는 아직 application contract나 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI, isolated runtime과 manual browser/mobile evidence는 release candidate 문서에 기록한다. 이 근거는 `main` merge나 production release를 뜻하지 않는다.
 
 ```text
 Current
@@ -33,7 +33,7 @@ Current
 - event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- release evidence
+- release approval
 
 Future candidate
 - best Ao, Ao progression, opt-in public Profile
@@ -305,7 +305,8 @@ Future public Profile을 검토할 때는 stable user identifier, block/deleted-
 
 - 각 implementation PR의 focused backend/frontend test와 generated REST Docs를 통과한다.
 - `dev` push와 `dev → main` PR Validate의 required job이 성공한다.
-- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산, KST boundary, mobile layout을 targeted smoke한다.
+- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산과 mobile layout을 targeted browser smoke한다.
+- KST/UTC calendar boundary, completed recent/previous 7-day window와 `todayPartial`은 fixed clock을 사용하는 deterministic integration test로 검증한다. Wall-clock browser 조작은 이 gate에 필요하지 않다.
 - build/CI 성공을 production request 성공으로 표현하지 않는다. main merge/deploy는 별도 승인과 release gate를 따른다.
 
 ## Product validation
