@@ -22,7 +22,7 @@ related:
 
 제품 Vision, V2.1 Foundation 범위와 Practice event 지원 범위는 현재 구현 계약으로 유지한다. V2.1 Event Support 결정에는 기존 data 분포 audit을 blocker로 두지 않았다.
 
-V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile implementation은 `dev`에 통합됐고 final `dev → main` release qualification Validate를 통과했다. Main merge와 release/deploy 승인, production verification은 별도 gate로 남아 있다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile도 PR #49로 main에 병합됐으며 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb`의 production deployment와 runtime/public verification을 통과했다. V2.3 phase entry와 제품 검증은 별도 결정이며 아직 시작하지 않았다.
 
 ## Product Definition
 
@@ -215,7 +215,7 @@ V2.1 제품·기술 결정과 release gate는 닫혔다. 이후 발견되는 acc
 
 ## V2.2 Design Boundary
 
-V2.2는 current Record를 성장 이해와 장기 활동 이력으로 연결한다. 현재 범위와 metric contract, `dev` implementation은 다음 문서에서 관리한다.
+V2.2는 current Record를 성장 이해와 장기 활동 이력으로 연결한다. 현재 범위와 metric contract, production에 배포한 implementation은 다음 문서에서 관리한다.
 
 - [Growth 요구사항](../02-requirements/features/growth.md)
 - [Growth Metric Contract](../01-domain/growth-metrics.md)
