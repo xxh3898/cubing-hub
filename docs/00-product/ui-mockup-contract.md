@@ -2,7 +2,7 @@
 doc_type: product
 status: active
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -342,8 +342,8 @@ Information hierarchy는 `compact profile context → Records filter/list → co
 | Screen | Capability | Classification | Source evidence | Current mockup | V2.2 target | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | My Growth | Current PB, Recent Ao5, Recent Ao12 | `V2.2 TARGET` | [Growth Metrics](../01-domain/growth-metrics.md); Growth requirement; ADR-0010 proposed | 금지 | 허용 | WCA_333 only, rankable sample rule 적용. |
-| My Growth | 최근 완료 7일 중앙 기록과 직전 완료 7일 중앙 기록 비교 | `V2.2 TARGET` | Growth Metrics; Growth Architecture | 금지 | 허용 | 오늘을 제외한 완료 기간, Asia/Seoul service day다. |
-| My Growth | 30-day daily median | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | UI label은 `일별 중앙 기록`처럼 median임을 드러낸다. |
+| My Growth | 최근 완료 7일 중앙값과 직전 완료 7일 중앙값 비교 | `V2.2 TARGET` | Growth Metrics; Growth Architecture | 금지 | 허용 | 오늘을 제외한 완료 기간, Asia/Seoul service day다. |
+| My Growth | 30-day daily median | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | UI label은 `일별 중앙값`처럼 median임을 드러낸다. |
 | My Growth | latest 12 vs previous 12 IQR, DNF/+2 count·rate, sample | `V2.2 TARGET` | Growth Metrics; Growth Architecture | 금지 | 허용 | `최근 12회 기록 범위`; rankable 8개 미만 gate를 표시한다. |
 | My Growth | PB progression | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | strictly improving running minimum, `현재 남아 있는 기록 기준`. |
 | My Growth | 7/previous 7/30-day record count, 30-day active days/daily count, first/latest recorded activity | `V2.2 TARGET` | Growth Metrics; Growth requirement | 금지 | 허용 | streak가 아니라 `기록된 활동`이다. |
@@ -643,7 +643,7 @@ Forbidden/invented features: streak, generic mean score, stability score, standa
 Information hierarchy: 현재 실력 → 최근 방향 → 안정성 → PB 발전 → Practice 활동 → 다음 Practice; state clearly in generation metadata that this is a V2.2 target, not current functionality.
 Desktop layout: one primary reading column with supporting two-column regions where useful, limited charts, dividers and measured surfaces rather than one rounded card per metric.
 Shared visual system: apply the full Master Prompt, Measured Momentum, exact palette, tabular numerals, restrained PB amber, sparse chart grid, and desktop shell.
-Korean label rule: use `중앙 기록`, `일별 중앙 기록`, `최근 12회 기록 범위`, `기록된 활동`, `현재 남아 있는 기록 기준`; preserve PB/Ao5/Ao12/+2/DNF; brand text exactly “Cubing Hub”.
+Korean label rule: use `중앙값`, `일별 중앙값`, `최근 12회 기록 범위`, `기록된 활동`, `현재 남아 있는 기록 기준`; preserve PB/Ao5/Ao12/+2/DNF; brand text exactly “Cubing Hub”.
 Rendering target: a realistic V2.2 target web-app screenshot feasible in React/Recharts/CSS, not a generic analytics dashboard.
 Negative constraints: apply every Master negative constraint unchanged; Next Practice is deterministic and must never look like AI coaching or personalized prediction.
 ~~~

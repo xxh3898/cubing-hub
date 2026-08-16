@@ -171,7 +171,7 @@ export function formatGrowthTrendPointDate(point) {
 export function formatGrowthDailyTimelineEntry(point, { includeMedian = false, includePenaltyCounts = false } = {}) {
   const state = includeMedian
     ? typeof point?.medianTimeMs === 'number'
-      ? `중앙 ${formatRecordTime(point.medianTimeMs)}`
+      ? `중앙값 ${formatRecordTime(point.medianTimeMs)}`
       : point?.recordCount === 0 ? '기록 없음' : 'DNF-only'
     : point?.recordCount === 0 ? '기록 없음' : point?.medianTimeMs === null ? 'DNF-only' : null
   const penalties = includePenaltyCounts ? ` · DNF ${point?.dnfCount ?? 0}회 · +2 ${point?.plusTwoCount ?? 0}회` : ''
@@ -884,7 +884,7 @@ export default function MyPage() {
                   <div className="mypage-growth-section-heading">
                     <div>
                       <h3 id="growth-direction">최근 기록 흐름</h3>
-                      <p className="helper-text">완료된 7일 구간의 중앙 기록을 비교합니다.</p>
+                      <p className="helper-text">완료된 7일 구간의 중앙값을 비교합니다.</p>
                     </div>
                     <span className="mypage-direction-label">비교: {getDirectionLabel(growthSummary?.performanceComparison?.direction)}</span>
                   </div>
@@ -1286,7 +1286,7 @@ export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
       <div className="mypage-growth-section-heading">
         <div>
           <span className="mypage-trend-title-row"><ChartLine size={19} aria-hidden="true" /><h3 id="growth-trend">30일 추세</h3></span>
-          <p className="helper-text">날짜별 중앙 기록과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙 기록이 없습니다.</p>
+          <p className="helper-text">날짜별 중앙값과 solve 수입니다. 기록 없는 날과 DNF-only 날은 중앙값이 없습니다.</p>
         </div>
       </div>
       {error ? <div className="mypage-growth-feedback"><p className="message error">{error}</p><button className="ghost-button" type="button" onClick={onRetry}>다시 시도</button></div> : null}
@@ -1296,7 +1296,7 @@ export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
         <>
           {hasNumericMedian ? (
             <>
-              <div className="mypage-trend-chart" aria-label={partialTrendPoint ? '최근 30일 중앙 기록 그래프. 오늘 데이터는 진행 중입니다.' : '최근 30일 중앙 기록 그래프'}>
+              <div className="mypage-trend-chart" aria-label={partialTrendPoint ? '최근 30일 중앙값 그래프. 오늘 데이터는 진행 중입니다.' : '최근 30일 중앙값 그래프'}>
                 <ResponsiveContainer width="100%" height={260}>
                   <RechartsLineChart data={points} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_COLOR} />
@@ -1308,9 +1308,9 @@ export function GrowthTrendSection({ points, isLoading, error, onRetry }) {
                   </RechartsLineChart>
                 </ResponsiveContainer>
               </div>
-              <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {points.filter((point) => point.recordCount > 0).length}일, 중앙 기록이 있는 날 {points.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
+              <p className="mypage-chart-summary">최근 30일 중 기록이 있는 날 {points.filter((point) => point.recordCount > 0).length}일, 중앙값이 있는 날 {points.filter((point) => typeof point.medianTimeMs === 'number').length}일</p>
             </>
-          ) : <p className="helper-text">아직 숫자로 표시할 일별 중앙 기록이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>}
+          ) : <p className="helper-text">아직 숫자로 표시할 일별 중앙값이 없습니다. DNF-only 기록은 solve 수로만 남습니다.</p>}
           {partialTrendPoint ? <p className="helper-text">오늘 데이터는 진행 중인 기록입니다.</p> : null}
           <GrowthDailyTimeline points={points} label="30일 추세를 텍스트로 보기" includeMedian />
         </>
