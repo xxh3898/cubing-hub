@@ -45,6 +45,7 @@ approved visual language
 | Classification | 의미 | Current-safe mockup | V2.2 target mockup |
 | --- | --- | --- | --- |
 | `CURRENT` | 현재 `dev`의 실행 가능한 code·test·API에서 실제 제공하는 기능 | 사용 가능 | 해당 target에 필요한 current shell·기능만 사용 가능 |
+| `CURRENT data-only` | 현재 `dev` API/DTO에는 있지만 해당 screen이 렌더링하지 않는 field | 사용 금지 | screen prompt가 target-only presentation으로 명시한 경우에만 사용 가능 |
 | `REDESIGN-APPROVED` | 새 backend/domain capability를 만들지 않는 승인된 presentation·interaction behavior | 지정된 화면에서만 사용 가능 | 지정된 화면에서만 사용 가능 |
 | `V2.2 TARGET PRESENTATION` | My Growth의 current capability를 future screen migration에서 재배치하는 visual target. capability 추가 권한이 아님 | current-safe mockup label로 사용하지 않음 | `CURRENT`와 해당 화면의 `REDESIGN-APPROVED` capability만 사용 가능 |
 | `FUTURE / OUT` | future 후보이거나 승인·근거가 없는 기능 | 사용 금지 | 명시적인 별도 target 승인 전까지 사용 금지 |
@@ -192,7 +193,7 @@ Mockup의 brand text는 정확히 `Cubing Hub`다. `큐빙 허브`를 brand name
 Create one realistic production-ready web application screenshot for Cubing Hub. Treat this as a strict repository-grounded UI screen contract, not an invitation to design new product features.
 
 CAPABILITY RULE
-Use only: (1) repository CURRENT capabilities explicitly listed in the attached screen prompt, (2) REDESIGN-APPROVED UI-only behavior explicitly listed for that screen, and (3) the approved visual language below. A My Growth V2.2 TARGET PRESENTATION label changes only the visual target; it never authorizes a non-CURRENT capability. Never infer a feature from empty space, a familiar dashboard pattern, or visual convention. Leave space empty or solve it with spacing and layout. Do not create a new metric, chart, badge, filter, action, status, data field, navigation item, content type, or social signal.
+Use only: (1) repository CURRENT capabilities explicitly listed in the attached screen prompt, (2) REDESIGN-APPROVED UI-only behavior explicitly listed for that screen, (3) a CURRENT data-only field only when that prompt explicitly marks it as target-only presentation, and (4) the approved visual language below. A My Growth V2.2 TARGET PRESENTATION label changes only the visual target; it never makes a data-only field current UI or authorizes application implementation. Never infer a feature from empty space, a familiar dashboard pattern, or visual convention. Leave space empty or solve it with spacing and layout. Do not create a new metric, chart, badge, filter, action, status, data field, navigation item, content type, or social signal.
 
 VISUAL LANGUAGE
 Use Measured Momentum with Precision Bench numeric discipline on Timer. The product should feel like precision cubing practice and performance tracking: calm, focused, trustworthy, and medium-high density. Use a light-first warm neutral canvas, minimal shadow, controlled radius, typography/spacing/divider hierarchy, and measured surfaces; not every section is a card. Align times and metrics with tabular numerals. Use subtle 3x3 geometry only where it supports identity. Keep the result feasible in ordinary React and CSS.
@@ -346,7 +347,8 @@ My Growth capability는 current `dev`의 `/mypage`에 구현됐다. WCA_333 priv
 | My Growth | Current PB, Recent Ao5, Recent Ao12 | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthMetricCalculator.java`; MyPage/Growth tests; [Growth Metrics](../01-domain/growth-metrics.md); ADR-0010 accepted | 허용 | 허용 | WCA_333 only, rankable sample rule 적용. |
 | My Growth | 최근 완료 7일 중앙값과 직전 완료 7일 중앙값 비교 | `CURRENT` | `MyPage.jsx`; `GrowthReadService.java`; `GrowthSummaryResponse.java`; calculator/API tests; Growth Metrics/Architecture | 허용 | 허용 | 오늘을 제외한 완료 기간, Asia/Seoul service day다. |
 | My Growth | 30-day daily median | `CURRENT` | `MyPage.jsx`; `getMyGrowthTrend`; `GrowthTrendResponse.java`; `GrowthReadRepository.java`; REST Docs/API tests | 허용 | 허용 | UI label은 `일별 중앙값`처럼 median임을 드러낸다. |
-| My Growth | latest 12 vs previous 12 IQR, DNF/+2 count·rate, sample | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthMetricCalculator.java`; MyPage/calculator tests | 허용 | 허용 | `최근 12회 기록 범위`; rankable 8개 미만 gate를 표시한다. |
+| My Growth | latest 12 vs previous 12 IQR, DNF/+2 count | `CURRENT` | `GrowthConsistencyCard` in `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthMetricCalculator.java`; MyPage/calculator tests | 허용 | 허용 | `최근 12회 기록 범위`; IQR이 unavailable이면 `데이터 부족`을 표시한다. |
+| My Growth | DNF/+2 rate, consistency `windowSize`/`recordCount`/`rankableCount` | `CURRENT data-only` | `GrowthSummaryResponse.java`; `GrowthConsistencyCard` in `MyPage.jsx`는 해당 field를 렌더링하지 않음 | 금지 | target-only presentation으로만 허용 | API contract에는 존재하지만 current UI capability가 아니다. |
 | My Growth | PB progression | `CURRENT` | `MyPage.jsx`; `getMyGrowthPbProgression`; `GrowthPbProgressionPageResponse.java`; `GrowthReadRepository.java`; REST Docs/API/query tests | 허용 | 허용 | strictly improving running minimum, `현재 남아 있는 기록 기준`. |
 | My Growth | 7/previous 7/30-day record count, 30-day active days/daily count, first/latest recorded activity | `CURRENT` | `MyPage.jsx`; `GrowthSummaryResponse.java`; `GrowthTrendResponse.java`; `GrowthReadService.java`; MyPage/API tests | 허용 | 허용 | streak가 아니라 `기록된 활동`이다. |
 | My Growth | deterministic Next Practice CTA | `CURRENT` | `MyPage.jsx`; `MyPage.test.jsx`; Growth Metrics/requirement | 허용 | 허용 | Ao sample rule 기반 Timer link. AI coaching·prediction이 아니다. |
@@ -640,7 +642,7 @@ Negative constraints: apply every Master negative constraint unchanged; do not t
 ~~~text
 SCREEN: My Growth Desktop — CURRENT CAPABILITY / V2.2 TARGET PRESENTATION, private authenticated owner view, WCA_333, 1440×900.
 Screen goal: explain current skill, recent direction, consistency, PB development, recorded Practice activity, and the next deterministic Practice action in that order.
-Allowed features: Current PB, Recent Ao5, Recent Ao12; recent completed 7-day median versus previous completed 7-day median; 30-day daily median; latest-12 versus previous-12 IQR with DNF/+2 count, rate, sample and insufficient-sample gate; retained-record PB progression; approved 7/previous-7/30-day counts, 30-day active days/daily counts, first/latest recorded activity; deterministic Next Practice Timer CTA.
+Allowed features: Current PB, Recent Ao5, Recent Ao12; recent completed 7-day median versus previous completed 7-day median; 30-day daily median; latest-12 versus previous-12 IQR with DNF/+2 count and insufficient-data state; target-only DNF/+2 rate and sample presentation; retained-record PB progression; approved 7/previous-7/30-day counts, 30-day active days/daily counts, first/latest recorded activity; deterministic Next Practice Timer CTA.
 Forbidden/invented features: streak, generic mean score, stability score, standard deviation, session analytics, AI coaching, technique/F2L weakness analysis, smart cube telemetry, Public Profile, social comparison, prediction, or arbitrary metric.
 Information hierarchy: 현재 실력 → 최근 방향 → 안정성 → PB 발전 → Practice 활동 → 다음 Practice; state clearly in generation metadata that the capability is current while the redesigned presentation is an unapproved V2.2 target artifact.
 Desktop layout: one primary reading column with supporting two-column regions where useful, limited charts, dividers and measured surfaces rather than one rounded card per metric.
@@ -655,7 +657,7 @@ Negative constraints: apply every Master negative constraint unchanged; Next Pra
 ~~~text
 SCREEN: My Growth Mobile — CURRENT CAPABILITY / V2.2 TARGET PRESENTATION, private authenticated owner view, WCA_333, 390×844.
 Screen goal: preserve the exact V2.2 Growth question order while keeping each metric and chart readable on mobile.
-Allowed features: the same approved PB/Ao5/Ao12, completed 7-day median comparison, 30-day daily median, latest-12 IQR with DNF/+2 count/rate/sample, retained-record PB progression, recorded-activity metrics, and deterministic Timer CTA as the desktop target.
+Allowed features: the same approved PB/Ao5/Ao12, completed 7-day median comparison, 30-day daily median, latest-12 IQR with DNF/+2 count and insufficient-data state, target-only DNF/+2 rate/sample presentation, retained-record PB progression, recorded-activity metrics, and deterministic Timer CTA as the desktop target.
 Forbidden/invented features: streak, average score, stability score, standard deviation, session, coaching, technique analysis, smart-cube data, public/social profile, prediction, or extra activity metric.
 Information hierarchy: 현재 실력 → 최근 방향 → 안정성 → PB 발전 → Practice 활동 → 다음 Practice, one question at a time.
 Mobile layout: one chart per visible section, sparse labels plus text summary, compact section navigation, bottom navigation and safe area, no horizontal chart overflow or metric-card wall.
