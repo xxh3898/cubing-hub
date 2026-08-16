@@ -2,7 +2,7 @@
 doc_type: requirement
 status: active
 created: 2026-08-10
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -57,7 +57,7 @@ Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-
 
 ## V2.2 Profile 상태
 
-[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 dev에 통합됐고 pre-main release evidence를 확보했다. Final `dev → main` PR Validate, main merge, release/deploy 승인과 production verification은 별도 gate다.
+[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 dev에 통합됐고 final `dev → main` release qualification Validate를 통과했다. Main merge, release/deploy 승인과 production verification은 별도 gate다.
 
 ### My Growth
 
