@@ -2,7 +2,7 @@
 doc_type: product
 status: draft
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -20,7 +20,7 @@ related:
 
 일정 약속이 아니라 제품·기술 gate의 순서를 관리한다.
 
-V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2는 [Growth 요구사항](../02-requirements/features/growth.md)과 관련 `draft`를 정리하는 단계이며 구현·출시가 확정되지 않았다. Release workflow 결과는 public URL smoke를 대신하지 않는다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 implementation은 dev에 통합됐고 pre-main release evidence를 확보했다. 다음 gate는 `dev → main` PR Validate, 명시적 main merge와 release/deploy 승인, production verification이다. V2.3는 시작하지 않았으며 Release workflow 결과는 public URL smoke를 대신하지 않는다.
 
 ## 단계 순서
 

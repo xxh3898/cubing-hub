@@ -2,7 +2,7 @@
 doc_type: architecture
 status: draft
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -664,6 +664,8 @@ Mockup 생성, 선택, 수정, target 승인과 code implementation은 별도 ga
 Key visual 또는 empty-state Runtime AI Asset이 별도 승인되고 UI 구조가 안정된 경우에만 연다. generated source, crop, license/usage record, format, width/height, size budget, lazy loading과 light surface QA를 포함한다. Runtime asset이 없더라도 core redesign은 완료할 수 있다.
 
 ## Release gates
+
+이 절은 이 문서의 Desktop/Mobile Target Mockup을 승인한 뒤 진행하는 screen migration PR에 적용한다. 기존 canonical UI를 유지한 기능 PR에는 소급 적용하지 않는다. V2.2 My Growth의 canonical UI 기반 implementation은 [Growth 요구사항](../02-requirements/features/growth.md), [Growth Architecture](growth-architecture.md), [Quality Gates](../06-quality/quality-gates.md)와 ADR-0010 release contract를 따른다.
 
 각 screen migration PR은 다음을 통과해야 한다.
 

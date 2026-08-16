@@ -305,7 +305,8 @@ Future public Profile을 검토할 때는 stable user identifier, block/deleted-
 
 - 각 implementation PR의 focused backend/frontend test와 generated REST Docs를 통과한다.
 - `dev` push와 `dev → main` PR Validate의 required job이 성공한다.
-- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산, KST boundary, mobile layout을 targeted smoke한다.
+- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산과 mobile layout을 targeted browser smoke한다.
+- KST/UTC calendar boundary, completed recent/previous 7-day window와 `todayPartial`은 fixed clock을 사용하는 deterministic integration test로 검증한다. Wall-clock browser 조작은 이 gate에 필요하지 않다.
 - build/CI 성공을 production request 성공으로 표현하지 않는다. main merge/deploy는 별도 승인과 release gate를 따른다.
 
 ## Product validation

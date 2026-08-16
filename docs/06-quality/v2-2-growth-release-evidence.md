@@ -62,6 +62,8 @@ Frontend runtime source에는 `TREND_FETCH_SIZE`, `recentRecordsSource`, `buildF
 
 Calculator, time-window, service, repository, API integration과 REST Docs test가 같은 backend gate에서 실행됐다. [Growth Metrics](../01-domain/growth-metrics.md)와 다른 metric contract는 발견되지 않았다.
 
+`KST_BOUNDARY=PASS`. `GrowthTimeWindowsTest`와 `GrowthReadApiIntegrationTest`의 fixed clock fixture가 Asia/Seoul↔UTC conversion, completed recent/previous 7-day window, KST calendar boundary와 `todayPartial`을 deterministic하게 검증한다. System clock 또는 wall-clock browser 조작은 이 gate에 필요하지 않다.
+
 ## API / Privacy
 
 Private owner endpoint는 다음과 같다.
@@ -151,6 +153,8 @@ Static markup과 component regression에서 다음 automated evidence를 확인�
 
 Responsive CSS에는 mobile breakpoint와 bounded chart container가 있다. Actual Chrome 390×844 rendering과 touch emulation 결과는 아래 manual/mobile evidence에 기록한다.
 
+`frontend-design-system.md`의 1440×900 target screenshot, 200% zoom, contrast와 reduced-motion focused check는 approved Target Mockup 기반 screen-migration PR gate다. V2.2 My Growth는 기존 canonical UI를 유지한 기능 implementation이므로 `SCREEN_MIGRATION_ACCESSIBILITY_GATE=NOT_APPLICABLE`이다. Growth release의 accessibility evidence는 Growth requirement/architecture, quality gate, ADR-0010, component regression과 actual browser/mobile smoke를 따른다.
+
 ## Auth Regression
 
 Current frontend tree에는 다음 PR #42 ownership guard와 regression test가 있다.
@@ -225,7 +229,7 @@ PR #48 delta 확인에서도 `중앙값` heading, description, chart alternative
 | dev Validate 31933736295 | exact candidate SHA | Detect, infrastructure, frontend lint/full Vitest/build and Web ARM64 actually ran and succeeded; backend and API ARM64 safe-skipped |
 | dev Validate 31926263963 | identical backend tree and API image inputs | backend test/build and API ARM64 actually ran and succeeded |
 
-PR E CI는 evidence branch의 Draft PR이 열린 뒤 별도로 기록한다. Docs-only PR green 결과는 위 candidate application evidence를 대체하지 않는다.
+Candidate/dev application CI는 PASS다. PR E docs-only branch Validate는 PR quality gate이며 위 candidate application evidence를 대체하지 않는다. Final release CI gate인 `dev → main` PR Validate는 아직 PR이 열리지 않아 PENDING이다.
 
 ## Known Limitations
 
@@ -247,11 +251,13 @@ PR E CI는 evidence branch의 Draft PR이 열린 뒤 별도로 기록한다. Doc
 | Accessibility | PASS |
 | Mutation parity | PASS |
 | Auth regression | PASS |
-| Automated CI | PASS |
+| Candidate/dev CI | PASS |
+| Final `dev → main` PR Validate | PENDING |
 | Isolated runtime smoke | PASS |
 | Manual browser smoke | PASS |
 | Mobile 390px smoke | PASS |
+| KST boundary deterministic test | PASS |
 | Actual iPhone smoke | NOT_RUN |
 | Migration | NONE |
 
-Release decision: **V2.2 release gates complete on dev candidate**. Actual iPhone smoke는 실행하지 않은 known limitation이며 release blocker가 아니다. 이 결정은 `main` merge, release, production deploy 또는 production verification을 뜻하지 않는다.
+Release decision: **PRE-MAIN RELEASE GATES COMPLETE**. V2.2 application과 evidence는 dev candidate에서 release-ready하다. Final `dev → main` PR Validate는 PENDING이며 PR #47 merge 후 별도 release 단계에서 성공해야 한다. 이후 main merge 승인, release/deploy 승인과 production verification도 남아 있다. Actual iPhone smoke는 실행하지 않은 known limitation이며 pre-main blocker가 아니다.
