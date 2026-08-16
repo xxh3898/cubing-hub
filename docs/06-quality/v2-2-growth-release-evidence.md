@@ -223,7 +223,25 @@ Growth Architecture의 manual release smoke 1~6은 다음 candidate evidence에 
 | 5 | Empty/insufficient user와 30-day gap | PASS | 0 Record에서 empty/첫 Practice CTA, 1 Record(25.000)에서 첫 Ao5까지 4회 및 numeric Ao 미표시; 2026-07-18은 `기록 없음 · solve 0회`이며 fake median 없음 |
 | 6 | 390px My Growth → Timer → My Growth | PASS | 390×844 touch emulation으로 CTA 이동, Record 69(9.337, `TOUCH`) 저장, History/Growth/PB progression refresh; `innerWidth=390`, `scrollWidth=390` |
 
-남은 세 흐름을 완료한 실행에서도 Chrome application console error와 unexpected 4xx/5xx는 0건이었다. DevTools Network에서 관련 application request 12건은 200이었고 외부 VisualCube의 정상 redirect 2건만 308로 확인됐다.
+Growth-specific smoke와 별도로 release smoke runbook의 general browser checklist를 다음과 같이 실행했다.
+
+| Smoke Runbook item | Result | Evidence |
+| --- | --- | --- |
+| Auth/Timer 1 — login/logout | PASS | authenticated logout 뒤 private state 비노출, guest 상태 확인과 smoke account 재로그인 복구 |
+| Auth/Timer 2-3 — Keyboard/Touch | PASS | 12.168 `KEYBOARD`, 16.000과 9.337 `TOUCH`; stopped display/raw time과 provenance 일치 |
+| Auth/Timer 4 — next-scramble locking | PASS | next WCA_333 scramble 지연 중 Timer lock; unsupported event 왕복 중 이전 response 무시; fresh WCA_333 commit 뒤 unlock |
+| Auth/Timer 5 — penalty/delete/Ao | PASS | penalty/delete/PB evidence와 Timer/Growth Ao5 18.321, Ao12 19.570 exact parity |
+| Pending 1-2 — response loss/reload | PASS | Record create 201 뒤 response abort; 16.081 snapshot과 Retry/Discard 복구; reload 자동 Record POST 0 |
+| Pending 3 — idempotent Retry | PASS | Retry 201 뒤 pending 제거, DB의 16.081 Record 1건 |
+| Pending 4 — canonical penalty convergence | PASS | 0.722 response loss 뒤 second tab에서 PLUS_TWO 변경; Retry가 2.722 canonical 상태로 수렴하고 DB Record 1건 유지 |
+| Pending 5 — invalid JSON/Discard | PASS | owner pending key invalid JSON reload 시 Timer lock과 Discard-only UI; explicit Discard 뒤 unlock |
+| Pending 6 — account isolation | PASS | A의 0.882 pending 뒤 B login; B Timer에 A time, Retry와 Discard 비노출 |
+| Pending 7 — Record 401/refresh failure | PASS | A의 1.053 pending 보존; unauth Retry의 guest/API 저장 0; A 재로그인 Retry 201 뒤 DB Record 1건 |
+| Pending 8 — stale history | PASS | WCA_333 Ao5 05.974 history 지연 뒤 WCA_222 전환; late response 후 unsupported state와 Ao dash 유지 |
+| Guest — save/reload/penalty/delete | PASS | guest 1.181 save와 reload, 3.181 PLUS_TWO, DNF, UI confirm delete와 reload 후 재등장 없음; Ao5/Ao12 dash와 pagination 정상 |
+| Guest — legacy/max 100 | PASS | `inputMethod` 없는 legacy 101건에서 UI penalty mutation 뒤 100건, first `inputMethod=UNKNOWN`, overflow item 제거 |
+
+Failure-path 검증을 위한 response abort, synthetic Record 401과 refresh `InternetDisconnected`는 의도한 trigger다. Guest reload의 `/api/auth/refresh` 400은 refresh cookie가 없는 비로그인 bootstrap의 정상 contract다. 이 항목들을 제외한 Chrome application console error, unexpected 4xx/5xx와 failed request는 0건이었고 duplicate Record도 없었다. Growth Architecture manual 1~6과 general release smoke runbook의 pre-main manual/runtime 항목은 모두 explicit PASS evidence를 가진다.
 
 PR #48 median terminology delta는 exact candidate를 smoke에 다시 빌드한 뒤 My Growth에서 별도로 확인했다. `완료된 7일 구간의 중앙값`, `날짜별 중앙값`, `최근 30일 중앙값 그래프`, `중앙값이 있는 날`과 text timeline의 `중앙값 28.994`가 렌더링됐고 user-facing `중앙 기록` 또는 단독 `중앙 {기록}` 표현은 남지 않았다.
 
