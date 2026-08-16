@@ -406,7 +406,7 @@ for entry in entries:
         raise SystemExit("production service set is not running")
     seen.add(service)
     health = str(entry.get("Health", "")).lower()
-    if service in {"db", "redis", "web"} and health != "healthy":
+    if service in required and health != "healthy":
         raise SystemExit("production service health is not ready")
     if health and health != "healthy":
         raise SystemExit("production service health is invalid")

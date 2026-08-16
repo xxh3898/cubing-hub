@@ -96,6 +96,14 @@ services:
       POST_IMAGES_LOCAL_ROOT_PATH: /data/post-images
       POST_IMAGES_KEY_PREFIX: ${POST_IMAGES_KEY_PREFIX:-community/posts}
       POST_IMAGES_PUBLIC_BASE_URL: ${POST_IMAGES_PUBLIC_BASE_URL:-https://api.cubing-hub.com/uploads}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     volumes:
       - type: bind
         source: ${POST_IMAGES_HOST_DIR:?POST_IMAGES_HOST_DIR must be set}
@@ -128,7 +136,7 @@ services:
       - /tmp:size=16m,mode=1777
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test:
         - CMD-SHELL
