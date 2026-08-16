@@ -213,7 +213,7 @@ Results:
 | Penalty | 20.818 Record `NONE → PLUS_TWO → DNF → NONE`; 각 단계 History와 Growth refresh PASS |
 | Delete | Record 66, 12.168 삭제; Current PB와 PB progression final point가 16.000으로 재계산되고 stale 12.168 제거 PASS |
 | Pagination | 삭제 뒤 Record History page 2와 page 5 이동 PASS |
-| Console and network | application console error 0, failed request 0; 관련 save, Growth, mutation, delete와 pagination request HTTP 200 |
+| Console and network | application console error 0, failed request 0; Record create HTTP 201, Growth/Record/Ranking read와 penalty update/delete HTTP 200 |
 
 Growth Architecture의 manual release smoke 1~6은 다음 candidate evidence에 각각 대응한다.
 
