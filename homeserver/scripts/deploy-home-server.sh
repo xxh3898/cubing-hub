@@ -709,6 +709,34 @@ def healthcheck_test_for(service, label):
         fail(f"{label} healthcheck probe is invalid")
     return test
 
+canonical_api_healthcheck_test = [
+    "CMD-SHELL",
+    "curl -fsS http://127.0.0.1:8080/actuator/health | grep -q \u0027\"status\":\"UP\"\u0027",
+]
+candidate_api_healthcheck_test = healthcheck_test_for(
+    candidate_services["api"],
+    "api",
+)
+baseline_api_healthcheck_test = healthcheck_test_for(
+    baseline_services["api"],
+    "active api",
+)
+if baseline_api_healthcheck_test is None:
+    if candidate_api_healthcheck_test != canonical_api_healthcheck_test:
+        fail("API healthcheck introduction must use the canonical readiness probe")
+elif baseline_api_healthcheck_test != canonical_api_healthcheck_test:
+    fail("active API healthcheck is not the canonical readiness probe")
+elif candidate_api_healthcheck_test != canonical_api_healthcheck_test:
+    fail("API healthcheck differs from the canonical readiness probe")
+
+candidate_web_dependencies = candidate_services["web"].get("depends_on", {})
+candidate_web_api_dependency = candidate_web_dependencies.get("api")
+if (
+    not isinstance(candidate_web_api_dependency, dict)
+    or candidate_web_api_dependency.get("condition") != "service_healthy"
+):
+    fail("Web must wait for API service health")
+
 def tmpfs_targets_for(service, label):
     entries = service.get("tmpfs", [])
     if entries is None:
@@ -738,7 +766,7 @@ for name in ("db", "redis", "api", "web"):
         f"active {name}",
     ):
         fail(f"{name} tmpfs target set differs from the active verified configuration")
-    if healthcheck_test_for(
+    if name != "api" and healthcheck_test_for(
         candidate_services[name],
         name,
     ) != healthcheck_test_for(
@@ -1507,26 +1535,46 @@ validate_verified_release() {
 }
 
 deployment_service_set_is_healthy() {
+  local configured
   local rendered
 
+  configured="$(compose config --format json)"
   rendered="$(compose ps --format json)"
-  printf '%s' "${rendered}" \
+  {
+    printf '%s\0' "${configured}"
+    printf '%s' "${rendered}"
+  } \
     | "${PYTHON_BIN}" -c '
 import json
 import sys
 
-raw = sys.stdin.read().strip()
-if not raw:
+raw = sys.stdin.buffer.read()
+configured_raw, rendered_raw = raw.split(b"\0", 1)
+configured = json.loads(configured_raw)
+rendered_text = rendered_raw.decode().strip()
+if not rendered_text:
     raise SystemExit("no Cubing Hub service status was returned")
-
 try:
-    value = json.loads(raw)
+    value = json.loads(rendered_text)
 except json.JSONDecodeError:
-    value = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    value = [
+        json.loads(line)
+        for line in rendered_text.splitlines()
+        if line.strip()
+    ]
 
 entries = value if isinstance(value, list) else [value]
 required_services = {"api", "db", "redis", "web"}
-health_required = {"db", "redis", "web"}
+configured_services = configured.get("services", {})
+if set(configured_services) != required_services:
+    raise SystemExit("configured Cubing Hub service set is invalid")
+health_required = {
+    name
+    for name, service in configured_services.items()
+    if isinstance(service.get("healthcheck"), dict)
+    and service["healthcheck"].get("disable") is not True
+    and service["healthcheck"].get("test")
+}
 seen = set()
 
 for entry in entries:

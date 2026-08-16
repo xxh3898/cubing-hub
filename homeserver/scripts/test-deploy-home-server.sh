@@ -17,6 +17,7 @@ CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 CONFIG_DIGEST_TWO=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 CONFIG_DIGEST_THREE=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 CONFIG_DIGEST_FIVE=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+CANONICAL_API_HEALTHCHECK_JSON='{"test":["CMD-SHELL","curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '\''\"status\":\"UP\"'\''"],"interval":"10s","timeout":"5s","retries":12,"start_period":"40s"}'
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-deploy-test.XXXXXX")"
 cleanup() {
@@ -156,6 +157,7 @@ run_deploy() {
         FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT="${FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT:-}" \
         FAKE_CANDIDATE_API_EXTRA_HOSTS_JSON="${FAKE_CANDIDATE_API_EXTRA_HOSTS_JSON:-}" \
         FAKE_CANDIDATE_API_EXTRA_VOLUME="${FAKE_CANDIDATE_API_EXTRA_VOLUME:-}" \
+        FAKE_CANDIDATE_API_HEALTHCHECK_JSON="${FAKE_CANDIDATE_API_HEALTHCHECK_JSON:-}" \
         FAKE_CANDIDATE_API_CONFIGS_JSON="${FAKE_CANDIDATE_API_CONFIGS_JSON:-}" \
         FAKE_CANDIDATE_API_COMMAND_JSON="${FAKE_CANDIDATE_API_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_API_ENTRYPOINT_JSON="${FAKE_CANDIDATE_API_ENTRYPOINT_JSON:-}" \
@@ -182,11 +184,15 @@ run_deploy() {
         FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON="${FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON:-}" \
         FAKE_CANDIDATE_UPLOAD_SOURCE="${FAKE_CANDIDATE_UPLOAD_SOURCE:-}" \
         FAKE_CANDIDATE_WEB_HEALTHCHECK_JSON="${FAKE_CANDIDATE_WEB_HEALTHCHECK_JSON:-}" \
+        FAKE_CANDIDATE_WEB_DEPENDS_ON_JSON="${FAKE_CANDIDATE_WEB_DEPENDS_ON_JSON:-}" \
         FAKE_CANDIDATE_WEB_COMMAND_JSON="${FAKE_CANDIDATE_WEB_COMMAND_JSON:-}" \
         FAKE_CANDIDATE_WEB_ENTRYPOINT_JSON="${FAKE_CANDIDATE_WEB_ENTRYPOINT_JSON:-}" \
         FAKE_CANDIDATE_WEB_RESTART="${FAKE_CANDIDATE_WEB_RESTART:-}" \
         FAKE_ACTUAL_DB_IMAGE_ID="${FAKE_ACTUAL_DB_IMAGE_ID:-}" \
         FAKE_ACTUAL_DB_VOLUME="${FAKE_ACTUAL_DB_VOLUME:-}" \
+        FAKE_API_HEALTH="${FAKE_API_HEALTH:-}" \
+        FAKE_SERVICE_STATUS_FORMAT=jsonl \
+        FAKE_RENDER_API_HEALTHCHECK_JSON="${FAKE_RENDER_API_HEALTHCHECK_JSON:-}" \
         /bin/bash "${test_script}" "$@"
 }
 
@@ -205,6 +211,7 @@ run_recovery() {
     FAIL_HOMEOPS_DEPLOYMENT_START_TIME="${FAIL_HOMEOPS_DEPLOYMENT_START_TIME:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL="${FAKE_PUBLIC_SMOKE_FAIL:-false}" \
     FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE="${FAKE_PUBLIC_SMOKE_FAIL_ONCE_FILE:-}" \
+    FAKE_SERVICE_STATUS_FORMAT=jsonl \
     /bin/bash "${test_script}" recover
 }
 
@@ -930,6 +937,8 @@ run_recovery
 test ! -e "${pending_file}"
 
 FAKE_CONFIG_REVISION="${REVISION_THREE}" \
+FAKE_RENDER_API_HEALTHCHECK_JSON=null \
+FAKE_CANDIDATE_API_HEALTHCHECK_JSON="${CANONICAL_API_HEALTHCHECK_JSON}" \
 FAKE_CANDIDATE_WEB_RESTART=always \
 FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON='{"test":["CMD","redis-cli","ping"],"interval":"30s","timeout":"3s","retries":3}' \
 FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT=',"FEATURE_FLAG":"enabled"' \
@@ -943,6 +952,25 @@ FAKE_CANDIDATE_API_EXTRA_ENVIRONMENT=',"FEATURE_FLAG":"enabled"' \
 /usr/bin/grep -Fxq "RUNTIME_CONFIG_DIGEST=${CONFIG_DIGEST_TWO}" "${state_file}"
 test "$(/usr/bin/readlink "${current_link}")" \
   = "releases/${CONFIG_DIGEST_TWO#sha256:}"
+
+set +e
+FAKE_API_HEALTH=none \
+FAKE_CONFIG_REVISION="${REVISION_ONE}" \
+  run_deploy \
+    "${REVISION_ONE}" \
+    update \
+    "${CONFIG_DIGEST_THREE}" \
+    test-user \
+    >/dev/null 2>&1
+api_running_without_health_exit_code="$?"
+set -e
+if [[ "${api_running_without_health_exit_code}" -ne 1 ]] \
+  || [[ ! -f "${pending_file}" ]]
+then
+  printf 'API running without healthy status must fail the deployment service gate\n' >&2
+  exit 1
+fi
+run_recovery
 
 verified_state_sha="$(
   /usr/bin/shasum -a 256 "${state_file}" | /usr/bin/awk '{print $1}'
@@ -1159,6 +1187,17 @@ FAKE_CANDIDATE_DB_HEALTHCHECK_JSON='{"test":["CMD","mysqladmin","ping"],"interva
   expect_protected_failure "database healthcheck without loopback"
 FAKE_CANDIDATE_REDIS_HEALTHCHECK_JSON='{"test":["CMD","true"],"interval":"30s","timeout":"3s","retries":3}' \
   expect_protected_failure "Redis healthcheck without ping"
+FAKE_RENDER_API_HEALTHCHECK_JSON=null \
+FAKE_CANDIDATE_API_HEALTHCHECK_JSON='{"test":["CMD-SHELL","curl -fsS https://example.invalid/health"],"interval":"10s","timeout":"5s","retries":12}' \
+  expect_protected_failure "arbitrary API healthcheck introduction"
+FAKE_CANDIDATE_API_HEALTHCHECK_JSON=null \
+  expect_protected_failure "API healthcheck removal"
+FAKE_CANDIDATE_API_HEALTHCHECK_JSON='{"disable":true}' \
+  expect_protected_failure "API healthcheck disable"
+FAKE_CANDIDATE_API_HEALTHCHECK_JSON='{"test":["CMD-SHELL","curl -fsS http://127.0.0.1:8080/actuator/health"],"interval":"10s","timeout":"5s","retries":12}' \
+  expect_protected_failure "API healthcheck status validation removal"
+FAKE_CANDIDATE_WEB_DEPENDS_ON_JSON='{"api":{"condition":"service_started","required":true}}' \
+  expect_protected_failure "Web API readiness dependency downgrade"
 FAKE_CANDIDATE_WEB_HEALTHCHECK_JSON='{"test":["CMD-SHELL","true # wget --header=Host:api.cubing-hub.com http://127.0.0.1/actuator/health status UP"],"interval":"30s","timeout":"3s","retries":3}' \
   expect_protected_failure "always-success healthcheck probe substitution"
 FAKE_CANDIDATE_WEB_HEALTHCHECK_JSON='{"test":["CMD-SHELL","curl -fsS http://localhost/actuator/health | grep -qi status.*UP"],"interval":"30s","timeout":"3s","retries":3}' \
