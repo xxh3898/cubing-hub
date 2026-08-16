@@ -1,6 +1,6 @@
 ---
 doc_type: quality
-status: draft
+status: active
 created: 2026-08-16
 updated: 2026-08-17
 owner: xxh3898
