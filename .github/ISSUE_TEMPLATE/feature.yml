@@ -1,0 +1,66 @@
+name: Feature request
+description: 사용자 문제와 제품 가치를 해결하는 기능을 제안합니다.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        기능 이름보다 해결할 문제, 사용자 가치, 범위를 먼저 정리합니다.
+
+  - type: textarea
+    id: problem-opportunity
+    attributes:
+      label: Problem / Opportunity
+      description: 어떤 사용자 문제 또는 기회를 해결하는지 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-value
+    attributes:
+      label: User Value
+      description: 대상 사용자와 기대하는 가치를 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-scope
+    attributes:
+      label: Proposed Scope
+      description: 이번 기능에 포함할 화면, API, data 또는 interaction을 적습니다.
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of Scope
+      description: 이번 기능에서 의도적으로 하지 않는 일을 적습니다.
+      placeholder: |
+        - ...
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: 사용자 관점의 완료 조건을 적습니다.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: source-of-truth
+    attributes:
+      label: Related Source of Truth
+      description: 관련 Requirement, Architecture, ADR, API docs 또는 research를 적습니다. 없으면 N/A와 이유를 적습니다.
+      placeholder: |
+        - docs/...
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: mockup, related Issue/PR, risk 또는 열린 질문을 적습니다.

@@ -1,0 +1,68 @@
+name: Engineering task
+description: infrastructure, refactor, CI/CD, documentation, maintenance 또는 기술 조사를 기록합니다.
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        구현 방식보다 목표, 영향 범위, 검증과 운영 경계를 먼저 기록합니다.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: 해결할 engineering 목표와 완료 조건을 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: 현재 동작, 관련 component와 이 작업이 필요한 배경을 적습니다.
+
+  - type: textarea
+    id: in-scope
+    attributes:
+      label: In Scope
+      description: 변경할 component, script, workflow, data 또는 문서 범위를 적습니다.
+      placeholder: |
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of Scope
+      description: 이번 작업에서 하지 않는 일을 적습니다.
+      placeholder: |
+        - ...
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: 완료를 판단할 수 있는 검증 가능 조건을 적습니다.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: 필요한 test, CI, smoke, rollback 또는 manual verification을 적습니다.
+
+  - type: textarea
+    id: dependencies-risks
+    attributes:
+      label: Dependencies / Risks
+      description: dependency, migration, secret, production data, runtime 또는 rollout risk를 적습니다.
+
+  - type: textarea
+    id: documentation-impact
+    attributes:
+      label: Documentation Impact
+      description: 갱신할 Source of Truth/운영 문서를 적습니다. 필요하지 않으면 N/A와 이유를 적습니다.
