@@ -2,7 +2,7 @@
 doc_type: product
 status: active
 created: 2026-08-10
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -22,7 +22,7 @@ related:
 
 제품 Vision, V2.1 Foundation 범위와 Practice event 지원 범위는 현재 구현 계약으로 유지한다. V2.1 Event Support 결정에는 기존 data 분포 audit을 blocker로 두지 않았다.
 
-V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile implementation은 `dev`에 통합됐고 pre-main release evidence를 확보했다. Final `dev → main` Validate, main merge와 release/deploy 승인은 별도 gate로 남아 있다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 Growth & Profile implementation은 `dev`에 통합됐고 final `dev → main` release qualification Validate를 통과했다. Main merge와 release/deploy 승인, production verification은 별도 gate로 남아 있다.
 
 ## Product Definition
 

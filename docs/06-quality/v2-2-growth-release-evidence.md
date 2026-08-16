@@ -2,7 +2,7 @@
 doc_type: quality
 status: draft
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -24,9 +24,12 @@ related:
 | --- | --- |
 | Candidate SHA | `7ca9c7f47e0af4f77efc975cb8876d959264d770` |
 | Integration branch | `dev` |
+| Pre-main evidence merge | PR #47 merge `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` |
+| Release qualification PR | PR #49, `dev → main` |
 | Current backend tree | `f10f92d9d726389daeb783300a056162091e6f09` |
 | Current frontend tree | `2d5e127b05d153333b64848bcae0aa8be9f14c0b` |
-| Current dev Validate | [31933736295](https://github.com/xxh3898/cubing-hub/actions/runs/31933736295), success |
+| Application candidate Validate | [31933736295](https://github.com/xxh3898/cubing-hub/actions/runs/31933736295), success |
+| Final release qualification Validate | [31956316844](https://github.com/xxh3898/cubing-hub/actions/runs/31956316844), PR #49 head `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3`, success |
 
 이 문서는 `dev` release candidate의 검증 근거다. `main` merge, release, production deploy 또는 production runtime 적용을 뜻하지 않는다.
 
@@ -264,8 +267,10 @@ PR #48 delta 확인에서도 `중앙값` heading, description, chart alternative
 | --- | --- | --- |
 | dev Validate 31933736295 | exact candidate SHA | Detect, infrastructure, frontend lint/full Vitest/build and Web ARM64 actually ran and succeeded; backend and API ARM64 safe-skipped |
 | dev Validate 31926263963 | identical backend tree and API image inputs | backend test/build and API ARM64 actually ran and succeeded |
+| dev Validate 31955428374 | PR #47 merge commit `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` | Detect and infrastructure actually ran and succeeded; backend, frontend, API ARM64 and Web ARM64 safe-skipped |
+| PR #49 Validate 31956316844 | exact initial `dev → main` qualification head `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` | backend, frontend, infrastructure, API ARM64 and Web ARM64 all actually ran and succeeded |
 
-Candidate/dev application CI는 PASS다. PR E docs-only branch Validate는 PR quality gate이며 위 candidate application evidence를 대체하지 않는다. Final release CI gate인 `dev → main` PR Validate는 아직 PR이 열리지 않아 PENDING이다.
+Candidate/dev application CI와 final `dev → main` release qualification Validate는 PASS다. 이 결과를 기록하는 docs-only finalization은 application/runtime tree를 변경하지 않는다. Finalization merge 뒤 PR #49의 새 head required checks는 current-head merge gate로 다시 확인하며, 해당 run ID를 이 문서에 재귀적으로 기록하지 않는다.
 
 ## Known Limitations
 
@@ -288,7 +293,7 @@ Candidate/dev application CI는 PASS다. PR E docs-only branch Validate는 PR qu
 | Mutation parity | PASS |
 | Auth regression | PASS |
 | Candidate/dev CI | PASS |
-| Final `dev → main` PR Validate | PENDING |
+| Final `dev → main` PR Validate | PASS |
 | Isolated runtime smoke | PASS |
 | Manual browser smoke | PASS |
 | Mobile 390px smoke | PASS |
@@ -296,4 +301,4 @@ Candidate/dev application CI는 PASS다. PR E docs-only branch Validate는 PR qu
 | Actual iPhone smoke | NOT_RUN |
 | Migration | NONE |
 
-Release decision: **PRE-MAIN RELEASE GATES COMPLETE**. V2.2 application과 evidence는 dev candidate에서 release-ready하다. Final `dev → main` PR Validate는 PENDING이며 PR #47 merge 후 별도 release 단계에서 성공해야 한다. 이후 main merge 승인, release/deploy 승인과 production verification도 남아 있다. Actual iPhone smoke는 실행하지 않은 known limitation이며 pre-main blocker가 아니다.
+Release decision: **FINAL RELEASE VALIDATION COMPLETE — MAIN MERGE PENDING**. V2.2 application과 evidence는 PR #49 initial qualification head에서 final `dev → main` Validate를 통과했다. Evidence finalization 뒤 current-head required checks와 review를 다시 확인해야 하며 main merge 승인, release/deploy 승인과 production verification은 아직 남아 있다. Actual iPhone smoke는 실행하지 않은 known limitation이며 release blocker가 아니다.

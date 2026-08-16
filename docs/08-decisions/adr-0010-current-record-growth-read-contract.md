@@ -2,7 +2,7 @@
 doc_type: adr
 status: accepted
 created: 2026-08-11
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -86,9 +86,9 @@ PR C(PR #41)는 `/mypage`에 Current PB, Recent Ao5/Ao12, period comparison, 30-
 
 PR D(PR #43)는 MyPage의 legacy 100-record source와 raw Record trend를 제거했다. Growth metric은 dedicated Growth API를 사용하고 Record History는 server pagination을 유지하며, Profile update와 Record mutation의 Profile·Record·Growth refresh lifecycle을 분리했다. Home과 MyPage는 legacy all-event arithmetic mean을 Growth metric으로 표시하지 않는다.
 
-PR E(PR #47)는 [V2.2 release evidence](../06-quality/v2-2-growth-release-evidence.md)를 고정한다. Candidate/dev CI, metric·API·privacy·performance evidence, Growth manual smoke, full release smoke runbook과 mobile 390px 검증은 완료했다. Final `dev → main` PR Validate는 PENDING이다.
+PR E(PR #47)는 [V2.2 release evidence](../06-quality/v2-2-growth-release-evidence.md)를 고정했다. Candidate/dev CI, metric·API·privacy·performance evidence, Growth manual smoke, full release smoke runbook과 mobile 390px 검증을 완료했고 final `dev → main` release qualification Validate도 통과했다.
 
-ADR의 `accepted` status는 architecture decision의 채택 상태를 뜻한다. 구현과 release 진행 상태는 이 Implementation status와 release evidence에서 별도로 관리한다. V2.2 implementation과 pre-main application·manual·runtime evidence는 dev에서 완료했지만 final `dev → main` Validate와 main merge, production deploy·verification은 수행하지 않았다.
+ADR의 `accepted` status는 architecture decision의 채택 상태를 뜻한다. 구현과 release 진행 상태는 이 Implementation status와 release evidence에서 별도로 관리한다. V2.2 implementation과 final release qualification evidence는 dev에서 완료했지만 main merge와 production deploy·verification은 수행하지 않았다.
 
 ## Consequences
 
