@@ -233,7 +233,7 @@ Growth-specific smoke와 별도로 release smoke runbook의 general browser chec
 | Auth/Timer 1 — login/logout | PASS | authenticated logout 뒤 private state 비노출, guest 상태 확인과 smoke account 재로그인 복구 |
 | Auth/Timer 2-3 — Keyboard/Touch | PASS | 12.168 `KEYBOARD`, 16.000과 9.337 `TOUCH`; stopped display/raw time과 provenance 일치 |
 | Auth/Timer 4 — next-scramble locking | PASS | next WCA_333 scramble 지연 중 Timer lock; unsupported event 왕복 중 이전 response 무시; fresh WCA_333 commit 뒤 unlock |
-| Auth/Timer 5 — penalty/delete/Ao | PASS | penalty/delete/PB evidence와 Timer/Growth Ao5 18.321, Ao12 19.570 exact parity |
+| Auth/Timer 5 — penalty/delete/PB/Ranking/Ao | PASS | Current PB Record 69를 `NONE → PLUS_TWO → DNF → NONE`으로 변경하며 History, PB, Ao5/Ao12와 Ranking을 함께 확인했다. 기준선은 PB/Ranking 9.337, Ao5 17.453, Ao12 19.089였고, PLUS_TWO는 PB/Ranking 11.337, Ao5 17.453, Ao12 19.089, DNF는 PB/Ranking 16.000, Ao5 18.520, Ao12 DNF로 반영됐다. NONE 복원 뒤 기준선으로 돌아왔고, Record 69 삭제 뒤 History 46건, PB/progression final/Ranking 16.000, Ao5 18.321, Ao12 19.570으로 재계산됐다. reload 후 9.337 Record와 PB point는 재등장하지 않았다. |
 | Pending 1-2 — response loss/reload | PASS | Record create 201 뒤 response abort; 16.081 snapshot과 Retry/Discard 복구; reload 자동 Record POST 0 |
 | Pending 3 — idempotent Retry | PASS | Retry 201 뒤 pending 제거, DB의 16.081 Record 1건 |
 | Pending 4 — canonical penalty convergence | PASS | 0.722 response loss 뒤 second tab에서 PLUS_TWO 변경; Retry가 2.722 canonical 상태로 수렴하고 DB Record 1건 유지 |
@@ -245,6 +245,8 @@ Growth-specific smoke와 별도로 release smoke runbook의 general browser chec
 | Guest — legacy/max 100 | PASS | `inputMethod` 없는 legacy 101건에서 UI penalty mutation 뒤 100건, first `inputMethod=UNKNOWN`, overflow item 제거 |
 
 Failure-path 검증을 위한 response abort, synthetic Record 401과 refresh `InternetDisconnected`는 의도한 trigger다. Guest reload의 `/api/auth/refresh` 400은 refresh cookie가 없는 비로그인 bootstrap의 정상 contract다. 이 항목들을 제외한 Chrome application console error, unexpected 4xx/5xx와 failed request는 0건이었고 duplicate Record도 없었다. Growth Architecture manual 1~6과 general release smoke runbook의 pre-main manual/runtime 항목은 모두 explicit PASS evidence를 가진다.
+
+Auth/Timer 5 재검증은 actual Chrome과 smoke-only `qa-v22@smoke.localhost` account에서 수행했다. 삭제 후 reload와 Ranking/My Growth 재조회에서 `/api/rankings`, profile, Record History, Growth summary/trend/PB progression 응답은 모두 HTTP 200이었고 application console error와 failed request는 없었다. MySQL 보조 확인에서도 Record 69는 제거됐고 `user_pbs`는 retained Record 67의 16.000으로 재연결됐다.
 
 PR #48 median terminology delta는 exact candidate를 smoke에 다시 빌드한 뒤 My Growth에서 별도로 확인했다. `완료된 7일 구간의 중앙값`, `날짜별 중앙값`, `최근 30일 중앙값 그래프`, `중앙값이 있는 날`과 text timeline의 `중앙값 28.994`가 렌더링됐고 user-facing `중앙 기록` 또는 단독 `중앙 {기록}` 표현은 남지 않았다.
 
