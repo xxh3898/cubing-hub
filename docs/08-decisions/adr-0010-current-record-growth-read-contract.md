@@ -2,7 +2,7 @@
 doc_type: adr
 status: accepted
 created: 2026-08-11
-updated: 2026-08-12
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -15,6 +15,7 @@ related:
   - docs/03-architecture/growth-architecture.md
   - docs/04-data/data-dictionary.md
   - docs/05-api/conventions.md
+  - docs/06-quality/v2-2-growth-release-evidence.md
 ---
 # ADR-0010 Current Record 기반 Growth read contract
 
@@ -73,13 +74,21 @@ Option C를 V2.2 Growth read contract로 채택한다.
 7. V2.2는 Flyway, generated effective column, PB snapshot table, Growth Redis와 pre-aggregation을 추가하지 않는다. 10,000-record query evidence를 release gate로 남기고 100,000-record stress에서 문제가 확인되면 후속 결정을 연다.
 8. Event dimension은 유지하되 current public Growth capability는 WCA_333만 허용한다. Unsupported known event에 fake empty Growth를 제공하지 않는다.
 
-세부 metric formula는 [Growth Metrics](../01-domain/growth-metrics.md), endpoint와 query proposal은 [Growth Architecture](../03-architecture/growth-architecture.md)가 관리한다.
+세부 metric formula는 [Growth Metrics](../01-domain/growth-metrics.md), endpoint·query contract와 implementation architecture는 [Growth Architecture](../03-architecture/growth-architecture.md)가 관리한다.
 
 ## Implementation status
 
-PR A는 current Record projection을 입력으로 받는 pure metric calculator와 canonical fixture를 구현했다. effective result, Ao5/Ao12, median, period comparison, IQR, PB progression과 Asia/Seoul time window는 해당 calculator가 기준이다.
+PR A(PR #25)는 current Record projection을 입력으로 받는 pure metric calculator와 canonical fixture를 구현했다. effective result, Ao5/Ao12, median, period comparison, IQR, PB progression과 Asia/Seoul time window는 해당 calculator가 기준이다.
 
-PR B는 dedicated private read API, lightweight repository projection, MySQL 8 daily aggregate/window query와 REST Docs를 구현했다. PR C는 `/mypage`의 My Growth dashboard consumer를 추가한다. 이 ADR의 accepted status는 legacy Profile consumer transition과 release의 구현 완료를 뜻하지 않는다.
+PR B(PR #26)는 dedicated private summary, 30-day trend와 paginated PB progression API, lightweight repository projection, MySQL 8 daily aggregate/window query, REST Docs와 integration coverage를 구현했다.
+
+PR C(PR #41)는 `/mypage`에 Current PB, Recent Ao5/Ao12, period comparison, 30-day trend, consistency, PB progression, activity, Next Practice와 Record History를 함께 제공하는 private My Growth dashboard consumer를 구현했다.
+
+PR D(PR #43)는 MyPage의 legacy 100-record source와 raw Record trend를 제거했다. Growth metric은 dedicated Growth API를 사용하고 Record History는 server pagination을 유지하며, Profile update와 Record mutation의 Profile·Record·Growth refresh lifecycle을 분리했다. Home과 MyPage는 legacy all-event arithmetic mean을 Growth metric으로 표시하지 않는다.
+
+PR E(PR #47)는 [V2.2 release evidence](../06-quality/v2-2-growth-release-evidence.md)를 고정한다. Candidate/dev CI, metric·API·privacy·performance evidence, Growth manual smoke, full release smoke runbook과 mobile 390px 검증은 완료했다. Final `dev → main` PR Validate는 PENDING이다.
+
+ADR의 `accepted` status는 architecture decision의 채택 상태를 뜻한다. 구현과 release 진행 상태는 이 Implementation status와 release evidence에서 별도로 관리한다. V2.2 implementation과 pre-main application·manual·runtime evidence는 dev에서 완료했지만 final `dev → main` Validate와 main merge, production deploy·verification은 수행하지 않았다.
 
 ## Consequences
 
