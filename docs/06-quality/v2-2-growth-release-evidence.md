@@ -212,6 +212,19 @@ Results:
 | Pagination | 삭제 뒤 Record History page 2와 page 5 이동 PASS |
 | Console and network | application console error 0, failed request 0; 관련 save, Growth, mutation, delete와 pagination request HTTP 200 |
 
+Growth Architecture의 manual release smoke 1~6은 다음 candidate evidence에 각각 대응한다.
+
+| # | Manual release smoke | Result | Evidence |
+| --- | --- | --- | --- |
+| 1 | Keyboard/touch WCA_333 save → Growth 반영 | PASS | Chrome keyboard 12.168 (`KEYBOARD`), touch 16.000 (`TOUCH`) 저장 뒤 History, Growth summary와 PB progression 갱신 |
+| 2 | Timer recent Ao ↔ Growth recent Ao parity | PASS | 같은 로그인 상태에서 Timer/Growth Ao5 `18.321`, Ao12 `19.570` exact match |
+| 3 | Penalty `NONE → PLUS_TWO → DNF`와 refresh | PASS | 20.818 Record를 `NONE → PLUS_TWO → DNF → NONE`으로 변경하며 History와 Growth refresh 확인 |
+| 4 | Record delete와 PB/progression parity | PASS | Record 66(12.168) 삭제 뒤 Current PB와 progression final point가 16.000으로 일치하고 stale point 제거 |
+| 5 | Empty/insufficient user와 30-day gap | PASS | 0 Record에서 empty/첫 Practice CTA, 1 Record(25.000)에서 첫 Ao5까지 4회 및 numeric Ao 미표시; 2026-07-18은 `기록 없음 · solve 0회`이며 fake median 없음 |
+| 6 | 390px My Growth → Timer → My Growth | PASS | 390×844 touch emulation으로 CTA 이동, Record 69(9.337, `TOUCH`) 저장, History/Growth/PB progression refresh; `innerWidth=390`, `scrollWidth=390` |
+
+남은 세 흐름을 완료한 실행에서도 Chrome application console error와 unexpected 4xx/5xx는 0건이었다. DevTools Network에서 관련 application request 12건은 200이었고 외부 VisualCube의 정상 redirect 2건만 308로 확인됐다.
+
 PR #48 median terminology delta는 exact candidate를 smoke에 다시 빌드한 뒤 My Growth에서 별도로 확인했다. `완료된 7일 구간의 중앙값`, `날짜별 중앙값`, `최근 30일 중앙값 그래프`, `중앙값이 있는 날`과 text timeline의 `중앙값 28.994`가 렌더링됐고 user-facing `중앙 기록` 또는 단독 `중앙 {기록}` 표현은 남지 않았다.
 
 ## Mobile
