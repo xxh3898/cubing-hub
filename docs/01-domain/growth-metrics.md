@@ -2,7 +2,7 @@
 doc_type: domain
 status: active
 created: 2026-08-11
-updated: 2026-08-14
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -17,18 +17,20 @@ related:
 
 ## 문서 상태
 
-V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator와 PR B의 private Growth read API는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
+V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator, PR B의 private Growth read API와 PR C의 My Growth dashboard는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
 
-My Growth UI와 release는 아직 구현하지 않았다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
+My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에 통합됐다. Release evidence는 automated/runtime gate와 manual browser/mobile gate를 분리한다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
 
 ```text
 Current
 - V2.1 Record, current PB projection, event history, Timer Ao5/Ao12
 - Growth pure calculator와 canonical unit fixture
 - private Growth summary, 30-day trend, paginated PB progression API
+- My Growth dashboard와 server-paginated Record History
+- legacy MyPage/Home arithmetic mean consumer 제거
 
 Next implementation
-- My Growth dashboard
+- release approval
 
 Future candidate
 - best Ao progression, pre-aggregation, user timezone
@@ -90,7 +92,7 @@ Median은 이름이 지정된 population의 rankable effective value를 오름�
 - 짝수 `n`: 가운데 두 값의 산술평균을 integer millisecond로 반올림
 - DNF: numeric population에서 제외하고 같은 window의 DNF count/rate로 함께 제공
 
-`평균`이라는 일반 label 대신 `최근 7일 median`, `일별 median`처럼 population을 표시한다. 한국어 UI는 `중앙 기록`을 기본 label로 사용하고 tooltip에서 median 정의를 설명한다.
+`평균`이라는 일반 label 대신 `최근 7일 median`, `일별 median`처럼 population을 표시한다. 한국어 UI는 `중앙값`을 기본 label로 사용하고 tooltip에서 median 정의를 설명한다.
 
 ### 기간과 timezone
 

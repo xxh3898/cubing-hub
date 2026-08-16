@@ -11,6 +11,7 @@ const [
   backupScript,
   backupBootstrap,
   mysqlMaintenanceScript,
+  backendDockerfile,
   frontendDockerfile,
   launchAgent,
   dockerIgnore,
@@ -34,6 +35,7 @@ const [
   read("./backup-home-server.sh"),
   read("./backup-home-server-bootstrap.sh"),
   read("./mysql-maintenance-home-server.sh"),
+  read("../docker/backend.Dockerfile"),
   read("../docker/frontend.Dockerfile"),
   read("../launchd/com.homeserver.cubing-hub-backup.plist.example"),
   read("../../.dockerignore"),
@@ -122,6 +124,39 @@ test("should_hardenApplicationContainersAndKeepSecretsExternal", () => {
     /POST_IMAGES_HOST_DIR=\/Users\/homeserver\/Server\/data\/cubing-hub\/post-images/,
   );
   assert.doesNotMatch(envExample, /ghp_|github_pat_|Bearer |BEGIN .*PRIVATE KEY/);
+});
+
+test("should_probeApiReadinessDirectlyAndPreserveWebIntegrationHealth", () => {
+  const api = serviceBlock(compose, "api");
+  const web = serviceBlock(compose, "web");
+  const smokeApi = serviceBlock(smokeCompose, "api");
+  const smokeWeb = serviceBlock(smokeCompose, "web");
+  const canonicalApiProbe =
+    /curl -fsS http:\/\/127\.0\.0\.1:8080\/actuator\/health \| grep -q '\"status\":\"UP\"'/;
+
+  assert.match(backendDockerfile, /apt-get install -y --no-install-recommends curl/);
+  assert.match(backendDockerfile, /rm -rf \/var\/lib\/apt\/lists\/\*/);
+  assert.match(backendDockerfile, /USER spring/);
+  assert.match(api, canonicalApiProbe);
+  assert.match(smokeApi, canonicalApiProbe);
+  assert.doesNotMatch(smokeApi, /wget/);
+  assert.match(
+    web,
+    /depends_on:\n      api:\n        condition: service_healthy/,
+  );
+  assert.match(
+    smokeWeb,
+    /depends_on:\n      api:\n        condition: service_healthy/,
+  );
+  assert.match(web, /wget --header='Host: api\.cubing-hub\.com'/);
+  assert.match(smokeWeb, /wget -qO- http:\/\/127\.0\.0\.1\/actuator\/health/);
+  assert.match(deployScript, /API healthcheck introduction must use the canonical readiness probe/);
+  assert.match(deployScript, /Web must wait for API service health/);
+  assert.match(deployScript, /configured Cubing Hub service set is invalid/);
+  assert.match(
+    restrictedWrapper,
+    /if service in required and health != "healthy"/,
+  );
 });
 
 test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {

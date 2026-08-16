@@ -164,8 +164,10 @@ environment 변경은 Compose render와 service health로 검증한다. 대신 �
   Spring profile·datasource·JPA·Flyway·Liquibase·SQL init·config JSON 및
   JVM option 설정
 - API/Web image command·entrypoint override 금지
-- DB·Redis·Web healthcheck `test` 명령과 배포 완료 시 실제
-  running/healthy 상태. healthcheck timing은 변경 가능
+- DB·Redis·API·Web healthcheck `test` 명령과 배포 완료 시 실제
+  running/healthy 상태. API는 container loopback Actuator readiness를,
+  Web은 Nginx에서 API까지의 integration health를 검증한다. healthcheck
+  timing은 변경 가능
 - 각 service의 process user와 정규화한 `tmpfs` mount target 집합
 - MySQL·Redis named volume과 기존 upload bind identity
 - internal application, API 전용 outbound, shared edge network 경계
@@ -173,6 +175,15 @@ environment 변경은 Compose render와 service health로 검증한다. 대신 �
   `extra_hosts`·link를 통한 service hostname override 금지
 - Compose `configs`, `secrets`, `env_file`을 통한 host file 주입 금지
 - candidate release의 pinned Nginx real-IP bind
+
+API healthcheck가 없던 verified runtime에서 repository의 canonical API
+probe를 처음 도입하는 전환만 허용한다. Candidate probe는 loopback
+`/actuator/health`의 `status=UP`을 확인하는 exact command여야 하며, 최초
+전환 뒤 probe 제거·disable·target 또는 status 검증 변경은 일반 deploy에서
+fail closed한다. Production Web은 initial startup에서 API
+`service_healthy`를 기다리지만, 실행 중 API restart가 Web restart를 자동
+유발하지는 않는다. 이 내용은 repository deployment contract이며 실제
+host runtime 적용 여부는 release/deploy evidence로 별도 확인한다.
 
 DB·Redis image·실행 명령이나 data-sensitive Spring 설정 등 위 보호 경계를
 바꾸는 작업은 일반 runtime config 동기화가 아니라 별도

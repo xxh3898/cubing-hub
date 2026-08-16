@@ -51,7 +51,7 @@ copy 뒤 `replace-with-`로 시작하는 세 credential을 새로운 smoke-only 
 
 ## Start, status, Flyway, logs
 
-`up`은 one-shot Gradle builder로 JAR를 만든 뒤 production API/Web Dockerfile을 build하고 `--wait`로 smoke services의 health를 기다린다.
+`up`은 one-shot Gradle builder로 JAR를 만든 뒤 production API/Web Dockerfile을 build하고 `--wait`로 smoke services의 health를 기다린다. API healthcheck는 API container 안에서 loopback `/actuator/health`의 `status=UP`을 직접 확인한다. Web healthcheck는 local Nginx를 거쳐 API까지의 Docker network route와 같은 actuator 응답을 확인하므로 direct API probe를 대체하지 않는다. 정상 상태에서는 mysql, redis, api, web이 모두 `healthy`여야 한다.
 
 ```bash
 homeserver/scripts/smoke-v2-1.sh up

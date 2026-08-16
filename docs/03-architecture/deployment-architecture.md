@@ -49,7 +49,7 @@ production API container는 Flyway를 비활성화하고 Hibernate validate를 �
 
 ## Activation과 검증
 
-candidate pair의 Compose config와 allowlist를 검증한 뒤 service를 갱신한다. container health 외에 public Web root, SPA deep link, API health와 대표 asset을 포함한 public smoke를 통과해야 완료 상태로 기록한다.
+candidate pair의 Compose config와 allowlist를 검증한 뒤 service를 갱신한다. API container는 loopback Actuator의 `status=UP`으로 direct readiness를 검증하고, Web container는 local Nginx에서 API까지의 integration route를 별도로 검증한다. Initial startup에서 Web은 API `service_healthy`를 기다린다. Container health 외에 public Web root, SPA deep link, API health와 대표 asset을 포함한 public smoke를 통과해야 완료 상태로 기록한다. Internal container health만으로 external availability를 확정하지 않는다.
 
 ## Rollback 한계
 

@@ -289,12 +289,6 @@ export default function HomePage() {
               icon={Trophy}
               tone="accent"
             />
-            <DashboardCard
-              label="전체 평균"
-              value={formatNullableTime(summary.averageTimeMs)}
-              detail="DNF 제외 평균 기록"
-              icon={Gauge}
-            />
           </div>
         )}
       </div>

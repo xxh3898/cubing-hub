@@ -2,7 +2,7 @@
 doc_type: requirement
 status: draft
 created: 2026-08-11
-updated: 2026-08-12
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -19,19 +19,21 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator와 private Growth read API는 구현했지만, My Growth UI와 release는 아직 application contract나 출시 약속이 아니다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI, isolated runtime과 manual browser/mobile evidence는 release candidate 문서에 기록한다. 이 근거는 `main` merge나 production release를 뜻하지 않는다.
 
 ```text
 Current
 - Timer의 recent Ao5/Ao12
-- private MyPage의 전체 요약, 최근 raw Record chart, history 관리
+- private MyPage의 canonical Growth API consumer
+- server pagination을 사용하는 Record History
+- Account/Profile 관리
+- Home에서 legacy arithmetic mean을 제외한 account/Record summary
 - Ranking의 nickname과 event PB
 - current Record projection을 계산하는 Growth metric calculator
 - event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- private My Growth dashboard
-- next Practice로 돌아가는 명확한 action
+- release approval
 
 Future candidate
 - best Ao, Ao progression, opt-in public Profile
@@ -173,7 +175,7 @@ Next Practice
 
 Performance Direction
 ----------------------------------------------------
-최근 완료 7일 중앙 기록 20.100
+최근 완료 7일 중앙값 20.100
 직전 7일 21.350보다 5.9% 빨라짐 · 표본 24 / 18
 [30-day daily median line chart]
 
@@ -303,7 +305,8 @@ Future public Profile을 검토할 때는 stable user identifier, block/deleted-
 
 - 각 implementation PR의 focused backend/frontend test와 generated REST Docs를 통과한다.
 - `dev` push와 `dev → main` PR Validate의 required job이 성공한다.
-- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산, KST boundary, mobile layout을 targeted smoke한다.
+- release candidate에서 keyboard/touch save → Growth, penalty/delete → PB progression 재계산과 mobile layout을 targeted browser smoke한다.
+- KST/UTC calendar boundary, completed recent/previous 7-day window와 `todayPartial`은 fixed clock을 사용하는 deterministic integration test로 검증한다. Wall-clock browser 조작은 이 gate에 필요하지 않다.
 - build/CI 성공을 production request 성공으로 표현하지 않는다. main merge/deploy는 별도 승인과 release gate를 따른다.
 
 ## Product validation
@@ -333,7 +336,7 @@ Analytics infrastructure는 V2.2에 포함하지 않는다. 향후에도 raw tim
 
 1. 지금은 기록이 빨라지고 있는지 어떤 방식으로 확인하는가?
 2. PB와 최근 Ao12 중 현재 실력을 더 잘 설명한다고 느끼는 것은 무엇이며 왜 그런가?
-3. 최근 7일 중앙 기록과 직전 7일 비교가 이해되는가? 어떤 표현이 더 자연스러운가?
+3. 최근 7일 중앙값과 직전 7일 비교가 이해되는가? 어떤 표현이 더 자연스러운가?
 4. 기록이 없는 날을 chart의 빈칸으로 보는 것이 이해되는가?
 5. `최근 12회 기록 범위`가 안정성을 이해하는 데 도움이 되는가, 아니면 복잡한가?
 6. PB progression에서 가장 보고 싶은 정보는 time, 날짜, penalty 중 무엇인가?
@@ -370,15 +373,13 @@ Proposal: Option A. current Growth 범위에 집중하고 public Profile 가치�
 Default without a separate decision: Option A.
 ```
 
-### 2. Legacy 전체 평균을 어떻게 전환할 것인가
+### 2. Legacy 전체 평균 전환
 
 ```text
-Question: current profile/home `averageTimeMs`를 V2.2에서 즉시 제거할 것인가?
-Why it matters: event·population이 없는 all-time mean은 V2.2 metric 원칙과 충돌하지만 existing consumer compatibility가 있다.
-Option A: UI에서는 제거하고 API field는 한 release 동안 유지·deprecated 처리한 뒤 별도 제거한다.
-Option B: API와 UI에서 같은 PR에 제거한다.
-Proposal: Option A. Growth API를 additive하게 도입하고 consumer 전환을 분리한다.
-Default without a separate decision: Option A.
+Decision: MyPage와 Home UI consumer에서 제거한다.
+Reason: event·population이 없는 all-time mean은 V2.2 metric 원칙과 충돌한다.
+Provider: Profile/Home API field는 compatibility를 위해 유지한다.
+Follow-up: field deprecation 또는 제거는 REST/API compatibility를 별도로 검토한다.
 ```
 
 ### 3. Consistency 표현을 노출할 것인가

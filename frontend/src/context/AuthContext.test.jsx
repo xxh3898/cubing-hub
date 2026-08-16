@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import MockAdapter from 'axios-mock-adapter'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from '../authStorage.js'
 import { clearRefreshCookie, getMe, refreshSession } from '../api.js'
 import apiClient from '../lib/apiClient.js'
@@ -28,6 +28,16 @@ function AuthStateProbe() {
     }
   }
 
+  const handleSetAndClearAccessToken = async () => {
+    try {
+      await setAccessToken('manual-token')
+      clearAccessToken()
+      setActionError('none')
+    } catch (error) {
+      setActionError(error.message)
+    }
+  }
+
   return (
     <div>
       <span data-testid="has-auth-token">{String(hasAuthToken)}</span>
@@ -48,6 +58,9 @@ function AuthStateProbe() {
       <button type="button" onClick={() => handleSetAccessToken(null)}>
         빈 토큰 설정
       </button>
+      <button type="button" onClick={handleSetAndClearAccessToken}>
+        토큰 설정 후 즉시 정리
+      </button>
       <button type="button" onClick={clearAccessToken}>
         세션 정리
       </button>
@@ -56,10 +69,17 @@ function AuthStateProbe() {
 }
 
 describe('AuthProvider', () => {
+  let requestMock = null
+
   beforeEach(() => {
     clearStoredAccessToken()
     window.sessionStorage.clear()
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    requestMock?.restore()
+    requestMock = null
   })
 
   it('should_restore_current_user_when_refresh_and_me_requests_succeed_on_bootstrap', async () => {
@@ -537,6 +557,50 @@ describe('AuthProvider', () => {
     clearPendingTimerSolve(41)
   })
 
+  it('should_clear_the_confirmed_users_pending_solve_when_session_clear_follows_sign_in_immediately', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+    vi.mocked(getMe).mockResolvedValue({
+      data: {
+        userId: 41,
+        nickname: 'AccountA',
+        role: 'ROLE_USER',
+      },
+    })
+    savePendingTimerSolve({
+      schemaVersion: PENDING_TIMER_SOLVE_SCHEMA_VERSION,
+      userId: 41,
+      eventType: 'WCA_333',
+      timeMs: 1235,
+      penalty: 'NONE',
+      scramble: "R U R' U'",
+      inputMethod: 'KEYBOARD',
+      clientSubmissionId: 'd9428888-122b-4d3e-a58e-790c4e5f97ad',
+      savedAt: '2026-08-10T13:00:00.000Z',
+    })
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정 후 즉시 정리' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('has-auth-token')).toHaveTextContent('false')
+      expect(screen.getByTestId('nickname')).toHaveTextContent('none')
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toBeNull()
+  })
+
   it('should_preserve_the_current_users_pending_solve_when_a_record_401_refresh_fails_and_allow_the_same_account_to_sign_in_again', async () => {
     vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
       status: 400,
@@ -549,7 +613,7 @@ describe('AuthProvider', () => {
         role: 'ROLE_USER',
       },
     })
-    const requestMock = new MockAdapter(apiClient)
+    requestMock = new MockAdapter(apiClient)
     requestMock.onPost('/api/records').replyOnce(401)
     requestMock.onPost('/api/auth/refresh').networkErrorOnce()
 
@@ -596,8 +660,122 @@ describe('AuthProvider', () => {
     })
     expect(loadPendingTimerSolve(41).snapshot).toEqual(pendingSnapshot)
 
-    requestMock.restore()
     clearPendingTimerSolve(41)
+  })
+
+  it('should_clear_the_previous_users_pending_solve_when_another_account_signs_in_after_passive_auth_loss', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+    vi.mocked(getMe)
+      .mockResolvedValueOnce({
+        data: {
+          userId: 41,
+          nickname: 'AccountA',
+          role: 'ROLE_USER',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          userId: 42,
+          nickname: 'AccountB',
+          role: 'ROLE_USER',
+        },
+      })
+    requestMock = new MockAdapter(apiClient)
+    requestMock.onPost('/api/records').replyOnce(401)
+    requestMock.onPost('/api/auth/refresh').networkErrorOnce()
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountA')
+    })
+
+    const pendingSnapshot = {
+      schemaVersion: PENDING_TIMER_SOLVE_SCHEMA_VERSION,
+      userId: 41,
+      eventType: 'WCA_333',
+      timeMs: 1235,
+      penalty: 'NONE',
+      scramble: "R U R' U'",
+      inputMethod: 'KEYBOARD',
+      clientSubmissionId: 'd9428888-122b-4d3e-a58e-790c4e5f97ad',
+      savedAt: '2026-08-10T13:00:00.000Z',
+    }
+    savePendingTimerSolve(pendingSnapshot)
+
+    await expect(apiClient.post('/api/records', { timeMs: 1235 })).rejects.toThrow('Network Error')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toEqual(pendingSnapshot)
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountB')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toBeNull()
+    expect(loadPendingTimerSolve(42).snapshot).toBeNull()
+  })
+
+  it('should_allow_an_account_switch_when_the_previous_user_has_no_pending_solve', async () => {
+    vi.mocked(refreshSession).mockRejectedValue(Object.assign(new Error('refresh_token 쿠키가 필요합니다.'), {
+      status: 400,
+      isNetworkError: false,
+    }))
+    vi.mocked(getMe)
+      .mockResolvedValueOnce({
+        data: {
+          userId: 41,
+          nickname: 'AccountA',
+          role: 'ROLE_USER',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          userId: 42,
+          nickname: 'AccountB',
+          role: 'ROLE_USER',
+        },
+      })
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('is-auth-loading')).toHaveTextContent('false')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountA')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '토큰 설정' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nickname')).toHaveTextContent('AccountB')
+    })
+    expect(loadPendingTimerSolve(41).snapshot).toBeNull()
+    expect(loadPendingTimerSolve(42).snapshot).toBeNull()
   })
 
   it('should_ignore_null_updates_when_update_current_user_is_called_without_payload_or_user', async () => {

@@ -2,7 +2,7 @@
 doc_type: requirement
 status: active
 created: 2026-08-10
-updated: 2026-08-11
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -22,14 +22,12 @@ related:
 
 ## 현재 동작
 
-- profile, 주 종목, 요약 통계 조회
-- 전체 Record history와 pagination
-- all-event 첫 page를 받은 뒤 client에서 선택 event의 최근 raw 기록 추세와 PB 표시
-- nickname과 주 종목 변경
-- 현재 비밀번호 확인 후 비밀번호 변경
-- Record penalty 수정과 삭제
+- Profile API는 nickname과 주 종목을 조회하고 account modal의 수정 상태를 동기화한다.
+- Record History는 `GET /api/users/me/records`의 1-based server pagination으로 관리한다.
+- Growth metric, trend, PB progression, activity는 private Growth aggregate API로만 표시한다.
+- nickname과 주 종목 변경, 현재 비밀번호 확인 후 비밀번호 변경, Record penalty 수정과 삭제를 유지한다.
 
-현재 summary의 `averageTimeMs`는 all-event, all-time arithmetic mean이고 DNF를 제외한다. UI의 `전체 평균`은 population과 event가 충분히 드러나지 않으므로 V2.2 canonical Growth metric으로 재사용하지 않는다.
+Profile response와 Home summary의 additive `averageTimeMs`는 all-event, all-time arithmetic mean이고 DNF를 제외한다. MyPage와 Home은 이 값을 V2.2 canonical Growth metric으로 사용하지 않는다. provider field의 compatibility cleanup은 별도 API 결정이다.
 
 ## 요구사항
 
@@ -57,9 +55,9 @@ related:
 
 Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-product/roadmap.md)의 V2.2에서 검증한다.
 
-## V2.2 Profile Proposal
+## V2.2 Profile 상태
 
-[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 current 구현이 아니다.
+[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 dev에 통합됐고 final `dev → main` release qualification Validate를 통과했다. Main merge, release/deploy 승인과 production verification은 별도 gate다.
 
 ### My Growth
 
@@ -67,6 +65,9 @@ Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-
 - `/mypage`를 새 top-level route 없이 My Growth dashboard로 확장한다.
 - Account 관리와 Record penalty/delete는 current 기능을 유지한다.
 - Full Record history를 client metric 계산용으로 전송하지 않고 private Growth aggregate API를 사용한다.
+- Record mutation은 Growth와 current Record History page를 갱신하며 Profile/account request를 다시 시작하지 않는다.
+- Profile 수정은 Profile/account state와 AuthContext nickname만 갱신하며 Record History를 다시 읽지 않는다.
+- Home은 Profile/Home arithmetic mean을 Growth metric으로 표시하지 않는다.
 
 ### Public Profile
 

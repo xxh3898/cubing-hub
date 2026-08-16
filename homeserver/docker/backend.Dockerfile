@@ -4,6 +4,10 @@ WORKDIR /app
 
 ARG JAR_FILE=backend/build/libs/cubing-hub-0.0.1-SNAPSHOT.jar
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --system --create-home --shell /usr/sbin/nologin spring
 
 COPY ${JAR_FILE} app.jar

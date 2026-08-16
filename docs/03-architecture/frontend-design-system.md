@@ -2,7 +2,7 @@
 doc_type: architecture
 status: draft
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-16
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -665,6 +665,8 @@ Key visual 또는 empty-state Runtime AI Asset이 별도 승인되고 UI 구조�
 
 ## Release gates
 
+이 절은 이 문서의 Desktop/Mobile Target Mockup을 승인한 뒤 진행하는 screen migration PR에 적용한다. 기존 canonical UI를 유지한 기능 PR에는 소급 적용하지 않는다. V2.2 My Growth의 canonical UI 기반 implementation은 [Growth 요구사항](../02-requirements/features/growth.md), [Growth Architecture](growth-architecture.md), [Quality Gates](../06-quality/quality-gates.md)와 ADR-0010 release contract를 따른다.
+
 각 screen migration PR은 다음을 통과해야 한다.
 
 - 해당 Desktop/Mobile Target Mockup approval과 implementation dependency 충족
@@ -676,4 +678,4 @@ Key visual 또는 empty-state Runtime AI Asset이 별도 승인되고 UI 구조�
 - visible focus, 200% zoom, contrast와 reduced-motion focused check
 - unresolved functional change는 UI PR에서 분리
 
-Growth frontend release는 ADR-0010 acceptance, Growth backend contract, query release gate와 My Growth Desktop/Mobile Target Mockup approval을 추가로 요구한다. Design Gate 승인이나 mockup 생성만으로 production implementation 또는 release를 시작하지 않는다.
+Growth 기능 release에는 ADR-0010 acceptance, Growth backend contract와 query release gate를 적용한다. My Growth Desktop/Mobile Target Mockup approval은 이 문서의 approved Target Mockup을 기반으로 screen migration을 수행하는 경우에만 추가 gate로 적용하며, 기존 canonical UI를 유지하는 V2.2 My Growth implementation에는 소급 적용하지 않는다. Design Gate 승인이나 mockup 생성만으로 production implementation 또는 release를 시작하지 않는다.

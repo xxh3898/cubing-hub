@@ -140,6 +140,39 @@ describe('HomePage', () => {
     expect(screen.getByRole('link', { name: '전체 기록 보기' })).toBeInTheDocument()
   })
 
+  it('should_not_render_legacy_average_when_home_summary_includes_average_time', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      isAuthLoading: false,
+    })
+    vi.mocked(getHome).mockResolvedValue({
+      data: {
+        todayScramble: {
+          eventType: 'WCA_333',
+          scramble: "R U R'",
+        },
+        summary: {
+          nickname: 'Tester',
+          mainEvent: '3x3x3',
+          totalSolveCount: 12,
+          personalBestTimeMs: 9344,
+          averageTimeMs: 12345,
+        },
+        recentRecords: [],
+        recentPosts: [],
+      },
+    })
+
+    renderHomePage()
+
+    expect(await screen.findByText('Tester')).toBeInTheDocument()
+    expect(screen.getByText('12회')).toBeInTheDocument()
+    expect(screen.getByText('9.344초')).toBeInTheDocument()
+    expect(screen.queryByText('전체 평균')).not.toBeInTheDocument()
+    expect(screen.queryByText('DNF 제외 평균 기록')).not.toBeInTheDocument()
+    expect(screen.queryByText('12.345초')).not.toBeInTheDocument()
+  })
+
   it('should_retry_home_request_when_retry_button_is_clicked', async () => {
     vi.mocked(getHome)
       .mockRejectedValueOnce(new Error('홈 조회 실패'))
@@ -243,7 +276,7 @@ describe('HomePage', () => {
     renderHomePage()
 
     expect(await screen.findByText('Tester')).toBeInTheDocument()
-    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('-')).toBeInTheDocument()
     expect(screen.getByText('아직 저장된 기록이 없습니다. 첫 기록을 만들어보세요.')).toBeInTheDocument()
   })
 

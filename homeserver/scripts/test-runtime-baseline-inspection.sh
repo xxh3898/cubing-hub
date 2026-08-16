@@ -115,6 +115,7 @@ inspect_command() {
     FAKE_ACTUAL_DB_VOLUME="${FAKE_ACTUAL_DB_VOLUME:-${DB_VOLUME}}" \
     FAKE_REVISION_ONE="${FAKE_APPLICATION_IMAGE_REVISION_OVERRIDE:-${APPLICATION_REVISION}}" \
     FAKE_SERVICE_HEALTH="${FAKE_SERVICE_HEALTH:-healthy}" \
+    FAKE_API_HEALTH="${FAKE_API_HEALTH:-}" \
     /bin/bash "${wrapper}"
 }
 
@@ -165,6 +166,8 @@ FAKE_APPLICATION_IMAGE_REVISION_OVERRIDE="${OTHER_APPLICATION_REVISION}" \
   expect_inspection_failure application-image-label-mismatch inspect_command
 FAKE_SERVICE_HEALTH=unhealthy \
   expect_inspection_failure service-health-mismatch inspect_command
+FAKE_API_HEALTH=unhealthy \
+  expect_inspection_failure api-health-mismatch inspect_command
 
 lock_ready="${test_root}/operation-lock-held"
 /usr/bin/python3 - "${operation_lock}" "${lock_ready}" <<'PY' &
