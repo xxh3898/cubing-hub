@@ -2,7 +2,7 @@
 doc_type: domain
 status: active
 created: 2026-08-11
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -19,7 +19,7 @@ related:
 
 V2.2 `MUST` metric formula와 edge case는 active contract다. PR A의 pure calculator, PR B의 private Growth read API와 PR C의 My Growth dashboard는 이 문서의 effective result, Ao, median, period comparison, IQR, PB progression, timezone 규칙을 구현한다.
 
-My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에 통합됐다. Release evidence는 automated/runtime gate와 manual browser/mobile gate를 분리한다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
+My Growth dashboard와 legacy MyPage/Home consumer transition은 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb`로 production에 배포했고 runtime/public verification을 통과했다. Release evidence는 qualification, deployment와 manual browser/mobile gate를 분리한다. `SHOULD`, `NOT NOW`, future candidate는 implementation commitment가 아니다.
 
 ```text
 Current
@@ -30,7 +30,7 @@ Current
 - legacy MyPage/Home arithmetic mean consumer 제거
 
 Next implementation
-- release approval
+- 승인된 후속 implementation 없음. V2.3 phase entry와 planning은 별도 결정
 
 Future candidate
 - best Ao progression, pre-aggregation, user timezone

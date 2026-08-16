@@ -26,12 +26,15 @@ related:
 | Integration branch | `dev` |
 | Pre-main evidence merge | PR #47 merge `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` |
 | Release qualification PR | PR #49, `dev → main` |
+| Authorized release head | `d407fa5c68d7fd950b79a351cbf8ada526afc4f1` |
+| Main release merge | PR #49 merge `c80052607dad404ccaa48ac23710bd1be311b5eb` |
 | Current backend tree | `f10f92d9d726389daeb783300a056162091e6f09` |
 | Current frontend tree | `2d5e127b05d153333b64848bcae0aa8be9f14c0b` |
 | Application candidate Validate | [31933736295](https://github.com/xxh3898/cubing-hub/actions/runs/31933736295), success |
-| Final release qualification Validate | [31956316844](https://github.com/xxh3898/cubing-hub/actions/runs/31956316844), PR #49 head `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3`, success |
+| Initial final release qualification Validate | [31956316844](https://github.com/xxh3898/cubing-hub/actions/runs/31956316844), PR #49 head `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3`, success |
+| Current-head final release qualification Validate | [31957543137](https://github.com/xxh3898/cubing-hub/actions/runs/31957543137), authorized release head `d407fa5c68d7fd950b79a351cbf8ada526afc4f1`, success |
 
-이 문서는 `dev` release candidate의 검증 근거다. `main` merge, release, production deploy 또는 production runtime 적용을 뜻하지 않는다.
+Qualification section은 `dev` release candidate에서 수집한 근거다. 아래 Post-Release Verification section은 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb` 배포 뒤 관찰한 결과를 dev Source of Truth에 기록한다. 이 post-release 문서 변경은 release artifact에 포함되지 않으며 release SHA 또는 production runtime을 변경하지 않는다.
 
 ## Integrated Scope
 
@@ -201,7 +204,7 @@ Results:
 | Flyway | V1, V2, V3 success |
 | Cleanup | normal `down`; no smoke containers remained, volumes retained by runbook contract |
 
-이 candidate에서는 기존 `wget: not found` API healthcheck blocker가 해소됐다. Repository production Compose도 같은 API direct readiness contract를 정의하지만 production container에 적용됐다는 의미는 아니다.
+이 candidate에서는 기존 `wget: not found` API healthcheck blocker가 해소됐다. Isolated smoke는 배포 전 evidence이며, production 적용 결과는 아래 Post-Release Verification section에서 별도로 확인한다.
 
 ## Manual Browser Smoke
 
@@ -269,16 +272,46 @@ PR #48 delta 확인에서도 `중앙값` heading, description, chart alternative
 | dev Validate 31926263963 | identical backend tree and API image inputs | backend test/build and API ARM64 actually ran and succeeded |
 | dev Validate 31955428374 | PR #47 merge commit `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` | Detect and infrastructure actually ran and succeeded; backend, frontend, API ARM64 and Web ARM64 safe-skipped |
 | PR #49 Validate 31956316844 | exact initial `dev → main` qualification head `ad92dfa0d7e014d42b13f8e7cd1e2747b73174c3` | backend, frontend, infrastructure, API ARM64 and Web ARM64 all actually ran and succeeded |
+| PR #49 Validate 31957543137 | exact authorized release head `d407fa5c68d7fd950b79a351cbf8ada526afc4f1` | backend, frontend, infrastructure, API ARM64 and Web ARM64 all actually ran and succeeded |
 
-Candidate/dev application CI와 final `dev → main` release qualification Validate는 PASS다. 이 결과를 기록하는 docs-only finalization은 application/runtime tree를 변경하지 않는다. Finalization merge 뒤 PR #49의 새 head required checks는 current-head merge gate로 다시 확인하며, 해당 run ID를 이 문서에 재귀적으로 기록하지 않는다.
+Candidate/dev application CI와 final `dev → main` release qualification Validate는 PASS다. Docs-only finalization은 application/runtime tree를 변경하지 않았고 PR #49 authorized release head의 current-head gate도 실제 실행해 통과했다.
 
 ## Known Limitations
 
 - Actual iPhone smoke was not run. Chrome 390×844 responsive and touch emulation passed; the physical-device gap is not a release blocker.
 - Non-blocking QA findings remain: the 390px account card is tall, a populated PB timeline is long, and some English/Korean, `Asia/Seoul` and solve terminology is mixed. PR #48 resolves only the median terminology finding.
 - The MySQL 8.4.11 performance numbers are an isolated query-plan snapshot, not production latency.
-- Issue #45 remains open because the fix is on `dev`, not the default branch. It was not manually closed.
-- Repository production healthcheck configuration is not evidence of currently deployed production state.
+- Post-release production verification은 repository contract와 실제 runtime state를 함께 확인했다. 이후 runtime drift는 이 문서의 release 결과와 별도로 운영 evidence를 다시 수집해야 한다.
+
+## Post-Release Verification
+
+PR #49는 authorized release head `d407fa5c68d7fd950b79a351cbf8ada526afc4f1`을 merge commit 방식으로 main에 통합했다. Release artifact는 merge commit `c80052607dad404ccaa48ac23710bd1be311b5eb`이며, 이 section은 배포 뒤 dev에서 작성한 관찰 기록이다.
+
+| Release step | Evidence | Result |
+| --- | --- | --- |
+| Main merge | PR #49; parent 1 `88218408721f8f4f2d9f563b3230bb7db6452589`, parent 2 authorized release head | PASS |
+| Publish and Deploy | [31959430407](https://github.com/xxh3898/cubing-hub/actions/runs/31959430407), head `c80052607dad404ccaa48ac23710bd1be311b5eb` | PASS |
+| Validate release | Backend, Frontend, Infrastructure, API ARM64와 Web ARM64 actual success | PASS |
+| Artifact publication | API, Web와 runtime-config ARM64 image publication | PASS |
+| Runtime decision | `runtime_config_mode=update`, `data_service_maintenance_required=false` | PASS |
+| Predeploy backup | `cubing-hub-production-20260816T165029Z`, `SUCCESS`, manifest `status=success` | PASS |
+| Production activation | `Deploy to home-mini` success; automatic rollback not triggered | PASS |
+| Runtime baseline | revision `c80052607dad404ccaa48ac23710bd1be311b5eb`, source `runtime` | PASS |
+| Container health | API, Web, MySQL 8.4.11과 Redis healthy | PASS |
+| Public smoke | Web, API health `status=UP`, Rankings, Ranking API와 current static asset | PASS |
+| Flyway | schema version 3, executed migrations 0 | NONE |
+
+Published artifact identity:
+
+| Artifact | Release tag | Digest |
+| --- | --- | --- |
+| API | `ghcr.io/xxh3898/cubing-hub-api:c80052607dad404ccaa48ac23710bd1be311b5eb` | `sha256:6377f6fce61079853eeb217bd2b5bbc2518ac9c26eb93bee5ff76da72e4e84f2` |
+| Web | `ghcr.io/xxh3898/cubing-hub-web:c80052607dad404ccaa48ac23710bd1be311b5eb` | `sha256:52c5622d79e3a3390c255a8aaef74a50eef1999fbc0b8ee7989e372a8c736e4a` |
+| Runtime config | `ghcr.io/xxh3898/cubing-hub-runtime-config:c80052607dad404ccaa48ac23710bd1be311b5eb` | `sha256:a87b71d51389ab811292934825474be79259806fa6dea0dc63dccdb6f64de506` |
+
+Installed runtime inspection은 `APPLICATION_REVISION`과 `RUNTIME_CONFIG_REVISION`이 release SHA와 일치하고, runtime-config digest와 current pointer가 published runtime-config artifact를 가리키며, `PENDING=none`과 healthy service set을 확인했다. Stabilization verification 뒤에도 같은 revision과 health가 유지됐다.
+
+`PRODUCTION_DEPLOYMENT=PASS` and `PRODUCTION_VERIFICATION=PASS`.
 
 ## Release Decision
 
@@ -298,7 +331,9 @@ Candidate/dev application CI와 final `dev → main` release qualification Valid
 | Manual browser smoke | PASS |
 | Mobile 390px smoke | PASS |
 | KST boundary deterministic test | PASS |
+| Production deployment | PASS |
+| Production verification | PASS |
 | Actual iPhone smoke | NOT_RUN |
 | Migration | NONE |
 
-Release decision: **FINAL RELEASE VALIDATION COMPLETE — MAIN MERGE PENDING**. V2.2 application과 evidence는 PR #49 initial qualification head에서 final `dev → main` Validate를 통과했다. Evidence finalization 뒤 current-head required checks와 review를 다시 확인해야 하며 main merge 승인, release/deploy 승인과 production verification은 아직 남아 있다. Actual iPhone smoke는 실행하지 않은 known limitation이며 release blocker가 아니다.
+Release decision: **POST-RELEASE CLOSED**. V2.2 Growth & Profile은 final release qualification, PR #49 main merge, production deployment와 runtime/public verification을 통과했다. Actual iPhone smoke는 실행하지 않은 known limitation이며 release blocker가 아니다. 이 완료 상태는 V2.3 phase entry, 제품·시장 검증, tag 또는 GitHub Release 생성을 자동 승인하지 않는다.

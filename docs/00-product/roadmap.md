@@ -20,7 +20,7 @@ related:
 
 일정 약속이 아니라 제품·기술 gate의 순서를 관리한다.
 
-V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 implementation은 dev에 통합됐고 final `dev → main` release qualification Validate를 통과했다. 다음 gate는 명시적 main merge와 release/deploy 승인, production verification이다. V2.3는 시작하지 않았으며 Release workflow 결과는 public URL smoke를 대신하지 않는다.
+V2.1은 main에 병합됐고 release workflow가 성공했다. V2.2 implementation과 release qualification을 완료했고, PR #49 main merge 뒤 production deployment와 runtime/public verification까지 통과했다. V2.3는 시작하지 않았으며 phase entry와 planning은 별도 승인이 필요하다. Release 완료를 다음 phase의 자동 승인이나 제품·시장 검증 완료로 해석하지 않는다.
 
 ## 단계 순서
 
