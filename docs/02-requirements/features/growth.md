@@ -2,7 +2,7 @@
 doc_type: requirement
 status: draft
 created: 2026-08-11
-updated: 2026-08-16
+updated: 2026-08-17
 owner: xxh3898
 project: cubing-hub
 tags: []
@@ -19,7 +19,7 @@ related:
 
 ## 문서 상태
 
-V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 dev에서 구현했다. Automated CI, isolated runtime과 manual browser/mobile evidence는 release candidate 문서에 기록한다. 이 근거는 `main` merge나 production release를 뜻하지 않는다.
+V2.2 Growth & Profile은 main의 V2.1 Timer / Record Foundation을 기반으로 하는 `draft`다. `draft` metadata는 future product question이 남아 있다는 뜻이며 current implementation 부재를 뜻하지 않는다. Metric formula, pure calculator, private Growth read API, My Growth dashboard와 legacy MyPage/Home consumer transition은 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb`로 production에 배포했고 runtime/public verification을 통과했다. Qualification과 post-release 근거는 [release evidence](../../06-quality/v2-2-growth-release-evidence.md)에 기록한다.
 
 ```text
 Current
@@ -33,7 +33,7 @@ Current
 - event별 private Growth summary, 30-day trend, paginated PB progression API
 
 Next implementation
-- release approval
+- 승인된 후속 implementation 없음. V2.3는 별도 phase entry 결정 전까지 시작하지 않음
 
 Future candidate
 - best Ao, Ao progression, opt-in public Profile
@@ -42,7 +42,7 @@ Out of scope
 - Challenge, Verification, Competition, device/AI analytics
 ```
 
-Metric 공식과 edge case는 [Growth Metrics](../../01-domain/growth-metrics.md), API·query·성능 제안은 [Growth Architecture](../../03-architecture/growth-architecture.md)가 기준이다.
+Metric 공식과 edge case는 [Growth Metrics](../../01-domain/growth-metrics.md), API·query·성능 contract와 implementation architecture는 [Growth Architecture](../../03-architecture/growth-architecture.md)가 기준이다.
 
 ## 해결할 사용자 문제
 

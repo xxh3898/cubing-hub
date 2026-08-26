@@ -57,7 +57,7 @@ Growth, trend와 장기 activity history의 제품 범위는 [Roadmap](../../00-
 
 ## V2.2 Profile 상태
 
-[Growth 요구사항](growth.md)의 `draft`를 따른다. 아래 범위는 dev에 통합됐고 final `dev → main` release qualification Validate를 통과했다. Main merge, release/deploy 승인과 production verification은 별도 gate다.
+[Growth 요구사항](growth.md)의 `draft` lifecycle을 유지한다. 아래 범위는 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb`로 production에 배포했고 runtime/public verification을 통과했다. Public Profile과 visibility 정책은 V2.2 release 범위가 아니며 별도 결정으로 남아 있다.
 
 ### My Growth
 

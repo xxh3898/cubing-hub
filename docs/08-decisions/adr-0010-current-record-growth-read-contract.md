@@ -88,7 +88,7 @@ PR D(PR #43)는 MyPage의 legacy 100-record source와 raw Record trend를 제거
 
 PR E(PR #47)는 [V2.2 release evidence](../06-quality/v2-2-growth-release-evidence.md)를 고정했다. Candidate/dev CI, metric·API·privacy·performance evidence, Growth manual smoke, full release smoke runbook과 mobile 390px 검증을 완료했고 final `dev → main` release qualification Validate도 통과했다.
 
-ADR의 `accepted` status는 architecture decision의 채택 상태를 뜻한다. 구현과 release 진행 상태는 이 Implementation status와 release evidence에서 별도로 관리한다. V2.2 implementation과 final release qualification evidence는 dev에서 완료했지만 main merge와 production deploy·verification은 수행하지 않았다.
+ADR의 `accepted` status는 architecture decision의 채택 상태를 뜻한다. 구현과 release 진행 상태는 이 Implementation status와 release evidence에서 별도로 관리한다. V2.2 implementation과 final release qualification을 완료했고, PR #49 main merge 뒤 release SHA `c80052607dad404ccaa48ac23710bd1be311b5eb`의 production deployment와 runtime/public verification도 통과했다. 이 post-release 상태 기록은 architecture decision을 변경하지 않는다.
 
 ## Consequences
 
