@@ -84,15 +84,15 @@ jobs:
         shell: bash
         run: |
           echo "::warning title=Platform profile EVIDENCE_GAP::Private central authority checkout was unavailable; the profile validator did not run."
-          {
-            echo "## Platform profile report"
-            echo
-            echo "- Result: EVIDENCE_GAP"
-            echo "- Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`"
-            echo "- Validator: NOT_RUN"
-            echo "- Enforcement: report-only"
-            echo "- Follow-up: provide an approved read-only central repository credential or GitHub App access."
-          } >> "${GITHUB_STEP_SUMMARY}"
+          cat >> "${GITHUB_STEP_SUMMARY}" <<'EOF'
+          ## Platform profile report
+
+          - Result: EVIDENCE_GAP
+          - Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`
+          - Validator: NOT_RUN
+          - Enforcement: report-only
+          - Follow-up: provide an approved read-only central repository credential or GitHub App access.
+          EOF
 
       - name: Verify exact central authority
         if: steps.central-checkout.outcome == 'success'
@@ -113,11 +113,11 @@ jobs:
         if: steps.central-checkout.outcome == 'success'
         shell: bash
         run: |
-          {
-            echo "## Platform profile report"
-            echo
-            echo "- Result: PASS"
-            echo "- Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`"
-            echo "- Profile: `.ops/project.yaml`"
-            echo "- Enforcement: report-only"
-          } >> "${GITHUB_STEP_SUMMARY}"
+          cat >> "${GITHUB_STEP_SUMMARY}" <<'EOF'
+          ## Platform profile report
+
+          - Result: PASS
+          - Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`
+          - Profile: `.ops/project.yaml`
+          - Enforcement: report-only
+          EOF
