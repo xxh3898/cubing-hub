@@ -80,6 +80,32 @@ then
   fail "curl or jq is unavailable"
 fi
 
+curl_config=
+cleanup_curl_config() {
+  GH_TOKEN=
+  if [[ -n "${curl_config}" \
+    && -f "${curl_config}" \
+    && ! -L "${curl_config}" \
+    && "$(/usr/bin/basename "${curl_config}")" == cubing-hub-github-curl.* ]]
+  then
+    /bin/rm -f -- "${curl_config}"
+  fi
+}
+trap cleanup_curl_config EXIT INT TERM
+umask 077
+curl_config="$(
+  GH_TOKEN= /usr/bin/mktemp \
+    "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/cubing-hub-github-curl.XXXXXX"
+)"
+{
+  printf 'header = "Accept: application/vnd.github+json"\n'
+  printf 'header = "Authorization: Bearer %s"\n' "${GH_TOKEN}"
+  printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n'
+  printf 'header = "Content-Type: application/json"\n'
+} >"${curl_config}"
+GH_TOKEN=
+/bin/chmod 600 "${curl_config}"
+
 payload="$({
   "${JQ_BIN}" -n \
     --arg operation "${operation}" \
@@ -127,15 +153,12 @@ deployment_request="$({
 
 deployment_response="$(
   "${CURL_BIN}" \
+    --config "${curl_config}" \
     --fail \
     --retry 3 \
     --silent \
     --show-error \
     --request POST \
-    --header 'Accept: application/vnd.github+json' \
-    --header "Authorization: Bearer ${GH_TOKEN}" \
-    --header 'X-GitHub-Api-Version: 2022-11-28' \
-    --header 'Content-Type: application/json' \
     --data "${deployment_request}" \
     "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments"
 )" || fail "deployment creation request failed"
@@ -167,15 +190,12 @@ status_request="$({
 
 status_response="$(
   "${CURL_BIN}" \
+    --config "${curl_config}" \
     --fail \
     --retry 3 \
     --silent \
     --show-error \
     --request POST \
-    --header 'Accept: application/vnd.github+json' \
-    --header "Authorization: Bearer ${GH_TOKEN}" \
-    --header 'X-GitHub-Api-Version: 2022-11-28' \
-    --header 'Content-Type: application/json' \
     --data "${status_request}" \
     "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses"
 )" || fail "deployment success status request failed"
@@ -190,4 +210,6 @@ then
   fail "deployment success status response is invalid"
 fi
 
+cleanup_curl_config
+trap - EXIT INT TERM
 printf 'deployment_id=%s\n' "${deployment_id}"

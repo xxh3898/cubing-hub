@@ -13,6 +13,7 @@ usage() {
     'Usage:' \
     '  release-manifest.sh write <manifest-path>' \
     '  release-manifest.sh validate <manifest-path> <release-sha> <run-id> <run-attempt>' \
+    '  release-manifest.sh verify-images <manifest-path> <release-sha> <run-id> <run-attempt> <api-digest> <web-digest>' \
     >&2
 }
 
@@ -187,6 +188,42 @@ validate_manifest() {
   fi
 }
 
+manifest_value() {
+  local key="$1"
+  local manifest_path="$2"
+
+  /usr/bin/sed -n "s/^${key}=//p" "${manifest_path}"
+}
+
+verify_image_digests() {
+  local manifest_path="$1"
+  local expected_revision="$2"
+  local expected_run_id="$3"
+  local expected_run_attempt="$4"
+  local actual_api_digest="$5"
+  local actual_web_digest="$6"
+  local expected_api_digest
+  local expected_web_digest
+
+  validate_manifest \
+    "${manifest_path}" \
+    "${expected_revision}" \
+    "${expected_run_id}" \
+    "${expected_run_attempt}"
+
+  is_digest "${actual_api_digest}" \
+    || fail "observed API image digest has an invalid format"
+  is_digest "${actual_web_digest}" \
+    || fail "observed Web image digest has an invalid format"
+
+  expected_api_digest="$(manifest_value api_digest "${manifest_path}")"
+  expected_web_digest="$(manifest_value web_digest "${manifest_path}")"
+  [[ "${actual_api_digest}" == "${expected_api_digest}" ]] \
+    || fail "observed API image digest does not match the Release manifest"
+  [[ "${actual_web_digest}" == "${expected_web_digest}" ]] \
+    || fail "observed Web image digest does not match the Release manifest"
+}
+
 write_manifest() {
   local manifest_path="$1"
   local manifest_temp
@@ -254,6 +291,13 @@ case "$#" in
       exit 64
     fi
     validate_manifest "$2" "$3" "$4" "$5"
+    ;;
+  7)
+    if [[ "$1" != verify-images ]]; then
+      usage
+      exit 64
+    fi
+    verify_image_digests "$2" "$3" "$4" "$5" "$6" "$7"
     ;;
   *)
     usage

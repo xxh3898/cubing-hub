@@ -38,8 +38,8 @@ GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에�
 
 ```text
 deploy-cubing-hub <40자리 commit SHA> <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> keep <API digest> <Web digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <API digest> <Web digest> <registry user>
 inspect-cubing-hub-runtime <application SHA> <runtime SHA> <runtime digest> <DB image tag@digest> <DB volume> <MySQL version>
 ```
 
@@ -135,7 +135,8 @@ scripts/deploy-cubing-hub.sh
 scripts/backup-cubing-hub.sh
 ```
 
-고정 forced-command/bootstrap은 exact digest, revision/project label, regular-file
+고정 forced-command/bootstrap은 runtime config와 API·Web image의 exact digest,
+revision/project label, regular-file
 allowlist, 전체 content hash, script mode `700`과 `/bin/bash -n`을 검증한
 뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전
 recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. 정상
@@ -143,6 +144,11 @@ recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. �
 `runtime-config/current`가 Compose와 deploy/backup script의 공통 active
 release를 가리킨다. `keep`, recovery와 정기 backup은 이 release의 검증된
 script를 사용한다.
+
+API·Web image는 manifest가 승인한 `repository@sha256:digest`로 pull한 뒤
+revision label을 확인한다. Compose가 사용하는 `repository:<commit SHA>`는
+검증된 local image ID에만 붙이는 비권위 alias이며 registry tag를 다시 pull하지
+않는다.
 
 Deploy와 scheduled backup 진입점은
 `/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`의 같은

@@ -94,7 +94,7 @@ case "${command_name}" in
     fi
     exit 0
     ;;
-  login|logout|rm)
+  login|logout|rm|tag)
     exit 0
     ;;
   run)

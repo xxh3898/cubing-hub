@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+env:
+  API_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-api
+  WEB_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-web
+
 concurrency:
   group: cubing-hub-production
   cancel-in-progress: false
@@ -30,6 +34,7 @@ jobs:
       actions: read
       contents: read
       deployments: read
+      packages: read
     outputs:
       api_digest: ${{ steps.manifest.outputs.api_digest }}
       web_digest: ${{ steps.manifest.outputs.web_digest }}
@@ -81,16 +86,41 @@ jobs:
             exit 1
           fi
 
+          curl_config=
+          cleanup_curl_config() {
+            GH_TOKEN=
+            if [[ -n "${curl_config}" \
+              && -f "${curl_config}" \
+              && ! -L "${curl_config}" \
+              && "$(basename "${curl_config}")" == cubing-hub-release-authority-curl.* ]]
+            then
+              rm -f -- "${curl_config}"
+            fi
+          }
+          trap cleanup_curl_config EXIT INT TERM
+          umask 077
+          curl_config="$(
+            GH_TOKEN= \
+              mktemp "${RUNNER_TEMP}/cubing-hub-release-authority-curl.XXXXXX"
+          )"
+          {
+            printf 'header = "Accept: application/vnd.github+json"\n'
+            printf 'header = "Authorization: Bearer %s"\n' "${GH_TOKEN}"
+            printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n'
+          } >"${curl_config}"
+          GH_TOKEN=
+          chmod 600 "${curl_config}"
+
           release_run="$(
             curl \
+              --config "${curl_config}" \
               --fail-with-body \
               --silent \
               --show-error \
-              --header 'Accept: application/vnd.github+json' \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header 'X-GitHub-Api-Version: 2022-11-28' \
               "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}"
           )"
+          cleanup_curl_config
+          trap - EXIT INT TERM
           if ! jq -e \
             --arg repository "${GITHUB_REPOSITORY}" \
             --arg release_sha "${RELEASE_SHA}" \
@@ -162,6 +192,79 @@ jobs:
             "$(manifest_value runtime_baseline_source)" >>"${GITHUB_OUTPUT}"
           printf 'data_service_maintenance_required=%s\n' \
             "$(manifest_value data_service_maintenance_required)" >>"${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx for artifact verification
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Verify released application image digests
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          RELEASE_RUN_ATTEMPT: ${{ steps.release-authority.outputs.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+
+          docker_config_dir=
+          cleanup_docker_config() {
+            GHCR_TOKEN=
+            if [[ -n "${docker_config_dir}" \
+              && -d "${docker_config_dir}" \
+              && ! -L "${docker_config_dir}" \
+              && "$(basename "${docker_config_dir}")" == cubing-hub-release-docker.* ]]
+            then
+              docker --config "${docker_config_dir}" logout ghcr.io \
+                >/dev/null 2>&1 || true
+              rm -rf -- "${docker_config_dir}"
+            fi
+          }
+          trap cleanup_docker_config EXIT INT TERM
+          umask 077
+          docker_config_dir="$(
+            GHCR_TOKEN= \
+              mktemp -d "${RUNNER_TEMP}/cubing-hub-release-docker.XXXXXX"
+          )"
+          chmod 700 "${docker_config_dir}"
+
+          printf '%s' "${GHCR_TOKEN}" \
+            | GHCR_TOKEN= docker \
+                --config "${docker_config_dir}" \
+                login ghcr.io \
+                --username "${GITHUB_ACTOR}" \
+                --password-stdin \
+                >/dev/null
+          GHCR_TOKEN=
+
+          registry_digest() {
+            local descriptor
+            local image="$1"
+
+            descriptor="$(
+              docker \
+                --config "${docker_config_dir}" \
+                buildx imagetools inspect \
+                --format '{{json .Manifest}}' \
+                "${image}"
+            )"
+            jq -er \
+              '.digest | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))' \
+              <<<"${descriptor}"
+          }
+
+          actual_api_digest="$(
+            registry_digest "${API_IMAGE_NAME}:${RELEASE_SHA}"
+          )"
+          actual_web_digest="$(
+            registry_digest "${WEB_IMAGE_NAME}:${RELEASE_SHA}"
+          )"
+          /bin/bash ./homeserver/scripts/release-manifest.sh \
+            verify-images \
+            release-evidence/release-manifest.env \
+            "${RELEASE_SHA}" \
+            "${RELEASE_RUN_ID}" \
+            "${RELEASE_RUN_ATTEMPT}" \
+            "${actual_api_digest}" \
+            "${actual_web_digest}"
 
       - name: Revalidate current deployment authority
         env:
@@ -297,6 +400,8 @@ jobs:
       - name: Deploy exact released artifacts
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_IMAGE_DIGEST: ${{ needs.validate-intent.outputs.api_digest }}
+          WEB_IMAGE_DIGEST: ${{ needs.validate-intent.outputs.web_digest }}
           RELEASE_SHA: ${{ inputs.release_sha }}
           RUNTIME_CONFIG_MODE: ${{ needs.validate-intent.outputs.runtime_config_mode }}
           RUNTIME_CONFIG_DIGEST: ${{ needs.validate-intent.outputs.runtime_config_digest }}
@@ -305,14 +410,14 @@ jobs:
 
           case "${RUNTIME_CONFIG_MODE}" in
             keep)
-              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} keep ${GITHUB_ACTOR}"
+              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} keep ${API_IMAGE_DIGEST} ${WEB_IMAGE_DIGEST} ${GITHUB_ACTOR}"
               ;;
             update)
               if [[ ! "${RUNTIME_CONFIG_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
                 printf 'Runtime config digest has an unexpected format\n' >&2
                 exit 64
               fi
-              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} update ${RUNTIME_CONFIG_DIGEST} ${GITHUB_ACTOR}"
+              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} update ${RUNTIME_CONFIG_DIGEST} ${API_IMAGE_DIGEST} ${WEB_IMAGE_DIGEST} ${GITHUB_ACTOR}"
               ;;
             *)
               printf 'Runtime config mode has an unexpected value\n' >&2
@@ -321,7 +426,7 @@ jobs:
           esac
 
           printf '%s' "${GHCR_TOKEN}" \
-            | ssh \
+            | GHCR_TOKEN= ssh \
                 -F /dev/null \
                 -i "${HOME}/.ssh/id_ed25519_home_mini_ci" \
                 -o BatchMode=yes \
@@ -329,6 +434,7 @@ jobs:
                 -o StrictHostKeyChecking=yes \
                 homeserver@home-mini \
                 "${deploy_command}"
+          GHCR_TOKEN=
 
   record-runtime-baseline:
     name: Record runtime config baseline

@@ -65,6 +65,30 @@ maintenance_manifest="${test_root}/maintenance.env"
 
 write_fixture keep false "${keep_manifest}"
 expect_valid "${keep_manifest}"
+/bin/bash "${MANIFEST_SCRIPT}" verify-images \
+  "${keep_manifest}" \
+  "${FIXTURE_RELEASE_REVISION}" \
+  "${FIXTURE_RELEASE_RUN_ID}" \
+  "${FIXTURE_RELEASE_RUN_ATTEMPT}" \
+  "${DIGEST_ONE}" \
+  "${DIGEST_TWO}"
+
+expect_invalid \
+  /bin/bash "${MANIFEST_SCRIPT}" verify-images \
+  "${keep_manifest}" \
+  "${FIXTURE_RELEASE_REVISION}" \
+  "${FIXTURE_RELEASE_RUN_ID}" \
+  "${FIXTURE_RELEASE_RUN_ATTEMPT}" \
+  "${DIGEST_THREE}" \
+  "${DIGEST_TWO}"
+expect_invalid \
+  /bin/bash "${MANIFEST_SCRIPT}" verify-images \
+  "${keep_manifest}" \
+  "${FIXTURE_RELEASE_REVISION}" \
+  "${FIXTURE_RELEASE_RUN_ID}" \
+  "${FIXTURE_RELEASE_RUN_ATTEMPT}" \
+  "${DIGEST_ONE}" \
+  "${DIGEST_THREE}"
 
 write_fixture update false "${update_manifest}"
 expect_valid "${update_manifest}"

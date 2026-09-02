@@ -166,6 +166,10 @@ test("should_allowOnlyRestrictedDeployCommand_when_ciConnectsOverSsh", () => {
   );
   assert.match(
     restrictedWrapper,
+    /config_digest=[\s\S]*api_digest=[\s\S]*web_digest=[\s\S]*is_digest "\$\{api_digest\}"[\s\S]*is_digest "\$\{web_digest\}"/,
+  );
+  assert.match(
+    restrictedWrapper,
     /inspect-cubing-hub-runtime\[\[:space:\]\]\(\[0-9a-f\]\{40\}\)/,
   );
   assert.match(
@@ -440,11 +444,23 @@ test("should_rollbackBothImagesWithoutDeletingPersistentData", () => {
     'report_homeops_deployment RUNNING "" || true',
   );
   const applicationImagePull = deployScript.indexOf(
-    'pull "${new_api_image}"',
+    'pull "${new_api_artifact}"',
   );
   assert.ok(durableHomeOpsContext >= 0);
   assert.ok(durableHomeOpsContext < deploymentRunning);
   assert.ok(deploymentRunning < applicationImagePull);
+  assert.match(
+    deployScript,
+    /new_api_artifact="\$\{API_IMAGE_REPOSITORY\}@\$\{api_digest\}"/,
+  );
+  assert.match(
+    deployScript,
+    /pull "\$\{new_api_artifact\}"[\s\S]*tag "\$\{new_api_artifact\}" "\$\{new_api_image\}"/,
+  );
+  assert.match(
+    deployScript,
+    /local application image alias does not match the verified digest artifact/,
+  );
   assert.doesNotMatch(
     deployScript,
     /down[^\n]*(?:--volumes|-v)|volume rm|system prune/,

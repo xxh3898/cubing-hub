@@ -33,15 +33,38 @@ then
   fail "curl or jq is unavailable"
 fi
 
+curl_config=
+cleanup_curl_config() {
+  GH_TOKEN=
+  if [[ -n "${curl_config}" \
+    && -f "${curl_config}" \
+    && ! -L "${curl_config}" \
+    && "$(/usr/bin/basename "${curl_config}")" == cubing-hub-github-curl.* ]]
+  then
+    /bin/rm -f -- "${curl_config}"
+  fi
+}
+trap cleanup_curl_config EXIT INT TERM
+umask 077
+curl_config="$(
+  GH_TOKEN= /usr/bin/mktemp \
+    "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/cubing-hub-github-curl.XXXXXX"
+)"
+{
+  printf 'header = "Accept: application/vnd.github+json"\n'
+  printf 'header = "Authorization: Bearer %s"\n' "${GH_TOKEN}"
+  printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n'
+} >"${curl_config}"
+GH_TOKEN=
+/bin/chmod 600 "${curl_config}"
+
 api_get() {
   "${CURL_BIN}" \
+    --config "${curl_config}" \
     --fail \
     --retry 3 \
     --silent \
     --show-error \
-    --header 'Accept: application/vnd.github+json' \
-    --header "Authorization: Bearer ${GH_TOKEN}" \
-    --header 'X-GitHub-Api-Version: 2022-11-28' \
     "$1"
 }
 
@@ -210,6 +233,8 @@ if [[ "${baseline_source}" == runtime && "${baseline_digest}" == "${ZERO_DIGEST}
   fail "verified runtime baseline digest must not be zero"
 fi
 
+cleanup_curl_config
+trap - EXIT INT TERM
 printf 'digest=%s\n' "${baseline_digest}"
 printf 'revision=%s\n' "${baseline_revision}"
 printf 'source=%s\n' "${baseline_source}"

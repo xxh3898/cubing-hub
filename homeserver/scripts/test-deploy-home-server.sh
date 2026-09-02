@@ -17,6 +17,8 @@ CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 CONFIG_DIGEST_TWO=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 CONFIG_DIGEST_THREE=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 CONFIG_DIGEST_FIVE=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+API_DIGEST=sha256:abababababababababababababababababababababababababababababababab
+WEB_DIGEST=sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
 CANONICAL_API_HEALTHCHECK_JSON='{"test":["CMD-SHELL","curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '\''\"status\":\"UP\"'\''"],"interval":"10s","timeout":"5s","retries":12,"start_period":"40s"}'
 
 test_root="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/cubing-hub-deploy-test.XXXXXX")"
@@ -117,6 +119,22 @@ printf '%s\n' \
 
 run_deploy() {
   local target_revision="$1"
+  local -a deploy_args
+
+  case "$#" in
+    2)
+      deploy_args=("$1" "$2")
+      ;;
+    3)
+      deploy_args=("$1" "$2" "${API_DIGEST}" "${WEB_DIGEST}" "$3")
+      ;;
+    4)
+      deploy_args=("$1" "$2" "$3" "${API_DIGEST}" "${WEB_DIGEST}" "$4")
+      ;;
+    *)
+      deploy_args=("$@")
+      ;;
+  esac
 
   printf 'test-token' \
     | /usr/bin/env \
@@ -193,7 +211,7 @@ run_deploy() {
         FAKE_API_HEALTH="${FAKE_API_HEALTH:-}" \
         FAKE_SERVICE_STATUS_FORMAT=jsonl \
         FAKE_RENDER_API_HEALTHCHECK_JSON="${FAKE_RENDER_API_HEALTHCHECK_JSON:-}" \
-        /bin/bash "${test_script}" "$@"
+        /bin/bash "${test_script}" "${deploy_args[@]}"
 }
 
 run_recovery() {
@@ -354,6 +372,25 @@ test ! -e "${state_file}"
 test ! -e "${current_link}"
 test ! -e "${initialization_marker}"
 test ! -e "${app_dir}/runtime-config/pending"
+/usr/bin/grep -Fxq \
+  "pull ghcr.io/xxh3898/cubing-hub-api@${API_DIGEST}" \
+  "${bootstrap_docker_log}"
+/usr/bin/grep -Fxq \
+  "pull ghcr.io/xxh3898/cubing-hub-web@${WEB_DIGEST}" \
+  "${bootstrap_docker_log}"
+/usr/bin/grep -Fxq \
+  "tag ghcr.io/xxh3898/cubing-hub-api@${API_DIGEST} ghcr.io/xxh3898/cubing-hub-api:${REVISION_ONE}" \
+  "${bootstrap_docker_log}"
+/usr/bin/grep -Fxq \
+  "tag ghcr.io/xxh3898/cubing-hub-web@${WEB_DIGEST} ghcr.io/xxh3898/cubing-hub-web:${REVISION_ONE}" \
+  "${bootstrap_docker_log}"
+if /usr/bin/grep -Fxq \
+  "pull ghcr.io/xxh3898/cubing-hub-api:${REVISION_ONE}" \
+  "${bootstrap_docker_log}"
+then
+  printf 'V2 deployment must not pull the mutable API revision tag\n' >&2
+  exit 1
+fi
 /usr/bin/grep -Fq 'deployments {"eventKey":"cubing-hub:deploy:' "${event_log}"
 /usr/bin/grep -Fq '"status":"RUNNING"' "${event_log}"
 /usr/bin/grep -Eq '"status":"(FAILED|ROLLED_BACK)"' "${event_log}"

@@ -32,6 +32,18 @@ new_fixture() {
   /bin/mkdir -p "${fixture_dir}"
 }
 
+assert_no_curl_config() {
+  if /usr/bin/find "${fixture_dir}" \
+    -maxdepth 1 \
+    -name 'cubing-hub-github-curl.*' \
+    -print -quit \
+    | /usr/bin/grep -q .
+  then
+    printf 'GitHub API credential config must be removed\n' >&2
+    exit 1
+  fi
+}
+
 write_deployments() {
   local environment="$1"
   local page="$2"
@@ -112,6 +124,7 @@ run_resolver() {
     GH_TOKEN=test-token \
     GITHUB_API_URL=https://api.github.test \
     GITHUB_REPOSITORY=xxh3898/cubing-hub \
+    TMPDIR="${fixture_dir}" \
     /bin/bash "${RESOLVER}"
 }
 
@@ -123,6 +136,7 @@ result="$(run_resolver)"
 /usr/bin/grep -Fxq "revision=${RUNTIME_REVISION}" <<<"${result}"
 /usr/bin/grep -Fxq "digest=${RUNTIME_DIGEST}" <<<"${result}"
 /usr/bin/grep -Fxq 'source=runtime' <<<"${result}"
+assert_no_curl_config
 
 new_fixture paginated-runtime-success
 write_full_failure_page production-runtime-config 1
@@ -140,6 +154,7 @@ if run_resolver >/dev/null 2>&1; then
   printf 'A failed runtime deployment history page request must fail closed\n' >&2
   exit 1
 fi
+assert_no_curl_config
 
 new_fixture legacy-bootstrap
 printf '[]\n' >"${fixture_dir}/production-runtime-config-deployments-page-1.json"
@@ -195,6 +210,7 @@ result="$(
     GH_TOKEN=test-token \
     GITHUB_API_URL=https://api.github.test \
     GITHUB_REPOSITORY=xxh3898/cubing-hub \
+    TMPDIR="${fixture_dir}" \
     /bin/bash "${RECORDER}" \
       maintenance-reconcile \
       "${APPLICATION_REVISION}" \
@@ -233,6 +249,7 @@ jq -e \
    .data.auto_inactive == false' \
   <<<"${status_request}" >/dev/null
 ! /usr/bin/grep -Fq test-token "${api_log}"
+assert_no_curl_config
 
 new_fixture record-status-failure
 if /usr/bin/env \
@@ -242,6 +259,7 @@ if /usr/bin/env \
   GH_TOKEN=test-token \
   GITHUB_API_URL=https://api.github.test \
   GITHUB_REPOSITORY=xxh3898/cubing-hub \
+  TMPDIR="${fixture_dir}" \
   /bin/bash "${RECORDER}" \
     normal-update \
     "${APPLICATION_REVISION}" \
@@ -253,6 +271,7 @@ then
   printf 'A non-success deployment status must fail closed\n' >&2
   exit 1
 fi
+assert_no_curl_config
 
 new_fixture record-deployment-request-failure
 if /usr/bin/env \
@@ -262,6 +281,7 @@ if /usr/bin/env \
   GH_TOKEN=test-token \
   GITHUB_API_URL=https://api.github.test \
   GITHUB_REPOSITORY=xxh3898/cubing-hub \
+  TMPDIR="${fixture_dir}" \
   /bin/bash "${RECORDER}" \
     normal-update \
     "${APPLICATION_REVISION}" \
@@ -273,6 +293,7 @@ then
   printf 'A failed deployment creation request must fail closed\n' >&2
   exit 1
 fi
+assert_no_curl_config
 
 new_fixture record-status-request-failure
 if /usr/bin/env \
@@ -282,6 +303,7 @@ if /usr/bin/env \
   GH_TOKEN=test-token \
   GITHUB_API_URL=https://api.github.test \
   GITHUB_REPOSITORY=xxh3898/cubing-hub \
+  TMPDIR="${fixture_dir}" \
   /bin/bash "${RECORDER}" \
     normal-update \
     "${APPLICATION_REVISION}" \
@@ -293,5 +315,6 @@ then
   printf 'A failed deployment status request must fail closed\n' >&2
   exit 1
 fi
+assert_no_curl_config
 
 printf 'Cubing Hub runtime config baseline tests passed\n'

@@ -677,18 +677,24 @@ fi
 
 config_mode=
 config_digest=
+api_digest=
+web_digest=
 commit_sha=
 registry_user=
 
-if [[ "${original_command}" =~ ^deploy-cubing-hub-v2[[:space:]]([0-9a-f]{40})[[:space:]]keep[[:space:]]([A-Za-z0-9_-]+)$ ]]; then
+if [[ "${original_command}" =~ ^deploy-cubing-hub-v2[[:space:]]([0-9a-f]{40})[[:space:]]keep[[:space:]](sha256:[0-9a-f]{64})[[:space:]](sha256:[0-9a-f]{64})[[:space:]]([A-Za-z0-9_-]+)$ ]]; then
   commit_sha="${BASH_REMATCH[1]}"
   config_mode=keep
-  registry_user="${BASH_REMATCH[2]}"
-elif [[ "${original_command}" =~ ^deploy-cubing-hub-v2[[:space:]]([0-9a-f]{40})[[:space:]]update[[:space:]](sha256:[0-9a-f]{64})[[:space:]]([A-Za-z0-9_-]+)$ ]]; then
+  api_digest="${BASH_REMATCH[2]}"
+  web_digest="${BASH_REMATCH[3]}"
+  registry_user="${BASH_REMATCH[4]}"
+elif [[ "${original_command}" =~ ^deploy-cubing-hub-v2[[:space:]]([0-9a-f]{40})[[:space:]]update[[:space:]](sha256:[0-9a-f]{64})[[:space:]](sha256:[0-9a-f]{64})[[:space:]](sha256:[0-9a-f]{64})[[:space:]]([A-Za-z0-9_-]+)$ ]]; then
   commit_sha="${BASH_REMATCH[1]}"
   config_mode=update
   config_digest="${BASH_REMATCH[2]}"
-  registry_user="${BASH_REMATCH[3]}"
+  api_digest="${BASH_REMATCH[3]}"
+  web_digest="${BASH_REMATCH[4]}"
+  registry_user="${BASH_REMATCH[5]}"
 else
   printf '%s\n' \
     'Only deploy-cubing-hub, deploy-cubing-hub-v2, or inspect-cubing-hub-runtime commands are allowed' \
@@ -698,6 +704,10 @@ fi
 
 if [[ "${config_mode}" == update ]] && ! is_digest "${config_digest}"; then
   printf 'Runtime config digest is invalid\n' >&2
+  exit 64
+fi
+if ! is_digest "${api_digest}" || ! is_digest "${web_digest}"; then
+  printf 'Application image digest is invalid\n' >&2
   exit 64
 fi
 acquire_operation_lock
@@ -855,11 +865,15 @@ if [[ "${config_mode}" == update ]]; then
     "${commit_sha}" \
     update \
     "${config_digest}" \
+    "${api_digest}" \
+    "${web_digest}" \
     "${registry_user}" \
     <&3 3<&-
 fi
 exec "${candidate_script}" \
   "${commit_sha}" \
   keep \
+  "${api_digest}" \
+  "${web_digest}" \
   "${registry_user}" \
   <&3 3<&-

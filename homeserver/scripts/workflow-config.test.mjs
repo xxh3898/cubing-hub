@@ -566,7 +566,7 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   assert.match(deployWorkflow, /ping: home-mini/);
   assert.match(
     deployWorkflow,
-    /deploy_command="deploy-cubing-hub-v2 \$\{RELEASE_SHA\} keep \$\{GITHUB_ACTOR\}"/,
+    /deploy_command="deploy-cubing-hub-v2 \$\{RELEASE_SHA\} keep \$\{API_IMAGE_DIGEST\} \$\{WEB_IMAGE_DIGEST\} \$\{GITHUB_ACTOR\}"/,
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
@@ -709,11 +709,44 @@ test("should_validateDeterministicReleaseManifestWithoutExecutingIt", () => {
   assert.match(releaseManifest, /Web image revision does not match/);
   assert.match(releaseManifest, /keep mode must not claim a newly published runtime config/);
   assert.match(releaseManifest, /data-service maintenance requires a runtime config artifact/);
+  assert.match(releaseManifest, /verify_image_digests\(\)/);
+  assert.match(releaseManifest, /observed API image digest does not match the Release manifest/);
+  assert.match(releaseManifest, /observed Web image digest does not match the Release manifest/);
   assert.doesNotMatch(releaseManifest, /\beval\s+|^\s*(?:source|\.)\s+/m);
   assert.match(
     releaseWorkflow,
     /release-manifest-\$\{\{ github\.sha \}\}-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
   );
+});
+
+test("should_verifyExactReleaseImageDigestsWithoutCredentialArgv", () => {
+  const validateIntent = workflowJob(deployWorkflow, "validate-intent");
+
+  assert.match(validateIntent, /packages: read/);
+  assert.match(
+    validateIntent,
+    /buildx imagetools inspect[\s\S]*release-manifest\.sh \\\n+\s+verify-images/,
+  );
+  assert.match(
+    deployWorkflow,
+    /API_IMAGE_NAME:\s+ghcr\.io\/xxh3898\/cubing-hub-api/,
+  );
+  assert.match(
+    deployWorkflow,
+    /WEB_IMAGE_NAME:\s+ghcr\.io\/xxh3898\/cubing-hub-web/,
+  );
+  assert.doesNotMatch(
+    deployWorkflow + runtimeBaselineResolver + runtimeBaselineRecorder,
+    /--header\s+"Authorization: Bearer \$\{GH_TOKEN\}"/,
+  );
+  assert.match(runtimeBaselineResolver, /--config "\$\{curl_config\}"/);
+  assert.match(runtimeBaselineRecorder, /--config "\$\{curl_config\}"/);
+  assert.match(runtimeBaselineResolver, /GH_TOKEN= \/usr\/bin\/mktemp/);
+  assert.match(runtimeBaselineRecorder, /GH_TOKEN= \/usr\/bin\/mktemp/);
+  assert.match(runtimeBaselineResolver, /GH_TOKEN=/);
+  assert.match(runtimeBaselineRecorder, /GH_TOKEN=/);
+  assert.match(deployWorkflow, /\| GHCR_TOKEN= docker/);
+  assert.match(deployWorkflow, /\| GHCR_TOKEN= ssh/);
 });
 
 test("should_reconcileOnlyExplicitVerifiedHostStateWithoutMutatingProduction", () => {

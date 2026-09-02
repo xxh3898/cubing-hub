@@ -107,12 +107,13 @@ wrapper는 아래 형식만 허용하며 `eval`, `bash -c`, 임의 shell 명령�
 
 ```text
 deploy-cubing-hub <40자리 commit SHA> <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> update <sha256 digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> keep <API sha256 digest> <Web sha256 digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> update <runtime sha256 digest> <API sha256 digest> <Web sha256 digest> <registry user>
 ```
 
 legacy 명령은 runtime config v2 전환 전 설치에서만 사용한다. v2 state가
-초기화된 뒤에는 `keep` 또는 exact digest를 전달하는 `update`만 허용한다.
+초기화된 뒤에는 API·Web exact digest를 전달하는 `keep` 또는 runtime config와
+API·Web exact digest를 전달하는 `update`만 허용한다.
 `deploy-home-server-ci.sh`가 stable forced-command/bootstrap 역할을 하고
 `backup-home-server-bootstrap.sh`가 정기 backup 진입점 역할을 한다.
 `update` artifact는 Compose, pinned Nginx 설정과 허용된 deploy/backup

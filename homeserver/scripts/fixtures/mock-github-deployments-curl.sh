@@ -5,9 +5,49 @@ set -Eeuo pipefail
 method=GET
 data=
 url=
+saw_config=false
+
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  printf 'Credential material must not be inherited by curl\n' >&2
+  exit 65
+fi
+
+for argument in "$@"; do
+  if [[ "${argument}" == *test-token* ]]; then
+    printf 'Credential material must not be passed in curl argv\n' >&2
+    exit 65
+  fi
+done
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --config)
+      if [[ ! -f "$2" || -L "$2" ]]; then
+        printf 'Mock curl config must be a regular file\n' >&2
+        exit 64
+      fi
+      if ! /usr/bin/python3 - "$2" <<'PY'
+import os
+import stat
+import sys
+
+metadata = os.lstat(sys.argv[1])
+raise SystemExit(
+    0
+    if stat.S_ISREG(metadata.st_mode)
+    and stat.S_IMODE(metadata.st_mode) == 0o600
+    and metadata.st_uid == os.geteuid()
+    and metadata.st_nlink == 1
+    else 1
+)
+PY
+      then
+        printf 'Mock curl config ownership or mode is invalid\n' >&2
+        exit 64
+      fi
+      saw_config=true
+      shift 2
+      ;;
     --request)
       method="$2"
       shift 2
@@ -34,6 +74,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 [[ -n "${url}" ]] || exit 64
+[[ "${saw_config}" == true ]] || exit 64
 [[ -d "${FAKE_GITHUB_API_FIXTURE_DIR:-}" ]] || exit 64
 
 if [[ -n "${FAKE_GITHUB_API_LOG:-}" ]]; then

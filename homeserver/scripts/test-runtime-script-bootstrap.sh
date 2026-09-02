@@ -15,6 +15,8 @@ readonly LEGACY_CONFIG_REVISION=3333333333333333333333333333333333333333
 readonly LEGACY_CONFIG_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 readonly CONFIG_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 readonly INVALID_CONFIG_DIGEST=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+readonly API_DIGEST=sha256:abababababababababababababababababababababababababababababababab
+readonly WEB_DIGEST=sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
 readonly TARGET_CONFIG_DIGEST=sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 readonly TARGET_CONFIG_REVISION=4444444444444444444444444444444444444444
 readonly ZERO_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
@@ -202,7 +204,7 @@ legacy_backup_count="$(
 run_update() {
   printf 'test-token' \
     | /usr/bin/env \
-        SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} update ${CONFIG_DIGEST} test-user" \
+        SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} update ${CONFIG_DIGEST} ${API_DIGEST} ${WEB_DIGEST} test-user" \
         FAKE_RUNTIME_COMPOSE="${runtime_compose}" \
         FAKE_RUNTIME_REAL_IP="${runtime_real_ip}" \
         FAKE_RUNTIME_BACKUP_SCRIPT="${runtime_backup_script}" \
@@ -254,20 +256,22 @@ test ! -e "${app_dir}/runtime-config/pending"
 
 run_update
 /usr/bin/grep -Fxq \
-  "${REVISION_ONE} update ${CONFIG_DIGEST} test-user" \
+  "${REVISION_ONE} update ${CONFIG_DIGEST} ${API_DIGEST} ${WEB_DIGEST} test-user" \
   "${candidate_log}"
 
 write_verified_state "${CONFIG_DIGEST}" "${REVISION_ONE}" "${candidate_release}"
 
 printf 'test-token' \
   | /usr/bin/env \
-      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep test-user" \
+      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep ${API_DIGEST} ${WEB_DIGEST} test-user" \
       FAKE_CANDIDATE_LOG="${candidate_log}" \
       FAKE_BACKUP_MARKER="${backup_marker}" \
       FAKE_SIGNAL_READY="${signal_ready}" \
       FAKE_SIGNAL_MARKER="${signal_marker}" \
       /bin/bash "${deploy_bootstrap}"
-/usr/bin/grep -Fxq "${REVISION_TWO} keep test-user" "${candidate_log}"
+/usr/bin/grep -Fxq \
+  "${REVISION_TWO} keep ${API_DIGEST} ${WEB_DIGEST} test-user" \
+  "${candidate_log}"
 
 /usr/bin/env \
   FAKE_CANDIDATE_LOG="${candidate_log}" \
@@ -527,7 +531,7 @@ assert_preflight_failure() {
   set +e
   printf 'test-token' \
     | /usr/bin/env \
-        SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} update ${INVALID_CONFIG_DIGEST} test-user" \
+        SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} update ${INVALID_CONFIG_DIGEST} ${API_DIGEST} ${WEB_DIGEST} test-user" \
         FAKE_RUNTIME_COMPOSE="${runtime_compose}" \
         FAKE_RUNTIME_REAL_IP="${runtime_real_ip}" \
         FAKE_RUNTIME_BACKUP_SCRIPT="${runtime_backup_script}" \
@@ -572,14 +576,24 @@ FAKE_CONFIG_REVISION="${REVISION_TWO}" \
   assert_preflight_failure "runtime artifact revision mismatch"
 
 set +e
-SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} keep test-user; touch ${test_root}/injected" \
+SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} keep ${API_DIGEST} ${WEB_DIGEST} test-user; touch ${test_root}/injected" \
   /bin/bash "${deploy_bootstrap}" >/dev/null 2>&1
 injection_exit_code="$?"
+SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} keep test-user" \
+  /bin/bash "${deploy_bootstrap}" >/dev/null 2>&1
+digestless_v2_exit_code="$?"
+SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_ONE} keep ${ZERO_DIGEST} ${WEB_DIGEST} test-user" \
+  /bin/bash "${deploy_bootstrap}" >/dev/null 2>&1
+zero_image_digest_exit_code="$?"
 /bin/bash "${deploy_bootstrap}" recover extra >/dev/null 2>&1
 extra_argument_exit_code="$?"
 set -e
-if [[ "${injection_exit_code}" -ne 64 || "${extra_argument_exit_code}" -ne 64 ]]; then
-  printf 'Deploy bootstrap must reject command injection and extra arguments\n' >&2
+if [[ "${injection_exit_code}" -ne 64 \
+  || "${digestless_v2_exit_code}" -ne 64 \
+  || "${zero_image_digest_exit_code}" -ne 64 \
+  || "${extra_argument_exit_code}" -ne 64 ]]
+then
+  printf 'Deploy bootstrap must reject injection, digestless commands, zero digests, and extra arguments\n' >&2
   exit 1
 fi
 test ! -e "${test_root}/injected"
@@ -595,7 +609,7 @@ env_sha_before_signal="$(
 set +e
 printf 'test-token' \
   | /usr/bin/env \
-      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep test-user" \
+      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep ${API_DIGEST} ${WEB_DIGEST} test-user" \
       FAKE_CANDIDATE_WAIT=true \
       FAKE_CANDIDATE_LOG="${candidate_log}" \
       FAKE_BACKUP_MARKER="${backup_marker}" \
@@ -678,7 +692,7 @@ docker_count_before_contention="$(
 set +e
 printf 'test-token' \
   | /usr/bin/env \
-      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep test-user" \
+      SSH_ORIGINAL_COMMAND="deploy-cubing-hub-v2 ${REVISION_TWO} keep ${API_DIGEST} ${WEB_DIGEST} test-user" \
       FAKE_CANDIDATE_LOG="${candidate_log}" \
       FAKE_BACKUP_MARKER="${backup_marker}" \
       FAKE_SIGNAL_READY="${signal_ready}" \
