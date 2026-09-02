@@ -393,9 +393,13 @@ test("should_separateMainReleaseFromManualProductionDeployment", () => {
   assert.match(deployWorkflow, /^on:\n  workflow_dispatch:/m);
   assert.doesNotMatch(deployWorkflow, /\n  push:|docker\/build-push-action/);
   assert.match(deployWorkflow, /release_sha:[\s\S]*required: true[\s\S]*release_run_id:/);
+  assert.doesNotMatch(
+    workflowJob(deployWorkflow, "validate-intent"),
+    /^    if:/m,
+  );
   assert.match(
     workflowJob(deployWorkflow, "validate-intent"),
-    /\.path == \$release_workflow[\s\S]*\.event == "push"[\s\S]*\.head_branch == "main"[\s\S]*\.head_sha == \$release_sha[\s\S]*\.conclusion == "success"[\s\S]*\.run_attempt == 1/,
+    /GITHUB_REF[\s\S]*refs\/heads\/main[\s\S]*\.path == \$release_workflow[\s\S]*\.event == "push"[\s\S]*\.head_branch == "main"[\s\S]*\.head_sha == \$release_sha[\s\S]*\.conclusion == "success"[\s\S]*\.run_attempt == 1/,
   );
   assert.match(deployWorkflow, /git merge-base --is-ancestor/);
   assert.match(deployWorkflow, /run-id: \$\{\{ inputs\.release_run_id \}\}/);
