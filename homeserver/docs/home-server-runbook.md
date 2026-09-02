@@ -38,8 +38,8 @@ GitHub Actions는 GHCR token을 stdin으로 전달하고 forced-command SSH에�
 
 ```text
 deploy-cubing-hub <40자리 commit SHA> <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> keep <registry user>
-deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> keep <API digest> <Web digest> <registry user>
+deploy-cubing-hub-v2 <40자리 commit SHA> update <config digest> <API digest> <Web digest> <registry user>
 inspect-cubing-hub-runtime <application SHA> <runtime SHA> <runtime digest> <DB image tag@digest> <DB volume> <MySQL version>
 ```
 
@@ -87,23 +87,26 @@ Release workflow는 runtime publication mode와 data-service maintenance gate를
 Application-only
 → runtime config keep
 → API/Web publish
-→ normal production deploy
+→ Release manifest
+→ 별도 승인된 normal production deploy
 
 Safe runtime-config update
 → runtime config update
 → immutable runtime-config publish
-→ normal production deploy
+→ Release manifest
+→ 별도 승인된 normal production deploy
 
 DB image 또는 MySQL volume binding 변경
 → runtime config update
 → immutable runtime-config publish
-→ production deploy job skip
+→ maintenance-required Release manifest
+→ normal production deploy preflight 차단
 → dedicated maintenance worker
 ```
 
-DB maintenance 판정은 마지막 정상 `production-runtime-config` baseline과 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. Resolver는 runtime baseline 이력을 100개 단위로 끝까지 확인한다. Runtime baseline 이력이 전혀 없는 최초 전환에만 기존 `production` success를 bootstrap 기준으로 사용한다. Runtime 이력은 있으나 success가 없으면 fail closed하며 legacy production 이력으로 돌아가지 않는다. 두 environment 모두 이력이 없는 신규 설치는 zero revision에서 시작한다. `workflow_dispatch.sync_runtime_config=true`는 runtime-config publication을 강제할 뿐 이 판정을 우회하지 않는다.
+DB maintenance 판정은 마지막 정상 `production-runtime-config` baseline과 candidate revision의 Compose를 같은 project contract로 render하고 effective DB image와 MySQL volume name을 비교한다. Resolver는 runtime baseline 이력을 100개 단위로 끝까지 확인한다. Runtime baseline 이력이 전혀 없는 최초 전환에만 기존 `production` success를 bootstrap 기준으로 사용한다. Runtime 이력은 있으나 success가 없으면 fail closed하며 legacy production 이력으로 돌아가지 않는다. 두 environment 모두 이력이 없는 신규 설치는 zero revision에서 시작한다. Deploy dispatch에는 runtime publication mode를 바꾸는 입력이 없으며 Release manifest와 current baseline을 다시 비교하므로 maintenance 판정을 우회할 수 없다.
 
-`MAC_MINI_DEPLOY_ENABLED=true`는 현재 publish job과 production deploy job을 모두 enable한다. Data-service maintenance가 필요하면 publish job은 API·Web과 runtime-config artifact를 발행하고, deploy job은 `data_service_maintenance_required` output으로 GitHub Actions에서 skip된다. Tailscale 연결과 SSH command는 실행되지 않는다. Workflow summary에는 runtime mode, runtime revision·digest, maintenance 필요 여부와 deploy skip 상태를 기록한다.
+Release workflow는 repository variable과 무관하게 API·Web과 필요한 runtime-config artifact를 발행하고 exact manifest를 보존한 뒤 종료한다. `MAC_MINI_DEPLOY_ENABLED=true`는 별도 Production deploy job의 kill switch만 담당한다. Data-service maintenance가 필요하면 deploy preflight가 `production` environment, Tailscale 연결과 SSH command 전에 실패한다. Workflow summary는 Release artifact evidence와 별도 deploy authority evidence를 구분한다.
 
 GitHub deployment environment는 application과 runtime baseline을 분리한다.
 
@@ -118,9 +121,10 @@ production-runtime-config
 Application-only `keep`은 runtime baseline을 갱신하지 않는다. Safe
 runtime-config `update`는 production deploy가 성공한 뒤 별도 job에서 runtime
 baseline success를 기록한다. Maintenance-required release는 artifact만
-발행하고 production deploy와 runtime baseline 기록을 모두 skip한다. Baseline
-recording이 실패하면 release는 실패 상태로 남고, 다음 release는 마지막으로
-확인된 success를 계속 사용한다.
+발행하고 일반 production deploy preflight를 통과할 수 없다. Baseline recording이
+실패하면 Production deploy acceptance는 미완료 상태이며, Release artifact 발행
+결과와 혼합하지 않는다. 다음 Release와 deploy는 마지막으로 확인된 success를
+계속 사용한다.
 
 runtime-config image에는 아래 네 파일만 들어간다.
 
@@ -131,7 +135,8 @@ scripts/deploy-cubing-hub.sh
 scripts/backup-cubing-hub.sh
 ```
 
-고정 forced-command/bootstrap은 exact digest, revision/project label, regular-file
+고정 forced-command/bootstrap은 runtime config와 API·Web image의 exact digest,
+revision/project label, regular-file
 allowlist, 전체 content hash, script mode `700`과 `/bin/bash -n`을 검증한
 뒤 immutable release의 candidate deploy script를 실행한다. 첫 성공 전
 recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. 정상
@@ -139,6 +144,11 @@ recovery에만 legacy Compose와 고정 legacy worker를 사용할 수 있다. �
 `runtime-config/current`가 Compose와 deploy/backup script의 공통 active
 release를 가리킨다. `keep`, recovery와 정기 backup은 이 release의 검증된
 script를 사용한다.
+
+API·Web image는 manifest가 승인한 `repository@sha256:digest`로 pull한 뒤
+revision label을 확인한다. Compose가 사용하는 `repository:<commit SHA>`는
+검증된 local image ID에만 붙이는 비권위 alias이며 registry tag를 다시 pull하지
+않는다.
 
 Deploy와 scheduled backup 진입점은
 `/Users/homeserver/Server/apps/cubing-hub/.cubing-hub-operation.lock`의 같은

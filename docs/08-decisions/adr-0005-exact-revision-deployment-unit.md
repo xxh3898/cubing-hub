@@ -33,4 +33,4 @@ API와 Web은 동일한 40자리 commit SHA image를 사용한다. runtime confi
 - GHCR artifact와 state·current pointer 무결성 검증이 필요하다.
 - runtime configuration 변경도 별도 artifact lifecycle을 가진다.
 - migration은 pair rollback에 포함되지 않으므로 별도 호환성 정책이 필요하다.
-- main merge가 production deploy로 이어질 수 있어 별도 승인과 환경 상태 확인이 필요하다.
+- main merge는 exact artifact와 provenance를 발행하고 종료한다. Production deploy는 exact Release authority 검증, 별도 승인과 환경 상태 확인이 필요하다.

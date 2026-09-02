@@ -1,70 +1,287 @@
-name: Publish and Deploy
+name: Deploy Released Artifacts
+
+run-name: Deploy release ${{ inputs.release_sha }}
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
-      sync_runtime_config:
-        description: Force runtime config publication and synchronization
-        required: false
-        default: false
-        type: boolean
+      release_sha:
+        description: Exact released main commit SHA
+        required: true
+        type: string
+      release_run_id:
+        description: Successful Release Artifacts workflow run ID
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+env:
+  API_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-api
+  WEB_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-web
 
 concurrency:
   group: cubing-hub-production
   cancel-in-progress: false
 
-env:
-  API_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-api
-  WEB_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-web
-  RUNTIME_CONFIG_IMAGE_NAME: ghcr.io/xxh3898/cubing-hub-runtime-config
-  VITE_API_BASE_URL: https://api.cubing-hub.com
-
 jobs:
-  validate:
-    name: Validate release
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/validate.yml
-    permissions:
-      contents: read
-
-  publish:
-    name: Publish ARM64 images
-    if: github.ref == 'refs/heads/main' && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
-    needs:
-      - validate
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 25
+  validate-intent:
+    name: Validate exact release authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       actions: read
       contents: read
       deployments: read
-      packages: write
+      packages: read
     outputs:
-      data_service_maintenance_required: ${{ steps.data-service-maintenance.outputs.required }}
-      runtime_baseline_digest: ${{ steps.runtime-baseline.outputs.digest }}
-      runtime_baseline_revision: ${{ steps.runtime-baseline.outputs.revision }}
-      runtime_baseline_source: ${{ steps.runtime-baseline.outputs.source }}
-      runtime_config_mode: ${{ steps.runtime-config-mode.outputs.mode }}
-      runtime_config_digest: ${{ steps.publish-runtime-config.outputs.digest }}
-      runtime_config_revision: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
+      api_digest: ${{ steps.manifest.outputs.api_digest }}
+      web_digest: ${{ steps.manifest.outputs.web_digest }}
+      runtime_config_mode: ${{ steps.manifest.outputs.runtime_config_mode }}
+      runtime_config_revision: ${{ steps.manifest.outputs.runtime_config_revision }}
+      runtime_config_digest: ${{ steps.manifest.outputs.runtime_config_digest }}
+      data_service_maintenance_required: ${{ steps.manifest.outputs.data_service_maintenance_required }}
 
     steps:
-      - name: Check out repository
+      - name: Check out exact released revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ inputs.release_sha }}
           fetch-depth: 0
 
-      - name: Resolve verified runtime config baseline
-        id: runtime-baseline
+      - name: Verify successful main Release authority
+        id: release-authority
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
         run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != refs/heads/main ]]; then
+            printf 'Production deploy must be dispatched from main\n' >&2
+            exit 1
+          fi
+          if [[ ! "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Release SHA must contain 40 lowercase hexadecimal characters\n' >&2
+            exit 64
+          fi
+          if [[ ! "${RELEASE_RUN_ID}" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'Release run ID must be a positive integer\n' >&2
+            exit 64
+          fi
+          if [[ "$(git rev-parse HEAD)" != "${RELEASE_SHA}" ]]; then
+            printf 'Checked out revision does not match requested release\n' >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor \
+            "${RELEASE_SHA}" \
+            refs/remotes/origin/main
+          then
+            printf 'Requested release is not in live main ancestry\n' >&2
+            exit 1
+          fi
+
+          curl_config=
+          cleanup_curl_config() {
+            GH_TOKEN=
+            if [[ -n "${curl_config}" \
+              && -f "${curl_config}" \
+              && ! -L "${curl_config}" \
+              && "$(basename "${curl_config}")" == cubing-hub-release-authority-curl.* ]]
+            then
+              rm -f -- "${curl_config}"
+            fi
+          }
+          trap cleanup_curl_config EXIT INT TERM
+          umask 077
+          curl_config="$(
+            GH_TOKEN= \
+              mktemp "${RUNNER_TEMP}/cubing-hub-release-authority-curl.XXXXXX"
+          )"
+          {
+            printf 'header = "Accept: application/vnd.github+json"\n'
+            printf 'header = "Authorization: Bearer %s"\n' "${GH_TOKEN}"
+            printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n'
+          } >"${curl_config}"
+          GH_TOKEN=
+          chmod 600 "${curl_config}"
+
+          release_run="$(
+            curl \
+              --config "${curl_config}" \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}"
+          )"
+          cleanup_curl_config
+          trap - EXIT INT TERM
+          if ! jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg release_sha "${RELEASE_SHA}" \
+            --arg release_workflow '.github/workflows/release.yml' \
+            --argjson release_run_id "${RELEASE_RUN_ID}" \
+            '
+              .id == $release_run_id
+              and .repository.full_name == $repository
+              and .path == $release_workflow
+              and .event == "push"
+              and .head_branch == "main"
+              and .head_sha == $release_sha
+              and .status == "completed"
+              and .conclusion == "success"
+              and .run_attempt == 1
+            ' <<<"${release_run}" >/dev/null
+          then
+            printf 'Release run does not prove a successful exact main release\n' >&2
+            exit 1
+          fi
+          release_run_attempt="$(jq -er '.run_attempt' <<<"${release_run}")"
+          printf 'run_attempt=%s\n' "${release_run_attempt}" >>"${GITHUB_OUTPUT}"
+
+      - name: Download exact release manifest
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-manifest-${{ inputs.release_sha }}-${{ inputs.release_run_id }}-${{ steps.release-authority.outputs.run_attempt }}
+          path: release-evidence
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+
+      - name: Validate exact release manifest
+        id: manifest
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          RELEASE_RUN_ATTEMPT: ${{ steps.release-authority.outputs.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+
+          manifest_path=release-evidence/release-manifest.env
+          /bin/bash ./homeserver/scripts/release-manifest.sh \
+            validate \
+            "${manifest_path}" \
+            "${RELEASE_SHA}" \
+            "${RELEASE_RUN_ID}" \
+            "${RELEASE_RUN_ATTEMPT}"
+
+          manifest_value() {
+            sed -n "s/^$1=//p" "${manifest_path}"
+          }
+
+          printf 'api_digest=%s\n' \
+            "$(manifest_value api_digest)" >>"${GITHUB_OUTPUT}"
+          printf 'web_digest=%s\n' \
+            "$(manifest_value web_digest)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_config_mode=%s\n' \
+            "$(manifest_value runtime_config_mode)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_config_revision=%s\n' \
+            "$(manifest_value runtime_config_revision)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_config_digest=%s\n' \
+            "$(manifest_value runtime_config_digest)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_baseline_revision=%s\n' \
+            "$(manifest_value runtime_baseline_revision)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_baseline_digest=%s\n' \
+            "$(manifest_value runtime_baseline_digest)" >>"${GITHUB_OUTPUT}"
+          printf 'runtime_baseline_source=%s\n' \
+            "$(manifest_value runtime_baseline_source)" >>"${GITHUB_OUTPUT}"
+          printf 'data_service_maintenance_required=%s\n' \
+            "$(manifest_value data_service_maintenance_required)" >>"${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx for artifact verification
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Verify released application image digests
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          RELEASE_RUN_ATTEMPT: ${{ steps.release-authority.outputs.run_attempt }}
+        run: |
+          set -Eeuo pipefail
+
+          docker_config_dir=
+          cleanup_docker_config() {
+            GHCR_TOKEN=
+            if [[ -n "${docker_config_dir}" \
+              && -d "${docker_config_dir}" \
+              && ! -L "${docker_config_dir}" \
+              && "$(basename "${docker_config_dir}")" == cubing-hub-release-docker.* ]]
+            then
+              docker --config "${docker_config_dir}" logout ghcr.io \
+                >/dev/null 2>&1 || true
+              rm -rf -- "${docker_config_dir}"
+            fi
+          }
+          trap cleanup_docker_config EXIT INT TERM
+          umask 077
+          docker_config_dir="$(
+            GHCR_TOKEN= \
+              mktemp -d "${RUNNER_TEMP}/cubing-hub-release-docker.XXXXXX"
+          )"
+          chmod 700 "${docker_config_dir}"
+
+          printf '%s' "${GHCR_TOKEN}" \
+            | GHCR_TOKEN= docker \
+                --config "${docker_config_dir}" \
+                login ghcr.io \
+                --username "${GITHUB_ACTOR}" \
+                --password-stdin \
+                >/dev/null
+          GHCR_TOKEN=
+
+          registry_digest() {
+            local descriptor
+            local image="$1"
+
+            descriptor="$(
+              docker \
+                --config "${docker_config_dir}" \
+                buildx imagetools inspect \
+                --format '{{json .Manifest}}' \
+                "${image}"
+            )"
+            jq -er \
+              '.digest | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))' \
+              <<<"${descriptor}"
+          }
+
+          actual_api_digest="$(
+            registry_digest "${API_IMAGE_NAME}:${RELEASE_SHA}"
+          )"
+          actual_web_digest="$(
+            registry_digest "${WEB_IMAGE_NAME}:${RELEASE_SHA}"
+          )"
+          /bin/bash ./homeserver/scripts/release-manifest.sh \
+            verify-images \
+            release-evidence/release-manifest.env \
+            "${RELEASE_SHA}" \
+            "${RELEASE_RUN_ID}" \
+            "${RELEASE_RUN_ATTEMPT}" \
+            "${actual_api_digest}" \
+            "${actual_web_digest}"
+
+      - name: Revalidate current deployment authority
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          RELEASE_RUN_ATTEMPT: ${{ steps.release-authority.outputs.run_attempt }}
+          API_IMAGE_DIGEST: ${{ steps.manifest.outputs.api_digest }}
+          WEB_IMAGE_DIGEST: ${{ steps.manifest.outputs.web_digest }}
+          EXPECTED_RUNTIME_CONFIG_MODE: ${{ steps.manifest.outputs.runtime_config_mode }}
+          EXPECTED_RUNTIME_BASELINE_REVISION: ${{ steps.manifest.outputs.runtime_baseline_revision }}
+          EXPECTED_RUNTIME_BASELINE_DIGEST: ${{ steps.manifest.outputs.runtime_baseline_digest }}
+          EXPECTED_RUNTIME_BASELINE_SOURCE: ${{ steps.manifest.outputs.runtime_baseline_source }}
+          EXPECTED_DATA_SERVICE_MAINTENANCE_REQUIRED: ${{ steps.manifest.outputs.data_service_maintenance_required }}
+        run: |
+          set -Eeuo pipefail
+
           baseline="$(
             /bin/bash ./homeserver/scripts/resolve-runtime-config-baseline.sh
           )"
@@ -77,211 +294,67 @@ jobs:
             printf 'Runtime baseline resolver output is invalid\n' >&2
             exit 1
           fi
-          runtime_baseline_digest="$(
+          actual_baseline_digest="$(
             sed -n 's/^digest=//p' <<<"${baseline}" | tail -n 1
           )"
-          runtime_baseline_revision="$(
+          actual_baseline_revision="$(
             sed -n 's/^revision=//p' <<<"${baseline}" | tail -n 1
           )"
-          runtime_baseline_source="$(
+          actual_baseline_source="$(
             sed -n 's/^source=//p' <<<"${baseline}" | tail -n 1
           )"
-          if [[ ! "${runtime_baseline_revision}" =~ ^[0-9a-f]{40}$ ]]; then
-            printf 'Runtime baseline revision has an unexpected format\n' >&2
-            exit 64
-          fi
-          if [[ ! "${runtime_baseline_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            printf 'Runtime baseline digest has an unexpected format\n' >&2
-            exit 64
-          fi
-          if [[ "${runtime_baseline_revision}" != 0000000000000000000000000000000000000000 ]] \
-            && ! git cat-file -e "${runtime_baseline_revision}^{commit}" 2>/dev/null
+          if [[ "${actual_baseline_revision}" != "${EXPECTED_RUNTIME_BASELINE_REVISION}" \
+            || "${actual_baseline_digest}" != "${EXPECTED_RUNTIME_BASELINE_DIGEST}" \
+            || "${actual_baseline_source}" != "${EXPECTED_RUNTIME_BASELINE_SOURCE}" ]]
           then
-            printf 'Runtime baseline revision is unavailable in repository history\n' >&2
+            printf 'Production runtime baseline changed after artifact release\n' >&2
             exit 1
           fi
-          case "${runtime_baseline_source}" in
-            runtime|legacy-bootstrap|new-install-bootstrap)
-              ;;
-            *)
-              printf 'Runtime baseline source is invalid\n' >&2
-              exit 64
-              ;;
-          esac
-          printf 'digest=%s\n' "${runtime_baseline_digest}" >>"${GITHUB_OUTPUT}"
-          printf 'revision=%s\n' "${runtime_baseline_revision}" >>"${GITHUB_OUTPUT}"
-          printf 'source=%s\n' "${runtime_baseline_source}" >>"${GITHUB_OUTPUT}"
 
-      - name: Detect runtime config changes
-        id: runtime-config-mode
-        env:
-          RUNTIME_BASELINE_SHA: ${{ steps.runtime-baseline.outputs.revision }}
-          FORCE_SYNC: ${{ inputs.sync_runtime_config || false }}
-        run: |
-          mode="$(
+          actual_runtime_config_mode="$(
             /bin/bash ./homeserver/scripts/detect-runtime-config-change.sh \
-              "${RUNTIME_BASELINE_SHA}" \
-              "${GITHUB_SHA}" \
-              "${FORCE_SYNC}"
+              "${actual_baseline_revision}" \
+              "${RELEASE_SHA}" \
+              false
           )"
-          printf 'mode=%s\n' "${mode}" >>"${GITHUB_OUTPUT}"
-
-      - name: Detect data-service maintenance
-        id: data-service-maintenance
-        env:
-          RUNTIME_BASELINE_SHA: ${{ steps.runtime-baseline.outputs.revision }}
-          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
-        run: |
-          required="$(
-            /bin/bash ./homeserver/scripts/detect-data-service-maintenance.sh \
-              "${RUNTIME_BASELINE_SHA}" \
-              "${GITHUB_SHA}"
-          )"
-          case "${required}" in
-            true|false)
-              ;;
-            *)
-              printf 'Data-service maintenance result is invalid\n' >&2
-              exit 64
-              ;;
-          esac
-          if [[ "${required}" == true && "${RUNTIME_CONFIG_MODE}" != update ]]; then
-            printf 'Data-service maintenance requires a runtime config update\n' >&2
+          if [[ "${actual_runtime_config_mode}" != "${EXPECTED_RUNTIME_CONFIG_MODE}" ]]; then
+            printf 'Runtime config mode changed after artifact release\n' >&2
             exit 1
           fi
-          printf 'required=%s\n' "${required}" >>"${GITHUB_OUTPUT}"
-          if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
-            printf 'runtime_config_revision=%s\n' "${GITHUB_SHA}" >>"${GITHUB_OUTPUT}"
-          else
-            printf 'runtime_config_revision=\n' >>"${GITHUB_OUTPUT}"
+
+          actual_maintenance_required="$(
+            /bin/bash ./homeserver/scripts/detect-data-service-maintenance.sh \
+              "${actual_baseline_revision}" \
+              "${RELEASE_SHA}"
+          )"
+          if [[ "${actual_maintenance_required}" != "${EXPECTED_DATA_SERVICE_MAINTENANCE_REQUIRED}" ]]; then
+            printf 'Data-service maintenance classification changed after artifact release\n' >&2
+            exit 1
+          fi
+          if [[ "${actual_maintenance_required}" == true ]]; then
+            printf 'Release requires dedicated data-service maintenance\n' >&2
+            exit 1
           fi
 
-      - name: Download backend jar
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: backend-jar-${{ github.sha }}
-          path: backend/build/libs
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Log in to GHCR
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and publish API ARM64 image
-        id: publish-api
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: homeserver/docker/backend.Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ${{ env.API_IMAGE_NAME }}:${{ github.sha }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.sha }}
-          cache-from: type=gha,scope=cubing-hub-api-arm64
-          cache-to: type=gha,mode=max,scope=cubing-hub-api-arm64
-
-      - name: Build and publish web ARM64 image
-        id: publish-web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: homeserver/docker/frontend.Dockerfile
-          platforms: linux/arm64
-          push: true
-          build-args: |
-            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
-          tags: ${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.sha }}
-          cache-from: type=gha,scope=cubing-hub-web-arm64
-          cache-to: type=gha,mode=max,scope=cubing-hub-web-arm64
-
-      - name: Build and publish runtime config image
-        id: publish-runtime-config
-        if: steps.runtime-config-mode.outputs.mode == 'update'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: homeserver/runtime-config.Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ${{ env.RUNTIME_CONFIG_IMAGE_NAME }}:${{ github.sha }}
-          build-args: |
-            REVISION=${{ github.sha }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.sha }}
-          cache-from: type=gha,scope=cubing-hub-runtime-config
-          cache-to: type=gha,mode=max,scope=cubing-hub-runtime-config
-
-      - name: Record published images
-        env:
-          API_IMAGE_DIGEST: ${{ steps.publish-api.outputs.digest }}
-          DATA_SERVICE_MAINTENANCE_REQUIRED: ${{ steps.data-service-maintenance.outputs.required }}
-          RUNTIME_BASELINE_DIGEST: ${{ steps.runtime-baseline.outputs.digest }}
-          RUNTIME_BASELINE_REVISION: ${{ steps.runtime-baseline.outputs.revision }}
-          RUNTIME_BASELINE_SOURCE: ${{ steps.runtime-baseline.outputs.source }}
-          WEB_IMAGE_DIGEST: ${{ steps.publish-web.outputs.digest }}
-          RUNTIME_CONFIG_DIGEST: ${{ steps.publish-runtime-config.outputs.digest }}
-          RUNTIME_CONFIG_MODE: ${{ steps.runtime-config-mode.outputs.mode }}
-          RUNTIME_CONFIG_REVISION: ${{ steps.data-service-maintenance.outputs.runtime_config_revision }}
-        run: |
           {
-            printf '## Published images\n\n'
-            printf -- "- API: \`%s:%s\`\n" "${API_IMAGE_NAME}" "${GITHUB_SHA}"
-            printf -- "  - Digest: \`%s\`\n" "${API_IMAGE_DIGEST}"
-            printf -- "- Web: \`%s:%s\`\n" "${WEB_IMAGE_NAME}" "${GITHUB_SHA}"
-            printf -- "  - Digest: \`%s\`\n" "${WEB_IMAGE_DIGEST}"
-            printf -- "- Runtime config mode: \`%s\`\n" \
-              "${RUNTIME_CONFIG_MODE}"
-            printf -- "- Runtime baseline source: \`%s\`\n" \
-              "${RUNTIME_BASELINE_SOURCE}"
-            printf -- "- Runtime baseline revision: \`%s\`\n" \
-              "${RUNTIME_BASELINE_REVISION}"
-            printf -- "- Runtime baseline digest: \`%s\`\n" \
-              "${RUNTIME_BASELINE_DIGEST}"
-            if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
-              printf -- "- Runtime config revision: \`%s\`\n" \
-                "${RUNTIME_CONFIG_REVISION}"
-              printf -- "- Runtime config digest: \`%s\`\n" \
-                "${RUNTIME_CONFIG_DIGEST}"
-            else
-              printf -- "- Runtime config: current verified release retained\n"
-            fi
-            if [[ "${DATA_SERVICE_MAINTENANCE_REQUIRED}" == true ]]; then
-              printf -- "- Data-service maintenance: \`required\`\n"
-              printf -- "- Production deploy: \`skipped\`\n"
-              printf -- "- Runtime baseline: \`unchanged\`\n"
-            else
-              printf -- "- Data-service maintenance: \`not required\`\n"
-              printf -- "- Production deploy: \`allowed\`\n"
-              if [[ "${RUNTIME_CONFIG_MODE}" == update ]]; then
-                printf -- "- Runtime baseline: deploy 성공 후 기록\n"
-              else
-                printf -- "- Runtime baseline: \`unchanged\`\n"
-              fi
-            fi
+            printf '## Production deploy authority\n\n'
+            printf -- '- Release revision: `%s`\n' "${RELEASE_SHA}"
+            printf -- '- Release run: `%s` attempt `%s`\n' \
+              "${RELEASE_RUN_ID}" \
+              "${RELEASE_RUN_ATTEMPT}"
+            printf -- '- API digest: `%s`\n' \
+              "${API_IMAGE_DIGEST}"
+            printf -- '- Web digest: `%s`\n' \
+              "${WEB_IMAGE_DIGEST}"
+            printf -- '- Runtime config mode: `%s`\n' \
+              "${actual_runtime_config_mode}"
+            printf -- '- Data-service maintenance: `not required`\n'
           } >>"${GITHUB_STEP_SUMMARY}"
 
   deploy:
-    name: Deploy to home-mini
-    if: >-
-      github.ref == 'refs/heads/main'
-      && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
-      && needs.publish.outputs.data_service_maintenance_required == 'false'
+    name: Deploy exact released artifacts to home-mini
     needs:
-      - publish
+      - validate-intent
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production
@@ -290,6 +363,15 @@ jobs:
       id-token: write
 
     steps:
+      - name: Confirm deploy kill switch
+        env:
+          DEPLOY_ENABLED: ${{ vars.MAC_MINI_DEPLOY_ENABLED }}
+        run: |
+          if [[ "${DEPLOY_ENABLED}" != true ]]; then
+            printf 'Production deploy kill switch is disabled\n' >&2
+            exit 1
+          fi
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
@@ -315,24 +397,27 @@ jobs:
           ssh-keygen -y -f "${HOME}/.ssh/id_ed25519_home_mini_ci" >/dev/null
           ssh-keygen -lf "${HOME}/.ssh/known_hosts" >/dev/null
 
-      - name: Deploy published images
+      - name: Deploy exact released artifacts
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUNTIME_CONFIG_MODE: ${{ needs.publish.outputs.runtime_config_mode }}
-          RUNTIME_CONFIG_DIGEST: ${{ needs.publish.outputs.runtime_config_digest }}
+          API_IMAGE_DIGEST: ${{ needs.validate-intent.outputs.api_digest }}
+          WEB_IMAGE_DIGEST: ${{ needs.validate-intent.outputs.web_digest }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RUNTIME_CONFIG_MODE: ${{ needs.validate-intent.outputs.runtime_config_mode }}
+          RUNTIME_CONFIG_DIGEST: ${{ needs.validate-intent.outputs.runtime_config_digest }}
         run: |
           set -Eeuo pipefail
 
           case "${RUNTIME_CONFIG_MODE}" in
             keep)
-              deploy_command="deploy-cubing-hub-v2 ${GITHUB_SHA} keep ${GITHUB_ACTOR}"
+              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} keep ${API_IMAGE_DIGEST} ${WEB_IMAGE_DIGEST} ${GITHUB_ACTOR}"
               ;;
             update)
               if [[ ! "${RUNTIME_CONFIG_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
                 printf 'Runtime config digest has an unexpected format\n' >&2
                 exit 64
               fi
-              deploy_command="deploy-cubing-hub-v2 ${GITHUB_SHA} update ${RUNTIME_CONFIG_DIGEST} ${GITHUB_ACTOR}"
+              deploy_command="deploy-cubing-hub-v2 ${RELEASE_SHA} update ${RUNTIME_CONFIG_DIGEST} ${API_IMAGE_DIGEST} ${WEB_IMAGE_DIGEST} ${GITHUB_ACTOR}"
               ;;
             *)
               printf 'Runtime config mode has an unexpected value\n' >&2
@@ -341,7 +426,7 @@ jobs:
           esac
 
           printf '%s' "${GHCR_TOKEN}" \
-            | ssh \
+            | GHCR_TOKEN= ssh \
                 -F /dev/null \
                 -i "${HOME}/.ssh/id_ed25519_home_mini_ci" \
                 -o BatchMode=yes \
@@ -349,19 +434,17 @@ jobs:
                 -o StrictHostKeyChecking=yes \
                 homeserver@home-mini \
                 "${deploy_command}"
+          GHCR_TOKEN=
 
   record-runtime-baseline:
     name: Record runtime config baseline
     if: >-
       always()
-      && github.ref == 'refs/heads/main'
-      && vars.MAC_MINI_DEPLOY_ENABLED == 'true'
-      && needs.publish.result == 'success'
+      && needs.validate-intent.result == 'success'
       && needs.deploy.result == 'success'
-      && needs.publish.outputs.runtime_config_mode == 'update'
-      && needs.publish.outputs.data_service_maintenance_required == 'false'
+      && needs.validate-intent.outputs.runtime_config_mode == 'update'
     needs:
-      - publish
+      - validate-intent
       - deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -370,19 +453,22 @@ jobs:
       deployments: write
 
     steps:
-      - name: Check out repository
+      - name: Check out exact released revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.release_sha }}
 
       - name: Record verified runtime config baseline
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUNTIME_CONFIG_DIGEST: ${{ needs.publish.outputs.runtime_config_digest }}
-          RUNTIME_CONFIG_REVISION: ${{ needs.publish.outputs.runtime_config_revision }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          RUNTIME_CONFIG_DIGEST: ${{ needs.validate-intent.outputs.runtime_config_digest }}
+          RUNTIME_CONFIG_REVISION: ${{ needs.validate-intent.outputs.runtime_config_revision }}
         run: |
           result="$(
             /bin/bash ./homeserver/scripts/record-runtime-config-baseline.sh \
               normal-update \
-              "${GITHUB_SHA}" \
+              "${RELEASE_SHA}" \
               "${RUNTIME_CONFIG_REVISION}" \
               "${RUNTIME_CONFIG_DIGEST}" \
               - \
@@ -396,7 +482,7 @@ jobs:
           {
             printf '## Runtime config baseline\n\n'
             printf -- '- Operation: `normal-update`\n'
-            printf -- '- Application revision: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- Application revision: `%s`\n' "${RELEASE_SHA}"
             printf -- '- Runtime revision: `%s`\n' "${RUNTIME_CONFIG_REVISION}"
             printf -- '- Runtime digest: `%s`\n' "${RUNTIME_CONFIG_DIGEST}"
             printf -- '- Deployment ID: `%s`\n' "${deployment_id}"

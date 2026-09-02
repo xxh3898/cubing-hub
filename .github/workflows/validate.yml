@@ -128,6 +128,7 @@ jobs:
             homeserver/scripts/fixtures/mock-cubing-hub-docker.sh \
             homeserver/scripts/fixtures/mock-github-deployments-curl.sh \
             homeserver/scripts/mysql-maintenance-home-server.sh \
+            homeserver/scripts/release-manifest.sh \
             homeserver/scripts/record-runtime-config-baseline.sh \
             homeserver/scripts/resolve-runtime-config-baseline.sh \
             homeserver/scripts/test-backup-home-server.sh \
@@ -135,6 +136,7 @@ jobs:
             homeserver/scripts/test-detect-runtime-config-change.sh \
             homeserver/scripts/test-deploy-home-server.sh \
             homeserver/scripts/test-mysql-maintenance-home-server.sh \
+            homeserver/scripts/test-release-manifest.sh \
             homeserver/scripts/test-runtime-baseline-inspection.sh \
             homeserver/scripts/test-runtime-config-baseline.sh \
             homeserver/scripts/test-runtime-script-bootstrap.sh \
@@ -158,6 +160,7 @@ jobs:
           )" = update
           /bin/bash ./homeserver/scripts/test-detect-data-service-maintenance.sh
           /bin/bash ./homeserver/scripts/test-detect-runtime-config-change.sh
+          /bin/bash ./homeserver/scripts/test-release-manifest.sh
           /bin/bash ./homeserver/scripts/test-runtime-config-baseline.sh
           /bin/bash ./homeserver/scripts/test-runtime-baseline-inspection.sh
           /bin/bash ./homeserver/scripts/test-runtime-script-bootstrap.sh

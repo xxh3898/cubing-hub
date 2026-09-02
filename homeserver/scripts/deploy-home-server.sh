@@ -39,8 +39,8 @@ usage() {
   printf '%s\n' \
     'Usage:' \
     '  deploy-cubing-hub.sh <commit-sha> <registry-user>' \
-    '  deploy-cubing-hub.sh <commit-sha> keep <registry-user>' \
-    '  deploy-cubing-hub.sh <commit-sha> update <config-digest> <registry-user>' \
+    '  deploy-cubing-hub.sh <commit-sha> keep <api-digest> <web-digest> <registry-user>' \
+    '  deploy-cubing-hub.sh <commit-sha> update <config-digest> <api-digest> <web-digest> <registry-user>' \
     '  deploy-cubing-hub.sh recover' \
     >&2
 }
@@ -79,6 +79,8 @@ legacy_mode=false
 recovery_mode=false
 config_mode=legacy
 config_digest=
+api_digest=
+web_digest=
 commit_sha=
 registry_user=
 
@@ -96,20 +98,24 @@ case "$#" in
     commit_sha="$1"
     registry_user="$2"
     ;;
-  3)
+  5)
     commit_sha="$1"
     config_mode="$2"
-    registry_user="$3"
+    api_digest="$3"
+    web_digest="$4"
+    registry_user="$5"
     if [[ "${config_mode}" != keep ]]; then
       usage
       exit 64
     fi
     ;;
-  4)
+  6)
     commit_sha="$1"
     config_mode="$2"
     config_digest="$3"
-    registry_user="$4"
+    api_digest="$4"
+    web_digest="$5"
+    registry_user="$6"
     if [[ "${config_mode}" != update ]]; then
       usage
       exit 64
@@ -135,6 +141,12 @@ if [[ "${config_mode}" == update ]] \
   && { [[ ! "${config_digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${config_digest}" == "${ZERO_DIGEST}" ]]; }
 then
   printf 'Runtime config digest must use sha256 followed by 64 lowercase hexadecimal characters\n' >&2
+  exit 64
+fi
+if [[ "${legacy_mode}" == false && "${recovery_mode}" == false ]] \
+  && { ! is_digest "${api_digest}" || ! is_digest "${web_digest}"; }
+then
+  printf 'Application image digests must use non-zero sha256 values\n' >&2
   exit 64
 fi
 
@@ -1851,6 +1863,12 @@ else
 fi
 new_api_image="${API_IMAGE_REPOSITORY}:${normalized_sha}"
 new_web_image="${WEB_IMAGE_REPOSITORY}:${normalized_sha}"
+new_api_artifact=
+new_web_artifact=
+if [[ "${legacy_mode}" == false ]]; then
+  new_api_artifact="${API_IMAGE_REPOSITORY}@${api_digest}"
+  new_web_artifact="${WEB_IMAGE_REPOSITORY}@${web_digest}"
+fi
 current_api_image="$(read_env_value API_IMAGE)"
 current_web_image="$(read_env_value WEB_IMAGE)"
 previous_sha=
@@ -1877,14 +1895,18 @@ printf '%s' "${registry_token}" \
 logged_in=true
 registry_token=
 
-"${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_api_image}"
-"${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_web_image}"
-
 active_backup_script="${BACKUP_SCRIPT}"
 if [[ "${legacy_mode}" == true ]]; then
+  "${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_api_image}"
+  "${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_web_image}"
   current_compose_file="${LEGACY_COMPOSE_FILE}"
   candidate_compose_file="${LEGACY_COMPOSE_FILE}"
 else
+  "${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_api_artifact}"
+  "${DOCKER_BIN}" --config "${docker_config_dir}" pull "${new_web_artifact}"
+  "${DOCKER_BIN}" tag "${new_api_artifact}" "${new_api_image}"
+  "${DOCKER_BIN}" tag "${new_web_artifact}" "${new_web_image}"
+
   for image in "${new_api_image}" "${new_web_image}"; do
     actual_revision="$(
       "${DOCKER_BIN}" \
@@ -1896,6 +1918,13 @@ else
       fail "application image revision label does not match deployment revision"
     fi
   done
+  if [[ "$("${DOCKER_BIN}" image inspect --format '{{.Id}}' "${new_api_artifact}")" \
+      != "$("${DOCKER_BIN}" image inspect --format '{{.Id}}' "${new_api_image}")" ]] \
+    || [[ "$("${DOCKER_BIN}" image inspect --format '{{.Id}}' "${new_web_artifact}")" \
+      != "$("${DOCKER_BIN}" image inspect --format '{{.Id}}' "${new_web_image}")" ]]
+  then
+    fail "local application image alias does not match the verified digest artifact"
+  fi
 
   current_config_digest="$(read_state_value RUNTIME_CONFIG_DIGEST)"
   current_config_revision="$(read_state_value RUNTIME_CONFIG_REVISION)"

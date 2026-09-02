@@ -14,15 +14,17 @@ related:
 
 ## Build와 Artifact
 
-dev push와 main pull request는 validation workflow를 실행한다. main push의 release validation이 통과하고 deployment가 enable된 경우 GitHub Actions가 linux/arm64 API·Web image와 runtime configuration artifact를 GHCR에 발행한다.
+dev push와 main pull request는 validation workflow를 실행한다. main push의 Release validation이 통과하면 GitHub Actions가 linux/arm64 API·Web image와 필요한 runtime configuration artifact를 GHCR에 최초 run attempt에서 한 번만 발행하고 exact digest·revision provenance manifest를 보존한 뒤 종료한다. 같은 revision의 rerun은 immutable SHA tag를 다시 쓰지 못한다. Release workflow는 Production credential이나 host mutation authority를 갖지 않는다.
 
 Mac mini는 image를 build하지 않고 exact artifact를 pull한다.
 
+Production deploy는 Release와 별도인 수동 workflow다. exact released main SHA와 성공한 Release run ID를 입력으로 받고, live main ancestry와 Release run metadata, 같은 run에서 보존한 manifest, current runtime baseline을 검증한다. 검증된 manifest와 현재 판정이 일치하는 경우에만 `production` environment를 사용하는 deploy job이 기존 artifact를 실행한다.
+
 Runtime configuration publication과 production deploy는 다음 release mode를 구분한다.
 
-- Application-only release는 현재 verified runtime configuration을 유지하고 정상 deploy를 진행한다.
-- DB binding이 그대로인 runtime configuration update는 immutable artifact를 발행하고 정상 deploy로 동기화한다.
-- DB image 또는 MySQL volume binding이 바뀌는 release는 immutable artifact를 발행하지만 production deploy job을 시작하지 않는다. Dedicated data-service maintenance가 필요하다.
+- Application-only release는 현재 verified runtime configuration을 유지하는 manifest를 발행한다. 별도 deploy 승인 시 그 configuration을 유지한다.
+- DB binding이 그대로인 runtime configuration update는 immutable artifact와 manifest를 발행한다. 별도 deploy 승인 시 exact digest로 동기화한다.
+- DB image 또는 MySQL volume binding이 바뀌는 release는 immutable artifact와 maintenance-required manifest를 발행한다. 일반 Production deploy preflight는 이를 차단하며 Dedicated data-service maintenance가 필요하다.
 
 Data-service 판정은 runtime 파일의 변경 여부가 아니라 마지막 정상 production runtime-config baseline과 candidate revision의 Compose를 render한 effective DB image·volume name 비교를 사용한다. Runtime configuration 강제 동기화는 이 판정을 우회하지 않는다.
 
@@ -71,7 +73,7 @@ Maintenance도 deploy·backup과 같은 operation lock과 canonical `runtime-con
 
 Upgrade candidate는 quiesce evidence ID·timestamp와 quiesce 이후 시작한 final backup을 source runtime·DB identity에 묶는다. Final backup manifest에는 current source provenance와 DB exact binding 외에 approved worker evidence ID·target worker runtime identity가 별도 기록된다. Human confirmation token만으로 `apply`할 수 없다. 성공 후에만 explicit DB binding, verified runtime `state`·`current`, maintenance audit state를 확정하고 pending과 quiesce evidence를 제거한다. DB transition 전 취소는 unchanged source에서만 `resume-source`가 담당하고, pending 이후에는 dedicated recover/rollback이 우선한다. Rollback은 upgraded original volume을 보존하고, backup parity를 검증한 fresh 이전-engine volume으로 binding을 전환한다.
 
-Main release가 data-service maintenance를 요구하면 GitHub Actions는 runtime-config revision과 digest를 기록한 뒤 production environment, Tailscale, SSH 단계 전에 deploy job을 skip한다. Host deploy worker의 drift guard도 독립된 방어선으로 유지한다.
+Main release가 data-service maintenance를 요구하면 GitHub Actions는 runtime-config revision과 digest를 release manifest에 기록한다. 이후 일반 Production deploy preflight가 `production` environment, Tailscale, SSH 단계 전에 fail closed한다. Host deploy worker의 drift guard도 독립된 방어선으로 유지한다.
 
 Maintenance 완료는 일반 GitHub production application deployment success가 아니다. Host에서는 기존 application revision과 새 runtime-config revision이 함께 정상 상태를 이룰 수 있다.
 
