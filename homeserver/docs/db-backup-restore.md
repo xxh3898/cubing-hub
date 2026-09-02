@@ -237,7 +237,7 @@ URL은 Git, 문서, 로그에 기록하지 않는다. 상세 계약과 복구 �
 
 Repository runtime target은 MySQL 8.0.46에서 MySQL 8.4.11 LTS로 전환한다. 일반 application deploy는 active Compose와 candidate Compose의 DB image·volume이 다르거나, active Compose와 실행 중인 DB container의 image ID·volume mount가 다르면 중단한다. DB binding은 아래 maintenance worker로만 변경한다.
 
-MySQL 8.4.11 Compose가 포함된 main release는 API·Web image와 immutable runtime-config artifact를 발행한다. Release workflow는 effective DB image·volume 변경을 maintenance-required로 기록하고 production deploy job을 GitHub Actions에서 skip한다. Artifact summary의 runtime revision과 exact digest를 확인한 뒤 별도 maintenance approval로 candidate를 만든다. Artifact를 얻기 위해 normal deploy worker의 DB drift 실패를 유도하지 않는다.
+MySQL 8.4.11 Compose가 포함된 main release는 API·Web image와 immutable runtime-config artifact를 발행한다. Release workflow는 effective DB image·volume 변경을 maintenance-required manifest로 기록하고 종료한다. 별도 Production deploy workflow의 preflight는 해당 manifest를 일반 deploy로 실행하지 못하게 차단한다. Artifact summary의 runtime revision과 exact digest를 확인한 뒤 별도 maintenance approval로 candidate를 만든다. Artifact를 얻기 위해 normal deploy worker의 DB drift 실패를 유도하지 않는다.
 
 Maintenance worker는 repository Compose를 production에서 직접 실행하지 않는다. GHCR exact digest로 staging한 runtime release, current API·Web image, exact DB image digest, explicit DB volume, verified backup을 immutable candidate로 묶는다.
 

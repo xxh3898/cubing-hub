@@ -5,22 +5,26 @@ import test from "node:test";
 
 const [
   validateWorkflow,
+  releaseWorkflow,
   deployWorkflow,
   reconcileWorkflow,
   benchmarkWorkflow,
   backendBuild,
   pathClassifier,
+  releaseManifest,
   runtimeBaselineResolver,
   runtimeBaselineRecorder,
   runtimeInspectionVerifier,
 ] =
   await Promise.all([
     read("../../.github/workflows/validate.yml"),
+    read("../../.github/workflows/release.yml"),
     read("../../.github/workflows/deploy.yml"),
     read("../../.github/workflows/reconcile-runtime-baseline.yml"),
     read("../../.github/workflows/performance-benchmark.yml"),
     read("../../backend/build.gradle"),
     read("../../scripts/classify-ci-paths.sh"),
+    read("./release-manifest.sh"),
     read("./resolve-runtime-config-baseline.sh"),
     read("./record-runtime-config-baseline.sh"),
     read("./verify-runtime-baseline-inspection.sh"),
@@ -37,7 +41,7 @@ test("should_validateDevPushAndDevAndMainPullRequestsBeforeRelease", () => {
   );
   assert.match(validateWorkflow, /workflow_call:/);
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /validate:\n    name: Validate release[\s\S]*uses: \.\/\.github\/workflows\/validate\.yml/,
   );
 });
@@ -192,7 +196,7 @@ test("should_forceFullValidationForMainReleaseArtifactConsumer", () => {
     /\.\/scripts\/classify-ci-paths\.sh \\\n\s+"\.github\/workflows\/validate\.yml"[\s\S]*exit 0/,
   );
   assert.match(
-    workflowJob(deployWorkflow, "publish"),
+    workflowJob(releaseWorkflow, "publish"),
     /- name: Download backend jar[\s\S]*name: backend-jar-\$\{\{ github\.sha \}\}/,
   );
 });
@@ -283,7 +287,7 @@ test("should_buildBackendArtifactBeforeApiImage", () => {
     /actions\/download-artifact@[0-9a-f]{40}/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /name: backend-jar-\$\{\{ github\.sha \}\}/,
   );
 });
@@ -321,43 +325,43 @@ test("should_alignJavaProvisioningWithBackendToolchain", () => {
 
 test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /API_IMAGE_NAME: ghcr\.io\/xxh3898\/cubing-hub-api/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /WEB_IMAGE_NAME: ghcr\.io\/xxh3898\/cubing-hub-web/,
   );
   assert.equal(
-    countMatches(deployWorkflow, /platforms: linux\/arm64/g),
+    countMatches(releaseWorkflow, /platforms: linux\/arm64/g),
     3,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /tags: \$\{\{ env\.API_IMAGE_NAME \}\}:\$\{\{ github\.sha \}\}/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /tags: \$\{\{ env\.WEB_IMAGE_NAME \}\}:\$\{\{ github\.sha \}\}/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /RUNTIME_CONFIG_IMAGE_NAME: ghcr\.io\/xxh3898\/cubing-hub-runtime-config/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /if: steps\.runtime-config-mode\.outputs\.mode == 'update'/,
   );
   assert.match(
-    deployWorkflow,
-    /data_service_maintenance_required: \$\{\{ steps\.data-service-maintenance\.outputs\.required \}\}/,
+    releaseWorkflow,
+    /DATA_SERVICE_MAINTENANCE_REQUIRED: \$\{\{ steps\.data-service-maintenance\.outputs\.required \}\}/,
   );
   assert.match(
-    deployWorkflow,
-    /runtime_config_revision: \$\{\{ steps\.data-service-maintenance\.outputs\.runtime_config_revision \}\}/,
+    releaseWorkflow,
+    /RUNTIME_CONFIG_REVISION: \$\{\{ steps\.data-service-maintenance\.outputs\.runtime_config_revision \}\}/,
   );
   assert.match(
-    deployWorkflow,
+    releaseWorkflow,
     /resolve-runtime-config-baseline\.sh[\s\S]*steps\.runtime-baseline\.outputs\.revision/,
   );
   assert.match(runtimeBaselineResolver, /RUNTIME_ENVIRONMENT=production-runtime-config/);
@@ -367,31 +371,48 @@ test("should_publishOnlyFullShaArm64ImagesToGhcr", () => {
     runtimeBaselineResolver,
     /payload\.runtimeConfigDigest[\s\S]*sha256:\[0-9a-f\]\{64\}/,
   );
-  assert.doesNotMatch(deployWorkflow, /:latest|:main/);
-  assert.doesNotMatch(deployWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
+  assert.doesNotMatch(releaseWorkflow, /:latest|:main/);
+  assert.doesNotMatch(releaseWorkflow, /Docker Hub|DOCKERHUB|setup-qemu/);
 });
 
-test("should_requireExplicitRepositoryGateBeforePublishingOrDeploying", () => {
-  assert.equal(
-    countMatches(
-      deployWorkflow,
-      /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/g,
-    ),
-    1,
+test("should_separateMainReleaseFromManualProductionDeployment", () => {
+  assert.match(
+    releaseWorkflow,
+    /^on:\n  push:\n    branches:\n      - main$/m,
+  );
+  assert.doesNotMatch(releaseWorkflow, /workflow_dispatch:/);
+  assert.match(
+    workflowJob(releaseWorkflow, "publish"),
+    /if: github\.ref == 'refs\/heads\/main'[\s\S]*Enforce build-once release attempt[\s\S]*GITHUB_RUN_ATTEMPT[\s\S]*!= 1/,
+  );
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /environment: production|tailscale\/github-action|Configure restricted SSH|deploy-cubing-hub-v2|record-runtime-config-baseline\.sh|MAC_MINI_DEPLOY_ENABLED/,
+  );
+
+  assert.match(deployWorkflow, /^on:\n  workflow_dispatch:/m);
+  assert.doesNotMatch(deployWorkflow, /\n  push:|docker\/build-push-action/);
+  assert.match(deployWorkflow, /release_sha:[\s\S]*required: true[\s\S]*release_run_id:/);
+  assert.match(
+    workflowJob(deployWorkflow, "validate-intent"),
+    /\.path == \$release_workflow[\s\S]*\.event == "push"[\s\S]*\.head_branch == "main"[\s\S]*\.head_sha == \$release_sha[\s\S]*\.conclusion == "success"[\s\S]*\.run_attempt == 1/,
+  );
+  assert.match(deployWorkflow, /git merge-base --is-ancestor/);
+  assert.match(deployWorkflow, /run-id: \$\{\{ inputs\.release_run_id \}\}/);
+  assert.match(deployWorkflow, /release-manifest\.sh \\\n+\s+validate/);
+  assert.match(
+    releaseWorkflow,
+    /concurrency:\n  group: cubing-hub-release\n  cancel-in-progress: false/,
   );
   assert.match(
-    workflowJob(deployWorkflow, "publish"),
-    /if: github\.ref == 'refs\/heads\/main' && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'/,
-  );
-  assert.match(
-    workflowJob(deployWorkflow, "deploy"),
-    /if: >-\n      github\.ref == 'refs\/heads\/main'\n      && vars\.MAC_MINI_DEPLOY_ENABLED == 'true'\n      && needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+    deployWorkflow,
+    /concurrency:\n  group: cubing-hub-production\n  cancel-in-progress: false/,
   );
 });
 
 test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", () => {
-  const publish = workflowJob(deployWorkflow, "publish");
-  const deploy = workflowJob(deployWorkflow, "deploy");
+  const publish = workflowJob(releaseWorkflow, "publish");
+  const validateIntent = workflowJob(deployWorkflow, "validate-intent");
 
   assert.match(
     publish,
@@ -407,13 +428,13 @@ test("should_publishMaintenanceRuntimeConfigWithoutStartingProductionDeploy", ()
   );
   assert.match(
     publish,
-    /Runtime config revision:[\s\S]*Runtime config digest:[\s\S]*Data-service maintenance:[\s\S]*Production deploy:/,
+    /Runtime config revision:[\s\S]*Runtime config digest:[\s\S]*Data-service maintenance required:[\s\S]*Production deploy: `not started`/,
   );
   assert.match(
-    deploy,
-    /needs\.publish\.outputs\.data_service_maintenance_required == 'false'/,
+    validateIntent,
+    /if \[\[ "\$\{actual_maintenance_required\}" == true \]\]; then[\s\S]*Release requires dedicated data-service maintenance/,
   );
-  assert.doesNotMatch(publish, /tailscale\/github-action|home-mini/);
+  assert.doesNotMatch(validateIntent, /tailscale\/github-action|home-mini/);
 });
 
 test("should_resolveRuntimeBaselineWithExplicitLegacyBootstrapAndPagination", () => {
@@ -437,8 +458,8 @@ test("should_resolveRuntimeBaselineWithExplicitLegacyBootstrapAndPagination", ()
   assert.match(runtimeBaselineResolver, /printf 'digest=%s\\n'/);
 });
 
-test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
-  const publish = workflowJob(deployWorkflow, "publish");
+test("should_notLetManualDeployBypassDataServiceMaintenance", () => {
+  const publish = workflowJob(releaseWorkflow, "publish");
   const runtimeDetection = publish.slice(
     publish.indexOf("- name: Detect runtime config changes"),
     publish.indexOf("- name: Detect data-service maintenance"),
@@ -448,16 +469,24 @@ test("should_notLetForcedRuntimeSyncBypassDataServiceMaintenance", () => {
     publish.indexOf("- name: Download backend jar"),
   );
 
-  assert.match(runtimeDetection, /FORCE_SYNC: \$\{\{ inputs\.sync_runtime_config \|\| false \}\}/);
-  assert.doesNotMatch(maintenanceDetection, /FORCE_SYNC|sync_runtime_config/);
+  assert.match(
+    runtimeDetection,
+    /detect-runtime-config-change\.sh \\\n+\s+"\$\{RUNTIME_BASELINE_SHA\}" \\\n+\s+"\$\{GITHUB_SHA\}" \\\n+\s+false/,
+  );
+  assert.doesNotMatch(releaseWorkflow + deployWorkflow, /sync_runtime_config|FORCE_SYNC/);
   assert.match(
     maintenanceDetection,
     /detect-data-service-maintenance\.sh[\s\S]*"\$\{RUNTIME_BASELINE_SHA\}"[\s\S]*"\$\{GITHUB_SHA\}"/,
   );
+  assert.match(
+    workflowJob(deployWorkflow, "validate-intent"),
+    /detect-data-service-maintenance\.sh[\s\S]*"\$\{actual_baseline_revision\}"[\s\S]*"\$\{RELEASE_SHA\}"[\s\S]*Release requires dedicated data-service maintenance/,
+  );
 });
 
 test("should_applyLeastPrivilegePermissionsPerJob", () => {
-  const publish = workflowJob(deployWorkflow, "publish");
+  const publish = workflowJob(releaseWorkflow, "publish");
+  const validateDeployIntent = workflowJob(deployWorkflow, "validate-intent");
   const deploy = workflowJob(deployWorkflow, "deploy");
   const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
   const validateIntent = workflowJob(reconcileWorkflow, "validate-intent");
@@ -475,6 +504,14 @@ test("should_applyLeastPrivilegePermissionsPerJob", () => {
   assert.match(publish, /deployments: read/);
   assert.match(publish, /packages: write/);
   assert.doesNotMatch(publish, /id-token: write/);
+
+  assert.match(validateDeployIntent, /actions: read/);
+  assert.match(validateDeployIntent, /contents: read/);
+  assert.match(validateDeployIntent, /deployments: read/);
+  assert.doesNotMatch(
+    validateDeployIntent,
+    /contents: write|deployments: write|id-token: write|packages: write|actions: write/,
+  );
 
   assert.match(deploy, /packages: read/);
   assert.match(deploy, /id-token: write/);
@@ -525,7 +562,7 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
   assert.match(deployWorkflow, /ping: home-mini/);
   assert.match(
     deployWorkflow,
-    /deploy_command="deploy-cubing-hub-v2 \$\{GITHUB_SHA\} keep \$\{GITHUB_ACTOR\}"/,
+    /deploy_command="deploy-cubing-hub-v2 \$\{RELEASE_SHA\} keep \$\{GITHUB_ACTOR\}"/,
   );
   assert.match(deployWorkflow, /StrictHostKeyChecking=yes/);
   assert.doesNotMatch(deployWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
@@ -535,6 +572,31 @@ test("should_useTailscaleOidcAndRestrictedSshForDeployment", () => {
     /inspection_command="inspect-cubing-hub-runtime \$\{EXPECTED_APPLICATION_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_REVISION\} \$\{EXPECTED_RUNTIME_CONFIG_DIGEST\} \$\{EXPECTED_DB_IMAGE\} \$\{EXPECTED_DB_VOLUME\} \$\{EXPECTED_MYSQL_VERSION\}"/,
   );
   assert.doesNotMatch(reconcileWorkflow, /ssh-keyscan|StrictHostKeyChecking=no/);
+});
+
+test("should_gateProductionCredentialAccessAfterReleasePreflight", () => {
+  const validateIntent = workflowJob(deployWorkflow, "validate-intent");
+  const deploy = workflowJob(deployWorkflow, "deploy");
+  const productionSecrets = [
+    "TS_OAUTH_CLIENT_ID",
+    "TS_AUDIENCE",
+    "HOME_MINI_SSH_KEY",
+    "HOME_MINI_KNOWN_HOSTS",
+  ];
+
+  assert.doesNotMatch(validateIntent, /^    environment:/m);
+  assert.doesNotMatch(
+    validateIntent,
+    /TS_OAUTH_CLIENT_ID|TS_AUDIENCE|HOME_MINI_SSH_KEY|HOME_MINI_KNOWN_HOSTS/,
+  );
+  assert.match(deploy, /^    needs:\n      - validate-intent$/m);
+  assert.match(deploy, /environment: production/);
+  assert.match(deploy, /Confirm deploy kill switch[\s\S]*MAC_MINI_DEPLOY_ENABLED/);
+
+  for (const secret of productionSecrets) {
+    assert.equal(countLiteral(deployWorkflow, `\${{ secrets.${secret} }}`), 1);
+    assert.match(deploy, new RegExp(`secrets\\.${secret}`));
+  }
 });
 
 test("should_gateRuntimeReconciliationApprovalBeforeProductionCredentialAccess", () => {
@@ -619,13 +681,9 @@ test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
   const recordRuntime = workflowJob(deployWorkflow, "record-runtime-baseline");
 
   assert.match(recordRuntime, /always\(\)/);
-  assert.match(recordRuntime, /needs\.publish\.result == 'success'/);
+  assert.match(recordRuntime, /needs\.validate-intent\.result == 'success'/);
   assert.match(recordRuntime, /needs\.deploy\.result == 'success'/);
   assert.match(recordRuntime, /runtime_config_mode == 'update'/);
-  assert.match(
-    recordRuntime,
-    /data_service_maintenance_required == 'false'/,
-  );
   assert.match(
     recordRuntime,
     /record-runtime-config-baseline\.sh \\\n+\s+normal-update/,
@@ -635,8 +693,22 @@ test("should_recordRuntimeBaselineOnlyAfterSafeRuntimeDeploySuccess", () => {
   assert.match(runtimeBaselineRecorder, /auto_merge: false/);
   assert.match(runtimeBaselineRecorder, /state: "success"/);
   assert.doesNotMatch(
-    workflowJob(deployWorkflow, "publish"),
+    workflowJob(releaseWorkflow, "publish"),
     /record-runtime-config-baseline\.sh/,
+  );
+});
+
+test("should_validateDeterministicReleaseManifestWithoutExecutingIt", () => {
+  assert.match(releaseManifest, /manifest_version \\\n+[\s\S]*repository \\\n+[\s\S]*release_revision/);
+  assert.match(releaseManifest, /actual_keys.*expected_keys/s);
+  assert.match(releaseManifest, /API image revision does not match/);
+  assert.match(releaseManifest, /Web image revision does not match/);
+  assert.match(releaseManifest, /keep mode must not claim a newly published runtime config/);
+  assert.match(releaseManifest, /data-service maintenance requires a runtime config artifact/);
+  assert.doesNotMatch(releaseManifest, /\beval\s+|^\s*(?:source|\.)\s+/m);
+  assert.match(
+    releaseWorkflow,
+    /release-manifest-\$\{\{ github\.sha \}\}-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
   );
 });
 
@@ -686,6 +758,7 @@ test("should_pinEveryExternalActionToFullCommitSha", () => {
 
   for (const workflow of [
     validateWorkflow,
+    releaseWorkflow,
     deployWorkflow,
     reconcileWorkflow,
     benchmarkWorkflow,
@@ -705,7 +778,7 @@ test("should_pinEveryExternalActionToFullCommitSha", () => {
 });
 
 test("should_haveNoActiveAwsEc2OrSelfHostedDeploymentPath", () => {
-  const activeWorkflows = validateWorkflow + deployWorkflow;
+  const activeWorkflows = validateWorkflow + releaseWorkflow + deployWorkflow;
   assert.doesNotMatch(
     activeWorkflows,
     /AWS_|aws-actions|amazon|CloudFront|S3_BUCKET|EC2_|self-hosted|Docker Hub|DOCKERHUB/,

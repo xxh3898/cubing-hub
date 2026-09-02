@@ -39,6 +39,8 @@ repository Compose에는 MySQL 8.4.11 LTS, Redis 7.2.14, API, Web이 정의돼 �
 GitHub deployment environment는 application deployment와 runtime-config
 baseline의 책임을 분리한다.
 
+`release.yml`은 GitHub deployment environment를 사용하지 않고 immutable artifact와 manifest 발행 후 종료한다. `deploy.yml`의 exact Release preflight도 environment와 Production credential 없이 수행하며, 이를 통과한 deploy job만 `production` environment를 참조한다. Required reviewer 등 live protection은 repository source와 별도 evidence이며 설정 확인 전에는 강제 상태로 간주하지 않는다.
+
 | GitHub environment | 역할 | Reconciliation 책임 |
 | --- | --- | --- |
 | `production` | API/Web application deployment history와 기존 Tailscale·SSH credential scope | Approval 뒤 read-only inspection job이 `deployment: false`로 참조 |
