@@ -1,0 +1,123 @@
+name: Platform Profile Report
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-profile-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profile-report:
+    name: Project profile report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Cubing Hub
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify validator runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby --version
+          ruby -e 'require "yaml"; puts "psych=#{Psych::VERSION}"'
+
+      - name: Report open adoption gaps
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY' >> "${GITHUB_STEP_SUMMARY}"
+          require "yaml"
+
+          profile = YAML.safe_load(
+            File.read(".ops/project.yaml"),
+            permitted_classes: [],
+            aliases: false
+          )
+          gaps = Array(profile["adoptionGaps"]).select do |gap|
+            gap.is_a?(Hash) && gap["status"] == "OPEN"
+          end
+          safe = lambda do |value|
+            value.to_s.gsub(/[[:cntrl:]]+/, " ").strip
+          end
+
+          puts "## Open adoption gaps"
+          puts
+          puts "- Count: #{gaps.length}"
+          gaps.each do |gap|
+            puts(
+              "- ID=#{safe.call(gap["id"])} / " \
+              "control=#{safe.call(gap["controlId"])} — " \
+              "#{safe.call(gap["reason"])}"
+            )
+          end
+          RUBY
+
+      - name: Checkout exact Platform Golden Path authority
+        id: central-checkout
+        continue-on-error: true
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: xxh3898/platform-golden-path
+          ref: c4e27ac149d39b2572fd5649662b3380883c7357
+          path: .platform-golden-path
+          # PR head code에는 cross-repository credential을 제공하지 않는다.
+          token: ${{ github.event_name == 'pull_request' && github.token || secrets.PLATFORM_GOLDEN_PATH_READ_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Report unavailable central authority
+        if: steps.central-checkout.outcome != 'success'
+        shell: bash
+        run: |
+          echo "::warning title=Platform profile EVIDENCE_GAP::Private central authority checkout was unavailable; the profile validator did not run."
+          cat >> "${GITHUB_STEP_SUMMARY}" <<'EOF'
+          ## Platform profile report
+
+          - Result: EVIDENCE_GAP
+          - Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`
+          - Validator: NOT_RUN
+          - Enforcement: report-only
+          - Follow-up: provide an approved read-only central repository credential or GitHub App access.
+          EOF
+
+      - name: Verify exact central authority
+        if: steps.central-checkout.outcome == 'success'
+        shell: bash
+        run: |
+          expected_revision="c4e27ac149d39b2572fd5649662b3380883c7357"
+          actual_revision="$(git -C .platform-golden-path rev-parse HEAD)"
+          test "${actual_revision}" = "${expected_revision}"
+
+      - name: Validate project profile
+        if: steps.central-checkout.outcome == 'success'
+        shell: bash
+        run: |
+          ruby .platform-golden-path/scripts/validate_project_profile.rb \
+            --profile .ops/project.yaml
+
+      - name: Report validator success
+        if: steps.central-checkout.outcome == 'success'
+        shell: bash
+        run: |
+          cat >> "${GITHUB_STEP_SUMMARY}" <<'EOF'
+          ## Platform profile report
+
+          - Result: PASS
+          - Central revision: `c4e27ac149d39b2572fd5649662b3380883c7357`
+          - Profile: `.ops/project.yaml`
+          - Enforcement: report-only
+          EOF

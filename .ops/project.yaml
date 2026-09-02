@@ -1,0 +1,493 @@
+# Cubing Hub가 상속할 Platform Golden Path project contract다.
+# 이 파일에는 실제 secret, credential value, private endpoint와 PII를 기록하지 않는다.
+# adoptionStatus=MIGRATING이므로 목표 계약과 현재 구현의 차이는 adoptionGaps에서 추적한다.
+apiVersion: "platform.homeserver/v1alpha1"
+kind: "ProjectOperationsContract"
+
+project:
+  id: "cubing-hub"
+  lifecycle: "ACTIVE"
+  owners:
+    repository: "role:repository-owner"
+    release: "role:release-approver"
+    deployment: "role:deployment-approver"
+    data: "role:data-owner"
+    security: "role:security-owner"
+    incident: "role:incident-owner"
+  review:
+    lastReviewedOn: "2026-09-02"
+    nextReviewOn: "2026-12-01"
+
+standard:
+  standardVersion: "1.0.0"
+  schemaVersion: "1.0.0-rc.1"
+  minimumCompatibleStandardVersion: "1.0.0-rc.1"
+  centralContractRevision: "c4e27ac149d39b2572fd5649662b3380883c7357"
+  adoptionStatus: "MIGRATING"
+  targetStandardVersion: "1.0.0"
+  enforcementMode: "report"
+
+classification:
+  tier: 3
+  targetTier: 3
+  tierDecisionStatus: "CONFIRMED"
+  controlPlane: false
+  stateful: true
+  dataSensitivity: "private-authentication-and-user-content"
+  dataLossImpact: "account-record-community-content-and-media-loss"
+  externalUsers: true
+  auditability: "privacy-deletion-and-release-trace-required"
+  restoreComplexity: "mysql-files-redis-impact-and-offsite-key"
+  evidenceRef: "docs/03-architecture/storage-architecture.md"
+  controlPlaneProfile:
+    applicability: "not_applicable"
+    reason: "classification.controlPlane=false"
+    managedScopes: []
+    mutationCapabilities: []
+    dependentServiceImpactAssessmentRef: null
+    configurationBackupRef: null
+    auditEvidenceRef: null
+    credentialRecoveryRef: null
+    dependencyGraphRef: null
+    bootstrapOrderRef: null
+    degradedFallbackRef: null
+    strongerRecoveryRequired: false
+    independentMonitoringRequired: false
+
+source:
+  repository:
+    provider: "github"
+    slug: "xxh3898/cubing-hub"
+    contractPath: ".ops/project.yaml"
+  branches:
+    integration: "dev"
+    release: "main"
+    directPushAllowed: false
+    featurePatterns:
+      - "feature/*"
+      - "feat/*"
+      - "fix/*"
+      - "docs/*"
+      - "chore/*"
+    hotfixPattern: "hotfix/*"
+    hotfix:
+      enabledByDefault: false
+      activeExceptionRequired: true
+      releaseBacksyncRequired: true
+    mergeModes:
+      taskToIntegration: "squash"
+      integrationToRelease: "merge_commit"
+      releaseBacksync: "merge_commit"
+    protectionEvidence: "VERIFIED_PARTIAL_2026-09-02"
+
+gates:
+  registryVersion: "1.0.0"
+  applicability:
+    G0:
+      mode: "required"
+    G1:
+      mode: "required"
+    G2:
+      mode: "required"
+    G3:
+      mode: "required"
+    G4:
+      mode: "required"
+    G5:
+      mode: "required"
+    G6:
+      mode: "required"
+    G7:
+      mode: "required"
+    G8:
+      mode: "required"
+
+ci:
+  workflows:
+    validation: ".github/workflows/platform-profile.yml"
+  requiredChecks:
+    - "Backend checks"
+    - "Frontend checks"
+    - "Infrastructure checks"
+    - "API ARM64 image"
+    - "Web ARM64 image"
+    - "Project profile report"
+  triggers:
+    pullRequestToIntegration: true
+    pullRequestToRelease: true
+    pushToIntegration: true
+  thirdPartyActionsPinnedByCommit: true
+  secretScanRequired: true
+  contractValidationRequired: true
+  liveRequiredCheckEvidence: "PARTIAL_MAIN_ONLY_2026-09-02"
+
+release:
+  releaseBranch: "main"
+  workflow: ".github/workflows/deploy.yml"
+  sourceAuthority: "exact-release-commit"
+  releaseMergeMode: "merge_commit"
+  deploymentAuthorityCoupled: false
+  backsyncRequired: true
+  artifact:
+    immutable: true
+    exactRevisionRequired: true
+    buildOnce: true
+    rebuildDuringDeploymentAllowed: false
+    provenanceRequired: true
+    sbomRequired: true
+    artifacts:
+      - role: "api"
+        buildWorkflow: ".github/workflows/deploy.yml"
+        referenceType: "oci_digest"
+        architectures:
+          - "linux/arm64"
+        revisionMetadata: "org.opencontainers.image.revision"
+        retentionGenerations: 3
+      - role: "web"
+        buildWorkflow: ".github/workflows/deploy.yml"
+        referenceType: "oci_digest"
+        architectures:
+          - "linux/arm64"
+        revisionMetadata: "org.opencontainers.image.revision"
+        retentionGenerations: 3
+      - role: "runtime-configuration"
+        buildWorkflow: ".github/workflows/deploy.yml"
+        referenceType: "oci_digest"
+        architectures:
+          - "platform-independent"
+        revisionMetadata: "org.opencontainers.image.revision"
+        retentionGenerations: 3
+
+runtime:
+  type: "container"
+  architectures:
+    - "linux/arm64"
+  units:
+    - id: "api"
+      artifactRole: "api"
+      stateClass: "stateless-process"
+    - id: "web"
+      artifactRole: "web"
+      stateClass: "stateless-process"
+    - id: "runtime-configuration"
+      artifactRole: "runtime-configuration"
+      stateClass: "immutable-configuration"
+  configurationArtifactRole: "runtime-configuration"
+
+deployment:
+  applicability: "required"
+  environment: "production"
+  workflow: ".github/workflows/deploy.yml"
+  transactionModel: "DEP-001@1.0.0"
+  target:
+    hostClass: "mac-mini"
+    failureDomain: "primary-home-host"
+    runtimeType: "docker-compose"
+    composeProject: "cubing-hub"
+    composePath: "homeserver/docker-compose.yml"
+    ingressClass: "shared-cloudflare-tunnel"
+  strategy:
+    type: "exact-revision-and-config-digest-compose-cutover"
+    rebuildOnTargetAllowed: false
+    mutableTagAuthorityAllowed: false
+  authority:
+    mode: "automated"
+    protectedApprovalRequired: true
+    operatorRole: "role:deployment-operator"
+    automationIdentityClass: "restricted-non-interactive"
+    arbitraryShellAllowed: false
+    approvalTtlMinutes: 60
+  concurrency:
+    exclusive: true
+    lockScope: "cubing-hub-production"
+    sharedOperationTypes:
+      - "deploy"
+      - "backup"
+      - "restore"
+      - "migration"
+    lockPath: "production-app-root/.cubing-hub-operation.lock"
+    staleLockAutomaticRemovalAllowed: false
+  idempotency:
+    operationIdRequired: true
+    requestFingerprintRequired: true
+    replayBehavior: "reconcile-only"
+    automaticMutationRetryAllowed: false
+  health:
+    livenessRef: "docs/07-operations/observability.md#repository에서-확인된-구성"
+    timeoutSeconds: 240
+  readiness:
+    readinessRef: "docs/07-operations/deployment-runbook.md#완료-기준"
+    representativeSmokeRef: "homeserver/docs/home-server-runbook.md#수동-상태-확인"
+    runtimeRevisionRequired: true
+    observationWindowMinutes: 15
+  acceptance:
+    dataInvariantRef: "docs/07-operations/backup-restore.md#backup-unit"
+    monitoringPathReadinessRequired: true
+    durableStateMatchRequired: true
+    postCommitObservationRequired: true
+    reporterFailurePolicy: "acceptance-incomplete"
+  durableState:
+    schema: "cubing-hub-runtime-config-state-v2"
+    current: "production-app-root/runtime-config/current"
+    previous: "production-app-root/runtime-config/state"
+    operationDirectory: "production-app-root/runtime-config/releases"
+    secretValuesAllowed: false
+  pendingState:
+    required: true
+    path: "production-app-root/runtime-config/pending"
+    createdAfterVerifiedBackup: true
+    automaticClearOnFailureAllowed: false
+  cleanup:
+    exactManifestRequired: true
+    successCleanupRequired: true
+    failureCleanupRequired: true
+    broadPruneAllowed: false
+  rollback:
+    previousApplicationRequired: true
+    previousConfigurationRequired: true
+    schemaCompatibilityRequired: true
+    databaseRollbackAssumed: false
+    runbook: "platform:runbooks/rollback"
+    projectProcedureRef: "docs/07-operations/deployment-runbook.md#중단과-rollback"
+  recovery:
+    ambiguousFailureRequiresReconciliation: true
+    blocksNewDeploymentWhilePending: true
+    runbook: "platform:runbooks/recover-failed-deploy"
+    projectProcedureRef: "homeserver/docs/home-server-runbook.md#중단된-runtime-config-transaction-복구"
+
+database:
+  applicability: "required"
+  engine: "mysql"
+  versionMajor: "8"
+  stateful: true
+  stores:
+    - id: "primary-database"
+      type: "mysql"
+      durable: true
+      dataClass: "accounts-records-community-and-feedback"
+    - id: "post-images"
+      type: "filesystem"
+      durable: true
+      dataClass: "user-uploaded-content"
+    - id: "session-and-derived-state"
+      type: "redis"
+      durable: false
+      dataClass: "authentication-session-and-derived-ranking-state"
+  migration:
+    applicability: "required"
+    authorityMode: "automated-one-shot-before-cutover"
+    artifactRole: "api"
+    path: "backend/src/main/resources/db/migration"
+    compatibilityPolicy: "expand-and-contract"
+    writerQuiesce: "when-required-by-change-class"
+    reverseMigrationAssumed: false
+
+backup:
+  applicability: "required"
+  enabled: true
+  toolRef: "docs/07-operations/backup-restore.md"
+  frequency:
+    scheduleClass: "six-hourly"
+    maximumIntervalHours: 6
+    maximumVerifiedAgeHours: 6
+  retention:
+    minimumVerifiedLocalCopies: 3
+    daily: 14
+    weekly: 8
+    monthly: 6
+    deletionRequiresSeparateApproval: true
+  predeploy:
+    defaultMode: "fresh_existing"
+    migrationMode: "new_required"
+    dataSensitiveMode: "new_required"
+  verification:
+    checksum: "sha256"
+    semanticVerificationRequired: true
+    manifestRequired: true
+    successMarkerLast: true
+    requiredLocalState: "BACKUP_VERIFIED"
+  offsite:
+    required: true
+    encryptionRequired: true
+    independentFailureDomainRequired: true
+    targetClass: "encrypted-icloud-drive"
+    requiredState: "OFFSITE_VERIFIED"
+    maximumVerifiedAgeHours: 6
+    providerNeutralFormat: "mysql-logical-and-file-manifest"
+    retrievalToolRef: "homeserver/docs/db-backup-restore.md#ageicloud와-heartbeat"
+    retrievalToolVersionPolicy: "pinned"
+    alternateDestinationClass: "second-independent-destination"
+    expectedEgressClass: "documented"
+  restoreDrill:
+    required: true
+    cadence: "quarterly"
+    mode: "isolated-full"
+    requiredState: "RESTORE_VERIFIED"
+    evidenceMaximumAgeDays: 92
+  objectives:
+    rpoHours: 6
+    offsiteRpoHours: 6
+    rtoHours: 4
+
+credentials:
+  secretValuesAllowed: false
+  sourcePolicy:
+    approvedTypes:
+      - "protected-environment"
+      - "workload-identity"
+      - "approved-host-secret-store"
+    references:
+      - purpose: "artifact-publish-and-deployment"
+        type: "protected-environment"
+        name: "github-production-environment"
+      - purpose: "production-runtime"
+        type: "approved-host-secret-store"
+        name: "production-runtime-secret-store"
+      - purpose: "backup-encryption"
+        type: "approved-host-secret-store"
+        name: "backup-encryption-recipient"
+  headless:
+    required: true
+    guiAllowed: false
+    interactivePromptAllowed: false
+    macosKeychainInteractionAllowed: false
+    ambientDockerConfigAllowed: false
+    developerLoginStateAllowed: false
+  transmission:
+    argvAllowed: false
+    logAllowed: false
+    durableStateAllowed: false
+    broadEnvironmentAllowed: false
+    preferredMode: "stdin-or-dedicated-file-descriptor"
+  ephemeralMaterial:
+    allowed: true
+    ownerOnly: true
+    directoryMode: "0700"
+    fileMode: "0600"
+    maximumLifetimeMinutes: 15
+    successCleanupRequired: true
+    failureCleanupRequired: true
+    zeroization: "best-effort-where-practical"
+  recovery:
+    runbook: "platform:06-operations/disaster-recovery#credential-loss"
+    projectProcedureRef: "docs/07-operations/disaster-recovery.md#시나리오"
+    revokeOnCompromiseRequired: true
+
+monitoring:
+  health:
+    ownerRole: "role:service-owner"
+    livenessRequired: true
+    readinessRequired: true
+    runtimeRevisionRequired: true
+    stateDriftAlertRequired: true
+  alerting:
+    incidentOwnerRole: "role:incident-owner"
+    notificationRouteEvidence: "UNKNOWN"
+    externalProbeRequired: true
+    independentFailureDomainRequired: true
+  backupSignals:
+    - "BACKUP_VERIFIED"
+    - "OFFSITE_VERIFIED"
+    - "RESTORE_VERIFIED"
+  terminalEvents:
+    - "deployment"
+    - "backup"
+    - "restore"
+    - "migration"
+
+disasterRecovery:
+  hostLoss:
+    applicability: "required"
+    runbook: "platform:runbooks/disaster-recovery"
+    projectProcedureRef: "docs/07-operations/disaster-recovery.md#시나리오"
+    rehearsalCadence: "annual"
+  freshHostBootstrap:
+    applicability: "required"
+    runbook: "platform:runbooks/fresh-host-bootstrap"
+    projectProcedureRef: "homeserver/docs/mac-mini-server-setup.md"
+    oldHostDependencyAllowed: false
+  credentialRecovery:
+    applicability: "required"
+    runbook: "platform:06-operations/disaster-recovery#credential-loss"
+    projectProcedureRef: "docs/07-operations/disaster-recovery.md#시나리오"
+    actualCredentialValuesDocumented: false
+  offsiteRecovery:
+    applicability: "required"
+    runbook: "platform:runbooks/disaster-recovery"
+    projectProcedureRef: "homeserver/docs/db-backup-restore.md#복구-rehearsal"
+    freshRetrievalRequired: true
+  controlPlaneRecovery:
+    applicability: "not_applicable"
+    reason: "classification.controlPlane=false"
+
+evidence:
+  checkedAt: "2026-09-02"
+  repositoryImplementation: "MAPPED_AT_e6ae4ebe6f0055368ab9869defa0164341ca5fce"
+  githubBranchProtection: "VERIFIED_PARTIAL_2026-09-02"
+  githubEnvironmentProtection: "VERIFIED_PARTIAL_2026-09-02"
+  productionRuntime: "VERIFIED_EXACT_REVISION_HEALTHY_2026-09-02"
+  scheduledBackup: "VERIFIED_SIX_HOURLY_2026-09-02"
+  latestBackup: "BACKUP_VERIFIED_2026-09-01T21:05:02Z"
+  offsiteState: "PRESENT_NOT_OFFSITE_VERIFIED_2026-09-02"
+  restoreEvidence: "UNKNOWN"
+
+adoptionGaps:
+  - id: "CUBING-HUB-G2-001"
+    controlId: "G2"
+    status: "OPEN"
+    reason: "private central repository access is unavailable to current Hosted CI, so exact central validation remains report-only and may be unexecuted"
+    ownerRole: "role:repository-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-G2-002"
+    controlId: "G2"
+    status: "OPEN"
+    reason: "dev does not require the project profile check and a repository secret scan is not currently evidenced"
+    ownerRole: "role:repository-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-G3-001"
+    controlId: "G3"
+    status: "OPEN"
+    reason: "task-to-dev squash and review authority are not consistently enforced by live branch protection"
+    ownerRole: "role:repository-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-G4-001"
+    controlId: "G4"
+    status: "OPEN"
+    reason: "artifact release and Production deployment remain coupled to one main-push workflow and the production environment lacks a live reviewer rule"
+    ownerRole: "role:release-approver"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-G5-001"
+    controlId: "G5"
+    status: "OPEN"
+    reason: "Tier 3 artifact SBOM generation and retained provenance evidence are not currently verified"
+    ownerRole: "role:release-approver"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-BAK-001"
+    controlId: "BAK-002"
+    status: "OPEN"
+    reason: "current retention is below the Tier 3 daily-weekly-monthly target, deletion propagation remains undecided, and offsite independent delivery evidence is incomplete"
+    ownerRole: "role:data-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-DR-001"
+    controlId: "DR-004"
+    status: "OPEN"
+    reason: "isolated full restore drill and fresh-host credential recovery evidence are UNKNOWN"
+    ownerRole: "role:incident-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+  - id: "CUBING-HUB-G8-001"
+    controlId: "G8"
+    status: "OPEN"
+    reason: "live alert delivery and independent monitoring failure-domain evidence are UNKNOWN"
+    ownerRole: "role:incident-owner"
+    targetResolutionOn: "DECISION_REQUIRED"
+    issueRef: "https://github.com/xxh3898/cubing-hub/issues/56"
+
+# 승인된 exception은 없다. adoption gap을 exception으로 우회하지 않는다.
+exceptions: []
