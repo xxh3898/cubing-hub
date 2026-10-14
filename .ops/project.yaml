@@ -19,12 +19,12 @@ project:
     nextReviewOn: "2026-12-01"
 
 standard:
-  standardVersion: "1.0.0"
-  schemaVersion: "1.0.0-rc.1"
-  minimumCompatibleStandardVersion: "1.0.0-rc.1"
-  centralContractRevision: "c4e27ac149d39b2572fd5649662b3380883c7357"
+  standardVersion: "1.2.1"
+  schemaVersion: "1.2.0-rc.1"
+  minimumCompatibleStandardVersion: "1.2.0-rc.1"
+  centralContractRevision: "851b9066cc42e6a5cc1bc808d0ff9be40e4b8a7c"
   adoptionStatus: "MIGRATING"
-  targetStandardVersion: "1.0.0"
+  targetStandardVersion: "1.2.1"
   enforcementMode: "report"
 
 classification:
@@ -254,6 +254,40 @@ deployment:
     blocksNewDeploymentWhilePending: true
     runbook: "platform:runbooks/recover-failed-deploy"
     projectProcedureRef: "homeserver/docs/home-server-runbook.md#중단된-runtime-config-transaction-복구"
+
+# Desired legacy policy와 evidence gateway이며 실제 Production acceptance가 아니다.
+productionLifecycle:
+  applicability: "required"
+  onboardingMode: "legacy_reconstruction"
+  reason: "existing-production-evidence-reconstruction"
+  firstActivation:
+    expectedCurrentState: "present"
+    expectedPreviousState: "unknown"
+    dataState:
+      expected: "unknown"
+      evidenceRef: "docs/07-operations/golden-path-adoption.md#data-state"
+    predecessorArtifact:
+      applicability: "required"
+      reason: "existing-production-release"
+    predeployBackup:
+      mode: "fresh_existing"
+      reason: "stateful-legacy-production"
+      evidenceRef: "docs/07-operations/golden-path-adoption.md#backup-baseline"
+    failureHandling: "reconcile_only"
+  steadyState:
+    automationDesiredDefault: "disabled"
+    activationAuthority: "separate_approval_after_first_g8"
+    activationEvidenceRef: "docs/07-operations/golden-path-adoption.md#steady-state-activation"
+  evidenceRefs:
+    lifecycleState: "docs/07-operations/golden-path-adoption.md#lifecycle-state"
+    durableCurrent: "docs/07-operations/golden-path-adoption.md#durable-current"
+    durablePrevious: "docs/07-operations/golden-path-adoption.md#durable-previous"
+    backupBaseline: "docs/07-operations/golden-path-adoption.md#backup-baseline"
+    monitoringAcceptance: "docs/07-operations/golden-path-adoption.md#monitoring-acceptance"
+    runtimeInventory: "docs/07-operations/golden-path-adoption.md#runtime-inventory"
+    operatorSecurityBootstrap: "docs/07-operations/golden-path-adoption.md#operator-security-bootstrap"
+    ingressIdentity: "docs/07-operations/golden-path-adoption.md#ingress-identity"
+    automationActualState: "docs/07-operations/golden-path-adoption.md#automation-actual-state"
 
 database:
   applicability: "required"
